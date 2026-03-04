@@ -169,10 +169,110 @@ const artifacts = [
     thread_id: "thread-onboarding",
     summary: "Draft onboarding policy",
     refs: ["thread:thread-onboarding"],
+    content_type: "text/markdown",
+    content_text: `# Onboarding Policy Draft
+
+- Scope: enterprise onboarding
+- Pending legal signoff
+- Exception path under review`,
     created_at: "2026-03-03T07:30:00.000Z",
     created_by: "actor-policy-owner",
     provenance: {
       sources: ["actor_statement:event-1001"],
+    },
+  },
+  {
+    id: "artifact-work-order-seed",
+    kind: "work_order",
+    thread_id: "thread-onboarding",
+    summary: "Seed work order for timeline and artifact browser coverage",
+    refs: ["thread:thread-onboarding"],
+    created_at: "2026-03-03T07:40:00.000Z",
+    created_by: "actor-policy-owner",
+    provenance: {
+      sources: ["actor_statement:event-1001"],
+    },
+    packet: {
+      work_order_id: "artifact-work-order-seed",
+      thread_id: "thread-onboarding",
+      objective: "Finalize onboarding exception handling process.",
+      constraints: ["No schema changes", "Preserve auditability"],
+      context_refs: [
+        "thread:thread-onboarding",
+        "artifact:artifact-policy-draft",
+      ],
+      acceptance_criteria: [
+        "Escalation path approved",
+        "Policy handoff checklist updated",
+      ],
+      definition_of_done: [
+        "Review feedback resolved",
+        "Updated docs linked in thread",
+      ],
+    },
+  },
+  {
+    id: "artifact-receipt-seed",
+    kind: "receipt",
+    thread_id: "thread-onboarding",
+    summary: "Seed receipt showing completed onboarding updates",
+    refs: ["thread:thread-onboarding", "artifact:artifact-work-order-seed"],
+    created_at: "2026-03-03T07:50:00.000Z",
+    created_by: "actor-policy-owner",
+    provenance: {
+      sources: ["actor_statement:event-1003"],
+    },
+    packet: {
+      receipt_id: "artifact-receipt-seed",
+      work_order_id: "artifact-work-order-seed",
+      thread_id: "thread-onboarding",
+      outputs: ["artifact:artifact-policy-draft"],
+      verification_evidence: ["event:evt-1003"],
+      changes_summary: "Policy exceptions drafted and reviewed.",
+      known_gaps: ["Awaiting final legal signature"],
+    },
+  },
+  {
+    id: "artifact-review-seed",
+    kind: "review",
+    thread_id: "thread-onboarding",
+    summary: "Seed review packet for receipt validation",
+    refs: [
+      "thread:thread-onboarding",
+      "artifact:artifact-receipt-seed",
+      "artifact:artifact-work-order-seed",
+    ],
+    created_at: "2026-03-03T08:05:00.000Z",
+    created_by: "actor-policy-owner",
+    provenance: {
+      sources: ["actor_statement:event-1003"],
+    },
+    packet: {
+      review_id: "artifact-review-seed",
+      work_order_id: "artifact-work-order-seed",
+      receipt_id: "artifact-receipt-seed",
+      outcome: "accept",
+      notes: "Looks complete aside from final legal signature.",
+      evidence_refs: ["artifact:artifact-policy-draft"],
+    },
+  },
+  {
+    id: "artifact-log-seed",
+    kind: "log",
+    thread_id: "thread-incident-42",
+    summary: "Plain text execution log sample",
+    refs: [
+      "thread:thread-incident-42",
+      "url:https://example.com/logs/incident-42",
+    ],
+    content_type: "text/plain",
+    content_text: `2026-03-03T10:00:00Z Starting follow-up run
+2026-03-03T10:01:10Z Provider API timeout
+2026-03-03T10:02:45Z Retry succeeded`,
+    created_at: "2026-03-03T07:30:00.000Z",
+    created_by: "actor-integrations",
+    provenance: {
+      sources: ["inferred"],
     },
   },
 ];
@@ -739,6 +839,16 @@ export function getMockArtifactContent(artifactId) {
   const artifact = getMockArtifact(artifactId);
   if (!artifact) {
     return null;
+  }
+
+  if (
+    String(artifact.content_type ?? "").startsWith("text/") &&
+    typeof artifact.content_text === "string"
+  ) {
+    return {
+      contentType: artifact.content_type,
+      content: artifact.content_text,
+    };
   }
 
   if (artifact.packet) {

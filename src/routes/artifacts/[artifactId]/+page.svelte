@@ -11,6 +11,7 @@
   $: artifactId = $page.params.artifactId;
   let artifact = null;
   let artifactContent = null;
+  let artifactContentType = "";
   let loading = false;
   let loadError = "";
   let loadedArtifactId = "";
@@ -30,11 +31,33 @@
 
   $: receiptPacket =
     artifact?.kind === "receipt" &&
+    artifactContentType.includes("application/json") &&
     artifactContent &&
     typeof artifactContent === "object" &&
     !Array.isArray(artifactContent)
       ? artifactContent
       : null;
+  $: workOrderPacket =
+    artifact?.kind === "work_order" &&
+    artifactContentType.includes("application/json") &&
+    artifactContent &&
+    typeof artifactContent === "object" &&
+    !Array.isArray(artifactContent)
+      ? artifactContent
+      : null;
+  $: reviewPacket =
+    artifact?.kind === "review" &&
+    artifactContentType.includes("application/json") &&
+    artifactContent &&
+    typeof artifactContent === "object" &&
+    !Array.isArray(artifactContent)
+      ? artifactContent
+      : null;
+  $: textContent =
+    artifactContentType.startsWith("text/") &&
+    typeof artifactContent === "string"
+      ? artifactContent
+      : "";
   $: timelineView = toTimelineView(threadTimeline, {
     threadId: artifact?.thread_id ?? "",
   });
@@ -141,12 +164,14 @@
       if (!artifact) {
         loadError = "Artifact not found.";
         artifactContent = null;
+        artifactContentType = "";
         return;
       }
 
       const contentResponse =
         await coreClient.getArtifactContent(targetArtifactId);
       artifactContent = contentResponse.content ?? null;
+      artifactContentType = contentResponse.contentType ?? "";
       reviewDraft = blankReviewDraft();
       reviewErrors = [];
       reviewNotice = "";
@@ -164,6 +189,7 @@
       loadError = `Failed to load artifact: ${reason}`;
       artifact = null;
       artifactContent = null;
+      artifactContentType = "";
       threadTimeline = [];
       timelineError = "";
     } finally {
@@ -205,6 +231,99 @@
     <div class="mt-3">
       <ProvenanceBadge provenance={artifact.provenance ?? { sources: [] }} />
     </div>
+
+    {#if workOrderPacket}
+      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <h2
+          class="text-sm font-semibold uppercase tracking-wide text-slate-600"
+        >
+          Work Order Packet
+        </h2>
+        <p class="mt-2 text-xs text-slate-600">
+          work_order_id: {workOrderPacket.work_order_id}
+        </p>
+        <p class="mt-1 text-xs text-slate-600">
+          thread_id:
+          <RefLink
+            refValue={`thread:${workOrderPacket.thread_id}`}
+            threadId={workOrderPacket.thread_id}
+          />
+        </p>
+        <p class="mt-3 text-sm text-slate-800">
+          {workOrderPacket.objective || "No objective"}
+        </p>
+
+        <div class="mt-3">
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          >
+            Constraints
+          </p>
+          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
+            {#if (workOrderPacket.constraints ?? []).length === 0}
+              <li>none</li>
+            {:else}
+              {#each workOrderPacket.constraints ?? [] as item}
+                <li>{item}</li>
+              {/each}
+            {/if}
+          </ul>
+        </div>
+
+        <div class="mt-3">
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          >
+            Context Refs
+          </p>
+          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
+            {#if (workOrderPacket.context_refs ?? []).length === 0}
+              <li>none</li>
+            {:else}
+              {#each workOrderPacket.context_refs ?? [] as refValue}
+                <li>
+                  <RefLink {refValue} threadId={workOrderPacket.thread_id} />
+                </li>
+              {/each}
+            {/if}
+          </ul>
+        </div>
+
+        <div class="mt-3">
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          >
+            Acceptance Criteria
+          </p>
+          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
+            {#if (workOrderPacket.acceptance_criteria ?? []).length === 0}
+              <li>none</li>
+            {:else}
+              {#each workOrderPacket.acceptance_criteria ?? [] as item}
+                <li>{item}</li>
+              {/each}
+            {/if}
+          </ul>
+        </div>
+
+        <div class="mt-3">
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          >
+            Definition Of Done
+          </p>
+          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
+            {#if (workOrderPacket.definition_of_done ?? []).length === 0}
+              <li>none</li>
+            {:else}
+              {#each workOrderPacket.definition_of_done ?? [] as item}
+                <li>{item}</li>
+              {/each}
+            {/if}
+          </ul>
+        </div>
+      </div>
+    {/if}
 
     {#if receiptPacket}
       <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -442,6 +561,82 @@
             </ul>
           {/if}
         </div>
+      </div>
+    {/if}
+
+    {#if reviewPacket}
+      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <h2
+          class="text-sm font-semibold uppercase tracking-wide text-slate-600"
+        >
+          Review Packet
+        </h2>
+        <p class="mt-2 text-xs text-slate-600">
+          review_id: {reviewPacket.review_id}
+        </p>
+        <p class="mt-1 text-xs text-slate-600">
+          outcome:
+          <span class="font-semibold text-slate-700"
+            >{reviewPacket.outcome}</span
+          >
+        </p>
+        <p class="mt-1 text-xs text-slate-600">
+          receipt_id:
+          <RefLink
+            refValue={`artifact:${reviewPacket.receipt_id}`}
+            threadId={artifact.thread_id}
+          />
+        </p>
+        <p class="mt-1 text-xs text-slate-600">
+          work_order_id:
+          <RefLink
+            refValue={`artifact:${reviewPacket.work_order_id}`}
+            threadId={artifact.thread_id}
+          />
+        </p>
+
+        <div class="mt-3">
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          >
+            Notes
+          </p>
+          <p class="mt-1 text-sm text-slate-700">
+            {reviewPacket.notes || "none"}
+          </p>
+        </div>
+
+        <div class="mt-3">
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
+          >
+            Evidence Refs
+          </p>
+          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
+            {#if (reviewPacket.evidence_refs ?? []).length === 0}
+              <li>none</li>
+            {:else}
+              {#each reviewPacket.evidence_refs ?? [] as refValue}
+                <li><RefLink {refValue} threadId={artifact.thread_id} /></li>
+              {/each}
+            {/if}
+          </ul>
+        </div>
+      </div>
+    {/if}
+
+    {#if textContent}
+      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <h2
+          class="text-sm font-semibold uppercase tracking-wide text-slate-600"
+        >
+          Text Content
+        </h2>
+        <p class="mt-1 text-xs text-slate-500">
+          content-type: {artifactContentType}
+        </p>
+        <pre
+          class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-3 text-xs text-slate-100">{textContent}</pre>
       </div>
     {/if}
 
