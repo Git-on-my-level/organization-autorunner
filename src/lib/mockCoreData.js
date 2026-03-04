@@ -162,6 +162,21 @@ const commitments = [
   },
 ];
 
+const artifacts = [
+  {
+    id: "artifact-policy-draft",
+    kind: "doc",
+    thread_id: "thread-onboarding",
+    summary: "Draft onboarding policy",
+    refs: ["thread:thread-onboarding"],
+    created_at: "2026-03-03T07:30:00.000Z",
+    created_by: "actor-policy-owner",
+    provenance: {
+      sources: ["actor_statement:event-1001"],
+    },
+  },
+];
+
 export function listMockActors() {
   return actors;
 }
@@ -211,6 +226,17 @@ function normalizeRefList(value) {
   }
 
   return value.map((item) => String(item).trim()).filter(Boolean);
+}
+
+function isTypedRef(refValue) {
+  const input = String(refValue ?? "");
+  const separatorIndex = input.indexOf(":");
+
+  if (separatorIndex <= 0) {
+    return false;
+  }
+
+  return separatorIndex < input.length - 1;
 }
 
 function commitmentHasRequiredStatusRef(status, refs) {
@@ -542,4 +568,132 @@ export function updateMockCommitment({
   });
 
   return { commitment: next };
+}
+
+export function createMockWorkOrder({ actor_id, artifact = {}, packet = {} }) {
+  const artifactId = String(artifact.id ?? "").trim();
+  const packetId = String(packet.work_order_id ?? "").trim();
+  const threadId = String(packet.thread_id ?? artifact.thread_id ?? "").trim();
+
+  if (!artifactId) {
+    return { error: "validation", message: "artifact.id is required." };
+  }
+
+  if (!packetId) {
+    return {
+      error: "validation",
+      message: "packet.work_order_id is required.",
+    };
+  }
+
+  if (artifactId !== packetId) {
+    return {
+      error: "validation",
+      message: "packet.work_order_id must match artifact.id.",
+    };
+  }
+
+  if (!threadId) {
+    return { error: "validation", message: "packet.thread_id is required." };
+  }
+
+  if (!packet.objective) {
+    return { error: "validation", message: "packet.objective is required." };
+  }
+
+  const constraints = Array.isArray(packet.constraints)
+    ? packet.constraints.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+  const contextRefs = normalizeRefList(packet.context_refs);
+  const acceptanceCriteria = Array.isArray(packet.acceptance_criteria)
+    ? packet.acceptance_criteria
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+    : [];
+  const definitionOfDone = Array.isArray(packet.definition_of_done)
+    ? packet.definition_of_done
+        .map((item) => String(item).trim())
+        .filter(Boolean)
+    : [];
+
+  if (constraints.length === 0) {
+    return {
+      error: "validation",
+      message: "packet.constraints must include at least one item.",
+    };
+  }
+
+  if (acceptanceCriteria.length === 0) {
+    return {
+      error: "validation",
+      message: "packet.acceptance_criteria must include at least one item.",
+    };
+  }
+
+  if (definitionOfDone.length === 0) {
+    return {
+      error: "validation",
+      message: "packet.definition_of_done must include at least one item.",
+    };
+  }
+
+  if (contextRefs.some((ref) => !isTypedRef(ref))) {
+    return {
+      error: "validation",
+      message: "packet.context_refs contains invalid typed refs.",
+    };
+  }
+
+  const threadRef = `thread:${threadId}`;
+  const artifactRefs = normalizeRefList(artifact.refs);
+  if (!artifactRefs.includes(threadRef)) {
+    return {
+      error: "validation",
+      message: "artifact.refs must include thread:<thread_id>.",
+    };
+  }
+
+  const createdArtifact = {
+    id: artifactId,
+    kind: "work_order",
+    thread_id: threadId,
+    summary: String(artifact.summary ?? packet.objective).trim(),
+    refs: artifactRefs,
+    created_at: new Date().toISOString(),
+    created_by: actor_id,
+    provenance: {
+      sources: ["actor_statement:ui"],
+    },
+    packet: {
+      work_order_id: packetId,
+      thread_id: threadId,
+      objective: String(packet.objective).trim(),
+      constraints,
+      context_refs: contextRefs,
+      acceptance_criteria: acceptanceCriteria,
+      definition_of_done: definitionOfDone,
+    },
+  };
+
+  artifacts.unshift(createdArtifact);
+
+  const createdEvent = {
+    id: `event-${Math.random().toString(36).slice(2, 10)}`,
+    ts: new Date().toISOString(),
+    type: "work_order_created",
+    actor_id,
+    thread_id: threadId,
+    refs: [`artifact:${artifactId}`, threadRef],
+    summary: `Work order created: ${createdArtifact.summary}`,
+    payload: {
+      artifact_id: artifactId,
+    },
+    provenance: {
+      sources: ["actor_statement:ui"],
+    },
+  };
+
+  events.push(createdEvent);
+
+  return { artifact: createdArtifact, event: createdEvent };
 }

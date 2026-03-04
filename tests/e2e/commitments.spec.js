@@ -190,38 +190,51 @@ test("create commitment and enforce status evidence for done transition", async 
   });
 
   await page.goto("/threads/thread-onboarding");
+  const commitmentsSection = page
+    .locator("section")
+    .filter({ has: page.getByRole("heading", { name: "Commitments" }) });
 
-  await page.getByLabel("Commitment title").fill("Ship policy fix");
-  await page.getByLabel("Owner").selectOption(actorId);
-  await page
+  await commitmentsSection
+    .getByLabel("Commitment title")
+    .fill("Ship policy fix");
+  await commitmentsSection.getByLabel("Owner").selectOption(actorId);
+  await commitmentsSection
     .getByLabel("Due at (ISO timestamp)")
     .fill("2026-03-12T00:00:00.000Z");
-  await page
+  await commitmentsSection
     .getByLabel("Definition of done (comma/newline separated)")
     .fill("Merged\nReviewed");
-  await page
+  await commitmentsSection
     .getByLabel("Links (typed refs, comma/newline separated)")
     .fill("thread:thread-onboarding\nartifact:artifact-policy-draft");
-  await page.getByRole("button", { name: "Create commitment" }).click();
+  await commitmentsSection
+    .getByRole("button", { name: "Create commitment" })
+    .click();
 
   await expect.poll(() => createCount).toBe(1);
   await expect(
     page.getByRole("heading", { name: "Ship policy fix" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit commitment" }).click();
-  await page.getByLabel("Commitment status").selectOption("done");
-  await page.getByRole("button", { name: "Save commitment" }).click();
+  await commitmentsSection
+    .getByRole("button", { name: "Edit commitment" })
+    .click();
+  await commitmentsSection.getByLabel("Commitment status").selectOption("done");
+  await commitmentsSection
+    .getByRole("button", { name: "Save commitment" })
+    .click();
 
   await expect(
     page.getByText("Status done requires", { exact: false }),
   ).toBeVisible();
   await expect.poll(() => patchPayloads.length).toBe(0);
 
-  await page
+  await commitmentsSection
     .getByLabel("Status evidence ref (typed ref)")
     .fill("artifact:artifact-receipt-1");
-  await page.getByRole("button", { name: "Save commitment" }).click();
+  await commitmentsSection
+    .getByRole("button", { name: "Save commitment" })
+    .click();
 
   await expect.poll(() => patchPayloads.length).toBe(1);
   expect(patchPayloads[0]).toEqual({

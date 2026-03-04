@@ -23,6 +23,7 @@
     serializeListInput,
   } from "$lib/threadPatch";
   import { toTimelineView } from "$lib/timelineUtils";
+  import { validateWorkOrderDraft } from "$lib/workOrderUtils";
 
   $: threadId = $page.params.threadId;
   $: actorName = (actorId) => lookupActorDisplayName(actorId, $actorRegistry);
@@ -71,6 +72,12 @@
   let timelineLoading = false;
   let timelineError = "";
 
+  let workOrderDraft = null;
+  let creatingWorkOrder = false;
+  let workOrderErrors = [];
+  let workOrderNotice = "";
+  let createdWorkOrder = null;
+
   let messageText = "";
   let replyToEventId = "";
   let postingMessage = false;
@@ -86,6 +93,7 @@
   onMount(async () => {
     await ensureActorRegistry();
     createCommitmentDraft = blankCreateCommitmentDraft();
+    workOrderDraft = blankWorkOrderDraft();
     await loadThreadDetail(threadId);
   });
 
@@ -113,6 +121,20 @@
       definitionOfDoneInput: "",
       linksInput: `thread:${threadId}`,
     };
+  }
+
+  function blankWorkOrderDraft() {
+    return {
+      objective: "",
+      constraintsInput: "",
+      contextRefsInput: `thread:${threadId}`,
+      acceptanceCriteriaInput: "",
+      definitionOfDoneInput: "",
+    };
+  }
+
+  function generateWorkOrderId() {
+    return `artifact-work-order-${Math.random().toString(36).slice(2, 10)}`;
   }
 
   function toEditDraft(thread) {
@@ -543,6 +565,55 @@
       postMessageError = `Failed to post message: ${reason}`;
     } finally {
       postingMessage = false;
+    }
+  }
+
+  async function submitWorkOrder() {
+    if (!workOrderDraft || !snapshot) {
+      return;
+    }
+
+    creatingWorkOrder = true;
+    workOrderErrors = [];
+    workOrderNotice = "";
+
+    const validation = validateWorkOrderDraft(workOrderDraft, { threadId });
+    if (!validation.valid) {
+      workOrderErrors = validation.errors;
+      creatingWorkOrder = false;
+      return;
+    }
+
+    const workOrderId = generateWorkOrderId();
+    try {
+      const response = await coreClient.createWorkOrder({
+        artifact: {
+          id: workOrderId,
+          kind: "work_order",
+          thread_id: threadId,
+          summary: validation.normalized.objective,
+          refs: [`thread:${threadId}`],
+        },
+        packet: {
+          work_order_id: workOrderId,
+          thread_id: threadId,
+          objective: validation.normalized.objective,
+          constraints: validation.normalized.constraints,
+          context_refs: validation.normalized.context_refs,
+          acceptance_criteria: validation.normalized.acceptance_criteria,
+          definition_of_done: validation.normalized.definition_of_done,
+        },
+      });
+
+      createdWorkOrder = response.artifact ?? null;
+      workOrderNotice = "Work order created.";
+      workOrderDraft = blankWorkOrderDraft();
+      await loadTimeline(threadId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      workOrderErrors = [`Failed to create work order: ${reason}`];
+    } finally {
+      creatingWorkOrder = false;
     }
   }
 </script>
@@ -1250,6 +1321,142 @@
         {/each}
       {/if}
     </div>
+  </section>
+{/if}
+
+{#if snapshot}
+  <section
+    class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
+  >
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+      Work Order Composer
+    </h2>
+    <p class="mt-1 text-xs text-slate-600">
+      Creates a `work_order` packet artifact and emits a `work_order_created`
+      event.
+    </p>
+
+    {#if workOrderErrors.length > 0}
+      <ul
+        class="mt-3 list-disc space-y-1 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-800"
+      >
+        {#each workOrderErrors as errorLine}
+          <li>{errorLine}</li>
+        {/each}
+      </ul>
+    {/if}
+
+    {#if workOrderNotice}
+      <p
+        class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
+      >
+        {workOrderNotice}
+      </p>
+    {/if}
+
+    {#if workOrderDraft}
+      <form
+        class="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+        on:submit|preventDefault={submitWorkOrder}
+      >
+        <div class="grid gap-3">
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Work order objective
+            <textarea
+              bind:value={workOrderDraft.objective}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="2"
+            ></textarea>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Constraints (comma/newline separated)
+            <textarea
+              bind:value={workOrderDraft.constraintsInput}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="3"
+            ></textarea>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Context refs (typed refs, comma/newline separated)
+            <textarea
+              bind:value={workOrderDraft.contextRefsInput}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="3"
+            ></textarea>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Acceptance criteria (comma/newline separated)
+            <textarea
+              bind:value={workOrderDraft.acceptanceCriteriaInput}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="3"
+            ></textarea>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Work order definition of done (comma/newline separated)
+            <textarea
+              bind:value={workOrderDraft.definitionOfDoneInput}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="3"
+            ></textarea>
+          </label>
+        </div>
+
+        <div class="mt-3">
+          <button
+            class="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={creatingWorkOrder}
+            type="submit"
+          >
+            {creatingWorkOrder ? "Creating..." : "Create work order"}
+          </button>
+        </div>
+      </form>
+    {/if}
+
+    {#if createdWorkOrder}
+      <div class="mt-4 rounded-md border border-slate-200 bg-white p-3">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-600">
+          Latest created work order
+        </p>
+        <p class="mt-1 text-sm text-slate-800">
+          artifact id:
+          <a
+            class="underline decoration-slate-300 underline-offset-2 hover:text-slate-700"
+            href={`/artifacts/${createdWorkOrder.id}`}
+          >
+            {createdWorkOrder.id}
+          </a>
+        </p>
+        <div class="mt-2 flex flex-wrap gap-2 text-xs">
+          {#each createdWorkOrder.refs ?? [] as refValue}
+            <span class="rounded bg-slate-100 px-2 py-1">
+              <RefLink {refValue} {threadId} />
+            </span>
+          {/each}
+        </div>
+        <div class="mt-2">
+          <UnknownObjectPanel
+            objectData={createdWorkOrder}
+            title="Raw Work Order Artifact JSON"
+          />
+        </div>
+      </div>
+    {/if}
   </section>
 {/if}
 
