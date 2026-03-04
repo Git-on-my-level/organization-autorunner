@@ -17,6 +17,7 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrInvalidCommitmentTransition = errors.New("invalid commitment transition")
 
 type ArtifactListFilter struct {
 	Kind          string
@@ -31,6 +32,14 @@ type ThreadListFilter struct {
 	Tag      string
 	Stale    *bool
 	Now      time.Time
+}
+
+type CommitmentListFilter struct {
+	ThreadID  string
+	Owner     string
+	Status    string
+	DueBefore string
+	DueAfter  string
 }
 
 type Store struct {
@@ -716,6 +725,431 @@ func (s *Store) ListEventsByThread(ctx context.Context, threadID string) ([]map[
 	return events, nil
 }
 
+func (s *Store) CreateCommitment(ctx context.Context, actorID string, commitment map[string]any) (PatchSnapshotResult, error) {
+	if s == nil || s.db == nil {
+		return PatchSnapshotResult{}, fmt.Errorf("primitives store database is not initialized")
+	}
+	if strings.TrimSpace(actorID) == "" {
+		return PatchSnapshotResult{}, fmt.Errorf("actorID is required")
+	}
+	if commitment == nil {
+		return PatchSnapshotResult{}, fmt.Errorf("commitment is required")
+	}
+
+	threadID, _ := commitment["thread_id"].(string)
+	threadID = strings.TrimSpace(threadID)
+	if threadID == "" {
+		return PatchSnapshotResult{}, fmt.Errorf("commitment.thread_id is required")
+	}
+
+	threadRow, err := s.getSnapshotRow(ctx, threadID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return PatchSnapshotResult{}, ErrNotFound
+		}
+		return PatchSnapshotResult{}, fmt.Errorf("load thread for commitment: %w", err)
+	}
+	if threadRow.Kind != "thread" {
+		return PatchSnapshotResult{}, ErrNotFound
+	}
+
+	commitmentID := uuid.NewString()
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+
+	body := cloneMap(commitment)
+	bodyJSON, err := json.Marshal(body)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("marshal commitment snapshot body: %w", err)
+	}
+
+	provenance := map[string]any{}
+	if rawProvenance, ok := commitment["provenance"].(map[string]any); ok {
+		provenance = rawProvenance
+	}
+	provenanceJSON, err := json.Marshal(provenance)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("marshal commitment provenance: %w", err)
+	}
+
+	_, err = s.db.ExecContext(
+		ctx,
+		`INSERT INTO snapshots(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json)
+		 VALUES (?, 'commitment', ?, ?, ?, ?, ?)`,
+		commitmentID,
+		threadID,
+		updatedAt,
+		actorID,
+		string(bodyJSON),
+		string(provenanceJSON),
+	)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("insert commitment snapshot: %w", err)
+	}
+
+	event := map[string]any{
+		"type":       "commitment_created",
+		"thread_id":  threadID,
+		"refs":       []string{"snapshot:" + commitmentID},
+		"summary":    "commitment created",
+		"payload":    map[string]any{"changed_fields": sortedKeys(body)},
+		"provenance": map[string]any{"sources": []string{"inferred"}},
+	}
+	emittedEvent, err := s.AppendEvent(ctx, actorID, event)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("emit commitment_created event: %w", err)
+	}
+
+	if err := s.recomputeThreadOpenCommitments(ctx, actorID, threadID); err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("recompute thread open_commitments after commitment create: %w", err)
+	}
+
+	out := cloneMap(body)
+	out["id"] = commitmentID
+	if _, hasType := out["type"]; !hasType {
+		out["type"] = "commitment"
+	}
+	out["thread_id"] = threadID
+	out["updated_at"] = updatedAt
+	out["updated_by"] = actorID
+	out["provenance"] = provenance
+
+	return PatchSnapshotResult{
+		Snapshot: out,
+		Event:    emittedEvent,
+	}, nil
+}
+
+func (s *Store) GetCommitment(ctx context.Context, id string) (map[string]any, error) {
+	row, err := s.getSnapshotRow(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if row.Kind != "commitment" {
+		return nil, ErrNotFound
+	}
+	return row.ToSnapshotMap()
+}
+
+func (s *Store) PatchCommitment(ctx context.Context, actorID string, id string, patch map[string]any, refs []string) (PatchSnapshotResult, error) {
+	if s == nil || s.db == nil {
+		return PatchSnapshotResult{}, fmt.Errorf("primitives store database is not initialized")
+	}
+	if strings.TrimSpace(actorID) == "" {
+		return PatchSnapshotResult{}, fmt.Errorf("actorID is required")
+	}
+	if patch == nil || len(patch) == 0 {
+		return PatchSnapshotResult{}, fmt.Errorf("commitment patch is required")
+	}
+
+	row, err := s.getSnapshotRow(ctx, id)
+	if err != nil {
+		return PatchSnapshotResult{}, err
+	}
+	if row.Kind != "commitment" {
+		return PatchSnapshotResult{}, ErrNotFound
+	}
+
+	currentSnapshot, err := row.ToSnapshotMap()
+	if err != nil {
+		return PatchSnapshotResult{}, err
+	}
+	threadID, _ := currentSnapshot["thread_id"].(string)
+	if strings.TrimSpace(threadID) == "" {
+		return PatchSnapshotResult{}, fmt.Errorf("commitment is missing thread_id")
+	}
+	if rawThreadID, hasThreadID := patch["thread_id"]; hasThreadID {
+		patchedThreadID, ok := rawThreadID.(string)
+		if !ok || strings.TrimSpace(patchedThreadID) == "" {
+			return PatchSnapshotResult{}, fmt.Errorf("commitment.thread_id must be a non-empty string")
+		}
+		if strings.TrimSpace(patchedThreadID) != threadID {
+			return PatchSnapshotResult{}, fmt.Errorf("commitment.thread_id cannot be changed")
+		}
+	}
+
+	currentBody := cloneMap(currentSnapshot)
+	delete(currentBody, "id")
+	delete(currentBody, "updated_at")
+	delete(currentBody, "updated_by")
+	delete(currentBody, "provenance")
+
+	previousStatus, _ := currentBody["status"].(string)
+
+	changedFields := make([]string, 0, len(patch))
+	for key, incoming := range patch {
+		existing, exists := currentBody[key]
+		if !exists || !reflect.DeepEqual(existing, incoming) {
+			changedFields = append(changedFields, key)
+		}
+		currentBody[key] = incoming
+	}
+	sort.Strings(changedFields)
+
+	newStatus, _ := currentBody["status"].(string)
+	statusChanged := containsString(changedFields, "status") && previousStatus != newStatus
+
+	if statusChanged {
+		if err := enforceRestrictedCommitmentTransition(newStatus, refs); err != nil {
+			return PatchSnapshotResult{}, err
+		}
+	}
+
+	provenance := map[string]any{}
+	if rawProvenance, ok := currentSnapshot["provenance"].(map[string]any); ok {
+		provenance = cloneMap(rawProvenance)
+	}
+	if statusChanged {
+		labels := statusEvidenceLabels(newStatus, refs)
+		if len(labels) > 0 {
+			byField := map[string]any{}
+			if rawByField, ok := provenance["by_field"].(map[string]any); ok {
+				byField = cloneMap(rawByField)
+			}
+			byField["status"] = labels
+			provenance["by_field"] = byField
+		}
+	}
+
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	bodyJSON, err := json.Marshal(currentBody)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("encode patched commitment body: %w", err)
+	}
+	provenanceJSON, err := json.Marshal(provenance)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("encode patched commitment provenance: %w", err)
+	}
+
+	_, err = s.db.ExecContext(
+		ctx,
+		`UPDATE snapshots SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+		string(bodyJSON),
+		string(provenanceJSON),
+		updatedAt,
+		actorID,
+		id,
+	)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("update commitment snapshot: %w", err)
+	}
+
+	eventType := "snapshot_updated"
+	eventSummary := "commitment updated"
+	if statusChanged {
+		eventType = "commitment_status_changed"
+		eventSummary = "commitment status changed"
+	}
+	eventRefs := append([]string{"snapshot:" + id}, refs...)
+	eventRefs = uniqueStrings(eventRefs)
+
+	eventPayload := map[string]any{"changed_fields": changedFields}
+	if statusChanged {
+		eventPayload["from_status"] = previousStatus
+		eventPayload["to_status"] = newStatus
+	}
+	event := map[string]any{
+		"type":       eventType,
+		"thread_id":  threadID,
+		"refs":       eventRefs,
+		"summary":    eventSummary,
+		"payload":    eventPayload,
+		"provenance": map[string]any{"sources": []string{"inferred"}},
+	}
+	emittedEvent, err := s.AppendEvent(ctx, actorID, event)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("emit commitment patch event: %w", err)
+	}
+
+	if statusChanged {
+		if err := s.recomputeThreadOpenCommitments(ctx, actorID, threadID); err != nil {
+			return PatchSnapshotResult{}, fmt.Errorf("recompute thread open_commitments after commitment patch: %w", err)
+		}
+	}
+
+	out := cloneMap(currentBody)
+	out["id"] = id
+	if _, hasType := out["type"]; !hasType {
+		out["type"] = "commitment"
+	}
+	out["thread_id"] = threadID
+	out["updated_at"] = updatedAt
+	out["updated_by"] = actorID
+	out["provenance"] = provenance
+
+	return PatchSnapshotResult{
+		Snapshot: out,
+		Event:    emittedEvent,
+	}, nil
+}
+
+func (s *Store) ListCommitments(ctx context.Context, filter CommitmentListFilter) ([]map[string]any, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("primitives store database is not initialized")
+	}
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json
+		 FROM snapshots
+		 WHERE kind = 'commitment'
+		 ORDER BY updated_at DESC, id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query commitments: %w", err)
+	}
+	defer rows.Close()
+
+	commitments := make([]map[string]any, 0)
+	for rows.Next() {
+		row, err := scanSnapshotRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		snapshot, err := row.ToSnapshotMap()
+		if err != nil {
+			return nil, err
+		}
+
+		if filter.ThreadID != "" {
+			threadID, _ := snapshot["thread_id"].(string)
+			if threadID != filter.ThreadID {
+				continue
+			}
+		}
+		if filter.Owner != "" {
+			owner, _ := snapshot["owner"].(string)
+			if owner != filter.Owner {
+				continue
+			}
+		}
+		if filter.Status != "" {
+			status, _ := snapshot["status"].(string)
+			if status != filter.Status {
+				continue
+			}
+		}
+		if filter.DueAfter != "" || filter.DueBefore != "" {
+			dueAt, _ := snapshot["due_at"].(string)
+			if strings.TrimSpace(dueAt) == "" {
+				continue
+			}
+			if filter.DueAfter != "" && dueAt < filter.DueAfter {
+				continue
+			}
+			if filter.DueBefore != "" && dueAt > filter.DueBefore {
+				continue
+			}
+		}
+
+		commitments = append(commitments, snapshot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate commitments: %w", err)
+	}
+
+	return commitments, nil
+}
+
+func (s *Store) recomputeThreadOpenCommitments(ctx context.Context, actorID string, threadID string) error {
+	threadRow, err := s.getSnapshotRow(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	if threadRow.Kind != "thread" {
+		return ErrNotFound
+	}
+
+	threadSnapshot, err := threadRow.ToSnapshotMap()
+	if err != nil {
+		return fmt.Errorf("decode thread snapshot: %w", err)
+	}
+	threadBody := snapshotBodyFromSnapshotMap(threadSnapshot)
+
+	existing := make([]string, 0)
+	if rawExisting, ok := threadBody["open_commitments"]; ok && rawExisting != nil {
+		existing, err = normalizeStringSlice(rawExisting)
+		if err != nil {
+			return fmt.Errorf("decode thread open_commitments: %w", err)
+		}
+	}
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, body_json
+		 FROM snapshots
+		 WHERE kind = 'commitment' AND thread_id = ?
+		 ORDER BY updated_at ASC, id ASC`,
+		threadID,
+	)
+	if err != nil {
+		return fmt.Errorf("query commitments for thread open_commitments recompute: %w", err)
+	}
+	defer rows.Close()
+
+	computed := make([]string, 0)
+	for rows.Next() {
+		var commitmentID string
+		var bodyJSON string
+		if err := rows.Scan(&commitmentID, &bodyJSON); err != nil {
+			return fmt.Errorf("scan commitment row: %w", err)
+		}
+
+		body := map[string]any{}
+		if strings.TrimSpace(bodyJSON) != "" {
+			if err := json.Unmarshal([]byte(bodyJSON), &body); err != nil {
+				return fmt.Errorf("decode commitment body: %w", err)
+			}
+		}
+
+		status, _ := body["status"].(string)
+		if status == "open" || status == "blocked" {
+			computed = append(computed, commitmentID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate commitment rows: %w", err)
+	}
+
+	sort.Strings(existing)
+	sort.Strings(computed)
+	if reflect.DeepEqual(existing, computed) {
+		return nil
+	}
+
+	threadBody["open_commitments"] = computed
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	bodyJSON, err := json.Marshal(threadBody)
+	if err != nil {
+		return fmt.Errorf("encode thread snapshot body: %w", err)
+	}
+
+	_, err = s.db.ExecContext(
+		ctx,
+		`UPDATE snapshots SET body_json = ?, updated_at = ?, updated_by = ? WHERE id = ? AND kind = 'thread'`,
+		string(bodyJSON),
+		updatedAt,
+		actorID,
+		threadID,
+	)
+	if err != nil {
+		return fmt.Errorf("update thread open_commitments: %w", err)
+	}
+
+	event := map[string]any{
+		"type":       "snapshot_updated",
+		"thread_id":  threadID,
+		"refs":       []string{"snapshot:" + threadID},
+		"summary":    "thread open_commitments updated",
+		"payload":    map[string]any{"changed_fields": []string{"open_commitments"}},
+		"provenance": map[string]any{"sources": []string{"inferred"}},
+	}
+	if _, err := s.AppendEvent(ctx, actorID, event); err != nil {
+		return fmt.Errorf("emit open_commitments snapshot_updated event: %w", err)
+	}
+
+	return nil
+}
+
 type snapshotRow struct {
 	ID             string
 	Kind           string
@@ -842,6 +1276,126 @@ func cloneMap(in map[string]any) map[string]any {
 		out[key] = value
 	}
 	return out
+}
+
+func sortedKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func uniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func enforceRestrictedCommitmentTransition(newStatus string, refs []string) error {
+	switch newStatus {
+	case "done":
+		hasReceiptRef := false
+		hasDecisionRef := false
+		for _, ref := range refs {
+			prefix, ok := typedRefPrefix(ref)
+			if !ok {
+				continue
+			}
+			if prefix == "artifact" {
+				hasReceiptRef = true
+			}
+			if prefix == "event" {
+				hasDecisionRef = true
+			}
+		}
+		if !hasReceiptRef && !hasDecisionRef {
+			return fmt.Errorf("%w: status=done requires refs containing artifact:<receipt_id> or event:<decision_event_id>", ErrInvalidCommitmentTransition)
+		}
+	case "canceled":
+		hasDecisionRef := false
+		for _, ref := range refs {
+			prefix, ok := typedRefPrefix(ref)
+			if !ok {
+				continue
+			}
+			if prefix == "event" {
+				hasDecisionRef = true
+				break
+			}
+		}
+		if !hasDecisionRef {
+			return fmt.Errorf("%w: status=canceled requires refs containing event:<decision_event_id>", ErrInvalidCommitmentTransition)
+		}
+	}
+	return nil
+}
+
+func statusEvidenceLabels(newStatus string, refs []string) []string {
+	labels := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		prefix, value, ok := splitTypedRef(ref)
+		if !ok {
+			continue
+		}
+
+		switch newStatus {
+		case "done":
+			if prefix == "artifact" {
+				labels = append(labels, "receipt:"+value)
+			}
+			if prefix == "event" {
+				labels = append(labels, "decision:"+value)
+			}
+		case "canceled":
+			if prefix == "event" {
+				labels = append(labels, "decision:"+value)
+			}
+		}
+	}
+
+	labels = uniqueStrings(labels)
+	sort.Strings(labels)
+	return labels
+}
+
+func snapshotBodyFromSnapshotMap(snapshot map[string]any) map[string]any {
+	body := cloneMap(snapshot)
+	delete(body, "id")
+	delete(body, "updated_at")
+	delete(body, "updated_by")
+	delete(body, "provenance")
+	return body
+}
+
+func typedRefPrefix(ref string) (string, bool) {
+	prefix, _, ok := splitTypedRef(ref)
+	return prefix, ok
+}
+
+func splitTypedRef(ref string) (string, string, bool) {
+	idx := strings.Index(ref, ":")
+	if idx <= 0 || idx >= len(ref)-1 {
+		return "", "", false
+	}
+	prefix := strings.TrimSpace(ref[:idx])
+	value := strings.TrimSpace(ref[idx+1:])
+	if prefix == "" || value == "" {
+		return "", "", false
+	}
+	return prefix, value, true
 }
 
 func normalizeStringSlice(raw any) ([]string, error) {

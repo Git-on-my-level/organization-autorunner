@@ -3,6 +3,7 @@ package primitives_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"sort"
 	"testing"
@@ -159,5 +160,200 @@ func TestPatchSnapshotPreservesUnknownFieldsAndEmitsChangedFields(t *testing.T) 
 	secondChanged, ok := secondPayload["changed_fields"].([]string)
 	if !ok || len(secondChanged) != 1 || secondChanged[0] != "title" {
 		t.Fatalf("unexpected second changed_fields: %#v", secondPayload["changed_fields"])
+	}
+}
+
+func TestCommitmentOpenCommitmentsMaintenance(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+
+	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
+		"title":           "Thread A",
+		"type":            "incident",
+		"status":          "active",
+		"priority":        "p1",
+		"tags":            []string{},
+		"cadence":         "reactive",
+		"current_summary": "summary",
+		"next_actions":    []string{},
+		"key_artifacts":   []string{},
+		"provenance":      map[string]any{"sources": []string{"inferred"}},
+	})
+	if err != nil {
+		t.Fatalf("create thread: %v", err)
+	}
+	threadID, _ := threadResult.Snapshot["id"].(string)
+	if threadID == "" {
+		t.Fatal("expected thread id")
+	}
+
+	firstCommitment, err := store.CreateCommitment(context.Background(), "actor-1", map[string]any{
+		"thread_id":          threadID,
+		"title":              "Commitment 1",
+		"owner":              "actor-1",
+		"due_at":             "2026-03-10T00:00:00Z",
+		"status":             "open",
+		"definition_of_done": []string{"done condition"},
+		"links":              []string{"url:https://example.com/1"},
+		"provenance":         map[string]any{"sources": []string{"inferred"}},
+	})
+	if err != nil {
+		t.Fatalf("create first commitment: %v", err)
+	}
+	firstCommitmentID, _ := firstCommitment.Snapshot["id"].(string)
+
+	secondCommitment, err := store.CreateCommitment(context.Background(), "actor-1", map[string]any{
+		"thread_id":          threadID,
+		"title":              "Commitment 2",
+		"owner":              "actor-1",
+		"due_at":             "2026-03-11T00:00:00Z",
+		"status":             "blocked",
+		"definition_of_done": []string{"done condition"},
+		"links":              []string{"url:https://example.com/2"},
+		"provenance":         map[string]any{"sources": []string{"inferred"}},
+	})
+	if err != nil {
+		t.Fatalf("create second commitment: %v", err)
+	}
+	secondCommitmentID, _ := secondCommitment.Snapshot["id"].(string)
+
+	threadAfterCreate, err := store.GetThread(context.Background(), threadID)
+	if err != nil {
+		t.Fatalf("get thread after commitments create: %v", err)
+	}
+	openAfterCreate := toSortedStrings(threadAfterCreate["open_commitments"])
+	if !reflect.DeepEqual(openAfterCreate, []string{firstCommitmentID, secondCommitmentID}) {
+		t.Fatalf("unexpected open commitments after create: %#v", threadAfterCreate["open_commitments"])
+	}
+
+	patchDone, err := store.PatchCommitment(
+		context.Background(),
+		"actor-1",
+		firstCommitmentID,
+		map[string]any{"status": "done"},
+		[]string{"artifact:receipt-1"},
+	)
+	if err != nil {
+		t.Fatalf("patch commitment to done: %v", err)
+	}
+	provenance, ok := patchDone.Snapshot["provenance"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected commitment provenance object, got %#v", patchDone.Snapshot["provenance"])
+	}
+	byField, ok := provenance["by_field"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance.by_field object, got %#v", provenance["by_field"])
+	}
+	statusSources := toSortedStrings(byField["status"])
+	if !reflect.DeepEqual(statusSources, []string{"receipt:receipt-1"}) {
+		t.Fatalf("unexpected provenance.by_field.status: %#v", byField["status"])
+	}
+
+	threadAfterDone, err := store.GetThread(context.Background(), threadID)
+	if err != nil {
+		t.Fatalf("get thread after done patch: %v", err)
+	}
+	openAfterDone := toSortedStrings(threadAfterDone["open_commitments"])
+	if !reflect.DeepEqual(openAfterDone, []string{secondCommitmentID}) {
+		t.Fatalf("unexpected open commitments after done patch: %#v", threadAfterDone["open_commitments"])
+	}
+
+	if _, err := store.PatchCommitment(
+		context.Background(),
+		"actor-1",
+		secondCommitmentID,
+		map[string]any{"status": "canceled"},
+		[]string{"event:decision-1"},
+	); err != nil {
+		t.Fatalf("patch commitment to canceled: %v", err)
+	}
+
+	threadAfterCanceled, err := store.GetThread(context.Background(), threadID)
+	if err != nil {
+		t.Fatalf("get thread after canceled patch: %v", err)
+	}
+	openAfterCanceled := toSortedStrings(threadAfterCanceled["open_commitments"])
+	if len(openAfterCanceled) != 0 {
+		t.Fatalf("expected no open commitments after canceled patch, got %#v", threadAfterCanceled["open_commitments"])
+	}
+}
+
+func TestPatchCommitmentRestrictedTransitionRequiresEvidence(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+
+	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
+		"title":           "Thread A",
+		"type":            "incident",
+		"status":          "active",
+		"priority":        "p1",
+		"tags":            []string{},
+		"cadence":         "reactive",
+		"current_summary": "summary",
+		"next_actions":    []string{},
+		"key_artifacts":   []string{},
+		"provenance":      map[string]any{"sources": []string{"inferred"}},
+	})
+	if err != nil {
+		t.Fatalf("create thread: %v", err)
+	}
+	threadID, _ := threadResult.Snapshot["id"].(string)
+
+	commitmentResult, err := store.CreateCommitment(context.Background(), "actor-1", map[string]any{
+		"thread_id":          threadID,
+		"title":              "Commitment 1",
+		"owner":              "actor-1",
+		"due_at":             "2026-03-10T00:00:00Z",
+		"status":             "open",
+		"definition_of_done": []string{"done condition"},
+		"links":              []string{"url:https://example.com/1"},
+		"provenance":         map[string]any{"sources": []string{"inferred"}},
+	})
+	if err != nil {
+		t.Fatalf("create commitment: %v", err)
+	}
+	commitmentID, _ := commitmentResult.Snapshot["id"].(string)
+
+	_, err = store.PatchCommitment(context.Background(), "actor-1", commitmentID, map[string]any{
+		"status": "done",
+	}, nil)
+	if !errors.Is(err, primitives.ErrInvalidCommitmentTransition) {
+		t.Fatalf("expected ErrInvalidCommitmentTransition, got %v", err)
+	}
+}
+
+func toSortedStrings(raw any) []string {
+	switch values := raw.(type) {
+	case []string:
+		out := append([]string(nil), values...)
+		sort.Strings(out)
+		return out
+	case []any:
+		out := make([]string, 0, len(values))
+		for _, value := range values {
+			text, ok := value.(string)
+			if !ok {
+				continue
+			}
+			out = append(out, text)
+		}
+		sort.Strings(out)
+		return out
+	default:
+		return nil
 	}
 }

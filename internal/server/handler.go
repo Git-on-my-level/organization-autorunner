@@ -33,6 +33,10 @@ type PrimitiveStore interface {
 	GetThread(ctx context.Context, id string) (map[string]any, error)
 	PatchThread(ctx context.Context, actorID string, id string, patch map[string]any) (primitives.PatchSnapshotResult, error)
 	ListThreads(ctx context.Context, filter primitives.ThreadListFilter) ([]map[string]any, error)
+	CreateCommitment(ctx context.Context, actorID string, commitment map[string]any) (primitives.PatchSnapshotResult, error)
+	GetCommitment(ctx context.Context, id string) (map[string]any, error)
+	PatchCommitment(ctx context.Context, actorID string, id string, patch map[string]any, refs []string) (primitives.PatchSnapshotResult, error)
+	ListCommitments(ctx context.Context, filter primitives.CommitmentListFilter) ([]map[string]any, error)
 	ListEventsByThread(ctx context.Context, threadID string) ([]map[string]any, error)
 }
 
@@ -162,6 +166,34 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			handleGetThread(w, r, opts, remainder)
 		case http.MethodPatch:
 			handlePatchThread(w, r, opts, remainder)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and PATCH are supported")
+		}
+	})
+
+	mux.HandleFunc("/commitments", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			handleCreateCommitment(w, r, opts)
+		case http.MethodGet:
+			handleListCommitments(w, r, opts)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST and GET are supported")
+		}
+	})
+
+	mux.HandleFunc("/commitments/", func(w http.ResponseWriter, r *http.Request) {
+		commitmentID := strings.TrimPrefix(r.URL.Path, "/commitments/")
+		if commitmentID == "" || strings.Contains(commitmentID, "/") {
+			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			handleGetCommitment(w, r, opts, commitmentID)
+		case http.MethodPatch:
+			handlePatchCommitment(w, r, opts, commitmentID)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and PATCH are supported")
 		}
