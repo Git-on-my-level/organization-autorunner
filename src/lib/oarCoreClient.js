@@ -142,7 +142,7 @@ export function createOarCoreClient(options = {}) {
     createReview: (payload) =>
       request("POST", "/reviews", { body: withActorId(payload) }),
 
-    listInboxItems: () => request("GET", "/inbox"),
+    listInboxItems: (filters) => request("GET", "/inbox", { query: filters }),
     ackInboxItem: (payload) =>
       request("POST", "/inbox/ack", { body: withActorId(payload) }),
   };
