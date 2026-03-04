@@ -10,7 +10,7 @@
 
 {#if resolved.isLink}
   <a
-    class="text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-600"
+    class="text-indigo-600 hover:text-indigo-800"
     href={resolved.href}
     rel={resolved.isExternal ? "noreferrer noopener" : undefined}
     target={resolved.isExternal ? "_blank" : undefined}
@@ -18,5 +18,5 @@
     {resolved.label}
   </a>
 {:else}
-  <span class="font-mono text-xs text-slate-700">{resolved.label}</span>
+  <span class="text-xs text-gray-500">{resolved.label}</span>
 {/if}

@@ -2,19 +2,17 @@
   import { page } from "$app/stores";
 
   import { coreClient } from "$lib/coreClient";
+  import { formatTimestamp } from "$lib/formatDate";
   import ProvenanceBadge from "$lib/components/ProvenanceBadge.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
-  import UnknownObjectPanel from "$lib/components/UnknownObjectPanel.svelte";
   import { buildReviewPayload } from "$lib/reviewUtils";
   import { toTimelineView } from "$lib/timelineUtils";
+  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
 
-  const KNOWN_PACKET_ARTIFACT_KINDS = new Set([
-    "work_order",
-    "receipt",
-    "review",
-  ]);
+  const KNOWN_PACKET_ARTIFACT_KINDS = new Set(["work_order", "receipt", "review"]);
 
   $: artifactId = $page.params.artifactId;
+  $: actorName = (id) => lookupActorDisplayName(id, $actorRegistry);
   let artifact = null;
   let artifactContent = null;
   let artifactContentType = "";
@@ -31,650 +29,236 @@
   let timelineLoading = false;
   let timelineError = "";
 
-  $: if (artifactId && artifactId !== loadedArtifactId) {
-    loadArtifact(artifactId);
-  }
+  $: if (artifactId && artifactId !== loadedArtifactId) loadArtifact(artifactId);
+  $: receiptPacket = artifact?.kind === "receipt" && artifactContentType.includes("application/json") && artifactContent && typeof artifactContent === "object" && !Array.isArray(artifactContent) ? artifactContent : null;
+  $: workOrderPacket = artifact?.kind === "work_order" && artifactContentType.includes("application/json") && artifactContent && typeof artifactContent === "object" && !Array.isArray(artifactContent) ? artifactContent : null;
+  $: reviewPacket = artifact?.kind === "review" && artifactContentType.includes("application/json") && artifactContent && typeof artifactContent === "object" && !Array.isArray(artifactContent) ? artifactContent : null;
+  $: textContent = artifactContentType.startsWith("text/") && typeof artifactContent === "string" ? artifactContent : "";
+  $: isKnownPacketArtifactKind = KNOWN_PACKET_ARTIFACT_KINDS.has(String(artifact?.kind ?? ""));
+  $: timelineView = toTimelineView(threadTimeline, { threadId: artifact?.thread_id ?? "" });
 
-  $: receiptPacket =
-    artifact?.kind === "receipt" &&
-    artifactContentType.includes("application/json") &&
-    artifactContent &&
-    typeof artifactContent === "object" &&
-    !Array.isArray(artifactContent)
-      ? artifactContent
-      : null;
-  $: workOrderPacket =
-    artifact?.kind === "work_order" &&
-    artifactContentType.includes("application/json") &&
-    artifactContent &&
-    typeof artifactContent === "object" &&
-    !Array.isArray(artifactContent)
-      ? artifactContent
-      : null;
-  $: reviewPacket =
-    artifact?.kind === "review" &&
-    artifactContentType.includes("application/json") &&
-    artifactContent &&
-    typeof artifactContent === "object" &&
-    !Array.isArray(artifactContent)
-      ? artifactContent
-      : null;
-  $: textContent =
-    artifactContentType.startsWith("text/") &&
-    typeof artifactContent === "string"
-      ? artifactContent
-      : "";
-  $: isKnownPacketArtifactKind = KNOWN_PACKET_ARTIFACT_KINDS.has(
-    String(artifact?.kind ?? ""),
-  );
-  $: timelineView = toTimelineView(threadTimeline, {
-    threadId: artifact?.thread_id ?? "",
-  });
-
-  function blankReviewDraft() {
-    return {
-      outcome: "accept",
-      notes: "",
-      evidenceRefsInput: "",
-    };
-  }
-
-  function generateReviewId() {
-    return `artifact-review-${Math.random().toString(36).slice(2, 10)}`;
-  }
+  function blankReviewDraft() { return { outcome: "accept", notes: "", evidenceRefsInput: "" }; }
+  function generateReviewId() { return `artifact-review-${Math.random().toString(36).slice(2, 10)}`; }
 
   async function loadThreadTimeline(threadId) {
-    if (!threadId) {
-      threadTimeline = [];
-      return;
-    }
-
-    timelineLoading = true;
-    timelineError = "";
-
-    try {
-      const response = await coreClient.listThreadTimeline(threadId);
-      threadTimeline = response.events ?? [];
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      timelineError = `Failed to load thread timeline: ${reason}`;
-      threadTimeline = [];
-    } finally {
-      timelineLoading = false;
-    }
+    if (!threadId) { threadTimeline = []; return; }
+    timelineLoading = true; timelineError = "";
+    try { threadTimeline = (await coreClient.listThreadTimeline(threadId)).events ?? []; }
+    catch (e) { timelineError = `Failed to load timeline: ${e instanceof Error ? e.message : String(e)}`; threadTimeline = []; }
+    finally { timelineLoading = false; }
   }
 
   async function submitReview() {
-    if (!artifact || !receiptPacket || !reviewDraft) {
-      return;
-    }
-
-    reviewErrors = [];
-    reviewNotice = "";
-    reviseFollowupLink = "";
-    submittingReview = true;
-
+    if (!artifact || !receiptPacket || !reviewDraft) return;
+    reviewErrors = []; reviewNotice = ""; reviseFollowupLink = ""; submittingReview = true;
     const reviewId = generateReviewId();
-    const payload = buildReviewPayload(reviewDraft, {
-      threadId: artifact.thread_id,
-      receiptId: artifact.id,
-      workOrderId: receiptPacket.work_order_id,
-      reviewId,
-    });
-
-    if (!payload.valid) {
-      reviewErrors = payload.errors;
-      submittingReview = false;
-      return;
-    }
-
+    const payload = buildReviewPayload(reviewDraft, { threadId: artifact.thread_id, receiptId: artifact.id, workOrderId: receiptPacket.work_order_id, reviewId });
+    if (!payload.valid) { reviewErrors = payload.errors; submittingReview = false; return; }
     try {
-      const response = await coreClient.createReview({
-        artifact: payload.artifact,
-        packet: payload.packet,
-      });
-
-      createdReview = response.artifact ?? null;
-      reviewNotice = "Review submitted.";
-      reviewDraft = blankReviewDraft();
-
+      const response = await coreClient.createReview({ artifact: payload.artifact, packet: payload.packet });
+      createdReview = response.artifact ?? null; reviewNotice = "Review submitted."; reviewDraft = blankReviewDraft();
       if (payload.packet.outcome === "revise") {
         const params = new URLSearchParams();
-        params.set("compose", "work-order");
-        params.append("context_ref", `artifact:${artifact.id}`);
-        params.append("context_ref", `artifact:${receiptPacket.work_order_id}`);
-        reviseFollowupLink = `/threads/${encodeURIComponent(
-          artifact.thread_id,
-        )}?${params.toString()}#work-order-composer`;
+        params.set("compose", "work-order"); params.append("context_ref", `artifact:${artifact.id}`); params.append("context_ref", `artifact:${receiptPacket.work_order_id}`);
+        reviseFollowupLink = `/threads/${encodeURIComponent(artifact.thread_id)}?${params.toString()}#work-order-composer`;
       }
-
       await loadThreadTimeline(artifact.thread_id);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      reviewErrors = [`Failed to submit review: ${reason}`];
-    } finally {
-      submittingReview = false;
-    }
+    } catch (e) { reviewErrors = [`Failed to submit review: ${e instanceof Error ? e.message : String(e)}`]; }
+    finally { submittingReview = false; }
   }
 
-  async function loadArtifact(targetArtifactId) {
-    if (!targetArtifactId) {
-      return;
-    }
-
-    loading = true;
-    loadError = "";
-    loadedArtifactId = targetArtifactId;
-
+  async function loadArtifact(targetId) {
+    if (!targetId) return;
+    loading = true; loadError = ""; loadedArtifactId = targetId;
     try {
-      const metaResponse = await coreClient.getArtifact(targetArtifactId);
-      artifact = metaResponse.artifact ?? null;
+      artifact = (await coreClient.getArtifact(targetId)).artifact ?? null;
+      if (!artifact) { loadError = "Artifact not found."; artifactContent = null; artifactContentType = ""; return; }
+      const contentResponse = await coreClient.getArtifactContent(targetId);
+      artifactContent = contentResponse.content ?? null; artifactContentType = contentResponse.contentType ?? "";
+      reviewDraft = blankReviewDraft(); reviewErrors = []; reviewNotice = ""; createdReview = null; reviseFollowupLink = "";
+      if (artifact?.kind === "receipt" && artifact?.thread_id) await loadThreadTimeline(artifact.thread_id);
+      else { threadTimeline = []; timelineError = ""; }
+    } catch (e) { loadError = `Failed to load artifact: ${e instanceof Error ? e.message : String(e)}`; artifact = null; artifactContent = null; artifactContentType = ""; threadTimeline = []; timelineError = ""; }
+    finally { loading = false; }
+  }
 
-      if (!artifact) {
-        loadError = "Artifact not found.";
-        artifactContent = null;
-        artifactContentType = "";
-        return;
-      }
-
-      const contentResponse =
-        await coreClient.getArtifactContent(targetArtifactId);
-      artifactContent = contentResponse.content ?? null;
-      artifactContentType = contentResponse.contentType ?? "";
-      reviewDraft = blankReviewDraft();
-      reviewErrors = [];
-      reviewNotice = "";
-      createdReview = null;
-      reviseFollowupLink = "";
-
-      if (artifact?.kind === "receipt" && artifact?.thread_id) {
-        await loadThreadTimeline(artifact.thread_id);
-      } else {
-        threadTimeline = [];
-        timelineError = "";
-      }
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
-      loadError = `Failed to load artifact: ${reason}`;
-      artifact = null;
-      artifactContent = null;
-      artifactContentType = "";
-      threadTimeline = [];
-      timelineError = "";
-    } finally {
-      loading = false;
-    }
+  function kindLabel(kind) {
+    const labels = { work_order: "Work Order", receipt: "Receipt", review: "Review", doc: "Document" };
+    return labels[kind] ?? kind;
   }
 </script>
 
-<h1 class="text-2xl font-semibold">Artifact Detail: {artifactId}</h1>
+<nav class="mb-3 flex items-center gap-1.5 text-sm text-gray-400" aria-label="Breadcrumb">
+  <a class="hover:text-gray-600" href="/artifacts">Artifacts</a>
+  <span class="text-gray-300">/</span>
+  <span class="truncate text-gray-700">{artifact?.summary || artifactId}</span>
+</nav>
 
 {#if loading}
-  <p class="mt-4 rounded-md bg-white p-3 text-sm text-slate-700 shadow-sm">
-    Loading artifact...
-  </p>
+  <p class="text-sm text-gray-400">Loading...</p>
 {:else if loadError}
-  <p
-    class="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
-  >
-    {loadError}
-  </p>
+  <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>
 {:else if artifact}
-  <p class="mt-2 max-w-2xl text-slate-700">{artifact.summary || artifact.id}</p>
+  <h1 class="text-lg font-semibold text-gray-900">{artifact.summary || artifact.id}</h1>
 
-  <section
-    class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
-  >
-    <p class="text-xs uppercase tracking-wide text-slate-500">
-      kind: {artifact.kind}
-    </p>
+  <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+    <span class="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-600">{kindLabel(artifact.kind)}</span>
+    <span class="text-gray-400">{formatTimestamp(artifact.created_at) || "—"}</span>
+    <span class="text-gray-400">by {actorName(artifact.created_by)}</span>
+    {#if artifact.thread_id}
+      <RefLink refValue={`thread:${artifact.thread_id}`} threadId={artifact.thread_id} />
+    {/if}
+  </div>
 
-    <div class="mt-3 flex flex-wrap gap-2 text-xs">
+  {#if (artifact.refs ?? []).length > 0}
+    <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
       {#each artifact.refs ?? [] as refValue}
-        <span class="rounded bg-slate-100 px-2 py-1">
-          <RefLink {refValue} threadId={artifact.thread_id} />
-        </span>
+        <RefLink {refValue} threadId={artifact.thread_id} />
       {/each}
     </div>
+  {/if}
 
-    <div class="mt-3">
-      <ProvenanceBadge provenance={artifact.provenance ?? { sources: [] }} />
-    </div>
+  <div class="mt-2">
+    <ProvenanceBadge provenance={artifact.provenance ?? { sources: [] }} />
+  </div>
 
-    {#if !isKnownPacketArtifactKind}
-      <p
-        class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-      >
-        Unknown artifact kind: <span class="font-mono">{artifact.kind}</span>.
-        Rendering raw metadata/content below.
-      </p>
-    {/if}
+  {#if !isKnownPacketArtifactKind && artifact.kind !== "doc"}
+    <p class="mt-3 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
+      Unknown artifact kind: {artifact.kind}
+    </p>
+  {/if}
 
-    {#if workOrderPacket}
-      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-        <h2
-          class="text-sm font-semibold uppercase tracking-wide text-slate-600"
-        >
-          Work Order Packet
-        </h2>
-        <p class="mt-2 text-xs text-slate-600">
-          work_order_id: {workOrderPacket.work_order_id}
-        </p>
-        <p class="mt-1 text-xs text-slate-600">
-          thread_id:
-          <RefLink
-            refValue={`thread:${workOrderPacket.thread_id}`}
-            threadId={workOrderPacket.thread_id}
-          />
-        </p>
-        <p class="mt-3 text-sm text-slate-800">
-          {workOrderPacket.objective || "No objective"}
-        </p>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Constraints
-          </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#if (workOrderPacket.constraints ?? []).length === 0}
-              <li>none</li>
-            {:else}
-              {#each workOrderPacket.constraints ?? [] as item}
-                <li>{item}</li>
-              {/each}
-            {/if}
-          </ul>
-        </div>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Context Refs
-          </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#if (workOrderPacket.context_refs ?? []).length === 0}
-              <li>none</li>
-            {:else}
-              {#each workOrderPacket.context_refs ?? [] as refValue}
-                <li>
-                  <RefLink {refValue} threadId={workOrderPacket.thread_id} />
-                </li>
-              {/each}
-            {/if}
-          </ul>
-        </div>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Acceptance Criteria
-          </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#if (workOrderPacket.acceptance_criteria ?? []).length === 0}
-              <li>none</li>
-            {:else}
-              {#each workOrderPacket.acceptance_criteria ?? [] as item}
-                <li>{item}</li>
-              {/each}
-            {/if}
-          </ul>
-        </div>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Definition Of Done
-          </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#if (workOrderPacket.definition_of_done ?? []).length === 0}
-              <li>none</li>
-            {:else}
-              {#each workOrderPacket.definition_of_done ?? [] as item}
-                <li>{item}</li>
-              {/each}
-            {/if}
-          </ul>
-        </div>
+  {#if workOrderPacket}
+    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
+      <div class="border-b border-gray-100 px-4 py-2.5">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Work Order</h2>
       </div>
-    {/if}
+      <div class="px-4 py-3 text-sm text-gray-800">
+        <p class="font-medium">{workOrderPacket.objective || "No objective"}</p>
+        {#if (workOrderPacket.constraints ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Constraints</p><ul class="mt-1 list-inside list-disc text-sm">{#each workOrderPacket.constraints as c}<li>{c}</li>{/each}</ul></div>
+        {/if}
+        {#if (workOrderPacket.context_refs ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Context</p><div class="mt-1 flex flex-wrap gap-1.5 text-xs">{#each workOrderPacket.context_refs as r}<RefLink refValue={r} threadId={workOrderPacket.thread_id} />{/each}</div></div>
+        {/if}
+        {#if (workOrderPacket.acceptance_criteria ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Acceptance criteria</p><ul class="mt-1 list-inside list-disc text-sm">{#each workOrderPacket.acceptance_criteria as c}<li>{c}</li>{/each}</ul></div>
+        {/if}
+        {#if (workOrderPacket.definition_of_done ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Definition of done</p><ul class="mt-1 list-inside list-disc text-sm">{#each workOrderPacket.definition_of_done as d}<li>{d}</li>{/each}</ul></div>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
-    {#if receiptPacket}
-      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-        <h2
-          class="text-sm font-semibold uppercase tracking-wide text-slate-600"
-        >
-          Receipt Packet
-        </h2>
-        <p class="mt-2 text-xs text-slate-600">
-          receipt_id: {receiptPacket.receipt_id}
-        </p>
-        <p class="mt-1 text-xs text-slate-600">
-          work_order_id:
-          <RefLink refValue={`artifact:${receiptPacket.work_order_id}`} />
-        </p>
-        <p class="mt-1 text-xs text-slate-600">
-          thread_id: <RefLink refValue={`thread:${receiptPacket.thread_id}`} />
-        </p>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Outputs
-          </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#each receiptPacket.outputs ?? [] as refValue}
-              <li><RefLink {refValue} threadId={receiptPacket.thread_id} /></li>
-            {/each}
-          </ul>
+  {#if receiptPacket}
+    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
+      <div class="border-b border-gray-100 px-4 py-2.5">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Receipt</h2>
+      </div>
+      <div class="px-4 py-3 text-sm">
+        <div class="flex flex-wrap gap-2 text-xs text-gray-500">
+          <span>Work order: <RefLink refValue={`artifact:${receiptPacket.work_order_id}`} /></span>
+          <span>Thread: <RefLink refValue={`thread:${receiptPacket.thread_id}`} /></span>
         </div>
+        {#if (receiptPacket.outputs ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Outputs</p><div class="mt-1 flex flex-wrap gap-1.5 text-xs">{#each receiptPacket.outputs as r}<RefLink refValue={r} threadId={receiptPacket.thread_id} />{/each}</div></div>
+        {/if}
+        {#if (receiptPacket.verification_evidence ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Verification evidence</p><div class="mt-1 flex flex-wrap gap-1.5 text-xs">{#each receiptPacket.verification_evidence as r}<RefLink refValue={r} threadId={receiptPacket.thread_id} />{/each}</div></div>
+        {/if}
+        <div class="mt-3"><p class="text-xs text-gray-400">Changes summary</p><p class="mt-1 text-gray-800">{receiptPacket.changes_summary || "—"}</p></div>
+        {#if (receiptPacket.known_gaps ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Known gaps</p><ul class="mt-1 list-inside list-disc text-gray-600">{#each receiptPacket.known_gaps as g}<li>{g}</li>{/each}</ul></div>
+        {/if}
+      </div>
 
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Verification Evidence
+      <!-- Review form -->
+      <div class="border-t border-gray-100 px-4 py-3">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Review</h3>
+        {#if reviewErrors.length > 0}<ul class="mt-2 list-inside list-disc rounded bg-red-50 px-3 py-1.5 text-xs text-red-700">{#each reviewErrors as e}<li>{e}</li>{/each}</ul>{/if}
+        {#if reviewNotice}<p class="mt-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700">{reviewNotice}</p>{/if}
+        {#if reviseFollowupLink}
+          <p class="mt-2 rounded bg-amber-50 px-3 py-1.5 text-xs text-amber-700">
+            Outcome is revise. <a class="font-medium underline" href={reviseFollowupLink}>Create follow-up work order</a>
           </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#each receiptPacket.verification_evidence ?? [] as refValue}
-              <li><RefLink {refValue} threadId={receiptPacket.thread_id} /></li>
-            {/each}
-          </ul>
-        </div>
+        {/if}
+        {#if reviewDraft}
+          <form class="mt-2 grid gap-2" on:submit|preventDefault={submitReview}>
+            <label class="text-xs font-medium text-gray-600">Outcome <select bind:value={reviewDraft.outcome} class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"><option value="accept">Accept</option><option value="revise">Revise</option><option value="escalate">Escalate</option></select></label>
+            <label class="text-xs font-medium text-gray-600">Notes <textarea bind:value={reviewDraft.notes} class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm" rows="2"></textarea></label>
+            <label class="text-xs font-medium text-gray-600">Evidence refs (optional, one per line) <textarea bind:value={reviewDraft.evidenceRefsInput} class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm" rows="2"></textarea></label>
+            <button class="w-fit rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50" disabled={submittingReview} type="submit">{submittingReview ? "Submitting..." : "Submit review"}</button>
+          </form>
+        {/if}
+        {#if createdReview}
+          <p class="mt-2 text-xs text-gray-500">Review submitted: <a class="text-indigo-600 underline" href={`/artifacts/${createdReview.id}`}>{createdReview.summary || createdReview.id}</a></p>
+        {/if}
+      </div>
 
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Changes Summary
-          </p>
-          <p class="mt-1 text-sm text-slate-700">
-            {receiptPacket.changes_summary || "none"}
-          </p>
-        </div>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Known Gaps
-          </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#if (receiptPacket.known_gaps ?? []).length === 0}
-              <li>none</li>
-            {:else}
-              {#each receiptPacket.known_gaps ?? [] as gap}
-                <li>{gap}</li>
+      <!-- Thread timeline -->
+      {#if threadTimeline.length > 0 || timelineLoading}
+        <div class="border-t border-gray-100 px-4 py-3">
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Thread Timeline</h3>
+          {#if timelineLoading}
+            <p class="mt-2 text-xs text-gray-400">Loading...</p>
+          {:else if timelineError}
+            <p class="mt-2 text-xs text-red-600">{timelineError}</p>
+          {:else}
+            <div class="mt-2 space-y-1">
+              {#each timelineView.slice(0, 10) as event}
+                <div class="rounded border border-gray-100 bg-gray-50 px-3 py-2 text-xs">
+                  <p class="font-medium text-gray-800">{event.summary}</p>
+                  <p class="mt-0.5 text-gray-400">{actorName(event.actor_id)} · {event.typeLabel} · {formatTimestamp(event.ts) || "—"}</p>
+                </div>
               {/each}
-            {/if}
-          </ul>
-        </div>
-
-        <div class="mt-4 rounded-md border border-slate-200 bg-white p-3">
-          <h3
-            class="text-sm font-semibold uppercase tracking-wide text-slate-600"
-          >
-            Review
-          </h3>
-          <p class="mt-1 text-xs text-slate-600">
-            Submit a lightweight review for this receipt.
-          </p>
-
-          {#if reviewErrors.length > 0}
-            <ul
-              class="mt-2 list-disc space-y-1 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-xs text-rose-800"
-            >
-              {#each reviewErrors as errorLine}
-                <li>{errorLine}</li>
-              {/each}
-            </ul>
-          {/if}
-
-          {#if reviewNotice}
-            <p
-              class="mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
-            >
-              {reviewNotice}
-            </p>
-          {/if}
-
-          {#if reviseFollowupLink}
-            <p
-              class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-            >
-              Outcome is `revise`. Create a follow-up work order:
-              <a
-                class="font-semibold underline decoration-amber-300 underline-offset-2 hover:text-amber-700"
-                href={reviseFollowupLink}
-              >
-                open work order composer
-              </a>
-            </p>
-          {/if}
-
-          {#if reviewDraft}
-            <form
-              class="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"
-              on:submit|preventDefault={submitReview}
-            >
-              <div class="grid gap-3">
-                <label
-                  class="text-xs font-semibold uppercase tracking-wide text-slate-600"
-                >
-                  Review outcome
-                  <select
-                    bind:value={reviewDraft.outcome}
-                    class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                  >
-                    <option value="accept">accept</option>
-                    <option value="revise">revise</option>
-                    <option value="escalate">escalate</option>
-                  </select>
-                </label>
-
-                <label
-                  class="text-xs font-semibold uppercase tracking-wide text-slate-600"
-                >
-                  Review notes
-                  <textarea
-                    bind:value={reviewDraft.notes}
-                    class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                    rows="3"
-                  ></textarea>
-                </label>
-
-                <label
-                  class="text-xs font-semibold uppercase tracking-wide text-slate-600"
-                >
-                  Review evidence refs (typed refs, comma/newline separated;
-                  optional)
-                  <textarea
-                    bind:value={reviewDraft.evidenceRefsInput}
-                    class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                    rows="3"
-                  ></textarea>
-                </label>
-              </div>
-
-              <div class="mt-3">
-                <button
-                  class="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={submittingReview}
-                  type="submit"
-                >
-                  {submittingReview ? "Submitting..." : "Submit review"}
-                </button>
-              </div>
-            </form>
-          {/if}
-
-          {#if createdReview}
-            <div class="mt-3 rounded-md border border-slate-200 bg-white p-3">
-              <p
-                class="text-xs font-semibold uppercase tracking-wide text-slate-600"
-              >
-                Latest submitted review
-              </p>
-              <p class="mt-1 text-sm text-slate-800">
-                artifact id:
-                <RefLink refValue={`artifact:${createdReview.id}`} />
-              </p>
-              <div class="mt-2 flex flex-wrap gap-2 text-xs">
-                {#each createdReview.refs ?? [] as refValue}
-                  <span class="rounded bg-slate-100 px-2 py-1">
-                    <RefLink {refValue} threadId={artifact.thread_id} />
-                  </span>
-                {/each}
-              </div>
-              <div class="mt-2">
-                <UnknownObjectPanel
-                  objectData={createdReview}
-                  title="Raw Review Artifact JSON"
-                />
-              </div>
             </div>
           {/if}
         </div>
-
-        <div class="mt-4 rounded-md border border-slate-200 bg-white p-3">
-          <h3
-            class="text-sm font-semibold uppercase tracking-wide text-slate-600"
-          >
-            Thread Timeline
-          </h3>
-
-          {#if timelineLoading}
-            <p class="mt-2 text-xs text-slate-600">Loading timeline...</p>
-          {:else if timelineError}
-            <p
-              class="mt-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800"
-            >
-              {timelineError}
-            </p>
-          {:else if timelineView.length === 0}
-            <p class="mt-2 text-xs text-slate-600">No timeline events found.</p>
-          {:else}
-            <ul class="mt-2 space-y-2 text-xs text-slate-700">
-              {#each timelineView.slice(0, 10) as event}
-                <li class="rounded border border-slate-200 bg-slate-50 p-2">
-                  <p class="font-semibold text-slate-800">{event.summary}</p>
-                  <p class="mt-1">
-                    type: {event.typeLabel} | actor:
-                    {event.actor_id}
-                  </p>
-                  <div class="mt-1 flex flex-wrap gap-2">
-                    {#each event.refs ?? [] as refValue}
-                      <span class="rounded bg-white px-2 py-0.5">
-                        <RefLink {refValue} threadId={artifact.thread_id} />
-                      </span>
-                    {/each}
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      </div>
-    {/if}
-
-    {#if reviewPacket}
-      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-        <h2
-          class="text-sm font-semibold uppercase tracking-wide text-slate-600"
-        >
-          Review Packet
-        </h2>
-        <p class="mt-2 text-xs text-slate-600">
-          review_id: {reviewPacket.review_id}
-        </p>
-        <p class="mt-1 text-xs text-slate-600">
-          outcome:
-          <span class="font-semibold text-slate-700"
-            >{reviewPacket.outcome}</span
-          >
-        </p>
-        <p class="mt-1 text-xs text-slate-600">
-          receipt_id:
-          <RefLink
-            refValue={`artifact:${reviewPacket.receipt_id}`}
-            threadId={artifact.thread_id}
-          />
-        </p>
-        <p class="mt-1 text-xs text-slate-600">
-          work_order_id:
-          <RefLink
-            refValue={`artifact:${reviewPacket.work_order_id}`}
-            threadId={artifact.thread_id}
-          />
-        </p>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Notes
-          </p>
-          <p class="mt-1 text-sm text-slate-700">
-            {reviewPacket.notes || "none"}
-          </p>
-        </div>
-
-        <div class="mt-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Evidence Refs
-          </p>
-          <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-700">
-            {#if (reviewPacket.evidence_refs ?? []).length === 0}
-              <li>none</li>
-            {:else}
-              {#each reviewPacket.evidence_refs ?? [] as refValue}
-                <li><RefLink {refValue} threadId={artifact.thread_id} /></li>
-              {/each}
-            {/if}
-          </ul>
-        </div>
-      </div>
-    {/if}
-
-    {#if textContent}
-      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-        <h2
-          class="text-sm font-semibold uppercase tracking-wide text-slate-600"
-        >
-          Text Content
-        </h2>
-        <p class="mt-1 text-xs text-slate-500">
-          content-type: {artifactContentType}
-        </p>
-        <pre
-          class="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-slate-900 p-3 text-xs text-slate-100">{textContent}</pre>
-      </div>
-    {/if}
-
-    <div class="mt-3">
-      <UnknownObjectPanel
-        objectData={artifact}
-        title="Raw Artifact Metadata JSON"
-        open={true}
-      />
+      {/if}
     </div>
+  {/if}
 
-    <div class="mt-3">
-      <UnknownObjectPanel
-        objectData={artifactContent}
-        title="Raw Artifact Content JSON"
-      />
+  {#if reviewPacket}
+    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
+      <div class="border-b border-gray-100 px-4 py-2.5">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Review</h2>
+      </div>
+      <div class="px-4 py-3 text-sm">
+        <div class="flex items-center gap-3">
+          <span class="rounded px-2 py-0.5 text-xs font-medium {reviewPacket.outcome === 'accept' ? 'bg-emerald-50 text-emerald-700' : reviewPacket.outcome === 'revise' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'}">{reviewPacket.outcome}</span>
+          <span class="text-xs text-gray-500">Receipt: <RefLink refValue={`artifact:${reviewPacket.receipt_id}`} threadId={artifact.thread_id} /></span>
+          <span class="text-xs text-gray-500">Work order: <RefLink refValue={`artifact:${reviewPacket.work_order_id}`} threadId={artifact.thread_id} /></span>
+        </div>
+        {#if reviewPacket.notes}<p class="mt-3 text-gray-700">{reviewPacket.notes}</p>{/if}
+        {#if (reviewPacket.evidence_refs ?? []).length > 0}
+          <div class="mt-3"><p class="text-xs text-gray-400">Evidence</p><div class="mt-1 flex flex-wrap gap-1.5 text-xs">{#each reviewPacket.evidence_refs as r}<RefLink refValue={r} threadId={artifact.thread_id} />{/each}</div></div>
+        {/if}
+      </div>
     </div>
-  </section>
+  {/if}
+
+  {#if textContent}
+    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
+      <div class="border-b border-gray-100 px-4 py-2.5">
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">Content</h2>
+        <span class="text-[11px] text-gray-400">{artifactContentType}</span>
+      </div>
+      <pre class="max-h-96 overflow-auto whitespace-pre-wrap px-4 py-3 text-xs text-gray-800">{textContent}</pre>
+    </div>
+  {/if}
+
+  <details class="mt-4 rounded-lg border border-gray-200 bg-white">
+    <summary class="cursor-pointer px-4 py-2.5 text-xs text-gray-400 hover:text-gray-600">Raw metadata JSON</summary>
+    <pre class="overflow-auto px-4 pb-3 text-[11px] text-gray-600">{JSON.stringify(artifact, null, 2)}</pre>
+  </details>
+
+  {#if artifactContent && !textContent}
+    <details class="mt-2 rounded-lg border border-gray-200 bg-white">
+      <summary class="cursor-pointer px-4 py-2.5 text-xs text-gray-400 hover:text-gray-600">Raw content JSON</summary>
+      <pre class="overflow-auto px-4 pb-3 text-[11px] text-gray-600">{JSON.stringify(artifactContent, null, 2)}</pre>
+    </details>
+  {/if}
 {:else}
-  <p class="mt-4 rounded-md bg-white p-3 text-sm text-slate-700 shadow-sm">
-    Artifact not found.
-  </p>
+  <p class="text-sm text-gray-400">Artifact not found.</p>
 {/if}

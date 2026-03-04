@@ -2,26 +2,19 @@
   import { page } from "$app/stores";
 </script>
 
-<div class="rounded-lg border border-rose-200 bg-rose-50 p-6 text-rose-900">
-  <h1 class="text-2xl font-semibold">
-    Unable to start Organization Autorunner UI
-  </h1>
-  <p class="mt-3 whitespace-pre-wrap text-sm leading-6">
-    {$page.error?.message ?? "An unexpected startup error occurred."}
-  </p>
-  <div class="mt-4 rounded-md border border-rose-200 bg-white/70 p-4">
-    <p class="text-xs font-semibold uppercase tracking-wide">Try this</p>
-    <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm">
-      <li>
-        Start backend: <code
-          >cd ../organization-autorunner-core && ./scripts/dev</code
-        >
-      </li>
-      <li>
-        Set UI core URL:
-        <code>OAR_CORE_BASE_URL=http://127.0.0.1:8000</code>
-      </li>
-      <li>Reload this page after core is reachable.</li>
-    </ol>
+<div class="flex min-h-[60vh] items-center justify-center">
+  <div class="max-w-md text-center">
+    <h1 class="text-lg font-semibold text-gray-900">Unable to start</h1>
+    <p class="mt-2 text-sm text-gray-500">
+      {$page.error?.message ?? "An unexpected error occurred."}
+    </p>
+    <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4 text-left text-sm text-gray-600">
+      <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">Troubleshooting</p>
+      <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm">
+        <li>Start the backend: <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">make serve</code> in <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">organization-autorunner-core</code></li>
+        <li>Set <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">OAR_CORE_BASE_URL=http://127.0.0.1:8000</code></li>
+        <li>Reload this page.</li>
+      </ol>
+    </div>
   </div>
 </div>

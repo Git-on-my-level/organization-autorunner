@@ -1,5 +1,15 @@
 export const THREAD_STATUSES = ["active", "paused", "closed"];
 export const THREAD_PRIORITIES = ["p0", "p1", "p2", "p3"];
+export const THREAD_PRIORITY_LABELS = {
+  p0: "Critical (P0)",
+  p1: "High (P1)",
+  p2: "Medium (P2)",
+  p3: "Low (P3)",
+};
+
+export function getPriorityLabel(priority) {
+  return THREAD_PRIORITY_LABELS[priority] ?? priority;
+}
 export const THREAD_CADENCES = [
   "reactive",
   "daily",

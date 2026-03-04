@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { page } from "$app/stores";
 
   import "../app.css";
   import {
@@ -25,6 +26,9 @@
     $selectedActorId,
     $actorRegistry,
   );
+  $: initials = selectedActorName
+    ? selectedActorName.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()
+    : "?";
 
   onMount(async () => {
     initializeActorSession();
@@ -49,6 +53,10 @@
 
   function selectActor(actorId) {
     chooseActor(actorId);
+  }
+
+  function switchIdentity() {
+    chooseActor("");
   }
 
   function buildActorId(displayName) {
@@ -92,69 +100,43 @@
   }
 </script>
 
-<div class="min-h-screen bg-slate-50 text-slate-900">
+<div class="flex min-h-screen bg-gray-50 text-gray-900">
   {#if !$actorSessionReady}
-    <main class="mx-auto max-w-3xl p-8">
-      <p class="rounded-lg bg-white p-4 text-sm text-slate-700 shadow-sm">
-        Loading actor session...
-      </p>
+    <main class="flex flex-1 items-center justify-center">
+      <p class="text-sm text-gray-500">Loading...</p>
     </main>
   {:else if gateVisible}
-    <main class="mx-auto max-w-3xl p-8">
-      <section
-        class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
-      >
-        <h1 class="text-2xl font-semibold">Select Actor Identity</h1>
-        <p class="mt-2 text-sm text-slate-700">
-          Choose an existing actor or register a new one before continuing.
+    <main class="flex flex-1 items-center justify-center p-8">
+      <section class="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6">
+        <h1 class="text-lg font-semibold text-gray-900">Choose your identity</h1>
+        <p class="mt-1 text-sm text-gray-500">
+          Select an actor or create a new one to continue.
         </p>
 
         {#if actorError}
-          <p
-            class="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
-          >
+          <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
             {actorError}
           </p>
         {/if}
 
-        <div class="mt-6">
-          <div class="mb-3 flex items-center justify-between">
-            <h2
-              class="text-sm font-semibold uppercase tracking-wide text-slate-500"
-            >
-              Existing actors
-            </h2>
-            <button
-              class="rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
-              on:click={refreshActors}
-              type="button"
-            >
-              Refresh
-            </button>
-          </div>
-
+        <div class="mt-5">
           {#if loadingActors}
-            <p class="text-sm text-slate-600">Loading actor registry...</p>
+            <p class="text-sm text-gray-400">Loading...</p>
           {:else if $actorRegistry.length === 0}
-            <p class="text-sm text-slate-600">No actors found yet.</p>
+            <p class="text-sm text-gray-400">No actors yet. Create one below.</p>
           {:else}
-            <ul class="space-y-2">
+            <ul class="space-y-1">
               {#each $actorRegistry as actor}
-                <li
-                  class="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2"
-                >
-                  <div>
-                    <p class="text-sm font-medium text-slate-900">
-                      {actor.display_name}
-                    </p>
-                    <p class="text-xs text-slate-500">{actor.id}</p>
-                  </div>
+                <li>
                   <button
-                    class="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700"
+                    class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
                     on:click={() => selectActor(actor.id)}
                     type="button"
                   >
-                    Use actor
+                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                      {(actor.display_name || "?").slice(0, 1).toUpperCase()}
+                    </span>
+                    <span class="font-medium text-gray-900">{actor.display_name}</span>
                   </button>
                 </li>
               {/each}
@@ -163,66 +145,80 @@
         </div>
 
         <form
-          class="mt-6 border-t border-slate-200 pt-6"
+          class="mt-5 border-t border-gray-100 pt-5"
           on:submit|preventDefault={createActor}
         >
-          <h2
-            class="text-sm font-semibold uppercase tracking-wide text-slate-500"
-          >
-            Register new actor
-          </h2>
-          <label
-            class="mt-3 block text-sm text-slate-700"
-            for="actor-display-name"
-          >
-            Display name
+          <label class="block text-sm font-medium text-gray-700" for="actor-display-name">
+            New actor name
           </label>
-          <input
-            bind:value={newActorName}
-            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-            id="actor-display-name"
-            name="actor-display-name"
-            placeholder="Jane Doe"
-            type="text"
-          />
-          <button
-            class="mt-3 rounded-md bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={creatingActor}
-            type="submit"
-          >
-            {creatingActor ? "Creating..." : "Create and continue"}
-          </button>
+          <div class="mt-1.5 flex gap-2">
+            <input
+              bind:value={newActorName}
+              class="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+              id="actor-display-name"
+              name="actor-display-name"
+              placeholder="Jane Doe"
+              type="text"
+            />
+            <button
+              class="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              disabled={creatingActor}
+              type="submit"
+            >
+              {creatingActor ? "Creating..." : "Create"}
+            </button>
+          </div>
         </form>
       </section>
     </main>
   {:else}
-    <div class="mx-auto flex min-h-screen max-w-6xl">
-      <aside class="w-64 border-r border-slate-200 bg-white p-6">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          Navigation
-        </p>
-        <p class="mt-2 text-xs text-slate-600">
-          Signed in as {selectedActorName}
-        </p>
-        <nav class="mt-4" aria-label="Primary">
-          <ul class="space-y-2">
-            {#each navigationItems as item}
-              <li>
-                <a
-                  class="block rounded-md px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-                  href={item.href}
-                >
-                  {item.label}
-                </a>
-              </li>
-            {/each}
-          </ul>
-        </nav>
-      </aside>
+    <aside class="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-white">
+      <div class="px-4 pb-2 pt-5">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">OAR</p>
+      </div>
 
-      <main class="flex-1 p-8">
+      <nav class="flex-1 px-2 py-1" aria-label="Primary">
+        <ul class="space-y-0.5">
+          {#each navigationItems as item}
+            <li>
+              <a
+                class={`flex items-center rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                  $page.url.pathname === item.href || $page.url.pathname.startsWith(item.href + "/")
+                    ? "bg-indigo-50 text-indigo-700"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+                href={item.href}
+              >
+                {item.label}
+              </a>
+            </li>
+          {/each}
+        </ul>
+      </nav>
+
+      <div class="border-t border-gray-100 px-3 py-3">
+        <div class="flex items-center gap-2">
+          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+            {initials}
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-[13px] font-medium text-gray-900">{selectedActorName}</p>
+          </div>
+        </div>
+        <button
+          class="mt-2 w-full rounded-md px-2 py-1 text-left text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+          on:click={switchIdentity}
+          type="button"
+        >
+          Switch identity
+        </button>
+      </div>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto px-8 py-6">
+      <div class="mx-auto max-w-4xl">
         <slot />
-      </main>
-    </div>
+      </div>
+    </main>
   {/if}
 </div>

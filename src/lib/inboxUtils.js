@@ -4,6 +4,16 @@ export const INBOX_CATEGORY_ORDER = [
   "commitment_risk",
 ];
 
+export const INBOX_CATEGORY_LABELS = {
+  decision_needed: "Needs Decision",
+  exception: "Exception",
+  commitment_risk: "At Risk",
+};
+
+export function getInboxCategoryLabel(category) {
+  return INBOX_CATEGORY_LABELS[category] ?? category;
+}
+
 function readSourceEventTime(item) {
   return (
     item?.source_event_time ??

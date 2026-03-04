@@ -1,18 +1,20 @@
 import { resolveRefLink } from "./refLinkModel.js";
 
-const KNOWN_EVENT_TYPES = new Set([
-  "message_posted",
-  "work_order_created",
-  "receipt_added",
-  "review_completed",
-  "decision_needed",
-  "decision_made",
-  "snapshot_updated",
-  "commitment_created",
-  "commitment_status_changed",
-  "exception_raised",
-  "inbox_item_acknowledged",
-]);
+const EVENT_TYPE_LABELS = {
+  message_posted: "Message posted",
+  work_order_created: "Work order created",
+  receipt_added: "Receipt added",
+  review_completed: "Review completed",
+  decision_needed: "Needs decision",
+  decision_made: "Decision made",
+  snapshot_updated: "Details updated",
+  commitment_created: "Commitment created",
+  commitment_status_changed: "Commitment status changed",
+  exception_raised: "Exception raised",
+  inbox_item_acknowledged: "Item acknowledged",
+};
+
+const KNOWN_EVENT_TYPES = new Set(Object.keys(EVENT_TYPE_LABELS));
 
 export function toTimelineViewEvent(event, options = {}) {
   const type = String(event?.type ?? "");
@@ -24,7 +26,7 @@ export function toTimelineViewEvent(event, options = {}) {
     ...event,
     refs,
     isKnownType,
-    typeLabel: isKnownType ? type : "Unknown event type",
+    typeLabel: EVENT_TYPE_LABELS[type] ?? "Unknown event type",
     rawType: type,
     changedFields:
       type === "snapshot_updated" &&
