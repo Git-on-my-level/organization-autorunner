@@ -9,6 +9,7 @@ const threads = [
     status: "active",
     priority: "p1",
     tags: ["ops", "customer", "compliance"],
+    key_artifacts: ["artifact-policy-draft"],
     cadence: "weekly",
     current_summary:
       "Cross-functional onboarding handoff is delayed by policy review.",
@@ -28,6 +29,7 @@ const threads = [
     status: "paused",
     priority: "p0",
     tags: ["incident", "infra"],
+    key_artifacts: [],
     cadence: "daily",
     current_summary: "Postmortem incomplete due to missing external logs.",
     next_actions: ["Collect provider logs", "Draft postmortem"],
@@ -228,6 +230,13 @@ export function createMockThread({ actor_id, thread }) {
     },
     ...thread,
     tags: Array.isArray(thread.tags) ? thread.tags : [],
+    key_artifacts: Array.isArray(thread.key_artifacts)
+      ? thread.key_artifacts
+      : [],
+    next_actions: Array.isArray(thread.next_actions) ? thread.next_actions : [],
+    open_commitments: Array.isArray(thread.open_commitments)
+      ? thread.open_commitments
+      : [],
   };
 
   threads.unshift(created);
@@ -236,4 +245,52 @@ export function createMockThread({ actor_id, thread }) {
 
 export function getMockThread(threadId) {
   return threads.find((thread) => thread.id === threadId) ?? null;
+}
+
+export function updateMockThread({
+  actor_id,
+  thread_id,
+  patch = {},
+  if_updated_at,
+}) {
+  const thread = getMockThread(thread_id);
+  if (!thread) {
+    return { error: "not_found" };
+  }
+
+  if (
+    if_updated_at &&
+    String(if_updated_at) !== String(thread.updated_at ?? "")
+  ) {
+    return { error: "conflict", current: thread };
+  }
+
+  const next = { ...thread };
+
+  for (const [field, value] of Object.entries(patch)) {
+    if (field === "open_commitments") {
+      continue;
+    }
+
+    if (
+      field === "tags" ||
+      field === "next_actions" ||
+      field === "key_artifacts"
+    ) {
+      next[field] = Array.isArray(value)
+        ? value.map((item) => String(item).trim()).filter(Boolean)
+        : [];
+      continue;
+    }
+
+    next[field] = value;
+  }
+
+  next.updated_at = new Date().toISOString();
+  next.updated_by = actor_id;
+
+  const index = threads.findIndex((candidate) => candidate.id === thread_id);
+  threads[index] = next;
+
+  return { thread: next };
 }

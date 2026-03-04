@@ -63,9 +63,12 @@ export function createOarCoreClient(options = {}) {
     if (!response.ok) {
       const details = await response.text().catch(() => "");
       const detailSuffix = details ? ` - ${details}` : "";
-      throw new Error(
+      const requestError = new Error(
         `oar-core request failed: ${method} ${path} (${response.status} ${response.statusText})${detailSuffix}`,
       );
+      requestError.status = response.status;
+      requestError.details = details;
+      throw requestError;
     }
 
     if (config.responseType === "raw") {

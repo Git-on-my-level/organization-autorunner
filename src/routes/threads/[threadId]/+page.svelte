@@ -7,6 +7,11 @@
   import RefLink from "$lib/components/RefLink.svelte";
   import UnknownObjectPanel from "$lib/components/UnknownObjectPanel.svelte";
   import { coreClient } from "$lib/coreClient";
+  import {
+    buildThreadPatch,
+    parseListInput,
+    serializeListInput,
+  } from "$lib/threadPatch";
   import { toTimelineView } from "$lib/timelineUtils";
 
   $: threadId = $page.params.threadId;
@@ -25,6 +30,13 @@
   let postingMessage = false;
   let postMessageError = "";
 
+  let editOpen = false;
+  let editDraft = null;
+  let savingEdit = false;
+  let editError = "";
+  let editNotice = "";
+  let conflictWarning = "";
+
   onMount(async () => {
     await ensureActorRegistry();
     await loadThreadDetail(threadId);
@@ -32,6 +44,100 @@
 
   $: timelineView = toTimelineView(timeline, { threadId });
   $: canPost = Boolean(messageText.trim()) && !postingMessage;
+
+  function toEditDraft(thread) {
+    return {
+      title: thread.title ?? "",
+      type: thread.type ?? "case",
+      status: thread.status ?? "active",
+      priority: thread.priority ?? "p2",
+      cadence: thread.cadence ?? "weekly",
+      next_check_in_at: thread.next_check_in_at ?? "",
+      current_summary: thread.current_summary ?? "",
+      tagsInput: serializeListInput(thread.tags ?? []),
+      nextActionsInput: serializeListInput(thread.next_actions ?? []),
+      keyArtifactsInput: serializeListInput(thread.key_artifacts ?? []),
+    };
+  }
+
+  function beginEdit() {
+    if (!snapshot) {
+      return;
+    }
+
+    editError = "";
+    editNotice = "";
+    conflictWarning = "";
+    editDraft = toEditDraft(snapshot);
+    editOpen = true;
+  }
+
+  function cancelEdit() {
+    editOpen = false;
+    editDraft = null;
+    editError = "";
+  }
+
+  function buildDraftSnapshotFromEdit() {
+    return {
+      title: editDraft.title.trim(),
+      type: editDraft.type,
+      status: editDraft.status,
+      priority: editDraft.priority,
+      cadence: editDraft.cadence,
+      next_check_in_at: editDraft.next_check_in_at || null,
+      tags: parseListInput(editDraft.tagsInput),
+      current_summary: editDraft.current_summary.trim(),
+      next_actions: parseListInput(editDraft.nextActionsInput),
+      key_artifacts: parseListInput(editDraft.keyArtifactsInput),
+    };
+  }
+
+  async function saveEdit() {
+    if (!snapshot || !editDraft) {
+      return;
+    }
+
+    savingEdit = true;
+    editError = "";
+    editNotice = "";
+
+    try {
+      const draftSnapshot = buildDraftSnapshotFromEdit();
+      const patch = buildThreadPatch(snapshot, draftSnapshot);
+
+      if (Object.keys(patch).length === 0) {
+        editNotice = "No changes to save.";
+        savingEdit = false;
+        return;
+      }
+
+      const response = await coreClient.updateThread(threadId, {
+        patch,
+        if_updated_at: snapshot.updated_at,
+      });
+
+      snapshot = response.thread ?? snapshot;
+      editOpen = false;
+      editDraft = null;
+      editNotice = "Snapshot updated.";
+      conflictWarning = "";
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+
+      if (error?.status === 409) {
+        conflictWarning =
+          "Thread was updated elsewhere. Snapshot has been reloaded; reapply your changes before saving.";
+        editOpen = false;
+        editDraft = null;
+        await loadSnapshot(threadId);
+      } else {
+        editError = `Failed to save snapshot: ${reason}`;
+      }
+    } finally {
+      savingEdit = false;
+    }
+  }
 
   async function ensureActorRegistry() {
     if ($actorRegistry.length > 0) {
@@ -156,9 +262,34 @@
   <section
     class="mt-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
   >
-    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">
-      Snapshot
-    </h2>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+        Snapshot
+      </h2>
+      <button
+        class="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+        on:click={editOpen ? cancelEdit : beginEdit}
+        type="button"
+      >
+        {editOpen ? "Cancel editing" : "Edit snapshot"}
+      </button>
+    </div>
+
+    {#if conflictWarning}
+      <p
+        class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+      >
+        {conflictWarning}
+      </p>
+    {/if}
+
+    {#if editNotice}
+      <p
+        class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800"
+      >
+        {editNotice}
+      </p>
+    {/if}
 
     <dl class="mt-3 grid gap-3 text-sm md:grid-cols-2">
       <div>
@@ -232,6 +363,23 @@
 
     <div class="mt-3">
       <p class="text-xs uppercase tracking-wide text-slate-500">
+        key artifacts
+      </p>
+      <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800">
+        {#if (snapshot.key_artifacts ?? []).length === 0}
+          <li>none</li>
+        {:else}
+          {#each snapshot.key_artifacts ?? [] as artifactId}
+            <li>
+              <RefLink refValue={`artifact:${artifactId}`} />
+            </li>
+          {/each}
+        {/if}
+      </ul>
+    </div>
+
+    <div class="mt-3">
+      <p class="text-xs uppercase tracking-wide text-slate-500">
         open commitments
       </p>
       <ul class="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-800">
@@ -255,6 +403,170 @@
         title="Raw Thread Snapshot JSON"
       />
     </div>
+
+    {#if editOpen && editDraft}
+      <form
+        class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3"
+        on:submit|preventDefault={saveEdit}
+      >
+        {#if editError}
+          <p
+            class="mb-2 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-800"
+          >
+            {editError}
+          </p>
+        {/if}
+
+        <div class="grid gap-3 md:grid-cols-2">
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Title
+            <input
+              bind:value={editDraft.title}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              required
+              type="text"
+            />
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Type
+            <select
+              bind:value={editDraft.type}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            >
+              <option value="case">case</option>
+              <option value="process">process</option>
+              <option value="relationship">relationship</option>
+              <option value="initiative">initiative</option>
+              <option value="incident">incident</option>
+              <option value="other">other</option>
+            </select>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Status
+            <select
+              bind:value={editDraft.status}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            >
+              <option value="active">active</option>
+              <option value="paused">paused</option>
+              <option value="closed">closed</option>
+            </select>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Priority
+            <select
+              bind:value={editDraft.priority}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            >
+              <option value="p0">p0</option>
+              <option value="p1">p1</option>
+              <option value="p2">p2</option>
+              <option value="p3">p3</option>
+            </select>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Cadence
+            <select
+              bind:value={editDraft.cadence}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+            >
+              <option value="reactive">reactive</option>
+              <option value="daily">daily</option>
+              <option value="weekly">weekly</option>
+              <option value="monthly">monthly</option>
+              <option value="custom">custom</option>
+            </select>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Next check-in (ISO timestamp)
+            <input
+              bind:value={editDraft.next_check_in_at}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="2026-03-10T00:00:00.000Z"
+              type="text"
+            />
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600 md:col-span-2"
+          >
+            Tags (comma/newline separated)
+            <textarea
+              bind:value={editDraft.tagsInput}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="2"
+            ></textarea>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600 md:col-span-2"
+          >
+            Current summary
+            <textarea
+              bind:value={editDraft.current_summary}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="3"
+            ></textarea>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600 md:col-span-2"
+          >
+            Next actions (comma/newline separated)
+            <textarea
+              bind:value={editDraft.nextActionsInput}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="3"
+            ></textarea>
+          </label>
+
+          <label
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600 md:col-span-2"
+          >
+            Key artifacts (comma/newline separated IDs)
+            <textarea
+              bind:value={editDraft.keyArtifactsInput}
+              class="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+              rows="3"
+            ></textarea>
+          </label>
+        </div>
+
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            class="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={savingEdit}
+            type="submit"
+          >
+            {savingEdit ? "Saving..." : "Save snapshot changes"}
+          </button>
+          <button
+            class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            on:click={cancelEdit}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    {/if}
   </section>
 {/if}
 

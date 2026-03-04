@@ -114,3 +114,149 @@ test("thread detail loads snapshot/timeline and posts reply message", async ({
   ).toBeVisible();
   await expect(page.getByText("Reply target: evt-1001")).toHaveCount(0);
 });
+
+test("thread detail handles snapshot update conflict and retries after reload", async ({
+  page,
+}) => {
+  const actorId = "actor-thread-edit-e2e";
+  const patchRequests = [];
+  let patchAttempt = 0;
+  let threadSnapshot = {
+    id: "thread-onboarding",
+    type: "process",
+    title: "Customer Onboarding Workflow",
+    status: "active",
+    priority: "p1",
+    cadence: "weekly",
+    tags: ["ops", "customer"],
+    key_artifacts: ["artifact-policy-draft"],
+    current_summary: "Thread detail summary.",
+    next_actions: ["Collect legal signoff"],
+    open_commitments: ["commitment-onboard-1"],
+    next_check_in_at: "2026-03-05T00:00:00.000Z",
+    updated_at: "2026-03-04T00:00:00.000Z",
+    updated_by: actorId,
+    provenance: { sources: ["actor_statement:event-1001"] },
+  };
+
+  await page.addInitScript((selectedActorId) => {
+    window.localStorage.setItem("oar_ui_actor_id", selectedActorId);
+  }, actorId);
+
+  await page.route(/\/actors$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        actors: [{ id: actorId, display_name: "Thread Edit Tester" }],
+      }),
+    });
+  });
+
+  await page.route(/\/threads\/thread-onboarding$/, async (route) => {
+    const request = route.request();
+    if (request.method() === "GET" && request.resourceType() === "document") {
+      await route.continue();
+      return;
+    }
+
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ thread: threadSnapshot }),
+      });
+      return;
+    }
+
+    if (request.method() === "PATCH") {
+      const payload = JSON.parse(request.postData() ?? "{}");
+      patchRequests.push(payload);
+      patchAttempt += 1;
+
+      if (patchAttempt === 1) {
+        threadSnapshot = {
+          ...threadSnapshot,
+          title: "Server updated title",
+          updated_at: "2026-03-04T02:00:00.000Z",
+        };
+        await route.fulfill({
+          status: 409,
+          contentType: "application/json",
+          body: JSON.stringify({
+            error: "Thread has been updated by another actor.",
+            current: threadSnapshot,
+          }),
+        });
+        return;
+      }
+
+      threadSnapshot = {
+        ...threadSnapshot,
+        ...payload.patch,
+        updated_at: "2026-03-04T03:00:00.000Z",
+        updated_by: payload.actor_id,
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ thread: threadSnapshot }),
+      });
+      return;
+    }
+
+    await route.continue();
+  });
+
+  await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ events: [] }),
+    });
+  });
+
+  await page.goto("/threads/thread-onboarding");
+
+  await expect(
+    page.getByText("Customer Onboarding Workflow", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit snapshot" }).click();
+  await page.getByLabel("Title").fill("Edited after conflict");
+  await page.getByRole("button", { name: "Save snapshot changes" }).click();
+
+  await expect(
+    page.getByText("Thread was updated elsewhere.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Server updated title", { exact: true }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit snapshot" }).click();
+  await page.getByLabel("Title").fill("Final merged title");
+  await page.getByRole("button", { name: "Save snapshot changes" }).click();
+
+  await expect(
+    page.getByText("Snapshot updated.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Final merged title", { exact: true }),
+  ).toBeVisible();
+
+  expect(patchRequests).toHaveLength(2);
+  expect(patchRequests[0]).toEqual({
+    actor_id: actorId,
+    patch: {
+      title: "Edited after conflict",
+    },
+    if_updated_at: "2026-03-04T00:00:00.000Z",
+  });
+  expect(patchRequests[1]).toEqual({
+    actor_id: actorId,
+    patch: {
+      title: "Final merged title",
+    },
+    if_updated_at: "2026-03-04T02:00:00.000Z",
+  });
+});
