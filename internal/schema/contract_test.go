@@ -71,6 +71,13 @@ func TestLoadExtractsCoreSchemaRules(t *testing.T) {
 	if len(artifactRefRule) != 2 {
 		t.Fatalf("expected 2 receipt artifact ref rules, got %#v", artifactRefRule)
 	}
+	receiptEventRule, ok := contract.EventRefRules["receipt_added"]
+	if !ok {
+		t.Fatal("receipt_added event ref rule was not loaded")
+	}
+	if len(receiptEventRule.RefsMustInclude) != 2 {
+		t.Fatalf("expected receipt_added refs_must_include length=2, got %#v", receiptEventRule.RefsMustInclude)
+	}
 
 	threadSnapshot, ok := contract.Snapshots["thread"]
 	if !ok {

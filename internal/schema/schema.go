@@ -44,6 +44,13 @@ type SnapshotSchema struct {
 	Fields map[string]FieldSpec
 }
 
+type EventRefRule struct {
+	ThreadID           string
+	RefsMustInclude    []string
+	RefsConditional    string
+	PayloadMustInclude []string
+}
+
 type Contract struct {
 	Version          string
 	Enums            map[string]EnumSpec
@@ -52,6 +59,7 @@ type Contract struct {
 	Snapshots        map[string]SnapshotSchema
 	Packets          map[string]PacketSchema
 	ArtifactRefRules map[string][]string
+	EventRefRules    map[string]EventRefRule
 }
 
 func (c *Contract) HasKnownTypedRefPrefix(prefix string) bool {
@@ -90,6 +98,7 @@ type rawPackets struct {
 
 type rawReferenceConventions struct {
 	ArtifactRefs rawArtifactRefConventions `yaml:"artifact_refs"`
+	EventRefs    rawEventRefConventions    `yaml:"event_refs"`
 }
 
 type rawArtifactRefConventions struct {
@@ -100,6 +109,27 @@ type rawArtifactRefConventions struct {
 
 type rawArtifactRefRule struct {
 	RefsMustInclude []string `yaml:"refs_must_include"`
+}
+
+type rawEventRefConventions struct {
+	WorkOrderCreated        rawEventRefRule `yaml:"work_order_created"`
+	ReceiptAdded            rawEventRefRule `yaml:"receipt_added"`
+	ReviewCompleted         rawEventRefRule `yaml:"review_completed"`
+	CommitmentCreated       rawEventRefRule `yaml:"commitment_created"`
+	CommitmentStatusChanged rawEventRefRule `yaml:"commitment_status_changed"`
+	DecisionNeeded          rawEventRefRule `yaml:"decision_needed"`
+	DecisionMade            rawEventRefRule `yaml:"decision_made"`
+	SnapshotUpdated         rawEventRefRule `yaml:"snapshot_updated"`
+	ExceptionRaised         rawEventRefRule `yaml:"exception_raised"`
+	MessagePosted           rawEventRefRule `yaml:"message_posted"`
+	InboxItemAcknowledged   rawEventRefRule `yaml:"inbox_item_acknowledged"`
+}
+
+type rawEventRefRule struct {
+	ThreadID           string   `yaml:"thread_id"`
+	RefsMustInclude    []string `yaml:"refs_must_include"`
+	RefsConditional    string   `yaml:"refs_conditional"`
+	PayloadMustInclude []string `yaml:"payload_must_include"`
 }
 
 type rawSnapshots struct {
@@ -148,6 +178,7 @@ func Load(path string) (*Contract, error) {
 			"receipt":    append([]string(nil), file.ReferenceConventions.ArtifactRefs.Receipt.RefsMustInclude...),
 			"review":     append([]string(nil), file.ReferenceConventions.ArtifactRefs.Review.RefsMustInclude...),
 		},
+		EventRefRules: make(map[string]EventRefRule, 11),
 	}
 
 	if contract.Version == "" {
@@ -190,7 +221,28 @@ func Load(path string) (*Contract, error) {
 	contract.Packets["receipt"] = normalizePacket("receipt", file.Packets.Receipt)
 	contract.Packets["review"] = normalizePacket("review", file.Packets.Review)
 
+	contract.EventRefRules["work_order_created"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.WorkOrderCreated)
+	contract.EventRefRules["receipt_added"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.ReceiptAdded)
+	contract.EventRefRules["review_completed"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.ReviewCompleted)
+	contract.EventRefRules["commitment_created"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.CommitmentCreated)
+	contract.EventRefRules["commitment_status_changed"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.CommitmentStatusChanged)
+	contract.EventRefRules["decision_needed"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.DecisionNeeded)
+	contract.EventRefRules["decision_made"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.DecisionMade)
+	contract.EventRefRules["snapshot_updated"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.SnapshotUpdated)
+	contract.EventRefRules["exception_raised"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.ExceptionRaised)
+	contract.EventRefRules["message_posted"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.MessagePosted)
+	contract.EventRefRules["inbox_item_acknowledged"] = normalizeEventRefRule(file.ReferenceConventions.EventRefs.InboxItemAcknowledged)
+
 	return contract, nil
+}
+
+func normalizeEventRefRule(raw rawEventRefRule) EventRefRule {
+	return EventRefRule{
+		ThreadID:           strings.TrimSpace(raw.ThreadID),
+		RefsMustInclude:    append([]string(nil), raw.RefsMustInclude...),
+		RefsConditional:    strings.TrimSpace(raw.RefsConditional),
+		PayloadMustInclude: append([]string(nil), raw.PayloadMustInclude...),
+	}
 }
 
 func normalizeEnum(name string, enum rawEnum) (EnumSpec, error) {

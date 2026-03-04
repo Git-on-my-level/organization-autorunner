@@ -77,6 +77,11 @@ func handleAppendEvent(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		return
 	}
 
+	if err := validateEventReferenceConventions(opts.contract, req.Event, refs); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+
 	stored, err := opts.primitiveStore.AppendEvent(r.Context(), actorID, req.Event)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to append event")
