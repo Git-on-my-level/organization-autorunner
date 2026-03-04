@@ -1,5 +1,8 @@
 <script>
   import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
+  import ProvenanceBadge from "$lib/components/ProvenanceBadge.svelte";
+  import RefLink from "$lib/components/RefLink.svelte";
+  import UnknownObjectPanel from "$lib/components/UnknownObjectPanel.svelte";
   import { coreClient } from "$lib/coreClient";
 
   let posting = false;
@@ -18,7 +21,7 @@
       const response = await coreClient.createEvent({
         event: {
           type: "message_posted",
-          refs: [],
+          refs: ["thread:thread-onboarding"],
           summary: "Sample message posted from oar-ui shell",
           payload: {
             text: "Bootstrap timeline message",
@@ -82,6 +85,24 @@
           <p class="mt-1 text-xs text-slate-600">
             updated_by: {actorName(event.actor_id)}
           </p>
+
+          {#if event.refs?.length}
+            <div class="mt-2 flex flex-wrap gap-2 text-xs">
+              {#each event.refs as refValue}
+                <span class="rounded bg-white px-2 py-1">
+                  <RefLink {refValue} threadId="thread-onboarding" />
+                </span>
+              {/each}
+            </div>
+          {/if}
+
+          <div class="mt-2">
+            <ProvenanceBadge provenance={event.provenance ?? { sources: [] }} />
+          </div>
+
+          <div class="mt-2">
+            <UnknownObjectPanel objectData={event} title="Raw Event JSON" />
+          </div>
         </li>
       {/each}
     </ul>
