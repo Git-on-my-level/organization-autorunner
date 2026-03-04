@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from .schema import DEFAULT_SCHEMA_PATH, read_schema_version
+from .schema import DEFAULT_SCHEMA_PATH, ContractSchema, load_contract_schema
 from .storage import WorkspaceStorage
 
 
@@ -17,7 +17,7 @@ DEFAULT_WORKSPACE_ROOT = Path(".oar-workspace")
 
 @dataclass(frozen=True)
 class AppState:
-    schema_version: str
+    schema: ContractSchema
     storage: WorkspaceStorage
 
 
@@ -25,7 +25,7 @@ def create_app_state(schema_path: Path, workspace_root: Path) -> AppState:
     """Initialize app dependencies and return immutable runtime state."""
     storage = WorkspaceStorage(workspace_root)
     storage.initialize()
-    return AppState(schema_version=read_schema_version(schema_path), storage=storage)
+    return AppState(schema=load_contract_schema(schema_path), storage=storage)
 
 
 def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
@@ -53,7 +53,7 @@ def make_handler(app_state: AppState) -> type[BaseHTTPRequestHandler]:
                 return
 
             if self.path == "/version":
-                self._send_json({"schema_version": app_state.schema_version})
+                self._send_json({"schema_version": app_state.schema.version})
                 return
 
             self._send_json({"error": "not_found"}, status_code=404)

@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+from .schema import ContractSchema
+from .validation import (
+    validate_artifact_write,
+    validate_event_write,
+    validate_thread_write_patch,
+)
 
 DB_FILENAME = "oar.db"
 
@@ -68,6 +76,82 @@ class WorkspaceStorage:
             return True, None
         except sqlite3.Error as exc:
             return False, str(exc)
+
+    def insert_event(self, schema: ContractSchema, event: dict[str, object]) -> None:
+        """Validate and persist an event row."""
+        validate_event_write(schema, event)
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO events(
+                    id, ts, type, actor_id, thread_id,
+                    refs_json, summary, payload_json, provenance_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event["id"],
+                    event["ts"],
+                    event["type"],
+                    event["actor_id"],
+                    event.get("thread_id"),
+                    json.dumps(event["refs"]),
+                    event["summary"],
+                    json.dumps(event["payload"]) if "payload" in event else None,
+                    json.dumps(event["provenance"]),
+                ),
+            )
+            conn.commit()
+
+    def insert_artifact(self, schema: ContractSchema, artifact: dict[str, object]) -> None:
+        """Validate and persist artifact metadata."""
+        validate_artifact_write(schema, artifact)
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO artifacts(
+                    id, created_at, created_by, kind, content_type,
+                    content_path, refs_json, summary
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    artifact["id"],
+                    artifact["created_at"],
+                    artifact["created_by"],
+                    artifact["kind"],
+                    artifact["content_type"],
+                    artifact["content_path"],
+                    json.dumps(artifact["refs"]),
+                    artifact.get("summary"),
+                ),
+            )
+            conn.commit()
+
+    def upsert_thread_snapshot(
+        self, schema: ContractSchema, thread_id: str, patch: dict[str, object], updated_at: str, updated_by: str
+    ) -> None:
+        """Validate strict enum fields and persist thread snapshot patch."""
+        validate_thread_write_patch(schema, patch)
+        provenance = patch.get("provenance", {"sources": ["inferred"]})
+        with self.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO snapshots(id, type, updated_at, updated_by, data_json, provenance_json)
+                VALUES (?, 'thread', ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    updated_at=excluded.updated_at,
+                    updated_by=excluded.updated_by,
+                    data_json=excluded.data_json,
+                    provenance_json=excluded.provenance_json
+                """,
+                (
+                    thread_id,
+                    updated_at,
+                    updated_by,
+                    json.dumps(patch),
+                    json.dumps(provenance),
+                ),
+            )
+            conn.commit()
 
     def _apply_migrations(self, conn: sqlite3.Connection) -> None:
         migration_statements: dict[int, list[str]] = {
