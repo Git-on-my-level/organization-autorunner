@@ -1,4 +1,4 @@
-import { EXPECTED_SCHEMA_VERSION, oarCoreBaseUrl } from "$lib/config";
+import { EXPECTED_SCHEMA_VERSION, oarCoreBaseUrl } from "./config.js";
 
 function encodePathSegment(value) {
   return encodeURIComponent(String(value));
@@ -30,6 +30,7 @@ function toAbsoluteUrl(baseUrl, pathWithQuery) {
 export function createOarCoreClient(options = {}) {
   const baseUrl = options.baseUrl ?? oarCoreBaseUrl;
   const fetchFn = options.fetchFn ?? fetch;
+  const actorIdProvider = options.actorIdProvider;
 
   async function request(method, path, config = {}) {
     const pathWithQuery = appendQuery(path, config.query);
@@ -63,6 +64,27 @@ export function createOarCoreClient(options = {}) {
     return response.json();
   }
 
+  function requireActorId() {
+    const actorId =
+      typeof actorIdProvider === "function" ? actorIdProvider() : undefined;
+
+    if (!actorId) {
+      throw new Error(
+        "No actor selected. Choose an actor before writing data.",
+      );
+    }
+
+    return actorId;
+  }
+
+  function withActorId(payload = {}) {
+    if (payload.actor_id) {
+      return payload;
+    }
+
+    return { ...payload, actor_id: requireActorId() };
+  }
+
   return {
     baseUrl,
     getVersion: () => request("GET", "/version"),
@@ -70,19 +92,20 @@ export function createOarCoreClient(options = {}) {
     createActor: (payload) => request("POST", "/actors", { body: payload }),
     listActors: () => request("GET", "/actors"),
 
-    createThread: (payload) => request("POST", "/threads", { body: payload }),
+    createThread: (payload) =>
+      request("POST", "/threads", { body: withActorId(payload) }),
     listThreads: (filters) => request("GET", "/threads", { query: filters }),
     getThread: (threadId) =>
       request("GET", `/threads/${encodePathSegment(threadId)}`),
     updateThread: (threadId, payload) =>
       request("PATCH", `/threads/${encodePathSegment(threadId)}`, {
-        body: payload,
+        body: withActorId(payload),
       }),
     listThreadTimeline: (threadId) =>
       request("GET", `/threads/${encodePathSegment(threadId)}/timeline`),
 
     createArtifact: (payload) =>
-      request("POST", "/artifacts", { body: payload }),
+      request("POST", "/artifacts", { body: withActorId(payload) }),
     listArtifacts: (filters) =>
       request("GET", "/artifacts", { query: filters }),
     getArtifact: (artifactId) =>
@@ -107,17 +130,21 @@ export function createOarCoreClient(options = {}) {
       return { contentType, content: await response.arrayBuffer() };
     },
 
-    createEvent: (payload) => request("POST", "/events", { body: payload }),
+    createEvent: (payload) =>
+      request("POST", "/events", { body: withActorId(payload) }),
     getEvent: (eventId) =>
       request("GET", `/events/${encodePathSegment(eventId)}`),
 
     createWorkOrder: (payload) =>
-      request("POST", "/work_orders", { body: payload }),
-    createReceipt: (payload) => request("POST", "/receipts", { body: payload }),
-    createReview: (payload) => request("POST", "/reviews", { body: payload }),
+      request("POST", "/work_orders", { body: withActorId(payload) }),
+    createReceipt: (payload) =>
+      request("POST", "/receipts", { body: withActorId(payload) }),
+    createReview: (payload) =>
+      request("POST", "/reviews", { body: withActorId(payload) }),
 
     listInboxItems: () => request("GET", "/inbox"),
-    ackInboxItem: (payload) => request("POST", "/inbox/ack", { body: payload }),
+    ackInboxItem: (payload) =>
+      request("POST", "/inbox/ack", { body: withActorId(payload) }),
   };
 }
 
