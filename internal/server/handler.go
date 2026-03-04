@@ -29,6 +29,11 @@ type PrimitiveStore interface {
 	GetArtifactContent(ctx context.Context, id string) ([]byte, string, error)
 	ListArtifacts(ctx context.Context, filter primitives.ArtifactListFilter) ([]map[string]any, error)
 	GetSnapshot(ctx context.Context, id string) (map[string]any, error)
+	CreateThread(ctx context.Context, actorID string, thread map[string]any) (primitives.PatchSnapshotResult, error)
+	GetThread(ctx context.Context, id string) (map[string]any, error)
+	PatchThread(ctx context.Context, actorID string, id string, patch map[string]any) (primitives.PatchSnapshotResult, error)
+	ListThreads(ctx context.Context, filter primitives.ThreadListFilter) ([]map[string]any, error)
+	ListEventsByThread(ctx context.Context, threadID string) ([]map[string]any, error)
 }
 
 type HandlerOption func(*handlerOptions)
@@ -114,40 +119,52 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 	})
 
 	mux.HandleFunc("/threads", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+		switch r.Method {
+		case http.MethodPost:
+			handleCreateThread(w, r, opts)
+		case http.MethodGet:
+			handleListThreads(w, r, opts)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST and GET are supported")
+		}
+	})
+
+	mux.HandleFunc("/threads/", func(w http.ResponseWriter, r *http.Request) {
+		remainder := strings.TrimPrefix(r.URL.Path, "/threads/")
+		if remainder == "" {
+			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 			return
 		}
 
-		if opts.actorRegistry == nil {
-			writeError(w, http.StatusServiceUnavailable, "actor_registry_unavailable", "actor registry is not configured")
+		if strings.HasSuffix(remainder, "/timeline") {
+			if r.Method != http.MethodGet {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+				return
+			}
+
+			threadID := strings.TrimSuffix(remainder, "/timeline")
+			threadID = strings.TrimSuffix(threadID, "/")
+			if threadID == "" || strings.Contains(threadID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleThreadTimeline(w, r, opts, threadID)
 			return
 		}
 
-		var req struct {
-			ActorID string `json:"actor_id"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
-			return
-		}
-		req.ActorID = strings.TrimSpace(req.ActorID)
-		if req.ActorID == "" {
-			writeError(w, http.StatusBadRequest, "invalid_request", "actor_id is required")
+		if strings.Contains(remainder, "/") {
+			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 			return
 		}
 
-		exists, err := opts.actorRegistry.Exists(r.Context(), req.ActorID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to validate actor_id")
-			return
+		switch r.Method {
+		case http.MethodGet:
+			handleGetThread(w, r, opts, remainder)
+		case http.MethodPatch:
+			handlePatchThread(w, r, opts, remainder)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and PATCH are supported")
 		}
-		if !exists {
-			writeError(w, http.StatusBadRequest, "unknown_actor_id", "actor_id is not registered")
-			return
-		}
-
-		writeError(w, http.StatusNotImplemented, "not_implemented", "thread creation is not implemented in this stage")
 	})
 
 	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {

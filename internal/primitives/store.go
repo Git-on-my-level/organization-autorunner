@@ -25,6 +25,14 @@ type ArtifactListFilter struct {
 	CreatedAfter  string
 }
 
+type ThreadListFilter struct {
+	Status   string
+	Priority string
+	Tag      string
+	Stale    *bool
+	Now      time.Time
+}
+
 type Store struct {
 	db                 *sql.DB
 	artifactContentDir string
@@ -352,52 +360,11 @@ func (s *Store) GetSnapshot(ctx context.Context, id string) (map[string]any, err
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 
-	var (
-		snapshotID     string
-		typeValue      string
-		threadID       sql.NullString
-		updatedAt      string
-		updatedBy      string
-		bodyJSON       string
-		provenanceJSON string
-	)
-
-	err := s.db.QueryRowContext(
-		ctx,
-		`SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json FROM snapshots WHERE id = ?`,
-		id,
-	).Scan(&snapshotID, &typeValue, &threadID, &updatedAt, &updatedBy, &bodyJSON, &provenanceJSON)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
+	row, err := s.getSnapshotRow(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("query snapshot: %w", err)
+		return nil, err
 	}
-
-	body := map[string]any{}
-	if strings.TrimSpace(bodyJSON) != "" {
-		if err := json.Unmarshal([]byte(bodyJSON), &body); err != nil {
-			return nil, fmt.Errorf("decode snapshot body: %w", err)
-		}
-	}
-
-	provenance := map[string]any{}
-	if strings.TrimSpace(provenanceJSON) != "" {
-		if err := json.Unmarshal([]byte(provenanceJSON), &provenance); err != nil {
-			return nil, fmt.Errorf("decode snapshot provenance: %w", err)
-		}
-	}
-
-	body["id"] = snapshotID
-	body["type"] = typeValue
-	body["updated_at"] = updatedAt
-	body["updated_by"] = updatedBy
-	if threadID.Valid {
-		body["thread_id"] = threadID.String
-	}
-	body["provenance"] = provenance
-
-	return body, nil
+	return row.ToSnapshotMap()
 }
 
 func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, patch map[string]any) (PatchSnapshotResult, error) {
@@ -413,7 +380,7 @@ func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, pa
 
 	var (
 		snapshotID     string
-		typeValue      string
+		snapshotKind   string
 		threadID       sql.NullString
 		provenanceJSON string
 		bodyJSON       string
@@ -422,7 +389,7 @@ func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, pa
 		ctx,
 		`SELECT id, kind, thread_id, provenance_json, body_json FROM snapshots WHERE id = ?`,
 		id,
-	).Scan(&snapshotID, &typeValue, &threadID, &provenanceJSON, &bodyJSON)
+	).Scan(&snapshotID, &snapshotKind, &threadID, &provenanceJSON, &bodyJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		return PatchSnapshotResult{}, ErrNotFound
 	}
@@ -493,7 +460,9 @@ func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, pa
 	}
 
 	current["id"] = snapshotID
-	current["type"] = typeValue
+	if _, hasType := current["type"]; !hasType {
+		current["type"] = snapshotKind
+	}
 	current["updated_at"] = updatedAt
 	current["updated_by"] = actorID
 	if threadID.Valid {
@@ -505,6 +474,313 @@ func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, pa
 		Snapshot: current,
 		Event:    emittedEvent,
 	}, nil
+}
+
+func (s *Store) CreateThread(ctx context.Context, actorID string, thread map[string]any) (PatchSnapshotResult, error) {
+	if s == nil || s.db == nil {
+		return PatchSnapshotResult{}, fmt.Errorf("primitives store database is not initialized")
+	}
+	if strings.TrimSpace(actorID) == "" {
+		return PatchSnapshotResult{}, fmt.Errorf("actorID is required")
+	}
+	if thread == nil {
+		return PatchSnapshotResult{}, fmt.Errorf("thread is required")
+	}
+
+	threadID := uuid.NewString()
+	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+
+	body := cloneMap(thread)
+	body["open_commitments"] = []string{}
+
+	bodyJSON, err := json.Marshal(body)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("marshal thread snapshot body: %w", err)
+	}
+
+	provenance := map[string]any{}
+	if rawProvenance, ok := thread["provenance"].(map[string]any); ok {
+		provenance = rawProvenance
+	}
+	provenanceJSON, err := json.Marshal(provenance)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("marshal thread provenance: %w", err)
+	}
+
+	_, err = s.db.ExecContext(
+		ctx,
+		`INSERT INTO snapshots(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json)
+		 VALUES (?, 'thread', ?, ?, ?, ?, ?)`,
+		threadID,
+		threadID,
+		updatedAt,
+		actorID,
+		string(bodyJSON),
+		string(provenanceJSON),
+	)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("insert thread snapshot: %w", err)
+	}
+
+	changedFields := make([]string, 0, len(body))
+	for key := range body {
+		changedFields = append(changedFields, key)
+	}
+	sort.Strings(changedFields)
+
+	event := map[string]any{
+		"type":       "snapshot_updated",
+		"thread_id":  threadID,
+		"refs":       []string{"snapshot:" + threadID},
+		"summary":    "thread snapshot created",
+		"payload":    map[string]any{"changed_fields": changedFields},
+		"provenance": map[string]any{"sources": []string{"inferred"}},
+	}
+	emittedEvent, err := s.AppendEvent(ctx, actorID, event)
+	if err != nil {
+		return PatchSnapshotResult{}, fmt.Errorf("emit thread snapshot_updated event: %w", err)
+	}
+
+	out := cloneMap(body)
+	out["id"] = threadID
+	// Thread domain `type` is provided by caller (thread_type enum).
+	out["thread_id"] = threadID
+	out["updated_at"] = updatedAt
+	out["updated_by"] = actorID
+	out["provenance"] = provenance
+
+	return PatchSnapshotResult{
+		Snapshot: out,
+		Event:    emittedEvent,
+	}, nil
+}
+
+func (s *Store) GetThread(ctx context.Context, id string) (map[string]any, error) {
+	row, err := s.getSnapshotRow(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if row.Kind != "thread" {
+		return nil, ErrNotFound
+	}
+	return row.ToSnapshotMap()
+}
+
+func (s *Store) PatchThread(ctx context.Context, actorID string, id string, patch map[string]any) (PatchSnapshotResult, error) {
+	row, err := s.getSnapshotRow(ctx, id)
+	if err != nil {
+		return PatchSnapshotResult{}, err
+	}
+	if row.Kind != "thread" {
+		return PatchSnapshotResult{}, ErrNotFound
+	}
+	return s.PatchSnapshot(ctx, actorID, id, patch)
+}
+
+func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map[string]any, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("primitives store database is not initialized")
+	}
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json
+		 FROM snapshots
+		 WHERE kind = 'thread'
+		 ORDER BY updated_at DESC, id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query threads: %w", err)
+	}
+	defer rows.Close()
+
+	now := filter.Now
+	if now.IsZero() {
+		now = time.Now().UTC()
+	}
+
+	threads := make([]map[string]any, 0)
+	for rows.Next() {
+		row, err := scanSnapshotRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		snapshot, err := row.ToSnapshotMap()
+		if err != nil {
+			return nil, err
+		}
+
+		if filter.Status != "" {
+			status, _ := snapshot["status"].(string)
+			if status != filter.Status {
+				continue
+			}
+		}
+		if filter.Priority != "" {
+			priority, _ := snapshot["priority"].(string)
+			if priority != filter.Priority {
+				continue
+			}
+		}
+		if filter.Tag != "" {
+			tags, err := normalizeStringSlice(snapshot["tags"])
+			if err != nil || !containsString(tags, filter.Tag) {
+				continue
+			}
+		}
+		if filter.Stale != nil {
+			stale := threadIsStale(snapshot, now)
+			if stale != *filter.Stale {
+				continue
+			}
+		}
+
+		threads = append(threads, snapshot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate threads: %w", err)
+	}
+
+	return threads, nil
+}
+
+func (s *Store) ListEventsByThread(ctx context.Context, threadID string) ([]map[string]any, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("primitives store database is not initialized")
+	}
+
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT id, type, ts, actor_id, thread_id, refs_json, payload_json, body_json
+		 FROM events
+		 WHERE thread_id = ?
+		 ORDER BY ts ASC, id ASC`,
+		threadID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query thread events: %w", err)
+	}
+	defer rows.Close()
+
+	events := make([]map[string]any, 0)
+	for rows.Next() {
+		var (
+			eventID     string
+			typeValue   string
+			ts          string
+			actorID     string
+			thread      sql.NullString
+			refsJSON    string
+			payloadJSON string
+			bodyJSON    sql.NullString
+		)
+		if err := rows.Scan(&eventID, &typeValue, &ts, &actorID, &thread, &refsJSON, &payloadJSON, &bodyJSON); err != nil {
+			return nil, fmt.Errorf("scan thread event: %w", err)
+		}
+
+		if bodyJSON.Valid && strings.TrimSpace(bodyJSON.String) != "" && bodyJSON.String != "{}" {
+			body := map[string]any{}
+			if err := json.Unmarshal([]byte(bodyJSON.String), &body); err != nil {
+				return nil, fmt.Errorf("decode event body: %w", err)
+			}
+			events = append(events, body)
+			continue
+		}
+
+		refs := make([]string, 0)
+		if err := json.Unmarshal([]byte(refsJSON), &refs); err != nil {
+			return nil, fmt.Errorf("decode event refs: %w", err)
+		}
+		payload := map[string]any{}
+		if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+			return nil, fmt.Errorf("decode event payload: %w", err)
+		}
+
+		event := map[string]any{
+			"id":       eventID,
+			"type":     typeValue,
+			"ts":       ts,
+			"actor_id": actorID,
+			"refs":     refs,
+			"payload":  payload,
+		}
+		if thread.Valid {
+			event["thread_id"] = thread.String
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate thread events: %w", err)
+	}
+
+	return events, nil
+}
+
+type snapshotRow struct {
+	ID             string
+	Kind           string
+	ThreadID       sql.NullString
+	UpdatedAt      string
+	UpdatedBy      string
+	BodyJSON       string
+	ProvenanceJSON string
+}
+
+func (s *Store) getSnapshotRow(ctx context.Context, id string) (snapshotRow, error) {
+	if s == nil || s.db == nil {
+		return snapshotRow{}, fmt.Errorf("primitives store database is not initialized")
+	}
+
+	row := snapshotRow{}
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json FROM snapshots WHERE id = ?`,
+		id,
+	).Scan(&row.ID, &row.Kind, &row.ThreadID, &row.UpdatedAt, &row.UpdatedBy, &row.BodyJSON, &row.ProvenanceJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return snapshotRow{}, ErrNotFound
+	}
+	if err != nil {
+		return snapshotRow{}, fmt.Errorf("query snapshot row: %w", err)
+	}
+	return row, nil
+}
+
+func scanSnapshotRow(scanner interface{ Scan(dest ...any) error }) (snapshotRow, error) {
+	row := snapshotRow{}
+	if err := scanner.Scan(&row.ID, &row.Kind, &row.ThreadID, &row.UpdatedAt, &row.UpdatedBy, &row.BodyJSON, &row.ProvenanceJSON); err != nil {
+		return snapshotRow{}, fmt.Errorf("scan snapshot row: %w", err)
+	}
+	return row, nil
+}
+
+func (r snapshotRow) ToSnapshotMap() (map[string]any, error) {
+	body := map[string]any{}
+	if strings.TrimSpace(r.BodyJSON) != "" {
+		if err := json.Unmarshal([]byte(r.BodyJSON), &body); err != nil {
+			return nil, fmt.Errorf("decode snapshot body: %w", err)
+		}
+	}
+
+	provenance := map[string]any{}
+	if strings.TrimSpace(r.ProvenanceJSON) != "" {
+		if err := json.Unmarshal([]byte(r.ProvenanceJSON), &provenance); err != nil {
+			return nil, fmt.Errorf("decode snapshot provenance: %w", err)
+		}
+	}
+
+	body["id"] = r.ID
+	if _, hasType := body["type"]; !hasType {
+		body["type"] = r.Kind
+	}
+	body["updated_at"] = r.UpdatedAt
+	body["updated_by"] = r.UpdatedBy
+	if r.ThreadID.Valid {
+		body["thread_id"] = r.ThreadID.String
+	}
+	body["provenance"] = provenance
+
+	return body, nil
 }
 
 func encodeContent(content any) ([]byte, error) {
@@ -530,6 +806,34 @@ func containsThreadRef(refs []string, threadID string) bool {
 		}
 	}
 	return false
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func threadIsStale(thread map[string]any, now time.Time) bool {
+	cadence, _ := thread["cadence"].(string)
+	if cadence == "reactive" {
+		return false
+	}
+
+	nextCheckInAt, _ := thread["next_check_in_at"].(string)
+	if strings.TrimSpace(nextCheckInAt) == "" {
+		return false
+	}
+
+	nextTime, err := time.Parse(time.RFC3339, nextCheckInAt)
+	if err != nil {
+		return false
+	}
+
+	return now.After(nextTime)
 }
 
 func cloneMap(in map[string]any) map[string]any {

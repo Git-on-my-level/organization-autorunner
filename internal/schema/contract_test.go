@@ -67,6 +67,18 @@ func TestLoadExtractsCoreSchemaRules(t *testing.T) {
 	if verification.MinItems == nil || *verification.MinItems != 1 {
 		t.Fatalf("expected receipt.verification_evidence min_items=1, got %#v", verification.MinItems)
 	}
+
+	threadSnapshot, ok := contract.Snapshots["thread"]
+	if !ok {
+		t.Fatal("thread snapshot schema was not loaded")
+	}
+	openCommitments, ok := threadSnapshot.Fields["open_commitments"]
+	if !ok {
+		t.Fatal("thread.open_commitments field was not loaded")
+	}
+	if !openCommitments.Required {
+		t.Fatal("expected thread.open_commitments to be required")
+	}
 }
 
 func TestLoadMissingVersion(t *testing.T) {

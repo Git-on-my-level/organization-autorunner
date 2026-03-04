@@ -7,9 +7,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 
 	"organization-autorunner-core/internal/actors"
+	"organization-autorunner-core/internal/primitives"
+	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/storage"
 )
 
@@ -23,7 +26,19 @@ func TestActorEndpointsRegisterAndListStableOrder(t *testing.T) {
 	defer workspace.Close()
 
 	registry := actors.NewStore(workspace.DB())
-	handler := NewHandler("0.2.2", WithActorRegistry(registry), WithHealthCheck(workspace.Ping))
+	contractPath := filepath.Join("..", "..", "contracts", "oar-schema.yaml")
+	contract, err := schema.Load(contractPath)
+	if err != nil {
+		t.Fatalf("load schema contract: %v", err)
+	}
+	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	handler := NewHandler(
+		"0.2.2",
+		WithActorRegistry(registry),
+		WithHealthCheck(workspace.Ping),
+		WithPrimitiveStore(primitiveStore),
+		WithSchemaContract(contract),
+	)
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
@@ -65,7 +80,19 @@ func TestPostThreadsRejectsUnknownActorID(t *testing.T) {
 	defer workspace.Close()
 
 	registry := actors.NewStore(workspace.DB())
-	handler := NewHandler("0.2.2", WithActorRegistry(registry), WithHealthCheck(workspace.Ping))
+	contractPath := filepath.Join("..", "..", "contracts", "oar-schema.yaml")
+	contract, err := schema.Load(contractPath)
+	if err != nil {
+		t.Fatalf("load schema contract: %v", err)
+	}
+	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	handler := NewHandler(
+		"0.2.2",
+		WithActorRegistry(registry),
+		WithHealthCheck(workspace.Ping),
+		WithPrimitiveStore(primitiveStore),
+		WithSchemaContract(contract),
+	)
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
