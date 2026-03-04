@@ -81,6 +81,8 @@
   let workOrderArtifacts = [];
   let workOrdersLoading = false;
   let workOrdersError = "";
+  let workOrderPrefillNotice = "";
+  let appliedWorkOrderPrefillKey = "";
 
   let receiptDraft = null;
   let creatingReceipt = false;
@@ -110,6 +112,30 @@
 
   $: timelineView = toTimelineView(timeline, { threadId });
   $: canPost = Boolean(messageText.trim()) && !postingMessage;
+  $: workOrderShouldPrefill =
+    $page.url.searchParams.get("compose") === "work-order";
+  $: workOrderPrefillRefs = $page.url.searchParams
+    .getAll("context_ref")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  $: workOrderPrefillKey = `${threadId}|${$page.url.searchParams.toString()}`;
+  $: if (
+    workOrderDraft &&
+    workOrderShouldPrefill &&
+    workOrderPrefillKey !== appliedWorkOrderPrefillKey
+  ) {
+    const existingRefs = parseListInput(workOrderDraft.contextRefsInput ?? "");
+    const mergedRefs = Array.from(
+      new Set([`thread:${threadId}`, ...workOrderPrefillRefs, ...existingRefs]),
+    );
+
+    workOrderDraft = {
+      ...workOrderDraft,
+      contextRefsInput: mergedRefs.join("\n"),
+    };
+    workOrderPrefillNotice = "Composer prefilled from review context.";
+    appliedWorkOrderPrefillKey = workOrderPrefillKey;
+  }
   $: if (createCommitmentDraft && !createCommitmentDraft.owner) {
     const fallbackOwnerId = defaultCommitmentOwner();
     if (fallbackOwnerId) {
@@ -1073,6 +1099,7 @@
 
 {#if snapshot}
   <section
+    id="work-order-composer"
     class="mt-6 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
   >
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -1438,6 +1465,14 @@
       Creates a `work_order` packet artifact and emits a `work_order_created`
       event.
     </p>
+
+    {#if workOrderPrefillNotice}
+      <p
+        class="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800"
+      >
+        {workOrderPrefillNotice}
+      </p>
+    {/if}
 
     {#if workOrderErrors.length > 0}
       <ul

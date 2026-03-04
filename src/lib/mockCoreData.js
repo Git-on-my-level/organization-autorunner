@@ -888,3 +888,133 @@ export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {
 
   return { artifact: createdArtifact, event: createdEvent };
 }
+
+export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
+  const artifactId = String(artifact.id ?? "").trim();
+  const packetId = String(packet.review_id ?? "").trim();
+  const receiptId = String(packet.receipt_id ?? "").trim();
+  const workOrderId = String(packet.work_order_id ?? "").trim();
+  const threadId = String(artifact.thread_id ?? "").trim();
+
+  if (!artifactId) {
+    return { error: "validation", message: "artifact.id is required." };
+  }
+
+  if (!packetId) {
+    return { error: "validation", message: "packet.review_id is required." };
+  }
+
+  if (artifactId !== packetId) {
+    return {
+      error: "validation",
+      message: "packet.review_id must match artifact.id.",
+    };
+  }
+
+  if (!threadId) {
+    return { error: "validation", message: "artifact.thread_id is required." };
+  }
+
+  if (!receiptId) {
+    return { error: "validation", message: "packet.receipt_id is required." };
+  }
+
+  if (!workOrderId) {
+    return {
+      error: "validation",
+      message: "packet.work_order_id is required.",
+    };
+  }
+
+  const outcome = String(packet.outcome ?? "").trim();
+  const notes = String(packet.notes ?? "").trim();
+  const evidenceRefs = normalizeRefList(packet.evidence_refs);
+
+  if (!["accept", "revise", "escalate"].includes(outcome)) {
+    return {
+      error: "validation",
+      message: "packet.outcome must be one of: accept, revise, escalate.",
+    };
+  }
+
+  if (!notes) {
+    return { error: "validation", message: "packet.notes is required." };
+  }
+
+  if (evidenceRefs.some((refValue) => !isTypedRef(refValue))) {
+    return {
+      error: "validation",
+      message: "packet.evidence_refs contains invalid typed refs.",
+    };
+  }
+
+  const threadRef = `thread:${threadId}`;
+  const receiptRef = `artifact:${receiptId}`;
+  const workOrderRef = `artifact:${workOrderId}`;
+  const artifactRefs = normalizeRefList(artifact.refs);
+
+  if (
+    !artifactRefs.includes(threadRef) ||
+    !artifactRefs.includes(receiptRef) ||
+    !artifactRefs.includes(workOrderRef)
+  ) {
+    return {
+      error: "validation",
+      message:
+        "artifact.refs must include thread:<thread_id>, artifact:<receipt_id>, and artifact:<work_order_id>.",
+    };
+  }
+
+  const createdArtifact = {
+    id: artifactId,
+    kind: "review",
+    thread_id: threadId,
+    summary: String(
+      artifact.summary ?? `Review (${outcome}) for ${receiptId}`,
+    ).trim(),
+    refs: artifactRefs,
+    created_at: new Date().toISOString(),
+    created_by: actor_id,
+    provenance: {
+      sources: ["actor_statement:ui"],
+    },
+    packet: {
+      review_id: packetId,
+      work_order_id: workOrderId,
+      receipt_id: receiptId,
+      outcome,
+      notes,
+      evidence_refs: evidenceRefs,
+    },
+  };
+
+  artifacts.unshift(createdArtifact);
+
+  const createdEvent = {
+    id: `event-${Math.random().toString(36).slice(2, 10)}`,
+    ts: new Date().toISOString(),
+    type: "review_completed",
+    actor_id,
+    thread_id: threadId,
+    refs: [
+      `artifact:${artifactId}`,
+      `artifact:${receiptId}`,
+      `artifact:${workOrderId}`,
+      threadRef,
+    ],
+    summary: `Review completed (${outcome})`,
+    payload: {
+      artifact_id: artifactId,
+      receipt_id: receiptId,
+      work_order_id: workOrderId,
+      outcome,
+    },
+    provenance: {
+      sources: ["actor_statement:ui"],
+    },
+  };
+
+  events.push(createdEvent);
+
+  return { artifact: createdArtifact, event: createdEvent };
+}
