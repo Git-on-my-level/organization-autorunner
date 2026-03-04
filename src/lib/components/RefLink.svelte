@@ -1,11 +1,11 @@
 <script>
   import { resolveRefLink } from "$lib/refLinkModel";
 
-  export let refValue = "";
-  export let threadId = "";
-  export let snapshotIsThread = false;
+  let { refValue = "", threadId = "", snapshotIsThread = false } = $props();
 
-  $: resolved = resolveRefLink(refValue, { threadId, snapshotIsThread });
+  let resolved = $derived(
+    resolveRefLink(refValue, { threadId, snapshotIsThread }),
+  );
 </script>
 
 {#if resolved.isLink}

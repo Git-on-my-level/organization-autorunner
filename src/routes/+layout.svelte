@@ -16,19 +16,27 @@
   import { coreClient } from "$lib/coreClient";
   import { navigationItems } from "$lib/navigation";
 
-  let actorError = "";
-  let loadingActors = false;
-  let creatingActor = false;
-  let newActorName = "";
+  let actorError = $state("");
+  let loadingActors = $state(false);
+  let creatingActor = $state(false);
+  let newActorName = $state("");
 
-  $: gateVisible = shouldShowActorGate($actorSessionReady, $selectedActorId);
-  $: selectedActorName = lookupActorDisplayName(
-    $selectedActorId,
-    $actorRegistry,
+  let gateVisible = $derived(
+    shouldShowActorGate($actorSessionReady, $selectedActorId),
   );
-  $: initials = selectedActorName
-    ? selectedActorName.split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase()
-    : "?";
+  let selectedActorName = $derived(
+    lookupActorDisplayName($selectedActorId, $actorRegistry),
+  );
+  let initials = $derived(
+    selectedActorName
+      ? selectedActorName
+          .split(/\s+/)
+          .map((w) => w[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase()
+      : "?",
+  );
 
   onMount(async () => {
     initializeActorSession();
@@ -107,8 +115,12 @@
     </main>
   {:else if gateVisible}
     <main class="flex flex-1 items-center justify-center p-8">
-      <section class="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6">
-        <h1 class="text-lg font-semibold text-gray-900">Choose your identity</h1>
+      <section
+        class="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6"
+      >
+        <h1 class="text-lg font-semibold text-gray-900">
+          Choose your identity
+        </h1>
         <p class="mt-1 text-sm text-gray-500">
           Select an actor or create a new one to continue.
         </p>
@@ -123,20 +135,26 @@
           {#if loadingActors}
             <p class="text-sm text-gray-400">Loading...</p>
           {:else if $actorRegistry.length === 0}
-            <p class="text-sm text-gray-400">No actors yet. Create one below.</p>
+            <p class="text-sm text-gray-400">
+              No actors yet. Create one below.
+            </p>
           {:else}
             <ul class="space-y-1">
               {#each $actorRegistry as actor}
                 <li>
                   <button
                     class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-                    on:click={() => selectActor(actor.id)}
+                    onclick={() => selectActor(actor.id)}
                     type="button"
                   >
-                    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                    <span
+                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
+                    >
                       {(actor.display_name || "?").slice(0, 1).toUpperCase()}
                     </span>
-                    <span class="font-medium text-gray-900">{actor.display_name}</span>
+                    <span class="font-medium text-gray-900"
+                      >{actor.display_name}</span
+                    >
                   </button>
                 </li>
               {/each}
@@ -146,9 +164,15 @@
 
         <form
           class="mt-5 border-t border-gray-100 pt-5"
-          on:submit|preventDefault={createActor}
+          onsubmit={(event) => {
+            event.preventDefault();
+            createActor();
+          }}
         >
-          <label class="block text-sm font-medium text-gray-700" for="actor-display-name">
+          <label
+            class="block text-sm font-medium text-gray-700"
+            for="actor-display-name"
+          >
             New actor name
           </label>
           <div class="mt-1.5 flex gap-2">
@@ -172,9 +196,13 @@
       </section>
     </main>
   {:else}
-    <aside class="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-white">
+    <aside
+      class="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-white"
+    >
       <div class="px-4 pb-2 pt-5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">OAR</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">
+          OAR
+        </p>
       </div>
 
       <nav class="flex-1 px-2 py-1" aria-label="Primary">
@@ -183,7 +211,8 @@
             <li>
               <a
                 class={`flex items-center rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                  $page.url.pathname === item.href || $page.url.pathname.startsWith(item.href + "/")
+                  $page.url.pathname === item.href ||
+                  $page.url.pathname.startsWith(item.href + "/")
                     ? "bg-indigo-50 text-indigo-700"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
@@ -198,16 +227,20 @@
 
       <div class="border-t border-gray-100 px-3 py-3">
         <div class="flex items-center gap-2">
-          <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+          <span
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
+          >
             {initials}
           </span>
           <div class="min-w-0 flex-1">
-            <p class="truncate text-[13px] font-medium text-gray-900">{selectedActorName}</p>
+            <p class="truncate text-[13px] font-medium text-gray-900">
+              {selectedActorName}
+            </p>
           </div>
         </div>
         <button
           class="mt-2 w-full rounded-md px-2 py-1 text-left text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-          on:click={switchIdentity}
+          onclick={switchIdentity}
           type="button"
         >
           Switch identity

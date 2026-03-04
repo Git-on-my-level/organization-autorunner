@@ -5,16 +5,16 @@
   import { coreClient } from "$lib/coreClient";
   import { groupInboxItems, getInboxCategoryLabel } from "$lib/inboxUtils";
 
-  let loading = false;
-  let error = "";
-  let items = [];
-  let ackInFlightById = {};
-  let decisionInFlightById = {};
-  let decisionFormsById = {};
-  let postedDecisionByThread = {};
+  let loading = $state(false);
+  let error = $state("");
+  let items = $state([]);
+  let ackInFlightById = $state({});
+  let decisionInFlightById = $state({});
+  let decisionFormsById = $state({});
+  let postedDecisionByThread = $state({});
 
-  $: groupedItems = groupInboxItems(items);
-  $: totalItems = items.length;
+  let groupedItems = $derived(groupInboxItems(items));
+  let totalItems = $derived(items.length);
 
   onMount(async () => {
     await loadInbox();
@@ -141,31 +141,22 @@
       decisionInFlightById = { ...decisionInFlightById, [item.id]: false };
     }
   }
-
-  function categoryIcon(category) {
-    if (category === "decision_needed") return "!";
-    if (category === "exception") return "!!";
-    if (category === "commitment_risk") return "~";
-    return "?";
-  }
-
-  function categoryColor(category) {
-    if (category === "decision_needed") return "border-amber-200 bg-amber-50 text-amber-700";
-    if (category === "exception") return "border-red-200 bg-red-50 text-red-700";
-    if (category === "commitment_risk") return "border-orange-200 bg-orange-50 text-orange-700";
-    return "border-gray-200 bg-gray-50 text-gray-600";
-  }
 </script>
 
 <div class="flex items-center justify-between">
   <h1 class="text-lg font-semibold text-gray-900">Inbox</h1>
   {#if totalItems > 0}
-    <span class="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">{totalItems}</span>
+    <span
+      class="rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700"
+      >{totalItems}</span
+    >
   {/if}
 </div>
 
 {#if error}
-  <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+  <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+    {error}
+  </p>
 {/if}
 
 {#if loading}
@@ -174,35 +165,54 @@
   <div class="mt-4 space-y-5">
     {#each groupedItems as group}
       <section>
-        <h2 class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
+        <h2
+          class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400"
+        >
           {getInboxCategoryLabel(group.category)}
         </h2>
 
         {#if group.items.length === 0}
-          <p class="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-400">
+          <p
+            class="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-400"
+          >
             Nothing here.
           </p>
         {:else}
-          <div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <div
+            class="overflow-hidden rounded-lg border border-gray-200 bg-white"
+          >
             {#each group.items as item, i}
-              <div class="border-b border-gray-100 px-4 py-3 {i === group.items.length - 1 ? 'border-b-0' : ''}">
+              <div
+                class="border-b border-gray-100 px-4 py-3 {i ===
+                group.items.length - 1
+                  ? 'border-b-0'
+                  : ''}"
+              >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0 flex-1">
-                    <p class="text-sm font-medium text-gray-900">{item.title}</p>
-                    <p class="mt-0.5 text-xs text-gray-500">{item.recommended_action}</p>
+                    <p class="text-sm font-medium text-gray-900">
+                      {item.title}
+                    </p>
+                    <p class="mt-0.5 text-xs text-gray-500">
+                      {item.recommended_action}
+                    </p>
                   </div>
                   <div class="flex shrink-0 items-center gap-1.5">
                     <button
                       class="rounded px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-50"
                       disabled={Boolean(ackInFlightById[item.id])}
-                      on:click={() => acknowledgeItem(item)}
+                      onclick={() => acknowledgeItem(item)}
                       type="button"
                     >
                       {ackInFlightById[item.id] ? "..." : "Ack"}
                     </button>
                     <button
                       class="rounded px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
-                      on:click={() => toggleDecisionForm(item.id, !getDecisionForm(item.id).open)}
+                      onclick={() =>
+                        toggleDecisionForm(
+                          item.id,
+                          !getDecisionForm(item.id).open,
+                        )}
                       type="button"
                     >
                       {getDecisionForm(item.id).open ? "Cancel" : "Decide"}
@@ -212,13 +222,19 @@
 
                 <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
                   {#if item.thread_id}
-                    <a class="text-indigo-600 hover:text-indigo-800" href={`/threads/${item.thread_id}`}>View thread</a>
+                    <a
+                      class="text-indigo-600 hover:text-indigo-800"
+                      href={`/threads/${item.thread_id}`}>View thread</a
+                    >
                   {/if}
                   {#if item.commitment_id}
                     <a
                       class="text-indigo-600 hover:text-indigo-800"
-                      href={item.thread_id ? `/threads/${item.thread_id}#commitment-${item.commitment_id}` : `/threads#commitment-${item.commitment_id}`}
-                    >View commitment</a>
+                      href={item.thread_id
+                        ? `/threads/${item.thread_id}#commitment-${item.commitment_id}`
+                        : `/threads#commitment-${item.commitment_id}`}
+                      >View commitment</a
+                    >
                   {/if}
                   {#each item.refs ?? [] as refValue}
                     <RefLink {refValue} threadId={item.thread_id} />
@@ -228,31 +244,54 @@
                 {#if postedDecisionByThread[item.thread_id]}
                   <p class="mt-2 text-xs text-emerald-600">
                     Decision recorded.
-                    <a class="underline" href={`/threads/${item.thread_id}#event-${postedDecisionByThread[item.thread_id].id}`}>View in timeline</a>
+                    <a
+                      class="underline"
+                      href={`/threads/${item.thread_id}#event-${postedDecisionByThread[item.thread_id].id}`}
+                      >View in timeline</a
+                    >
                   </p>
                 {/if}
 
                 {#if getDecisionForm(item.id).open}
                   <form
                     class="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3"
-                    on:submit|preventDefault={() => recordDecision(item)}
+                    onsubmit={(event) => {
+                      event.preventDefault();
+                      recordDecision(item);
+                    }}
                   >
-                    <label class="block text-xs font-medium text-gray-600" for={`decision-summary-${item.id}`}>
+                    <label
+                      class="block text-xs font-medium text-gray-600"
+                      for={`decision-summary-${item.id}`}
+                    >
                       Decision summary
                     </label>
                     <input
                       class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
                       id={`decision-summary-${item.id}`}
-                      on:input={(event) => updateDecisionField(item.id, "summary", event.currentTarget.value)}
+                      oninput={(event) =>
+                        updateDecisionField(
+                          item.id,
+                          "summary",
+                          event.currentTarget.value,
+                        )}
                       value={getDecisionForm(item.id).summary}
                     />
-                    <label class="mt-2 block text-xs font-medium text-gray-600" for={`decision-notes-${item.id}`}>
+                    <label
+                      class="mt-2 block text-xs font-medium text-gray-600"
+                      for={`decision-notes-${item.id}`}
+                    >
                       Notes (optional)
                     </label>
                     <textarea
                       class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
                       id={`decision-notes-${item.id}`}
-                      on:input={(event) => updateDecisionField(item.id, "notes", event.currentTarget.value)}
+                      oninput={(event) =>
+                        updateDecisionField(
+                          item.id,
+                          "notes",
+                          event.currentTarget.value,
+                        )}
                       rows="2">{getDecisionForm(item.id).notes}</textarea
                     >
                     <button
@@ -260,7 +299,9 @@
                       disabled={Boolean(decisionInFlightById[item.id])}
                       type="submit"
                     >
-                      {decisionInFlightById[item.id] ? "Recording..." : "Submit decision"}
+                      {decisionInFlightById[item.id]
+                        ? "Recording..."
+                        : "Submit decision"}
                     </button>
                   </form>
                 {/if}

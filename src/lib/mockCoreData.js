@@ -167,7 +167,9 @@ const threads = [
     next_actions: [],
     open_commitments: [],
     next_check_in_at: null,
-    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(
+      now - 7 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
+    ).toISOString(),
     updated_by: "actor-ops-ai",
     provenance: {
       sources: ["actor_statement:evt-price-013"],
@@ -206,7 +208,8 @@ const inboxItems = [
   {
     id: "inbox-001",
     category: "decision_needed",
-    title: "Approve emergency lemon restock — LocalGrove Bot, 100 units @ $0.31/ea",
+    title:
+      "Approve emergency lemon restock — LocalGrove Bot, 100 units @ $0.31/ea",
     recommended_action:
       "Approve SupplyRover's recommendation to order 100 lemons from LocalGrove Bot " +
       "($31.00 total, 2-hour delivery). Current inventory covers ~2 hours. " +
@@ -245,7 +248,8 @@ const inboxItems = [
   {
     id: "inbox-004",
     category: "decision_needed",
-    title: "SqueezeBot repair: authorize recalibration once part arrives tomorrow",
+    title:
+      "SqueezeBot repair: authorize recalibration once part arrives tomorrow",
     recommended_action:
       "When RoboSupply Inc. delivers part #TL-3000-L (ETA tomorrow 09:00), " +
       "authorize SqueezeBot to begin the recalibration sequence.",
@@ -286,7 +290,8 @@ const events = [
     actor_id: "actor-ops-ai",
     thread_id: "thread-lemon-shortage",
     refs: ["thread:thread-lemon-shortage"],
-    summary: "OpsAI instructed SqueezeBot to half-batch mode and escalated priority to P0.",
+    summary:
+      "OpsAI instructed SqueezeBot to half-batch mode and escalated priority to P0.",
     payload: {
       text:
         "Acknowledged. Switching to half-batch mode effective immediately — this extends " +
@@ -314,7 +319,8 @@ const events = [
     actor_id: "actor-supply-rover",
     thread_id: "thread-lemon-shortage",
     refs: ["thread:thread-lemon-shortage"],
-    summary: "LocalGrove Bot now online — recommending 100-unit order at $0.31/lemon.",
+    summary:
+      "LocalGrove Bot now online — recommending 100-unit order at $0.31/lemon.",
     payload: {
       text:
         "Update: LocalGrove Bot just came back online. Confirmed pricing: $0.31/lemon, " +
@@ -351,7 +357,8 @@ const events = [
     actor_id: "actor-squeeze-bot",
     thread_id: "thread-summer-menu",
     refs: ["thread:thread-summer-menu", "artifact:artifact-tasting-log"],
-    summary: "SqueezeBot ran test batches — both flavors passed QA sensor validation.",
+    summary:
+      "SqueezeBot ran test batches — both flavors passed QA sensor validation.",
     payload: {
       text:
         "2-cup test batches complete. Lavender Lemonade: 9.1/10 (sweetness 9.0, " +
@@ -374,7 +381,9 @@ const events = [
   },
   {
     id: "evt-menu-004",
-    ts: new Date(now - 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "unknown_future_type",
     actor_id: "actor-supply-rover",
     thread_id: "thread-summer-menu",
@@ -383,8 +392,13 @@ const events = [
       "artifact:artifact-receipt-lavender-sourcing",
       "mystery:botbotanicals-confirmation-token-xk9q",
     ],
-    summary: "Automated supplier confirmation event (future event type — renders safely).",
-    payload: { supplier_id: "botbotanicals-api", order_qty_liters: 2, status: "confirmed" },
+    summary:
+      "Automated supplier confirmation event (future event type — renders safely).",
+    payload: {
+      supplier_id: "botbotanicals-api",
+      order_qty_liters: 2,
+      status: "confirmed",
+    },
     provenance: { sources: ["inferred"] },
   },
 
@@ -417,7 +431,8 @@ const events = [
     actor_id: "actor-ops-ai",
     thread_id: "thread-squeezebot-maintenance",
     refs: ["thread:thread-squeezebot-maintenance"],
-    summary: "OpsAI issued maintenance work order and ordered replacement part.",
+    summary:
+      "OpsAI issued maintenance work order and ordered replacement part.",
     payload: {
       text:
         "Confirmed. Work order issued. Placed order with RoboSupply Inc. for torque " +
@@ -473,7 +488,10 @@ const events = [
     type: "commitment_created",
     actor_id: "actor-ops-ai",
     thread_id: "thread-lemon-shortage",
-    refs: ["thread:thread-lemon-shortage", "snapshot:commitment-emergency-restock"],
+    refs: [
+      "thread:thread-lemon-shortage",
+      "snapshot:commitment-emergency-restock",
+    ],
     summary: "Commitment created: place emergency restock order.",
     payload: { commitment_id: "commitment-emergency-restock" },
     provenance: { sources: ["actor_statement:evt-supply-002"] },
@@ -508,7 +526,9 @@ const events = [
   },
   {
     id: "evt-menu-receipt-added",
-    ts: new Date(now - 2 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 2 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "receipt_added",
     actor_id: "actor-flavor-ai",
     thread_id: "thread-summer-menu",
@@ -526,7 +546,9 @@ const events = [
   },
   {
     id: "evt-menu-review-completed",
-    ts: new Date(now - 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "review_completed",
     actor_id: "actor-ops-ai",
     thread_id: "thread-summer-menu",
@@ -553,7 +575,10 @@ const events = [
     type: "exception_raised",
     actor_id: "actor-cashier-bot",
     thread_id: "thread-pricing-glitch",
-    refs: ["thread:thread-pricing-glitch", "artifact:artifact-pricing-evidence"],
+    refs: [
+      "thread:thread-pricing-glitch",
+      "artifact:artifact-pricing-evidence",
+    ],
     summary: "Exception raised: pricing anomaly detected on 3 transactions.",
     payload: {
       subtype: "pricing_anomaly",
@@ -578,7 +603,9 @@ const events = [
   },
   {
     id: "evt-price-003",
-    ts: new Date(now - 10 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 10 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "decision_needed",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
@@ -586,38 +613,45 @@ const events = [
       "thread:thread-pricing-glitch",
       "artifact:artifact-pricing-evidence",
     ],
-    summary: "Decision needed: approve customer refunds for overcharged transactions.",
+    summary:
+      "Decision needed: approve customer refunds for overcharged transactions.",
     payload: {
       question:
         "3 customers were overcharged $0.50 each ($1.50 total). " +
         "Should we issue refunds via the payment processor bot? " +
         "Also: should we suspend pricing config pushes pending a cache invalidation fix?",
-      options: ["Issue refunds and suspend config pushes", "Issue refunds only", "No action"],
+      options: [
+        "Issue refunds and suspend config pushes",
+        "Issue refunds only",
+        "No action",
+      ],
     },
     provenance: { sources: ["actor_statement:evt-price-003"] },
   },
   {
     id: "evt-price-004",
-    ts: new Date(now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "work_order_created",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
-    refs: [
-      "thread:thread-pricing-glitch",
-      "artifact:artifact-wo-pricing-fix",
-    ],
+    refs: ["thread:thread-pricing-glitch", "artifact:artifact-wo-pricing-fix"],
     summary: "Work order created: investigate and patch pricing cache logic.",
     payload: { artifact_id: "artifact-wo-pricing-fix" },
     provenance: { sources: ["actor_statement:evt-price-004"] },
   },
   {
     id: "evt-price-005",
-    ts: new Date(now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000 + 5 * 60 * 1000,
+    ).toISOString(),
     type: "commitment_created",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
     refs: ["thread:thread-pricing-glitch", "snapshot:commitment-pricing-patch"],
-    summary: "Commitment created: patch and validate pricing cache invalidation.",
+    summary:
+      "Commitment created: patch and validate pricing cache invalidation.",
     payload: { commitment_id: "commitment-pricing-patch" },
     provenance: { sources: ["actor_statement:evt-price-004"] },
   },
@@ -632,7 +666,8 @@ const events = [
       "artifact:artifact-receipt-pricing-v1",
       "artifact:artifact-wo-pricing-fix",
     ],
-    summary: "Receipt added (v1): pricing issue investigated — refund decision still needed.",
+    summary:
+      "Receipt added (v1): pricing issue investigated — refund decision still needed.",
     payload: {
       artifact_id: "artifact-receipt-pricing-v1",
       work_order_id: "artifact-wo-pricing-fix",
@@ -641,7 +676,9 @@ const events = [
   },
   {
     id: "evt-price-007",
-    ts: new Date(now - 9 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 9 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "review_completed",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
@@ -651,7 +688,8 @@ const events = [
       "artifact:artifact-receipt-pricing-v1",
       "artifact:artifact-wo-pricing-fix",
     ],
-    summary: "Review completed (escalate): refund policy decision required before acceptance.",
+    summary:
+      "Review completed (escalate): refund policy decision required before acceptance.",
     payload: {
       artifact_id: "artifact-review-pricing-escalate",
       receipt_id: "artifact-receipt-pricing-v1",
@@ -662,7 +700,9 @@ const events = [
   },
   {
     id: "evt-price-008",
-    ts: new Date(now - 9 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 9 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "decision_made",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
@@ -691,7 +731,8 @@ const events = [
       "artifact:artifact-receipt-pricing-v2",
       "artifact:artifact-wo-pricing-fix",
     ],
-    summary: "Receipt added (v2): cache fix deployed, refunds confirmed, patch validated.",
+    summary:
+      "Receipt added (v2): cache fix deployed, refunds confirmed, patch validated.",
     payload: {
       artifact_id: "artifact-receipt-pricing-v2",
       work_order_id: "artifact-wo-pricing-fix",
@@ -700,7 +741,9 @@ const events = [
   },
   {
     id: "evt-price-010",
-    ts: new Date(now - 8 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 8 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "review_completed",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
@@ -710,7 +753,8 @@ const events = [
       "artifact:artifact-receipt-pricing-v2",
       "artifact:artifact-wo-pricing-fix",
     ],
-    summary: "Review completed (accept): pricing fix accepted, incident ready to close.",
+    summary:
+      "Review completed (accept): pricing fix accepted, incident ready to close.",
     payload: {
       artifact_id: "artifact-review-pricing-accept",
       receipt_id: "artifact-receipt-pricing-v2",
@@ -730,7 +774,8 @@ const events = [
       "snapshot:commitment-pricing-patch",
       "artifact:artifact-receipt-pricing-v2",
     ],
-    summary: "Commitment marked done: pricing cache fix deployed and validated.",
+    summary:
+      "Commitment marked done: pricing cache fix deployed and validated.",
     payload: {
       commitment_id: "commitment-pricing-patch",
       from_status: "open",
@@ -749,7 +794,8 @@ const events = [
       "snapshot:commitment-pricing-audit",
       "event:evt-price-008",
     ],
-    summary: "Commitment canceled: full pricing audit deemed unnecessary after root cause confirmed.",
+    summary:
+      "Commitment canceled: full pricing audit deemed unnecessary after root cause confirmed.",
     payload: {
       commitment_id: "commitment-pricing-audit",
       from_status: "open",
@@ -762,7 +808,9 @@ const events = [
   },
   {
     id: "evt-price-013",
-    ts: new Date(now - 7 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
+    ts: new Date(
+      now - 7 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
+    ).toISOString(),
     type: "snapshot_updated",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
@@ -780,7 +828,8 @@ const events = [
     actor_id: "actor-ops-ai",
     thread_id: "thread-q2-initiative",
     refs: ["thread:thread-q2-initiative"],
-    summary: "OpsAI opened Q2 expansion initiative for Stand #2 at Riverside Park.",
+    summary:
+      "OpsAI opened Q2 expansion initiative for Stand #2 at Riverside Park.",
     payload: {
       text:
         "Opening this initiative thread for the Q2 goal: Stand #2 at Riverside Park by June 1. " +
@@ -799,7 +848,8 @@ const events = [
     actor_id: "actor-ops-ai",
     thread_id: "thread-q2-initiative",
     refs: ["thread:thread-q2-initiative"],
-    summary: "Monthly check-in: permit in review, SqueezeBot 2000 delivery on track.",
+    summary:
+      "Monthly check-in: permit in review, SqueezeBot 2000 delivery on track.",
     payload: { changed_fields: ["current_summary", "next_actions"] },
     provenance: { sources: ["actor_statement:evt-q2-002"] },
   },
@@ -882,9 +932,12 @@ const commitments = [
   {
     id: "commitment-part-install",
     thread_id: "thread-squeezebot-maintenance",
-    title: "Install torque limiter #TL-3000-L and run post-repair QA validation",
+    title:
+      "Install torque limiter #TL-3000-L and run post-repair QA validation",
     owner: "actor-squeeze-bot",
-    due_at: new Date(now + 1 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000).toISOString(),
+    due_at: new Date(
+      now + 1 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
+    ).toISOString(),
     status: "blocked",
     definition_of_done: [
       "Part #TL-3000-L received from RoboSupply Inc.",
@@ -943,7 +996,9 @@ const commitments = [
       "Audit report filed as artifact",
     ],
     links: ["thread:thread-pricing-glitch"],
-    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString(),
+    updated_at: new Date(
+      now - 7 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000,
+    ).toISOString(),
     updated_by: "actor-ops-ai",
     provenance: {
       sources: ["actor_statement:evt-price-008"],
@@ -1036,7 +1091,8 @@ const artifacts = [
     id: "artifact-summer-menu-draft",
     kind: "doc",
     thread_id: "thread-summer-menu",
-    summary: "Summer menu proposal — Lavender & Mango Chili Lemonade recipe specs",
+    summary:
+      "Summer menu proposal — Lavender & Mango Chili Lemonade recipe specs",
     refs: ["thread:thread-summer-menu"],
     content_type: "text/markdown",
     content_text: `# Summer Flavor Expansion — Recipe Spec v1.2
@@ -1138,11 +1194,9 @@ const artifacts = [
     id: "artifact-wo-lavender-sourcing",
     kind: "work_order",
     thread_id: "thread-summer-menu",
-    summary: "Work order: Source and contract a food-grade lavender syrup supplier",
-    refs: [
-      "thread:thread-summer-menu",
-      "artifact:artifact-summer-menu-draft",
-    ],
+    summary:
+      "Work order: Source and contract a food-grade lavender syrup supplier",
+    refs: ["thread:thread-summer-menu", "artifact:artifact-summer-menu-draft"],
     created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
     provenance: { sources: ["actor_statement:evt-menu-003"] },
@@ -1183,7 +1237,9 @@ const artifacts = [
       "thread:thread-summer-menu",
       "artifact:artifact-wo-lavender-sourcing",
     ],
-    created_at: new Date(now - 2 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(
+      now - 2 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
+    ).toISOString(),
     created_by: "actor-flavor-ai",
     provenance: { sources: ["actor_statement:evt-menu-003"] },
     packet: {
@@ -1199,7 +1255,7 @@ const artifacts = [
         "2L initial order placed via BotBotanicals API. Purchase confirmation received.",
       known_gaps: [
         "BotBotanicals does not yet support automated reorder webhooks — manual reorder " +
-        "required until their API v2 ships in Q3 2026.",
+          "required until their API v2 ships in Q3 2026.",
       ],
     },
   },
@@ -1213,7 +1269,9 @@ const artifacts = [
       "artifact:artifact-receipt-lavender-sourcing",
       "artifact:artifact-wo-lavender-sourcing",
     ],
-    created_at: new Date(now - 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(
+      now - 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
+    ).toISOString(),
     created_by: "actor-ops-ai",
     provenance: { sources: ["actor_statement:evt-menu-003"] },
     packet: {
@@ -1261,9 +1319,15 @@ const artifacts = [
     id: "artifact-wo-pricing-fix",
     kind: "work_order",
     thread_id: "thread-pricing-glitch",
-    summary: "Work order: diagnose pricing anomaly and patch cache invalidation logic",
-    refs: ["thread:thread-pricing-glitch", "artifact:artifact-pricing-evidence"],
-    created_at: new Date(now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000).toISOString(),
+    summary:
+      "Work order: diagnose pricing anomaly and patch cache invalidation logic",
+    refs: [
+      "thread:thread-pricing-glitch",
+      "artifact:artifact-pricing-evidence",
+    ],
+    created_at: new Date(
+      now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
+    ).toISOString(),
     created_by: "actor-ops-ai",
     provenance: { sources: ["actor_statement:evt-price-004"] },
     packet: {
@@ -1300,11 +1364,9 @@ const artifacts = [
     id: "artifact-receipt-pricing-v1",
     kind: "receipt",
     thread_id: "thread-pricing-glitch",
-    summary: "Receipt v1: root cause identified — awaiting refund decision before closing",
-    refs: [
-      "thread:thread-pricing-glitch",
-      "artifact:artifact-wo-pricing-fix",
-    ],
+    summary:
+      "Receipt v1: root cause identified — awaiting refund decision before closing",
+    refs: ["thread:thread-pricing-glitch", "artifact:artifact-wo-pricing-fix"],
     created_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-cashier-bot",
     provenance: { sources: ["actor_statement:evt-price-006"] },
@@ -1329,13 +1391,16 @@ const artifacts = [
     id: "artifact-review-pricing-escalate",
     kind: "review",
     thread_id: "thread-pricing-glitch",
-    summary: "Review v1 (escalate): refund decision required before work order can be accepted",
+    summary:
+      "Review v1 (escalate): refund decision required before work order can be accepted",
     refs: [
       "thread:thread-pricing-glitch",
       "artifact:artifact-receipt-pricing-v1",
       "artifact:artifact-wo-pricing-fix",
     ],
-    created_at: new Date(now - 9 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(
+      now - 9 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
+    ).toISOString(),
     created_by: "actor-ops-ai",
     provenance: { sources: ["actor_statement:evt-price-007"] },
     packet: {
@@ -1356,11 +1421,9 @@ const artifacts = [
     id: "artifact-receipt-pricing-v2",
     kind: "receipt",
     thread_id: "thread-pricing-glitch",
-    summary: "Receipt v2: fix deployed, refunds confirmed, all acceptance criteria met",
-    refs: [
-      "thread:thread-pricing-glitch",
-      "artifact:artifact-wo-pricing-fix",
-    ],
+    summary:
+      "Receipt v2: fix deployed, refunds confirmed, all acceptance criteria met",
+    refs: ["thread:thread-pricing-glitch", "artifact:artifact-wo-pricing-fix"],
     created_at: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-cashier-bot",
     provenance: { sources: ["actor_statement:evt-price-009"] },
@@ -1369,7 +1432,10 @@ const artifacts = [
       work_order_id: "artifact-wo-pricing-fix",
       thread_id: "thread-pricing-glitch",
       outputs: ["artifact:artifact-pricing-evidence"],
-      verification_evidence: ["event:evt-price-008", "artifact:artifact-pricing-evidence"],
+      verification_evidence: [
+        "event:evt-price-008",
+        "artifact:artifact-pricing-evidence",
+      ],
       changes_summary:
         "Following OpsAI's decision (evt-price-008): cache invalidation patch deployed — " +
         "config version advanced to v1.3, cache TTL reduced to 1 hour. " +
@@ -1389,7 +1455,9 @@ const artifacts = [
       "artifact:artifact-receipt-pricing-v2",
       "artifact:artifact-wo-pricing-fix",
     ],
-    created_at: new Date(now - 8 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(
+      now - 8 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
+    ).toISOString(),
     created_by: "actor-ops-ai",
     provenance: { sources: ["actor_statement:evt-price-010"] },
     packet: {

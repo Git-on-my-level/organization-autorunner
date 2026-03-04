@@ -22,23 +22,23 @@
     tagInput: "",
   };
 
-  let filters = { ...defaultFilters };
-  let loading = false;
-  let error = "";
-  let threads = [];
-  let createOpen = false;
-  let creatingThread = false;
-  let createError = "";
-  let filtersOpen = false;
+  let filters = $state({ ...defaultFilters });
+  let loading = $state(false);
+  let error = $state("");
+  let threads = $state([]);
+  let createOpen = $state(false);
+  let creatingThread = $state(false);
+  let createError = $state("");
+  let filtersOpen = $state(false);
 
-  let threadDraft = {
+  let threadDraft = $state({
     title: "",
     summary: "",
     status: "active",
     priority: "p2",
     cadence: "weekly",
     tagsInput: "",
-  };
+  });
 
   onMount(async () => {
     await loadThreads();
@@ -133,12 +133,21 @@
   }
 
   function priorityDot(priority) {
-    const colors = { p0: "bg-red-500", p1: "bg-orange-400", p2: "bg-blue-400", p3: "bg-gray-300" };
+    const colors = {
+      p0: "bg-red-500",
+      p1: "bg-orange-400",
+      p2: "bg-blue-400",
+      p3: "bg-gray-300",
+    };
     return colors[priority] ?? "bg-gray-300";
   }
 
   function statusColor(status) {
-    const colors = { active: "text-emerald-600", paused: "text-amber-600", closed: "text-gray-400" };
+    const colors = {
+      active: "text-emerald-600",
+      paused: "text-amber-600",
+      closed: "text-gray-400",
+    };
     return colors[status] ?? "text-gray-500";
   }
 </script>
@@ -148,14 +157,14 @@
   <div class="flex items-center gap-2">
     <button
       class="rounded-md px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
-      on:click={() => (filtersOpen = !filtersOpen)}
+      onclick={() => (filtersOpen = !filtersOpen)}
       type="button"
     >
       {filtersOpen ? "Hide filters" : "Filters"}
     </button>
     <button
       class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500"
-      on:click={() => (createOpen = !createOpen)}
+      onclick={() => (createOpen = !createOpen)}
       type="button"
     >
       {createOpen ? "Cancel" : "New thread"}
@@ -164,7 +173,9 @@
 </div>
 
 {#if error}
-  <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+  <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+    {error}
+  </p>
 {/if}
 
 {#if filtersOpen}
@@ -172,28 +183,46 @@
     <div class="grid gap-2 sm:grid-cols-5">
       <label class="text-xs text-gray-500">
         Status
-        <select bind:value={filters.status} class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm">
+        <select
+          bind:value={filters.status}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+        >
           <option value="">All</option>
-          {#each THREAD_STATUSES as status}<option value={status}>{status}</option>{/each}
+          {#each THREAD_STATUSES as status}<option value={status}
+              >{status}</option
+            >{/each}
         </select>
       </label>
       <label class="text-xs text-gray-500">
         Priority
-        <select bind:value={filters.priority} class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm">
+        <select
+          bind:value={filters.priority}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+        >
           <option value="">All</option>
-          {#each THREAD_PRIORITIES as priority}<option value={priority}>{THREAD_PRIORITY_LABELS[priority]}</option>{/each}
+          {#each THREAD_PRIORITIES as priority}<option value={priority}
+              >{THREAD_PRIORITY_LABELS[priority]}</option
+            >{/each}
         </select>
       </label>
       <label class="text-xs text-gray-500">
         Cadence
-        <select bind:value={filters.cadence} class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm">
+        <select
+          bind:value={filters.cadence}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+        >
           <option value="">All</option>
-          {#each THREAD_CADENCES as cadence}<option value={cadence}>{cadence}</option>{/each}
+          {#each THREAD_CADENCES as cadence}<option value={cadence}
+              >{cadence}</option
+            >{/each}
         </select>
       </label>
       <label class="text-xs text-gray-500">
         Staleness
-        <select bind:value={filters.staleness} class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm">
+        <select
+          bind:value={filters.staleness}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+        >
           <option value="all">All</option>
           <option value="stale">Stale</option>
           <option value="fresh">Fresh</option>
@@ -201,51 +230,101 @@
       </label>
       <label class="text-xs text-gray-500">
         Tags
-        <input bind:value={filters.tagInput} class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm" placeholder="ops, customer" type="text" />
+        <input
+          bind:value={filters.tagInput}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+          placeholder="ops, customer"
+          type="text"
+        />
       </label>
     </div>
     <div class="mt-2 flex gap-2">
-      <button class="rounded bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700" on:click={applyFilters} type="button">Apply</button>
-      <button class="rounded px-3 py-1 text-xs text-gray-500 hover:bg-gray-100" on:click={resetFilters} type="button">Reset</button>
+      <button
+        class="rounded bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
+        onclick={applyFilters}
+        type="button">Apply</button
+      >
+      <button
+        class="rounded px-3 py-1 text-xs text-gray-500 hover:bg-gray-100"
+        onclick={resetFilters}
+        type="button">Reset</button
+      >
     </div>
   </div>
 {/if}
 
 {#if createOpen}
-  <form class="mt-3 rounded-lg border border-gray-200 bg-white p-4" on:submit|preventDefault={createThread}>
+  <form
+    class="mt-3 rounded-lg border border-gray-200 bg-white p-4"
+    onsubmit={(event) => {
+      event.preventDefault();
+      createThread();
+    }}
+  >
     {#if createError}
-      <p class="mb-3 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700">{createError}</p>
+      <p class="mb-3 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700">
+        {createError}
+      </p>
     {/if}
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="text-xs font-medium text-gray-600 sm:col-span-2">
         Title
-        <input bind:value={threadDraft.title} class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm" required type="text" />
+        <input
+          bind:value={threadDraft.title}
+          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          required
+          type="text"
+        />
       </label>
       <label class="text-xs font-medium text-gray-600">
         Status
-        <select bind:value={threadDraft.status} class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm">
-          {#each THREAD_STATUSES as status}<option value={status}>{status}</option>{/each}
+        <select
+          bind:value={threadDraft.status}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+        >
+          {#each THREAD_STATUSES as status}<option value={status}
+              >{status}</option
+            >{/each}
         </select>
       </label>
       <label class="text-xs font-medium text-gray-600">
         Priority
-        <select bind:value={threadDraft.priority} class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm">
-          {#each THREAD_PRIORITIES as priority}<option value={priority}>{THREAD_PRIORITY_LABELS[priority]}</option>{/each}
+        <select
+          bind:value={threadDraft.priority}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+        >
+          {#each THREAD_PRIORITIES as priority}<option value={priority}
+              >{THREAD_PRIORITY_LABELS[priority]}</option
+            >{/each}
         </select>
       </label>
       <label class="text-xs font-medium text-gray-600">
         Cadence
-        <select bind:value={threadDraft.cadence} class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm">
-          {#each THREAD_CADENCES as cadence}<option value={cadence}>{cadence}</option>{/each}
+        <select
+          bind:value={threadDraft.cadence}
+          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+        >
+          {#each THREAD_CADENCES as cadence}<option value={cadence}
+              >{cadence}</option
+            >{/each}
         </select>
       </label>
       <label class="text-xs font-medium text-gray-600">
         Tags
-        <input bind:value={threadDraft.tagsInput} class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm" placeholder="ops, customer" type="text" />
+        <input
+          bind:value={threadDraft.tagsInput}
+          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          placeholder="ops, customer"
+          type="text"
+        />
       </label>
       <label class="text-xs font-medium text-gray-600 sm:col-span-2">
         Summary
-        <textarea bind:value={threadDraft.summary} class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm" rows="2"></textarea>
+        <textarea
+          bind:value={threadDraft.summary}
+          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          rows="2"
+        ></textarea>
       </label>
     </div>
     <button
@@ -261,29 +340,54 @@
 {#if loading}
   <p class="mt-6 text-sm text-gray-400">Loading threads...</p>
 {:else if threads.length === 0}
-  <p class="mt-6 text-sm text-gray-400">No threads match the current filters.</p>
+  <p class="mt-6 text-sm text-gray-400">
+    No threads match the current filters.
+  </p>
 {:else}
   <div class="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
     {#each threads as thread, i}
       {@const staleness = computeStaleness(thread)}
       <a
-        class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 transition-colors hover:bg-gray-50 {i === threads.length - 1 ? 'border-b-0' : ''}"
+        class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 transition-colors hover:bg-gray-50 {i ===
+        threads.length - 1
+          ? 'border-b-0'
+          : ''}"
         href={`/threads/${thread.id}`}
       >
-        <span class="flex h-2 w-2 shrink-0 rounded-full {priorityDot(thread.priority)}" title={getPriorityLabel(thread.priority)}></span>
+        <span
+          class="flex h-2 w-2 shrink-0 rounded-full {priorityDot(
+            thread.priority,
+          )}"
+          title={getPriorityLabel(thread.priority)}
+        ></span>
         <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-medium text-gray-900">{thread.title}</p>
-          <p class="mt-0.5 truncate text-xs text-gray-500">{thread.current_summary}</p>
+          <p class="truncate text-sm font-medium text-gray-900">
+            {thread.title}
+          </p>
+          <p class="mt-0.5 truncate text-xs text-gray-500">
+            {thread.current_summary}
+          </p>
         </div>
         <div class="flex shrink-0 items-center gap-3 text-xs">
-          <span class="capitalize {statusColor(thread.status)}">{thread.status}</span>
+          <span class="capitalize {statusColor(thread.status)}"
+            >{thread.status}</span
+          >
           {#if (thread.tags ?? []).length > 0}
-            <span class="hidden rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 sm:inline">{thread.tags[0]}{thread.tags.length > 1 ? ` +${thread.tags.length - 1}` : ''}</span>
+            <span
+              class="hidden rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 sm:inline"
+              >{thread.tags[0]}{thread.tags.length > 1
+                ? ` +${thread.tags.length - 1}`
+                : ""}</span
+            >
           {/if}
           {#if staleness.stale}
-            <span class="rounded bg-red-50 px-1.5 py-0.5 text-red-600">Stale</span>
+            <span class="rounded bg-red-50 px-1.5 py-0.5 text-red-600"
+              >Stale</span
+            >
           {/if}
-          <span class="w-14 text-right text-gray-400">{formatTimestamp(thread.updated_at) || "—"}</span>
+          <span class="w-14 text-right text-gray-400"
+            >{formatTimestamp(thread.updated_at) || "—"}</span
+          >
         </div>
       </a>
     {/each}

@@ -18,9 +18,12 @@ export function formatTimestamp(isoString) {
   const isFuture = diffMs < 0;
 
   if (absDiffSec < 60) return isFuture ? "in a moment" : "just now";
-  if (absDiffMin < 60) return isFuture ? `in ${absDiffMin}m` : `${absDiffMin}m ago`;
-  if (absDiffHour < 24) return isFuture ? `in ${absDiffHour}h` : `${absDiffHour}h ago`;
-  if (absDiffDay < 7) return isFuture ? `in ${absDiffDay}d` : `${absDiffDay}d ago`;
+  if (absDiffMin < 60)
+    return isFuture ? `in ${absDiffMin}m` : `${absDiffMin}m ago`;
+  if (absDiffHour < 24)
+    return isFuture ? `in ${absDiffHour}h` : `${absDiffHour}h ago`;
+  if (absDiffDay < 7)
+    return isFuture ? `in ${absDiffDay}d` : `${absDiffDay}d ago`;
 
   return date.toLocaleDateString("en-US", {
     month: "short",
