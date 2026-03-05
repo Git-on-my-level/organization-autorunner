@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"organization-autorunner-cli/internal/authcli"
 	"organization-autorunner-cli/internal/config"
 	"organization-autorunner-cli/internal/errnorm"
 	"organization-autorunner-cli/internal/httpclient"
@@ -29,6 +30,9 @@ func (a *App) runCommand(ctx context.Context, args []string, cfg config.Resolved
 	case "doctor":
 		result, err := a.runDoctor(ctx, cfg)
 		return "doctor", result, err
+	case "auth":
+		result, name, err := a.runAuth(ctx, args[1:], cfg)
+		return name, result, err
 	case "api":
 		if len(args) < 2 {
 			return "api", nil, errnorm.Usage("subcommand_required", "expected `oar api call`")
@@ -227,6 +231,18 @@ func (a *App) runAPICall(ctx context.Context, args []string, cfg config.Resolved
 	if err != nil {
 		return nil, errnorm.Usage("invalid_header", err.Error())
 	}
+	if _, hasAuthorization := headersMap["Authorization"]; !hasAuthorization && shouldAutoAttachAuth(requestPath) {
+		authService := authcli.New(cfg)
+		prof, authErr := authService.EnsureAccessToken(ctx)
+		if authErr == nil {
+			headersMap["Authorization"] = "Bearer " + prof.AccessToken
+		} else {
+			normalized := errnorm.Normalize(authErr)
+			if normalized == nil || normalized.Code != "profile_not_found" {
+				return nil, authErr
+			}
+		}
+	}
 	requestBody, err := a.readStdinBody()
 	if err != nil {
 		return nil, errnorm.Wrap(errnorm.KindLocal, "stdin_read_failed", "failed to read stdin body", err)
@@ -329,4 +345,26 @@ func formatAPICallText(method string, requestPath string, statusCode int, header
 		lines = append(lines, string(body))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func shouldAutoAttachAuth(requestPath string) bool {
+	requestPath = strings.TrimSpace(requestPath)
+	if requestPath == "" {
+		return false
+	}
+	if strings.HasPrefix(requestPath, "http://") || strings.HasPrefix(requestPath, "https://") {
+		parsed, err := url.Parse(requestPath)
+		if err != nil {
+			return false
+		}
+		requestPath = parsed.Path
+	}
+	if !strings.HasPrefix(requestPath, "/") {
+		requestPath = "/" + requestPath
+	}
+	switch requestPath {
+	case "/health", "/version", "/meta/handshake", "/auth/agents/register", "/auth/token":
+		return false
+	}
+	return true
 }

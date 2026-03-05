@@ -173,6 +173,7 @@ Usage:
 Commands:
   version       Print CLI/runtime version details
   doctor        Validate local and network preconditions
+  auth          Manage agent registration, profile auth, and token lifecycle
   api call      Perform an arbitrary HTTP API request
 
 Global Flags:

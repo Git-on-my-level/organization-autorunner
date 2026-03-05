@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -114,5 +115,61 @@ func TestResolveDefaultsWithoutProfile(t *testing.T) {
 	}
 	if resolved.ProfilePath != filepath.Join("/home/tester", ".config", "oar", "profiles", "default.json") {
 		t.Fatalf("unexpected default profile path: %s", resolved.ProfilePath)
+	}
+}
+
+func TestResolveAutoSelectSingleProfileAgent(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	profilesDir := filepath.Join(home, ".config", "oar", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o700); err != nil {
+		t.Fatalf("mkdir profiles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "solo.json"), []byte(`{"base_url":"http://solo:8000"}`), 0o600); err != nil {
+		t.Fatalf("write profile file: %v", err)
+	}
+
+	resolved, err := Resolve(Overrides{}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err != nil {
+		t.Fatalf("resolve with single profile: %v", err)
+	}
+	if resolved.Agent != "solo" {
+		t.Fatalf("unexpected selected agent: %s", resolved.Agent)
+	}
+	if resolved.Sources["agent"] != "profile:auto-single" {
+		t.Fatalf("unexpected agent source: %s", resolved.Sources["agent"])
+	}
+}
+
+func TestResolveFailsWithMultipleProfilesWithoutAgentSelection(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	profilesDir := filepath.Join(home, ".config", "oar", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o700); err != nil {
+		t.Fatalf("mkdir profiles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "alpha.json"), []byte(`{"base_url":"http://alpha:8000"}`), 0o600); err != nil {
+		t.Fatalf("write alpha profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "beta.json"), []byte(`{"base_url":"http://beta:8000"}`), 0o600); err != nil {
+		t.Fatalf("write beta profile: %v", err)
+	}
+
+	_, err := Resolve(Overrides{}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err == nil {
+		t.Fatal("expected resolve error with multiple profiles and no explicit agent")
+	}
+	if !strings.Contains(err.Error(), "multiple local profiles found") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

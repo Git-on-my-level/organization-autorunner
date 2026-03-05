@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"organization-autorunner-cli/internal/profile"
 )
 
 const (
@@ -25,22 +26,42 @@ type Overrides struct {
 }
 
 type Profile struct {
-	BaseURL     string `json:"base_url"`
-	Timeout     string `json:"timeout"`
-	NoColor     *bool  `json:"no_color,omitempty"`
-	JSON        *bool  `json:"json,omitempty"`
-	AccessToken string `json:"access_token"`
+	BaseURL              string `json:"base_url"`
+	Timeout              string `json:"timeout"`
+	NoColor              *bool  `json:"no_color,omitempty"`
+	JSON                 *bool  `json:"json,omitempty"`
+	AccessToken          string `json:"access_token"`
+	RefreshToken         string `json:"refresh_token"`
+	TokenType            string `json:"token_type,omitempty"`
+	AccessTokenExpiresAt string `json:"access_token_expires_at,omitempty"`
+	AgentID              string `json:"agent_id,omitempty"`
+	ActorID              string `json:"actor_id,omitempty"`
+	KeyID                string `json:"key_id,omitempty"`
+	Username             string `json:"username,omitempty"`
+	PrivateKeyPath       string `json:"private_key_path,omitempty"`
+	Revoked              bool   `json:"revoked,omitempty"`
+	CoreInstanceID       string `json:"core_instance_id,omitempty"`
 }
 
 type Resolved struct {
-	JSON        bool
-	BaseURL     string
-	Agent       string
-	NoColor     bool
-	Timeout     time.Duration
-	AccessToken string
-	ProfilePath string
-	Sources     map[string]string
+	JSON                 bool
+	BaseURL              string
+	Agent                string
+	NoColor              bool
+	Timeout              time.Duration
+	AccessToken          string
+	RefreshToken         string
+	TokenType            string
+	AccessTokenExpiresAt string
+	AgentID              string
+	ActorID              string
+	KeyID                string
+	Username             string
+	PrivateKeyPath       string
+	Revoked              bool
+	CoreInstanceID       string
+	ProfilePath          string
+	Sources              map[string]string
 }
 
 type Environment struct {
@@ -78,19 +99,37 @@ func Resolve(overrides Overrides, env Environment) (Resolved, error) {
 		},
 	}
 
+	explicitAgent := false
 	if envAgent := strings.TrimSpace(getenv("OAR_AGENT")); envAgent != "" {
 		resolved.Agent = envAgent
 		resolved.Sources["agent"] = "env:OAR_AGENT"
+		explicitAgent = true
 	}
 	if overrides.Agent != nil && strings.TrimSpace(*overrides.Agent) != "" {
 		resolved.Agent = strings.TrimSpace(*overrides.Agent)
 		resolved.Sources["agent"] = "flag:--agent"
+		explicitAgent = true
 	}
 
 	homeDir, err := userHomeDir()
 	if err != nil {
 		return Resolved{}, fmt.Errorf("resolve home directory: %w", err)
 	}
+
+	if !explicitAgent {
+		agents, err := profile.ListAgents(homeDir)
+		if err != nil {
+			return Resolved{}, fmt.Errorf("list local profiles: %w", err)
+		}
+		if len(agents) == 1 {
+			resolved.Agent = agents[0]
+			resolved.Sources["agent"] = "profile:auto-single"
+		}
+		if len(agents) > 1 {
+			return Resolved{}, fmt.Errorf("multiple local profiles found (%s); select one using --agent or OAR_AGENT", strings.Join(agents, ", "))
+		}
+	}
+
 	profilePath := strings.TrimSpace(getenv("OAR_PROFILE_PATH"))
 	if profilePath == "" {
 		profilePath = DefaultProfilePath(homeDir, resolved.Agent)
@@ -125,6 +164,18 @@ func Resolve(overrides Overrides, env Environment) (Resolved, error) {
 		if strings.TrimSpace(profile.AccessToken) != "" {
 			resolved.AccessToken = strings.TrimSpace(profile.AccessToken)
 		}
+		if strings.TrimSpace(profile.RefreshToken) != "" {
+			resolved.RefreshToken = strings.TrimSpace(profile.RefreshToken)
+		}
+		resolved.TokenType = strings.TrimSpace(profile.TokenType)
+		resolved.AccessTokenExpiresAt = strings.TrimSpace(profile.AccessTokenExpiresAt)
+		resolved.AgentID = strings.TrimSpace(profile.AgentID)
+		resolved.ActorID = strings.TrimSpace(profile.ActorID)
+		resolved.KeyID = strings.TrimSpace(profile.KeyID)
+		resolved.Username = strings.TrimSpace(profile.Username)
+		resolved.PrivateKeyPath = strings.TrimSpace(profile.PrivateKeyPath)
+		resolved.Revoked = profile.Revoked
+		resolved.CoreInstanceID = strings.TrimSpace(profile.CoreInstanceID)
 	}
 
 	if envBaseURL := strings.TrimSpace(getenv("OAR_BASE_URL")); envBaseURL != "" {
@@ -201,9 +252,5 @@ func loadProfile(readFile func(string) ([]byte, error), path string) (Profile, b
 }
 
 func DefaultProfilePath(homeDir string, agent string) string {
-	agent = strings.TrimSpace(agent)
-	if agent == "" {
-		agent = DefaultAgent
-	}
-	return filepath.Join(homeDir, ".config", "oar", "profiles", agent+".json")
+	return profile.ProfilePath(homeDir, agent)
 }
