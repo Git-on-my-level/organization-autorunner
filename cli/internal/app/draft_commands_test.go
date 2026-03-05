@@ -158,6 +158,24 @@ func TestDraftCreateValidationFailure(t *testing.T) {
 	}
 }
 
+func TestDraftCreateAllowsEmptyStringListEntriesForListStringFields(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	env := map[string]string{}
+	raw := runCLIForTest(t, home, env, strings.NewReader(`{"thread":{"title":"Alpha","type":"incident","status":"active","priority":"p2","tags":[""],"cadence":"reactive","current_summary":"seed","next_actions":[""],"key_artifacts":[],"provenance":{"sources":["actor_statement:event_seed"]}}}`), []string{
+		"--json",
+		"--agent", "agent-a",
+		"draft", "create",
+		"--command", "threads.create",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	if strings.TrimSpace(anyStringValue(data["command_id"])) != "threads.create" {
+		t.Fatalf("unexpected command payload: %#v", payload)
+	}
+}
+
 func TestDraftCreateAggregatesEventValidationErrors(t *testing.T) {
 	t.Parallel()
 

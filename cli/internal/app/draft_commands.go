@@ -1081,9 +1081,6 @@ func asStringList(raw any) ([]string, bool) {
 	case []string:
 		out := make([]string, 0, len(values))
 		for _, value := range values {
-			if strings.TrimSpace(value) == "" {
-				return nil, false
-			}
 			out = append(out, value)
 		}
 		return out, true
@@ -1091,7 +1088,7 @@ func asStringList(raw any) ([]string, bool) {
 		out := make([]string, 0, len(values))
 		for _, rawValue := range values {
 			value, ok := rawValue.(string)
-			if !ok || strings.TrimSpace(value) == "" {
+			if !ok {
 				return nil, false
 			}
 			out = append(out, value)
