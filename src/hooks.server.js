@@ -19,11 +19,36 @@ function shouldProxyToCore(pathname) {
     pathname === "/events" ||
     pathname.startsWith("/events/") ||
     pathname === "/work_orders" ||
+    pathname.startsWith("/work_orders/") ||
     pathname === "/receipts" ||
+    pathname.startsWith("/receipts/") ||
     pathname === "/reviews" ||
+    pathname.startsWith("/reviews/") ||
+    pathname === "/snapshots" ||
+    pathname.startsWith("/snapshots/") ||
+    pathname === "/derived/rebuild" ||
     pathname === "/inbox" ||
     pathname === "/inbox/ack"
   );
+}
+
+function isSnapshotPath(pathname) {
+  return pathname === "/snapshots" || pathname.startsWith("/snapshots/");
+}
+
+function isDocumentNavigationRequest(request) {
+  const method = request.method.toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return false;
+  }
+
+  const secFetchDest = request.headers.get("sec-fetch-dest");
+  if (secFetchDest === "document") {
+    return true;
+  }
+
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("text/html");
 }
 
 async function proxyToCore(event, coreBaseUrl) {
@@ -84,7 +109,13 @@ export async function handle({ event, resolve }) {
     env.OAR_CORE_BASE_URL || env.PUBLIC_OAR_CORE_BASE_URL,
   );
 
-  if (coreBaseUrl && shouldProxyToCore(event.url.pathname)) {
+  const pathname = event.url.pathname;
+  const shouldProxy =
+    coreBaseUrl &&
+    shouldProxyToCore(pathname) &&
+    !(isSnapshotPath(pathname) && isDocumentNavigationRequest(event.request));
+
+  if (shouldProxy) {
     return proxyToCore(event, coreBaseUrl);
   }
 

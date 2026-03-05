@@ -1,8 +1,14 @@
 import { json } from "@sveltejs/kit";
 
 import { createMockWorkOrder } from "$lib/mockCoreData";
+import { guardMockRoute } from "$lib/server/mockGuard";
 
-export async function POST({ request }) {
+export async function POST({ request, url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const body = await request.json();
 
   if (!body?.actor_id || !body?.artifact || !body?.packet) {

@@ -36,6 +36,8 @@ The UI expects these HTTP endpoints (see `docs/http-api.md` for full contract):
   `GET /artifacts/{artifact_id}/content`
 - `POST /events`, `GET /events/{event_id}`
 - `POST /work_orders`, `POST /receipts`, `POST /reviews`
+- `GET /snapshots/{snapshot_id}` (when snapshot links are resolved via core)
+- `POST /derived/rebuild` (optional utility endpoint; proxied when present)
 - `GET /inbox`, `POST /inbox/ack`
 
 ### Auth assumptions (v0)

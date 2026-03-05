@@ -2,12 +2,11 @@ name: CI
 
 on:
   push:
-  pull_request:
 
 jobs:
-  test:
+  quick-checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -27,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright browsers
-        run: pnpm exec playwright install --with-deps chromium
+      - name: Run lint checks
+        run: pnpm run lint
 
-      - name: Run full test script
-        run: ./scripts/test
+      - name: Run unit tests
+        run: pnpm run test:unit

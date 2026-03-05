@@ -241,7 +241,7 @@
   {/if}
 
   <div class="mt-2">
-    <ProvenanceBadge provenance={artifact.provenance ?? { sources: [] }} />
+    <ProvenanceBadge provenance={artifact.provenance} />
   </div>
 
   {#if !isKnownPacketArtifactKind && artifact.kind !== "doc"}

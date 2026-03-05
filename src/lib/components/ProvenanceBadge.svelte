@@ -4,12 +4,26 @@
     getProvenanceSources,
   } from "$lib/provenanceUtils";
 
-  let { provenance = { sources: [] } } = $props();
+  let { provenance = undefined } = $props();
 
   let sources = $derived(getProvenanceSources(provenance));
   let presentation = $derived(getProvenancePresentation(provenance));
   let hasDetails = $derived(
     sources.length > 0 || provenance?.notes || provenance?.by_field,
+  );
+  let label = $derived(
+    presentation.unknown
+      ? "No provenance"
+      : presentation.inferred
+        ? "Inferred"
+        : "Evidence-backed",
+  );
+  let dotClass = $derived(
+    presentation.unknown
+      ? "bg-slate-400"
+      : presentation.inferred
+        ? "bg-amber-400"
+        : "bg-emerald-400",
   );
 </script>
 
@@ -18,10 +32,8 @@
     <summary
       class="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-gray-400 select-none hover:text-gray-600"
     >
-      <span
-        class={`h-1.5 w-1.5 rounded-full ${presentation.inferred ? "bg-amber-400" : "bg-emerald-400"}`}
-      ></span>
-      {presentation.inferred ? "Inferred" : "Evidence-backed"}
+      <span class={`h-1.5 w-1.5 rounded-full ${dotClass}`}></span>
+      {label}
     </summary>
     <div
       class="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600"
@@ -49,9 +61,7 @@
   </details>
 {:else}
   <span class="inline-flex items-center gap-1.5 text-[11px] text-gray-400">
-    <span
-      class={`h-1.5 w-1.5 rounded-full ${presentation.inferred ? "bg-amber-400" : "bg-emerald-400"}`}
-    ></span>
-    {presentation.inferred ? "Inferred" : "Evidence-backed"}
+    <span class={`h-1.5 w-1.5 rounded-full ${dotClass}`}></span>
+    {label}
   </span>
 {/if}

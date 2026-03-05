@@ -1,8 +1,14 @@
 import { json } from "@sveltejs/kit";
 
 import { createMockThread, listMockThreads } from "$lib/mockCoreData";
+import { guardMockRoute } from "$lib/server/mockGuard";
 
 export function GET({ url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const params = url.searchParams;
   const filters = {
     status: params.get("status") ?? undefined,
@@ -17,7 +23,12 @@ export function GET({ url }) {
   });
 }
 
-export async function POST({ request }) {
+export async function POST({ request, url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const body = await request.json();
 
   if (!body?.actor_id || !body?.thread?.title) {

@@ -22,6 +22,27 @@ On startup, the UI calls `GET /version` and requires
 `schema_version === "0.2.2"`. If it does not match, boot fails with a clear
 error so incompatible core/UI versions are surfaced immediately.
 
+## Proxy/Env smoke check
+
+Use this quick check before integration runs:
+
+```bash
+env | rg '^(OAR_CORE_BASE_URL|PUBLIC_OAR_CORE_BASE_URL)='
+```
+
+- Proxy mode (recommended): `OAR_CORE_BASE_URL` must be set in the UI process.
+- Browser-direct mode: `PUBLIC_OAR_CORE_BASE_URL` must be set before build.
+
+Then confirm the UI can reach core through the configured path:
+
+```bash
+curl -fsS http://127.0.0.1:8000/version
+curl -fsS http://127.0.0.1:5173/version
+```
+
+The first command checks core directly; the second checks the UI route (proxied
+when `OAR_CORE_BASE_URL` is set).
+
 ## Integration E2E with real oar-core
 
 The repo includes `./scripts/e2e-with-core` for a headless golden-path

@@ -42,4 +42,14 @@ describe("thread filter query builders", () => {
       stale: false,
     });
   });
+
+  it("preserves multiple tags in request query (match-all semantics)", () => {
+    expect(
+      buildThreadFilterRequestQuery({
+        tags: ["ops", "customer"],
+      }),
+    ).toEqual({
+      tag: ["ops", "customer"],
+    });
+  });
 });

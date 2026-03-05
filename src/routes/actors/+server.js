@@ -1,12 +1,23 @@
 import { json } from "@sveltejs/kit";
 
 import { createMockActor, listMockActors } from "$lib/mockCoreData";
+import { guardMockRoute } from "$lib/server/mockGuard";
 
-export function GET() {
+export function GET({ url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   return json({ actors: listMockActors() });
 }
 
-export async function POST({ request }) {
+export async function POST({ request, url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const body = await request.json();
   const actor = body?.actor;
 

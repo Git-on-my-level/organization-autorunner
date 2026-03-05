@@ -1,8 +1,14 @@
 import { json } from "@sveltejs/kit";
 
 import { createMockCommitment, listMockCommitments } from "$lib/mockCoreData";
+import { guardMockRoute } from "$lib/server/mockGuard";
 
 export function GET({ url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const params = url.searchParams;
   const filters = {
     thread_id: params.get("thread_id") ?? undefined,
@@ -17,7 +23,12 @@ export function GET({ url }) {
   });
 }
 
-export async function POST({ request }) {
+export async function POST({ request, url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const body = await request.json();
 
   if (

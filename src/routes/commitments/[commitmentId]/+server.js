@@ -1,8 +1,14 @@
 import { json } from "@sveltejs/kit";
 
 import { getMockCommitment, updateMockCommitment } from "$lib/mockCoreData";
+import { guardMockRoute } from "$lib/server/mockGuard";
 
-export function GET({ params }) {
+export function GET({ params, url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const commitment = getMockCommitment(params.commitmentId);
   if (!commitment) {
     return json({ error: "Commitment not found." }, { status: 404 });
@@ -11,7 +17,12 @@ export function GET({ params }) {
   return json({ commitment });
 }
 
-export async function PATCH({ params, request }) {
+export async function PATCH({ params, request, url }) {
+  const guardResponse = guardMockRoute(url.pathname);
+  if (guardResponse) {
+    return guardResponse;
+  }
+
   const body = await request.json();
 
   if (!body?.actor_id || !body?.patch) {

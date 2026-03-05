@@ -157,6 +157,8 @@ export function createOarCoreClient(options = {}) {
       }),
     listThreadTimeline: (threadId) =>
       request("GET", `/threads/${encodePathSegment(threadId)}/timeline`),
+    getSnapshot: (snapshotId) =>
+      request("GET", `/snapshots/${encodePathSegment(snapshotId)}`),
 
     createCommitment: (payload) =>
       request("POST", "/commitments", { body: withActorId(payload) }),

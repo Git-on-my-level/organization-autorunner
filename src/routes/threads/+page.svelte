@@ -229,13 +229,16 @@
         </select>
       </label>
       <label class="text-xs text-gray-500">
-        Tags
+        Tags (match all)
         <input
           bind:value={filters.tagInput}
           class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
           placeholder="ops, customer"
           type="text"
         />
+        <span class="mt-1 block text-[11px] text-gray-400">
+          Comma-separated; a thread must contain every tag.
+        </span>
       </label>
     </div>
     <div class="mt-2 flex gap-2">
