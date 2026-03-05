@@ -294,6 +294,33 @@ func TestDraftCreateHelpWithCommandShowsTargetSchema(t *testing.T) {
 	}
 }
 
+func TestDraftCreateTreatsHelpAsFlagValue(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	env := map[string]string{}
+
+	fromFile := filepath.Join(t.TempDir(), "help")
+	body := `{"thread":{"title":"Alpha","type":"incident","status":"active","priority":"p2","tags":[],"cadence":"reactive","current_summary":"seed","next_actions":[],"key_artifacts":[],"provenance":{"sources":["actor_statement:event_seed"]}}}`
+	if err := os.WriteFile(fromFile, []byte(body), 0o600); err != nil {
+		t.Fatalf("write from-file body: %v", err)
+	}
+
+	raw := runCLIForTest(t, home, env, nil, []string{
+		"--json",
+		"--agent", "agent-a",
+		"draft", "create",
+		"--command", "threads.create",
+		"--from-file", fromFile,
+		"--draft-id", "help",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	if strings.TrimSpace(anyStringValue(data["draft_id"])) != "help" {
+		t.Fatalf("expected draft id=help payload=%#v", payload)
+	}
+}
+
 func anyStringValue(raw any) string {
 	text, _ := raw.(string)
 	return strings.TrimSpace(text)

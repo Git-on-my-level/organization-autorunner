@@ -60,7 +60,7 @@ func (a *App) runDraft(ctx context.Context, args []string, cfg config.Resolved) 
 }
 
 func (a *App) runDraftCreate(args []string, cfg config.Resolved) (*commandResult, error) {
-	filteredArgs, helpRequested := stripHelpTokens(args)
+	filteredArgs, helpRequested := stripDraftCreateHelpFlags(args)
 	if helpRequested {
 		return &commandResult{Text: draftCreateHelpText(filteredArgs)}, nil
 	}
@@ -1258,12 +1258,32 @@ func draftCreateHelpCommandValue(args []string) string {
 	return value
 }
 
-func stripHelpTokens(args []string) ([]string, bool) {
+func stripDraftCreateHelpFlags(args []string) ([]string, bool) {
 	filtered := make([]string, 0, len(args))
 	helpRequested := false
+	expectsValue := false
 	for _, arg := range args {
-		if isHelpToken(arg) {
+		trimmed := strings.TrimSpace(arg)
+		if expectsValue {
+			filtered = append(filtered, arg)
+			expectsValue = false
+			continue
+		}
+		switch trimmed {
+		case "--command", "--from-file", "--draft-id":
+			expectsValue = true
+			filtered = append(filtered, arg)
+			continue
+		case "-h", "--help":
 			helpRequested = true
+			continue
+		}
+		if strings.HasPrefix(trimmed, "--help=") || strings.HasPrefix(trimmed, "-h=") {
+			value := strings.TrimSpace(strings.SplitN(trimmed, "=", 2)[1])
+			switch strings.ToLower(value) {
+			case "1", "t", "true", "y", "yes", "on":
+				helpRequested = true
+			}
 			continue
 		}
 		filtered = append(filtered, arg)
