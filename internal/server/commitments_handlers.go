@@ -90,9 +90,10 @@ func handlePatchCommitment(w http.ResponseWriter, r *http.Request, opts handlerO
 	}
 
 	var req struct {
-		ActorID string         `json:"actor_id"`
-		Patch   map[string]any `json:"patch"`
-		Refs    []string       `json:"refs"`
+		ActorID     string         `json:"actor_id"`
+		Patch       map[string]any `json:"patch"`
+		Refs        []string       `json:"refs"`
+		IfUpdatedAt *string        `json:"if_updated_at"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
@@ -102,6 +103,14 @@ func handlePatchCommitment(w http.ResponseWriter, r *http.Request, opts handlerO
 	if req.Patch == nil || len(req.Patch) == 0 {
 		writeError(w, http.StatusBadRequest, "invalid_request", "patch is required")
 		return
+	}
+	if req.IfUpdatedAt != nil {
+		ifUpdatedAt := strings.TrimSpace(*req.IfUpdatedAt)
+		if _, err := time.Parse(time.RFC3339, ifUpdatedAt); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "if_updated_at must be an RFC3339 datetime string")
+			return
+		}
+		req.IfUpdatedAt = &ifUpdatedAt
 	}
 	if _, has := req.Patch["thread_id"]; has {
 		writeError(w, http.StatusBadRequest, "invalid_request", "commitment.thread_id cannot be patched")
@@ -123,10 +132,14 @@ func handlePatchCommitment(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 
-	result, err := opts.primitiveStore.PatchCommitment(r.Context(), actorID, commitmentID, req.Patch, req.Refs)
+	result, err := opts.primitiveStore.PatchCommitment(r.Context(), actorID, commitmentID, req.Patch, req.Refs, req.IfUpdatedAt)
 	if err != nil {
 		if errors.Is(err, primitives.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "commitment not found")
+			return
+		}
+		if errors.Is(err, primitives.ErrConflict) {
+			writeError(w, http.StatusConflict, "conflict", "commitment has been updated; refresh and retry")
 			return
 		}
 		if errors.Is(err, primitives.ErrInvalidCommitmentTransition) {

@@ -35,6 +35,9 @@ The schema of objects is defined by `contracts/oar-schema.yaml`.
 
 - `GET /threads`
   - Query (optional): `status`, `priority`, `tag`, `cadence`, `stale` (boolean)
+  - `tag` MAY be repeated (for example `?tag=ops&tag=backend`). Repeated tags use AND semantics: returned threads MUST contain all provided tags.
+  - `cadence` MAY be repeated (for example `?cadence=daily&cadence=weekly`). Repeated cadence values use OR semantics: returned threads MAY match any provided cadence.
+  - When both `tag` and `cadence` filters are present, both filters apply.
   - Response: `{ "threads": [<thread_snapshot>...] }`
 
 - `GET /threads/{thread_id}`
@@ -43,10 +46,17 @@ The schema of objects is defined by `contracts/oar-schema.yaml`.
 - `PATCH /threads/{thread_id}`
   - Body: `{ "actor_id": "...", "patch": { <fields...> } , "if_updated_at"?: "..." }`
   - Semantics: patch/merge; list-valued fields replace wholesale when present.
+  - `if_updated_at` (optional) MUST be an RFC3339 timestamp. If provided and it does not match the current snapshot `updated_at`, the request fails with `409 Conflict` and no patch or event side effects are applied.
+  - Conflict response shape: `{ "error": { "code": "conflict", "message": "..." } }`
   - Response: `{ "thread": <thread_snapshot> }`
 
 - `GET /threads/{thread_id}/timeline`
-  - Response: `{ "events": [<event>...] }`
+  - Response:
+    - `{ "events": [<event>...], "snapshots": { "<snapshot_id>": <snapshot> }, "artifacts": { "<artifact_id>": <artifact_metadata> } }`
+    - `events` remain time-ordered.
+    - `snapshots` includes objects referenced by `snapshot:<id>` refs in returned events when they exist.
+    - `artifacts` includes metadata objects referenced by `artifact:<id>` refs in returned events when they exist.
+    - Missing referenced IDs are omitted from `snapshots`/`artifacts` (events still keep their original refs).
 
 ### Commitments (commitment snapshots)
 
@@ -66,6 +76,8 @@ The schema of objects is defined by `contracts/oar-schema.yaml`.
   - Notes:
     - Restricted transitions (e.g. `status -> done`) require `refs` per schema.
     - `refs` are used to populate provenance for restricted fields.
+    - `if_updated_at` (optional) MUST be an RFC3339 timestamp. If provided and it does not match the current snapshot `updated_at`, the request fails with `409 Conflict` and no patch or event side effects are applied.
+    - Conflict response shape: `{ "error": { "code": "conflict", "message": "..." } }`
   - Response: `{ "commitment": <commitment_snapshot> }`
 
 ### Artifacts

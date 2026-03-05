@@ -2,8 +2,11 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
+
+	"organization-autorunner-core/internal/primitives"
 )
 
 func handleCreateWorkOrder(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
@@ -115,6 +118,10 @@ func createPacketArtifactAndEvent(w http.ResponseWriter, r *http.Request, opts h
 
 	artifact, err := opts.primitiveStore.CreateArtifact(r.Context(), actorID, req.Artifact, req.Packet, "structured")
 	if err != nil {
+		if errors.Is(err, primitives.ErrInvalidArtifactID) {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create artifact")
 		return
 	}
@@ -129,7 +136,7 @@ func createPacketArtifactAndEvent(w http.ResponseWriter, r *http.Request, opts h
 		"refs":       eventRefs,
 		"summary":    request.Summary,
 		"payload":    map[string]any{},
-		"provenance": map[string]any{"sources": []string{"inferred"}},
+		"provenance": actorStatementProvenance(),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to append event")

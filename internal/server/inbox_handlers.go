@@ -143,7 +143,7 @@ func handleAckInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		"payload": map[string]any{
 			"inbox_item_id": req.InboxItemID,
 		},
-		"provenance": map[string]any{"sources": []string{"inferred"}},
+		"provenance": actorStatementProvenance(),
 	}
 
 	if err := validateEventReferenceConventions(opts.contract, event, []string{"inbox:" + req.InboxItemID}); err != nil {

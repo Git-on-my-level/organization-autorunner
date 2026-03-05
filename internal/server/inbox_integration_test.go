@@ -79,7 +79,14 @@ func TestInboxDerivationAndAcknowledgmentSuppression(t *testing.T) {
 		"thread_id":"`+threadID+`",
 		"inbox_item_id":"`+firstDecisionItemID+`"
 	}`, http.StatusCreated)
+	var acked struct {
+		Event map[string]any `json:"event"`
+	}
+	if err := json.NewDecoder(ackResp.Body).Decode(&acked); err != nil {
+		t.Fatalf("decode ack response: %v", err)
+	}
 	ackResp.Body.Close()
+	assertActorStatementProvenance(t, acked.Event)
 
 	itemsAfterAck := getInboxItems(t, h.baseURL)
 	if _, stillThere := findInboxItem(itemsAfterAck, func(item map[string]any) bool {

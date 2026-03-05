@@ -7,9 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 var ErrAlreadyExists = errors.New("actor already exists")
+
+const SystemActorID = "oar-core"
 
 type Actor struct {
 	ID          string   `json:"id"`
@@ -58,6 +61,49 @@ func (s *Store) Register(ctx context.Context, actor Actor) (Actor, error) {
 
 	actor.Tags = tags
 	return actor, nil
+}
+
+func (s *Store) EnsureRegistered(ctx context.Context, actor Actor) (Actor, error) {
+	if s == nil || s.db == nil {
+		return Actor{}, fmt.Errorf("actor store database is not initialized")
+	}
+
+	tags := actor.Tags
+	if tags == nil {
+		tags = []string{}
+	}
+
+	tagsJSON, err := json.Marshal(tags)
+	if err != nil {
+		return Actor{}, fmt.Errorf("marshal actor tags: %w", err)
+	}
+
+	_, err = s.db.ExecContext(
+		ctx,
+		`INSERT INTO actors(id, display_name, tags_json, created_at, metadata_json)
+		 VALUES (?, ?, ?, ?, '{}')
+		 ON CONFLICT(id) DO NOTHING`,
+		actor.ID,
+		actor.DisplayName,
+		string(tagsJSON),
+		actor.CreatedAt,
+	)
+	if err != nil {
+		return Actor{}, fmt.Errorf("upsert actor: %w", err)
+	}
+
+	actor.Tags = tags
+	return actor, nil
+}
+
+func (s *Store) EnsureSystemActor(ctx context.Context, now time.Time) (Actor, error) {
+	createdAt := now.UTC().Format(time.RFC3339Nano)
+	return s.EnsureRegistered(ctx, Actor{
+		ID:          SystemActorID,
+		DisplayName: "OAR Core",
+		Tags:        []string{"system"},
+		CreatedAt:   createdAt,
+	})
 }
 
 func (s *Store) List(ctx context.Context) ([]Actor, error) {

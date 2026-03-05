@@ -155,6 +155,7 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 		if !ok || !containsAny(refs, "snapshot:"+threadID) {
 			t.Fatalf("timeline event missing snapshot ref: %#v", event)
 		}
+		assertActorStatementProvenance(t, event)
 	}
 
 	assertTimelineStableOrder(t, timeline.Events)
@@ -179,6 +180,526 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 		"patch":{"open_commitments":["c-1"]}
 	}`, http.StatusBadRequest)
 	defer rejectResp.Body.Close()
+}
+
+func TestPatchThreadIfUpdatedAtOptimisticLocking(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Locking thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"initial",
+			"next_actions":["step-1"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create thread response: %v", err)
+	}
+	threadID, _ := created.Thread["id"].(string)
+	initialUpdatedAt, _ := created.Thread["updated_at"].(string)
+	if threadID == "" || initialUpdatedAt == "" {
+		t.Fatalf("expected thread id and updated_at, got id=%q updated_at=%q", threadID, initialUpdatedAt)
+	}
+
+	matchedResp := patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
+		"actor_id":"actor-1",
+		"if_updated_at":"`+initialUpdatedAt+`",
+		"patch":{"title":"Locking thread matched"}
+	}`, http.StatusOK)
+	defer matchedResp.Body.Close()
+
+	var matched struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(matchedResp.Body).Decode(&matched); err != nil {
+		t.Fatalf("decode matched patch response: %v", err)
+	}
+	if matched.Thread["title"] != "Locking thread matched" {
+		t.Fatalf("unexpected matched patch title: %#v", matched.Thread["title"])
+	}
+
+	timelineBeforeResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET timeline before conflict: %v", err)
+	}
+	defer timelineBeforeResp.Body.Close()
+	if timelineBeforeResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline before conflict status: %d", timelineBeforeResp.StatusCode)
+	}
+	var timelineBefore struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(timelineBeforeResp.Body).Decode(&timelineBefore); err != nil {
+		t.Fatalf("decode timeline before conflict: %v", err)
+	}
+
+	conflictResp := patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
+		"actor_id":"actor-1",
+		"if_updated_at":"`+initialUpdatedAt+`",
+		"patch":{"title":"Locking thread stale"}
+	}`, http.StatusConflict)
+	defer conflictResp.Body.Close()
+
+	var conflictBody struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(conflictResp.Body).Decode(&conflictBody); err != nil {
+		t.Fatalf("decode conflict response: %v", err)
+	}
+	if conflictBody.Error.Code != "conflict" {
+		t.Fatalf("unexpected conflict code: %#v", conflictBody.Error.Code)
+	}
+
+	timelineAfterResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET timeline after conflict: %v", err)
+	}
+	defer timelineAfterResp.Body.Close()
+	if timelineAfterResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline after conflict status: %d", timelineAfterResp.StatusCode)
+	}
+	var timelineAfter struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(timelineAfterResp.Body).Decode(&timelineAfter); err != nil {
+		t.Fatalf("decode timeline after conflict: %v", err)
+	}
+	if len(timelineAfter.Events) != len(timelineBefore.Events) {
+		t.Fatalf("conflict patch emitted event: before=%d after=%d", len(timelineBefore.Events), len(timelineAfter.Events))
+	}
+
+	getResp, err := http.Get(h.baseURL + "/threads/" + threadID)
+	if err != nil {
+		t.Fatalf("GET thread after conflict: %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected get thread status after conflict: %d", getResp.StatusCode)
+	}
+	var loaded struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(getResp.Body).Decode(&loaded); err != nil {
+		t.Fatalf("decode thread after conflict: %v", err)
+	}
+	if loaded.Thread["title"] != "Locking thread matched" {
+		t.Fatalf("thread changed despite conflict: %#v", loaded.Thread["title"])
+	}
+
+	noLockResp := patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
+		"actor_id":"actor-1",
+		"patch":{"current_summary":"no lock still works"}
+	}`, http.StatusOK)
+	defer noLockResp.Body.Close()
+}
+
+func TestPatchThreadProvenanceRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Provenance roundtrip thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"initial",
+			"next_actions":["step-1"],
+			"key_artifacts":[],
+			"provenance":{"sources":["actor_statement:event-create"],"notes":"created"},
+			"custom_unknown":"persist_me"
+		}
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create thread response: %v", err)
+	}
+	threadID, _ := created.Thread["id"].(string)
+	if threadID == "" {
+		t.Fatal("expected thread id")
+	}
+
+	patchResp := patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
+		"actor_id":"actor-1",
+		"patch":{
+			"title":"Provenance roundtrip thread updated",
+			"provenance":{
+				"sources":["actor_statement:event-patch"],
+				"notes":"patched"
+			}
+		}
+	}`, http.StatusOK)
+	defer patchResp.Body.Close()
+
+	var patched struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(patchResp.Body).Decode(&patched); err != nil {
+		t.Fatalf("decode patch thread response: %v", err)
+	}
+	provenance, ok := patched.Thread["provenance"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected patched thread provenance object, got %#v", patched.Thread["provenance"])
+	}
+	notes, _ := provenance["notes"].(string)
+	if notes != "patched" {
+		t.Fatalf("expected patched provenance notes, got %#v", provenance["notes"])
+	}
+
+	getResp, err := http.Get(h.baseURL + "/threads/" + threadID)
+	if err != nil {
+		t.Fatalf("GET /threads/{id}: %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected get thread status: got %d", getResp.StatusCode)
+	}
+
+	var loaded struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(getResp.Body).Decode(&loaded); err != nil {
+		t.Fatalf("decode get thread response: %v", err)
+	}
+	loadedProvenance, ok := loaded.Thread["provenance"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected loaded thread provenance object, got %#v", loaded.Thread["provenance"])
+	}
+	loadedNotes, _ := loadedProvenance["notes"].(string)
+	if loadedNotes != "patched" {
+		t.Fatalf("expected loaded patched provenance notes, got %#v", loadedProvenance["notes"])
+	}
+	if loaded.Thread["custom_unknown"] != "persist_me" {
+		t.Fatalf("expected custom unknown field preserved, got %#v", loaded.Thread["custom_unknown"])
+	}
+
+	patchWithoutProvenanceResp := patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
+		"actor_id":"actor-1",
+		"patch":{"current_summary":"no provenance update"}
+	}`, http.StatusOK)
+	defer patchWithoutProvenanceResp.Body.Close()
+
+	var patchedWithoutProvenance struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(patchWithoutProvenanceResp.Body).Decode(&patchedWithoutProvenance); err != nil {
+		t.Fatalf("decode patch thread without provenance response: %v", err)
+	}
+	latestProvenance, ok := patchedWithoutProvenance.Thread["provenance"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance object after patch without provenance, got %#v", patchedWithoutProvenance.Thread["provenance"])
+	}
+	latestNotes, _ := latestProvenance["notes"].(string)
+	if latestNotes != "patched" {
+		t.Fatalf("expected provenance unchanged when omitted, got %#v", latestProvenance)
+	}
+}
+
+func TestListThreadsCadenceAndMultiTagFilters(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createThread := func(title string, cadence string, tags []string) string {
+		t.Helper()
+
+		payload := map[string]any{
+			"actor_id": "actor-1",
+			"thread": map[string]any{
+				"title":            title,
+				"type":             "incident",
+				"status":           "active",
+				"priority":         "p1",
+				"tags":             tags,
+				"cadence":          cadence,
+				"next_check_in_at": "2026-03-05T00:00:00Z",
+				"current_summary":  "summary",
+				"next_actions":     []string{"step-1"},
+				"key_artifacts":    []string{},
+				"provenance":       map[string]any{"sources": []string{"inferred"}},
+			},
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("marshal thread create payload: %v", err)
+		}
+
+		resp := postJSONExpectStatus(t, h.baseURL+"/threads", string(body), http.StatusCreated)
+		defer resp.Body.Close()
+
+		var created struct {
+			Thread map[string]any `json:"thread"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+			t.Fatalf("decode thread create response: %v", err)
+		}
+		threadID, _ := created.Thread["id"].(string)
+		if threadID == "" {
+			t.Fatalf("expected thread id for %s", title)
+		}
+		return threadID
+	}
+
+	threadDailyOpsBackend := createThread("daily ops backend", "daily", []string{"ops", "backend"})
+	threadWeeklyOps := createThread("weekly ops", "weekly", []string{"ops"})
+	threadWeeklyBackend := createThread("weekly backend", "weekly", []string{"backend"})
+	threadReactiveOpsBackend := createThread("reactive ops backend", "reactive", []string{"ops", "backend", "infra"})
+
+	listIDs := func(rawURL string) []string {
+		t.Helper()
+		resp, err := http.Get(rawURL)
+		if err != nil {
+			t.Fatalf("GET %s: %v", rawURL, err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("unexpected status for %s: %d", rawURL, resp.StatusCode)
+		}
+
+		var payload struct {
+			Threads []map[string]any `json:"threads"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode list threads response for %s: %v", rawURL, err)
+		}
+
+		ids := make([]string, 0, len(payload.Threads))
+		for _, thread := range payload.Threads {
+			threadID, _ := thread["id"].(string)
+			if threadID != "" {
+				ids = append(ids, threadID)
+			}
+		}
+		sort.Strings(ids)
+		return ids
+	}
+
+	assertIDs := func(got []string, want []string, context string) {
+		t.Helper()
+		sort.Strings(want)
+		if len(got) != len(want) {
+			t.Fatalf("%s: unexpected result count got=%d want=%d ids=%#v", context, len(got), len(want), got)
+		}
+		for idx := range want {
+			if got[idx] != want[idx] {
+				t.Fatalf("%s: unexpected IDs got=%#v want=%#v", context, got, want)
+			}
+		}
+	}
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?tag=backend"),
+		[]string{threadDailyOpsBackend, threadReactiveOpsBackend, threadWeeklyBackend},
+		"single tag filter",
+	)
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?tag=ops&tag=backend"),
+		[]string{threadDailyOpsBackend, threadReactiveOpsBackend},
+		"multi tag AND filter",
+	)
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?cadence=weekly"),
+		[]string{threadWeeklyBackend, threadWeeklyOps},
+		"single cadence filter",
+	)
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?cadence=daily&cadence=weekly"),
+		[]string{threadDailyOpsBackend, threadWeeklyBackend, threadWeeklyOps},
+		"multi cadence filter",
+	)
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?cadence=weekly&tag=backend"),
+		[]string{threadWeeklyBackend},
+		"cadence plus tag filter",
+	)
+}
+
+func TestThreadTimelineIncludesReferencedObjectsAndOmitsMissingRefs(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createThreadResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Timeline expansion thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops","timeline"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["triage"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer createThreadResp.Body.Close()
+
+	var createdThread struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(createThreadResp.Body).Decode(&createdThread); err != nil {
+		t.Fatalf("decode create thread response: %v", err)
+	}
+	threadID, _ := createdThread.Thread["id"].(string)
+	if threadID == "" {
+		t.Fatal("expected created thread id")
+	}
+
+	createCommitmentResp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
+		"actor_id":"actor-1",
+		"commitment":{
+			"thread_id":"`+threadID+`",
+			"title":"Timeline commitment",
+			"owner":"actor-1",
+			"due_at":"2026-03-08T00:00:00Z",
+			"status":"open",
+			"definition_of_done":["done"],
+			"links":["url:https://example.com/work"],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer createCommitmentResp.Body.Close()
+
+	var createdCommitment struct {
+		Commitment map[string]any `json:"commitment"`
+	}
+	if err := json.NewDecoder(createCommitmentResp.Body).Decode(&createdCommitment); err != nil {
+		t.Fatalf("decode create commitment response: %v", err)
+	}
+	commitmentID, _ := createdCommitment.Commitment["id"].(string)
+	if commitmentID == "" {
+		t.Fatal("expected created commitment id")
+	}
+
+	const artifactID = "timeline-artifact-1"
+	createArtifactResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"id":"`+artifactID+`",
+			"kind":"doc",
+			"refs":["thread:`+threadID+`"],
+			"summary":"timeline artifact"
+		},
+		"content":"artifact body",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	createArtifactResp.Body.Close()
+
+	appendEventResp := postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-1",
+		"event":{
+			"type":"timeline_ref_test",
+			"thread_id":"`+threadID+`",
+			"refs":[
+				"thread:`+threadID+`",
+				"snapshot:`+commitmentID+`",
+				"artifact:`+artifactID+`",
+				"snapshot:missing-snapshot-id",
+				"artifact:missing-artifact-id"
+			],
+			"summary":"timeline ref expansion event",
+			"payload":{},
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	appendEventResp.Body.Close()
+
+	timelineResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET /threads/{id}/timeline: %v", err)
+	}
+	defer timelineResp.Body.Close()
+	if timelineResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline status: got %d", timelineResp.StatusCode)
+	}
+
+	var timeline struct {
+		Events    []map[string]any          `json:"events"`
+		Snapshots map[string]map[string]any `json:"snapshots"`
+		Artifacts map[string]map[string]any `json:"artifacts"`
+	}
+	if err := json.NewDecoder(timelineResp.Body).Decode(&timeline); err != nil {
+		t.Fatalf("decode timeline response: %v", err)
+	}
+	if len(timeline.Events) == 0 {
+		t.Fatal("expected timeline events")
+	}
+	if len(timeline.Snapshots) == 0 {
+		t.Fatal("expected referenced snapshots in timeline response")
+	}
+	if len(timeline.Artifacts) == 0 {
+		t.Fatal("expected referenced artifacts in timeline response")
+	}
+
+	if snapshot, ok := timeline.Snapshots[commitmentID]; !ok {
+		t.Fatalf("expected commitment snapshot %q in timeline response, got keys=%#v", commitmentID, mapKeysMapAny(timeline.Snapshots))
+	} else {
+		if snapshot["id"] != commitmentID {
+			t.Fatalf("unexpected commitment snapshot payload: %#v", snapshot)
+		}
+	}
+
+	if artifact, ok := timeline.Artifacts[artifactID]; !ok {
+		t.Fatalf("expected artifact %q in timeline response, got keys=%#v", artifactID, mapKeysMapAny(timeline.Artifacts))
+	} else {
+		if artifact["id"] != artifactID {
+			t.Fatalf("unexpected artifact payload: %#v", artifact)
+		}
+	}
+
+	if _, exists := timeline.Snapshots["missing-snapshot-id"]; exists {
+		t.Fatalf("did not expect missing snapshot to be expanded: %#v", timeline.Snapshots["missing-snapshot-id"])
+	}
+	if _, exists := timeline.Artifacts["missing-artifact-id"]; exists {
+		t.Fatalf("did not expect missing artifact to be expanded: %#v", timeline.Artifacts["missing-artifact-id"])
+	}
+}
+
+func mapKeysMapAny(values map[string]map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func containsAny(values []any, expected string) bool {

@@ -91,8 +91,9 @@ func handlePatchThread(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	}
 
 	var req struct {
-		ActorID string         `json:"actor_id"`
-		Patch   map[string]any `json:"patch"`
+		ActorID     string         `json:"actor_id"`
+		Patch       map[string]any `json:"patch"`
+		IfUpdatedAt *string        `json:"if_updated_at"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "request body must be valid JSON")
@@ -102,6 +103,14 @@ func handlePatchThread(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	if req.Patch == nil || len(req.Patch) == 0 {
 		writeError(w, http.StatusBadRequest, "invalid_request", "patch is required")
 		return
+	}
+	if req.IfUpdatedAt != nil {
+		ifUpdatedAt := strings.TrimSpace(*req.IfUpdatedAt)
+		if _, err := time.Parse(time.RFC3339, ifUpdatedAt); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "if_updated_at must be an RFC3339 datetime string")
+			return
+		}
+		req.IfUpdatedAt = &ifUpdatedAt
 	}
 	if _, has := req.Patch["open_commitments"]; has {
 		writeError(w, http.StatusBadRequest, "invalid_request", "thread.open_commitments is core-maintained and cannot be patched")
@@ -118,10 +127,14 @@ func handlePatchThread(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		return
 	}
 
-	result, err := opts.primitiveStore.PatchThread(r.Context(), actorID, threadID, req.Patch)
+	result, err := opts.primitiveStore.PatchThread(r.Context(), actorID, threadID, req.Patch, req.IfUpdatedAt)
 	if err != nil {
 		if errors.Is(err, primitives.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "thread not found")
+			return
+		}
+		if errors.Is(err, primitives.ErrConflict) {
+			writeError(w, http.StatusConflict, "conflict", "thread has been updated; refresh and retry")
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to patch thread")
@@ -138,6 +151,8 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	}
 
 	query := r.URL.Query()
+	tagsFilter := normalizedQueryValues(query["tag"])
+	cadenceFilter := normalizedQueryValues(query["cadence"])
 	var staleFilter *bool
 	staleRaw := strings.TrimSpace(query.Get("stale"))
 	if staleRaw != "" {
@@ -152,11 +167,21 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	threads, err := opts.primitiveStore.ListThreads(r.Context(), primitives.ThreadListFilter{
 		Status:   strings.TrimSpace(query.Get("status")),
 		Priority: strings.TrimSpace(query.Get("priority")),
-		Tag:      strings.TrimSpace(query.Get("tag")),
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list threads")
 		return
+	}
+
+	if len(tagsFilter) > 0 || len(cadenceFilter) > 0 {
+		filtered := make([]map[string]any, 0, len(threads))
+		for _, thread := range threads {
+			if !threadMatchesTagsAndCadence(thread, tagsFilter, cadenceFilter) {
+				continue
+			}
+			filtered = append(filtered, thread)
+		}
+		threads = filtered
 	}
 
 	if staleFilter != nil {
@@ -184,6 +209,59 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	writeJSON(w, http.StatusOK, map[string]any{"threads": threads})
 }
 
+func normalizedQueryValues(raw []string) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
+	for _, value := range raw {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func threadMatchesTagsAndCadence(thread map[string]any, tags []string, cadences []string) bool {
+	if len(tags) > 0 {
+		threadTags, err := extractStringSlice(thread["tags"])
+		if err != nil {
+			return false
+		}
+		for _, wantedTag := range tags {
+			if !containsStringValue(threadTags, wantedTag) {
+				return false
+			}
+		}
+	}
+
+	if len(cadences) > 0 {
+		threadCadence, _ := thread["cadence"].(string)
+		if !containsStringValue(cadences, threadCadence) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func containsStringValue(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
+}
+
 func handleThreadTimeline(w http.ResponseWriter, r *http.Request, opts handlerOptions, threadID string) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
@@ -205,7 +283,79 @@ func handleThreadTimeline(w http.ResponseWriter, r *http.Request, opts handlerOp
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"events": events})
+	snapshotIDs, artifactIDs := collectTimelineReferencedObjectIDs(events)
+
+	snapshots := make(map[string]map[string]any, len(snapshotIDs))
+	for _, snapshotID := range snapshotIDs {
+		snapshot, err := opts.primitiveStore.GetSnapshot(r.Context(), snapshotID)
+		if err != nil {
+			if errors.Is(err, primitives.ErrNotFound) {
+				continue
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load referenced snapshots")
+			return
+		}
+		snapshots[snapshotID] = snapshot
+	}
+
+	artifacts := make(map[string]map[string]any, len(artifactIDs))
+	for _, artifactID := range artifactIDs {
+		artifact, err := opts.primitiveStore.GetArtifact(r.Context(), artifactID)
+		if err != nil {
+			if errors.Is(err, primitives.ErrNotFound) {
+				continue
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load referenced artifacts")
+			return
+		}
+		artifacts[artifactID] = artifact
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"events":    events,
+		"snapshots": snapshots,
+		"artifacts": artifacts,
+	})
+}
+
+func collectTimelineReferencedObjectIDs(events []map[string]any) ([]string, []string) {
+	snapshotSet := make(map[string]struct{})
+	artifactSet := make(map[string]struct{})
+
+	for _, event := range events {
+		refs, err := extractStringSlice(event["refs"])
+		if err != nil {
+			continue
+		}
+		for _, ref := range refs {
+			prefix, id, err := schema.SplitTypedRef(ref)
+			if err != nil {
+				continue
+			}
+			switch prefix {
+			case "snapshot":
+				snapshotSet[id] = struct{}{}
+			case "artifact":
+				artifactSet[id] = struct{}{}
+			}
+		}
+	}
+
+	snapshotIDs := mapKeysSorted(snapshotSet)
+	artifactIDs := mapKeysSorted(artifactSet)
+	return snapshotIDs, artifactIDs
+}
+
+func mapKeysSorted(values map[string]struct{}) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func validateThreadCreate(contract *schema.Contract, thread map[string]any) error {

@@ -60,6 +60,10 @@ func main() {
 	}
 
 	actorRegistry := actors.NewStore(workspace.DB())
+	if _, err := actorRegistry.EnsureSystemActor(context.Background(), time.Now().UTC()); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to seed system actor: %v\n", err)
+		os.Exit(1)
+	}
 	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
 	handler := server.NewHandler(
 		contract.Version,

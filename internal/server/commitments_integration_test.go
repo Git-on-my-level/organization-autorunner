@@ -264,6 +264,190 @@ func TestCommitmentsCreateAndRestrictedTransitions(t *testing.T) {
 	if open := sortedStringList(threadAfterCanceled.Thread["open_commitments"]); len(open) != 0 {
 		t.Fatalf("expected open_commitments empty after canceled, got %#v", threadAfterCanceled.Thread["open_commitments"])
 	}
+
+	timelineResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET /threads/{id}/timeline: %v", err)
+	}
+	defer timelineResp.Body.Close()
+	if timelineResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline status: %d", timelineResp.StatusCode)
+	}
+
+	var timeline struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(timelineResp.Body).Decode(&timeline); err != nil {
+		t.Fatalf("decode timeline response: %v", err)
+	}
+
+	createdEvent := findEventByType(timeline.Events, "commitment_created")
+	if createdEvent == nil {
+		t.Fatal("expected commitment_created in timeline")
+	}
+	assertActorStatementProvenance(t, createdEvent)
+
+	statusChangedEvent := findEventByType(timeline.Events, "commitment_status_changed")
+	if statusChangedEvent == nil {
+		t.Fatal("expected commitment_status_changed in timeline")
+	}
+	assertActorStatementProvenance(t, statusChangedEvent)
+}
+
+func TestPatchCommitmentIfUpdatedAtOptimisticLocking(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	threadResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Commitment lock thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["do x"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer threadResp.Body.Close()
+
+	var createdThread struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(threadResp.Body).Decode(&createdThread); err != nil {
+		t.Fatalf("decode created thread: %v", err)
+	}
+	threadID, _ := createdThread.Thread["id"].(string)
+	if threadID == "" {
+		t.Fatal("expected thread id")
+	}
+
+	commitmentResp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
+		"actor_id":"actor-1",
+		"commitment":{
+			"thread_id":"`+threadID+`",
+			"title":"Lock me",
+			"owner":"actor-1",
+			"due_at":"2026-03-08T00:00:00Z",
+			"status":"open",
+			"definition_of_done":["merged"],
+			"links":["url:https://example.com/work"],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer commitmentResp.Body.Close()
+
+	var createdCommitment struct {
+		Commitment map[string]any `json:"commitment"`
+	}
+	if err := json.NewDecoder(commitmentResp.Body).Decode(&createdCommitment); err != nil {
+		t.Fatalf("decode created commitment: %v", err)
+	}
+	commitmentID, _ := createdCommitment.Commitment["id"].(string)
+	initialUpdatedAt, _ := createdCommitment.Commitment["updated_at"].(string)
+	if commitmentID == "" || initialUpdatedAt == "" {
+		t.Fatalf("expected commitment id and updated_at, got id=%q updated_at=%q", commitmentID, initialUpdatedAt)
+	}
+
+	matchedResp := patchJSONExpectStatus(t, h.baseURL+"/commitments/"+commitmentID, `{
+		"actor_id":"actor-1",
+		"if_updated_at":"`+initialUpdatedAt+`",
+		"patch":{"title":"Lock me matched"}
+	}`, http.StatusOK)
+	defer matchedResp.Body.Close()
+
+	var matched struct {
+		Commitment map[string]any `json:"commitment"`
+	}
+	if err := json.NewDecoder(matchedResp.Body).Decode(&matched); err != nil {
+		t.Fatalf("decode matched commitment patch: %v", err)
+	}
+	if matched.Commitment["title"] != "Lock me matched" {
+		t.Fatalf("unexpected matched commitment title: %#v", matched.Commitment["title"])
+	}
+
+	timelineBeforeResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET timeline before commitment conflict: %v", err)
+	}
+	defer timelineBeforeResp.Body.Close()
+	if timelineBeforeResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline before commitment conflict status: %d", timelineBeforeResp.StatusCode)
+	}
+	var timelineBefore struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(timelineBeforeResp.Body).Decode(&timelineBefore); err != nil {
+		t.Fatalf("decode timeline before commitment conflict: %v", err)
+	}
+
+	conflictResp := patchJSONExpectStatus(t, h.baseURL+"/commitments/"+commitmentID, `{
+		"actor_id":"actor-1",
+		"if_updated_at":"`+initialUpdatedAt+`",
+		"patch":{"title":"Lock me stale"}
+	}`, http.StatusConflict)
+	defer conflictResp.Body.Close()
+
+	var conflictBody struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(conflictResp.Body).Decode(&conflictBody); err != nil {
+		t.Fatalf("decode commitment conflict response: %v", err)
+	}
+	if conflictBody.Error.Code != "conflict" {
+		t.Fatalf("unexpected commitment conflict code: %#v", conflictBody.Error.Code)
+	}
+
+	timelineAfterResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET timeline after commitment conflict: %v", err)
+	}
+	defer timelineAfterResp.Body.Close()
+	if timelineAfterResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline after commitment conflict status: %d", timelineAfterResp.StatusCode)
+	}
+	var timelineAfter struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(timelineAfterResp.Body).Decode(&timelineAfter); err != nil {
+		t.Fatalf("decode timeline after commitment conflict: %v", err)
+	}
+	if len(timelineAfter.Events) != len(timelineBefore.Events) {
+		t.Fatalf("commitment conflict patch emitted event: before=%d after=%d", len(timelineBefore.Events), len(timelineAfter.Events))
+	}
+
+	getResp, err := http.Get(h.baseURL + "/commitments/" + commitmentID)
+	if err != nil {
+		t.Fatalf("GET commitment after conflict: %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected get commitment status after conflict: %d", getResp.StatusCode)
+	}
+	var loaded struct {
+		Commitment map[string]any `json:"commitment"`
+	}
+	if err := json.NewDecoder(getResp.Body).Decode(&loaded); err != nil {
+		t.Fatalf("decode commitment after conflict: %v", err)
+	}
+	if loaded.Commitment["title"] != "Lock me matched" {
+		t.Fatalf("commitment changed despite conflict: %#v", loaded.Commitment["title"])
+	}
+
+	noLockResp := patchJSONExpectStatus(t, h.baseURL+"/commitments/"+commitmentID, `{
+		"actor_id":"actor-1",
+		"patch":{"owner":"actor-2"}
+	}`, http.StatusOK)
+	defer noLockResp.Body.Close()
 }
 
 func sortedStringList(raw any) []string {

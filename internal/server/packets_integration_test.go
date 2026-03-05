@@ -76,6 +76,7 @@ func TestPacketConvenienceEndpointsAndTimeline(t *testing.T) {
 	if workOrderPayload.Event["type"] != "work_order_created" {
 		t.Fatalf("unexpected work order event type: %#v", workOrderPayload.Event["type"])
 	}
+	assertActorStatementProvenance(t, workOrderPayload.Event)
 
 	if resp, err := http.Get(h.baseURL + "/artifacts/" + workOrderID); err != nil {
 		t.Fatalf("GET /artifacts/{work_order_id}: %v", err)
@@ -174,18 +175,21 @@ func TestPacketConvenienceEndpointsAndTimeline(t *testing.T) {
 		t.Fatal("expected work_order_created event in timeline")
 	}
 	assertRefsContain(t, workOrderEvent["refs"], "artifact:"+workOrderID, "thread:"+threadID)
+	assertActorStatementProvenance(t, workOrderEvent)
 
 	receiptEvent := findEventByType(timeline.Events, "receipt_added")
 	if receiptEvent == nil {
 		t.Fatal("expected receipt_added event in timeline")
 	}
 	assertRefsContain(t, receiptEvent["refs"], "artifact:"+receiptID, "artifact:"+workOrderID)
+	assertActorStatementProvenance(t, receiptEvent)
 
 	reviewEvent := findEventByType(timeline.Events, "review_completed")
 	if reviewEvent == nil {
 		t.Fatal("expected review_completed event in timeline")
 	}
 	assertRefsContain(t, reviewEvent["refs"], "artifact:"+reviewID, "artifact:"+receiptID, "artifact:"+workOrderID)
+	assertActorStatementProvenance(t, reviewEvent)
 }
 
 func TestPacketValidationErrors(t *testing.T) {
@@ -265,6 +269,115 @@ func TestPacketValidationErrors(t *testing.T) {
 		}
 	}`, http.StatusBadRequest)
 	assertErrorMessageContains(t, respIDMismatch, "must equal artifact.id")
+}
+
+func TestPacketConvenienceEndpointsRejectUnsafeArtifactIDs(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	threadResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Packet ID safety thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["do x"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer threadResp.Body.Close()
+	var threadPayload struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(threadResp.Body).Decode(&threadPayload); err != nil {
+		t.Fatalf("decode thread response: %v", err)
+	}
+	threadID, _ := threadPayload.Thread["id"].(string)
+	if threadID == "" {
+		t.Fatal("expected thread id")
+	}
+
+	workOrderInvalidIDResp := postJSONExpectStatus(t, h.baseURL+"/work_orders", `{
+		"actor_id":"actor-1",
+		"artifact":{"id":"../../wo-bad","refs":["thread:`+threadID+`"]},
+		"packet":{
+			"work_order_id":"../../wo-bad",
+			"thread_id":"`+threadID+`",
+			"objective":"obj",
+			"constraints":["none"],
+			"context_refs":["url:https://example.com/context"],
+			"acceptance_criteria":["done"],
+			"definition_of_done":["published"]
+		}
+	}`, http.StatusBadRequest)
+	assertErrorMessageContains(t, workOrderInvalidIDResp, "artifact.id")
+
+	const workOrderID = "wo-valid-for-unsafe-id-tests"
+	postJSONExpectStatus(t, h.baseURL+"/work_orders", `{
+		"actor_id":"actor-1",
+		"artifact":{"id":"`+workOrderID+`","refs":["thread:`+threadID+`"]},
+		"packet":{
+			"work_order_id":"`+workOrderID+`",
+			"thread_id":"`+threadID+`",
+			"objective":"obj",
+			"constraints":["none"],
+			"context_refs":["url:https://example.com/context"],
+			"acceptance_criteria":["done"],
+			"definition_of_done":["published"]
+		}
+	}`, http.StatusCreated).Body.Close()
+
+	receiptInvalidIDResp := postJSONExpectStatus(t, h.baseURL+"/receipts", `{
+		"actor_id":"actor-1",
+		"artifact":{"id":"..","refs":["thread:`+threadID+`","artifact:`+workOrderID+`"]},
+		"packet":{
+			"receipt_id":"..",
+			"work_order_id":"`+workOrderID+`",
+			"thread_id":"`+threadID+`",
+			"outputs":["artifact:output-1"],
+			"verification_evidence":["url:https://example.com/evidence"],
+			"changes_summary":"summary",
+			"known_gaps":[]
+		}
+	}`, http.StatusBadRequest)
+	assertErrorMessageContains(t, receiptInvalidIDResp, "artifact.id")
+
+	const receiptID = "receipt-valid-for-unsafe-id-tests"
+	postJSONExpectStatus(t, h.baseURL+"/receipts", `{
+		"actor_id":"actor-1",
+		"artifact":{"id":"`+receiptID+`","refs":["thread:`+threadID+`","artifact:`+workOrderID+`"]},
+		"packet":{
+			"receipt_id":"`+receiptID+`",
+			"work_order_id":"`+workOrderID+`",
+			"thread_id":"`+threadID+`",
+			"outputs":["artifact:output-1"],
+			"verification_evidence":["url:https://example.com/evidence"],
+			"changes_summary":"summary",
+			"known_gaps":[]
+		}
+	}`, http.StatusCreated).Body.Close()
+
+	reviewInvalidIDResp := postJSONExpectStatus(t, h.baseURL+"/reviews", `{
+		"actor_id":"actor-1",
+		"artifact":{"id":"/tmp/review-bad","refs":["thread:`+threadID+`","artifact:`+receiptID+`","artifact:`+workOrderID+`"]},
+		"packet":{
+			"review_id":"/tmp/review-bad",
+			"work_order_id":"`+workOrderID+`",
+			"receipt_id":"`+receiptID+`",
+			"outcome":"accept",
+			"notes":"ok",
+			"evidence_refs":["artifact:`+receiptID+`"]
+		}
+	}`, http.StatusBadRequest)
+	assertErrorMessageContains(t, reviewInvalidIDResp, "artifact.id")
 }
 
 func findEventByType(events []map[string]any, eventType string) map[string]any {

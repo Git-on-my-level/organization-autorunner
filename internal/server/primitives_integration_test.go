@@ -166,6 +166,39 @@ func TestInvalidTypedRefsRejectedForEventsAndArtifacts(t *testing.T) {
 	defer artifactResp.Body.Close()
 }
 
+func TestCreateArtifactRejectsUnsafeArtifactIDs(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	respWithSeparator := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"id":"../../etc/passwd",
+			"kind":"doc",
+			"refs":["thread:thread-1"],
+			"summary":"bad artifact id"
+		},
+		"content":"x",
+		"content_type":"text"
+	}`, http.StatusBadRequest)
+	assertErrorMessageContains(t, respWithSeparator, "artifact.id")
+
+	respWithAbsolute := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"id":"/tmp/absolute",
+			"kind":"doc",
+			"refs":["thread:thread-1"],
+			"summary":"bad artifact id"
+		},
+		"content":"x",
+		"content_type":"text"
+	}`, http.StatusBadRequest)
+	assertErrorMessageContains(t, respWithAbsolute, "artifact.id")
+}
+
 func TestGetSnapshotByID(t *testing.T) {
 	t.Parallel()
 
