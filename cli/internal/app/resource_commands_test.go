@@ -112,6 +112,123 @@ func TestTypedWorkflowCommands(t *testing.T) {
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "inbox", "ack", "--thread-id", "thread_flow_1", "--inbox-item-id", "inbox:1"}))
 }
 
+func TestInboxAckActorIDMeAliasFromProfile(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/inbox/ack" {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode inbox ack body: %v body=%s", err, string(body))
+		}
+		if got := strings.TrimSpace(anyStringValue(payload["actor_id"])); got != "actor-profile-1" {
+			t.Fatalf("expected actor_id from profile, got %q body=%s", got, string(body))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"event":{"id":"event_ack_profile"}}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	writeAgentProfile(t, home, "agent-a", `{"agent":"agent-a","actor_id":"actor-profile-1","access_token":"token-a","access_token_expires_at":"2099-01-01T00:00:00Z"}`)
+
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"--agent", "agent-a",
+		"inbox", "ack",
+		"--thread-id", "thread_1",
+		"--inbox-item-id", "inbox:1",
+		"--actor-id", "me",
+	})
+	assertEnvelopeOK(t, raw)
+}
+
+func TestInboxAckActorIDMeRequiresProfileActorID(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	writeAgentProfile(t, home, "agent-a", `{}`)
+
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--agent", "agent-a",
+		"inbox", "ack",
+		"--thread-id", "thread_1",
+		"--inbox-item-id", "inbox:1",
+		"--actor-id", "me",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	if !strings.Contains(anyStringValue(errObj["message"]), "requires actor_id") {
+		t.Fatalf("expected actor_id guidance, payload=%#v", payload)
+	}
+}
+
+func TestDerivedRebuildActorIDMeAliasFromProfile(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/derived/rebuild" {
+			http.NotFound(w, r)
+			return
+		}
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		if err := json.Unmarshal(body, &payload); err != nil {
+			t.Fatalf("decode derived rebuild body: %v body=%s", err, string(body))
+		}
+		if got := strings.TrimSpace(anyStringValue(payload["actor_id"])); got != "actor-profile-2" {
+			t.Fatalf("expected actor_id from profile, got %q body=%s", got, string(body))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	writeAgentProfile(t, home, "agent-b", `{"agent":"agent-b","actor_id":"actor-profile-2","access_token":"token-b","access_token_expires_at":"2099-01-01T00:00:00Z"}`)
+
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"--agent", "agent-b",
+		"derived", "rebuild",
+		"--actor-id", "me",
+	})
+	assertEnvelopeOK(t, raw)
+}
+
+func TestDerivedRebuildActorIDMeRequiresProfileActorID(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	writeAgentProfile(t, home, "agent-b", `{}`)
+
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--agent", "agent-b",
+		"derived", "rebuild",
+		"--actor-id", "me",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	if !strings.Contains(anyStringValue(errObj["message"]), "requires actor_id") {
+		t.Fatalf("expected actor_id guidance, payload=%#v", payload)
+	}
+}
+
 func TestArtifactContentRaw(t *testing.T) {
 	t.Parallel()
 
@@ -281,4 +398,16 @@ func TestTypedCommandUsageFailures(t *testing.T) {
 func Example_oarThreadsList() {
 	fmt.Println("oar --json threads list --status active")
 	// Output: oar --json threads list --status active
+}
+
+func writeAgentProfile(t *testing.T, home string, agent string, profileJSON string) {
+	t.Helper()
+	profilesDir := filepath.Join(home, ".config", "oar", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o700); err != nil {
+		t.Fatalf("mkdir profiles dir: %v", err)
+	}
+	profilePath := filepath.Join(profilesDir, agent+".json")
+	if err := os.WriteFile(profilePath, []byte(profileJSON), 0o600); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
 }
