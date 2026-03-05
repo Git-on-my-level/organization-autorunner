@@ -279,7 +279,7 @@ func (a *App) runInboxCommand(ctx context.Context, args []string, cfg config.Res
 		result, err := a.invokeTypedJSON(ctx, cfg, "inbox list", "inbox.list", nil, nil, nil)
 		return result, "inbox list", err
 	case "ack":
-		body, err := a.parseAckBodyInput(args[1:])
+		body, err := a.parseAckBodyInput(args[1:], cfg)
 		if err != nil {
 			return nil, "inbox ack", err
 		}
@@ -318,7 +318,7 @@ func (a *App) runDerivedCommand(ctx context.Context, args []string, cfg config.R
 	if strings.TrimSpace(args[0]) != "rebuild" {
 		return nil, "derived", errnorm.Usage("unknown_subcommand", fmt.Sprintf("unknown derived subcommand %q", strings.TrimSpace(args[0])))
 	}
-	body, err := a.parseJSONBodyInput(args[1:], "derived rebuild")
+	body, err := a.parseDerivedRebuildBodyInput(args[1:], cfg)
 	if err != nil {
 		return nil, "derived rebuild", err
 	}
@@ -762,7 +762,49 @@ func validateID(id string, label string) error {
 	return nil
 }
 
-func (a *App) parseAckBodyInput(args []string) (any, error) {
+func (a *App) parseDerivedRebuildBodyInput(args []string, cfg config.Resolved) (any, error) {
+	fs := newSilentFlagSet("derived rebuild")
+	var fromFileFlag, actorIDFlag trackedString
+	fs.Var(&fromFileFlag, "from-file", "Load JSON body from file path")
+	fs.Var(&actorIDFlag, "actor-id", "Actor id")
+	if err := fs.Parse(args); err != nil {
+		return nil, errnorm.Usage("invalid_flags", err.Error())
+	}
+	if len(fs.Args()) > 0 {
+		return nil, errnorm.Usage("invalid_args", "unexpected positional arguments for `oar derived rebuild`")
+	}
+
+	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
+	if err != nil {
+		return nil, err
+	}
+
+	var body map[string]any
+	if len(payload) == 0 {
+		body = map[string]any{}
+	} else {
+		decoded, decodeErr := decodeJSONPayload(payload)
+		if decodeErr != nil {
+			return nil, decodeErr
+		}
+		parsed, ok := decoded.(map[string]any)
+		if !ok {
+			return nil, errnorm.Usage("invalid_request", "JSON body for `oar derived rebuild` must be an object")
+		}
+		body = parsed
+	}
+
+	actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
+	if err != nil {
+		return nil, err
+	}
+	if actorID != "" {
+		body["actor_id"] = actorID
+	}
+	return body, nil
+}
+
+func (a *App) parseAckBodyInput(args []string, cfg config.Resolved) (any, error) {
 	fs := newSilentFlagSet("inbox ack")
 	var fromFileFlag, threadIDFlag, inboxItemIDFlag, actorIDFlag trackedString
 	fs.Var(&fromFileFlag, "from-file", "Load JSON body from file path")
@@ -790,14 +832,36 @@ func (a *App) parseAckBodyInput(args []string) (any, error) {
 	if err := validateID(inboxItemIDFlag.value, "inbox item id"); err != nil {
 		return nil, err
 	}
+	actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
+	if err != nil {
+		return nil, err
+	}
 	body := map[string]any{
 		"thread_id":     strings.TrimSpace(threadIDFlag.value),
 		"inbox_item_id": strings.TrimSpace(inboxItemIDFlag.value),
 	}
-	if strings.TrimSpace(actorIDFlag.value) != "" {
-		body["actor_id"] = strings.TrimSpace(actorIDFlag.value)
+	if actorID != "" {
+		body["actor_id"] = actorID
 	}
 	return body, nil
+}
+
+func resolveActorIDAlias(raw string, cfg config.Resolved) (string, error) {
+	actorID := strings.TrimSpace(raw)
+	if actorID == "" {
+		return "", nil
+	}
+	if actorID != "me" {
+		return actorID, nil
+	}
+	resolved := strings.TrimSpace(cfg.ActorID)
+	if resolved != "" {
+		return resolved, nil
+	}
+	return "", errnorm.Usage(
+		"invalid_request",
+		fmt.Sprintf("--actor-id me requires actor_id in active profile (%s)", strings.TrimSpace(cfg.ProfilePath)),
+	)
 }
 
 func (a *App) readBodyInput(fromFile string) ([]byte, error) {
