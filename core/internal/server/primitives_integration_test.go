@@ -239,6 +239,49 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 	}
 }
 
+func TestDocumentsInvalidInputReturnsInvalidRequest(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createInvalidResp := postJSONExpectStatus(t, h.baseURL+"/docs", `{
+		"actor_id":"actor-1",
+		"document":{"id":"doc-invalid-create","labels":["ok",1]},
+		"content":"invalid",
+		"content_type":"text"
+	}`, http.StatusBadRequest)
+	defer createInvalidResp.Body.Close()
+	assertErrorCode(t, createInvalidResp, "invalid_request")
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/docs", `{
+		"actor_id":"actor-1",
+		"document":{"id":"doc-invalid-update"},
+		"content":"initial",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	baseRevision, _ := created["revision"]["revision_id"].(string)
+	if strings.TrimSpace(baseRevision) == "" {
+		t.Fatalf("expected revision_id in create response: %#v", created)
+	}
+
+	updateInvalidResp := requestJSONExpectStatus(t, http.MethodPatch, h.baseURL+"/docs/doc-invalid-update", `{
+		"actor_id":"actor-1",
+		"if_base_revision":"`+baseRevision+`",
+		"document":{"id":"should-not-be-allowed"},
+		"content":"next",
+		"content_type":"text"
+	}`, http.StatusBadRequest)
+	defer updateInvalidResp.Body.Close()
+	assertErrorCode(t, updateInvalidResp, "invalid_request")
+}
+
 func TestInvalidTypedRefsRejectedForEventsAndArtifacts(t *testing.T) {
 	t.Parallel()
 

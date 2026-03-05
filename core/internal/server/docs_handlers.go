@@ -72,6 +72,10 @@ func handleCreateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 			writeError(w, http.StatusConflict, "conflict", "document already exists")
 			return
 		}
+		if errors.Is(err, primitives.ErrInvalidDocumentRequest) {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create document")
 		return
 	}
@@ -177,6 +181,8 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		switch {
 		case errors.Is(err, primitives.ErrNotFound):
 			writeError(w, http.StatusNotFound, "not_found", "document not found")
+		case errors.Is(err, primitives.ErrInvalidDocumentRequest):
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		case errors.Is(err, primitives.ErrConflict):
 			writeError(w, http.StatusConflict, "conflict", "document has been updated; refresh and retry")
 		default:

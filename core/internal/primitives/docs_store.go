@@ -40,14 +40,14 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	}
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
-		return nil, nil, fmt.Errorf("actorID is required")
+		return nil, nil, invalidDocumentRequest("actorID is required")
 	}
 	if document == nil {
-		return nil, nil, fmt.Errorf("document is required")
+		return nil, nil, invalidDocumentRequest("document is required")
 	}
 	contentType, err := normalizeDocumentContentType(contentType)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 
 	documentID := strings.TrimSpace(anyStringValue(document["document_id"]))
@@ -58,7 +58,7 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 		documentID = uuid.NewString()
 	}
 	if err := validateDocumentID(documentID); err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 
 	threadID, err := optionalStringField(document, "thread_id")
@@ -79,16 +79,16 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	}
 	labels, err := optionalStringListField(document, "labels")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 	supersedes, err := optionalStringListField(document, "supersedes")
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 
 	encodedContent, err := encodeContent(content)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
@@ -297,18 +297,18 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	}
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
-		return nil, nil, fmt.Errorf("actorID is required")
+		return nil, nil, invalidDocumentRequest("actorID is required")
 	}
 	ifBaseRevision = strings.TrimSpace(ifBaseRevision)
 	if ifBaseRevision == "" {
-		return nil, nil, fmt.Errorf("if_base_revision is required")
+		return nil, nil, invalidDocumentRequest("if_base_revision is required")
 	}
 	contentType, err := normalizeDocumentContentType(contentType)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 	if err := validateDocumentID(documentID); err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 
 	doc, err := s.loadDocumentRow(ctx, documentID)
@@ -328,10 +328,10 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 
 	if documentPatch != nil {
 		if _, exists := documentPatch["id"]; exists {
-			return nil, nil, fmt.Errorf("document.id cannot be patched")
+			return nil, nil, invalidDocumentRequest("document.id cannot be patched")
 		}
 		if _, exists := documentPatch["document_id"]; exists {
-			return nil, nil, fmt.Errorf("document.document_id cannot be patched")
+			return nil, nil, invalidDocumentRequest("document.document_id cannot be patched")
 		}
 		if value, exists := documentPatch["thread_id"]; exists {
 			parsed := strings.TrimSpace(anyStringValue(value))
@@ -349,14 +349,14 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 		if value, exists := documentPatch["labels"]; exists {
 			parsed, parseErr := normalizeStringSlice(value)
 			if parseErr != nil {
-				return nil, nil, fmt.Errorf("document.labels must be a list of strings")
+				return nil, nil, invalidDocumentRequest("document.labels must be a list of strings")
 			}
 			nextLabels = parsed
 		}
 		if value, exists := documentPatch["supersedes"]; exists {
 			parsed, parseErr := normalizeStringSlice(value)
 			if parseErr != nil {
-				return nil, nil, fmt.Errorf("document.supersedes must be a list of strings")
+				return nil, nil, invalidDocumentRequest("document.supersedes must be a list of strings")
 			}
 			nextSupersedes = parsed
 		}
@@ -364,7 +364,7 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 
 	encodedContent, err := encodeContent(content)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, invalidDocumentRequestError(err)
 	}
 
 	nextRevisionNumber := doc.HeadRevisionNum + 1
@@ -889,4 +889,15 @@ func isUniqueViolation(err error) bool {
 	}
 	text := strings.ToLower(strings.TrimSpace(err.Error()))
 	return strings.Contains(text, "unique constraint") || strings.Contains(text, "constraint failed")
+}
+
+func invalidDocumentRequest(message string) error {
+	return fmt.Errorf("%w: %s", ErrInvalidDocumentRequest, strings.TrimSpace(message))
+}
+
+func invalidDocumentRequestError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", ErrInvalidDocumentRequest, strings.TrimSpace(err.Error()))
 }
