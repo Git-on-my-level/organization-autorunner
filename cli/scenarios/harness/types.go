@@ -7,6 +7,9 @@ type Mode string
 const (
 	ModeDeterministic Mode = "deterministic"
 	ModeLLM           Mode = "llm"
+
+	DefaultOpenAICompatBaseURL = "https://api.z.ai/api/coding/paas/v4"
+	DefaultOpenAICompatModel   = "glm-4.7-flashx"
 )
 
 type Scenario struct {
@@ -55,14 +58,20 @@ type Assertion struct {
 }
 
 type Config struct {
-	ScenarioPath     string
-	OARBinary        string
-	BaseURLOverride  string
-	Mode             Mode
-	LLMDriverBin     string
-	LLMDriverArgs    []string
-	Verbose          bool
-	WorkingDirectory string
+	ScenarioPath      string
+	OARBinary         string
+	BaseURLOverride   string
+	Mode              Mode
+	LLMDriverBin      string
+	LLMDriverArgs     []string
+	LLMAPIBase        string
+	LLMAPIKey         string
+	LLMModel          string
+	LLMTemperature    float64
+	LLMMaxTokens      int
+	LLMTimeoutSeconds int
+	Verbose           bool
+	WorkingDirectory  string
 }
 
 type Report struct {
@@ -106,16 +115,17 @@ type CommandResult struct {
 }
 
 type DriverRequest struct {
-	Scenario  string                    `json:"scenario"`
-	RunID     string                    `json:"run_id"`
-	Agent     string                    `json:"agent"`
-	Objective string                    `json:"objective"`
-	Profile   string                    `json:"profile"`
-	Turn      int                       `json:"turn"`
-	MaxTurns  int                       `json:"max_turns"`
-	Captures  map[string]map[string]any `json:"captures"`
-	History   []CommandResult           `json:"history"`
-	BaseURL   string                    `json:"base_url"`
+	Scenario       string                    `json:"scenario"`
+	RunID          string                    `json:"run_id"`
+	Agent          string                    `json:"agent"`
+	Objective      string                    `json:"objective"`
+	Profile        string                    `json:"profile"`
+	Turn           int                       `json:"turn"`
+	MaxTurns       int                       `json:"max_turns"`
+	Captures       map[string]map[string]any `json:"captures"`
+	History        []CommandResult           `json:"history"`
+	BaseURL        string                    `json:"base_url"`
+	ReferenceSteps []Step                    `json:"reference_steps,omitempty"`
 }
 
 type DriverAction struct {

@@ -77,6 +77,9 @@ From `cli/`:
 go build -o oar ./cmd/oar
 go build -o oar-scenario ./cmd/oar-scenario
 
+# Or run without creating binaries:
+go run ./cmd/oar-scenario --scenario scenarios/zesty-bots/harness.scenario.json --mode deterministic
+
 ./oar-scenario \
   --scenario scenarios/zesty-bots/harness.scenario.json \
   --oar-bin ./oar \
@@ -86,6 +89,23 @@ go build -o oar-scenario ./cmd/oar-scenario
   --scenario scenarios/zesty-bots/harness.nontrivial.scenario.json \
   --oar-bin ./oar \
   --mode deterministic
+
+export OAR_LLM_API_KEY="<your-provider-key>"
+./oar-scenario \
+  --scenario scenarios/zesty-bots/harness.scenario.json \
+  --oar-bin ./oar \
+  --mode llm \
+  --llm-api-base https://api.z.ai/api/coding/paas/v4 \
+  --llm-model glm-4.7-flashx
+
+mkdir -p .secrets
+printf '%s\n' '<your-provider-key>' > .secrets/zai_api_key
+chmod 600 .secrets/zai_api_key
+./oar-scenario \
+  --scenario scenarios/zesty-bots/harness.scenario.json \
+  --oar-bin ./oar \
+  --mode llm \
+  --llm-api-key-file .secrets/zai_api_key
 ```
 
 ## Resetting Workspace State

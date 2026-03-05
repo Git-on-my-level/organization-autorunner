@@ -43,7 +43,7 @@ Each script self-registers a fresh agent, walks its profile's happy path against
 `oar-scenario` is a thin in-repo harness that executes scenario manifests in two modes:
 
 - `deterministic`: fixed command sequences per agent (CI-friendly baseline)
-- `llm`: external driver decides actions turn-by-turn
+- `llm`: built-in OpenAI-compatible LLM loop (or optional external driver)
 
 Build binaries:
 
@@ -51,6 +51,13 @@ Build binaries:
 cd cli
 go build -o oar ./cmd/oar
 go build -o oar-scenario ./cmd/oar-scenario
+```
+
+Binary-free local run (avoids generating tracked/untracked binaries):
+
+```bash
+cd cli
+go run ./cmd/oar-scenario --scenario scenarios/zesty-bots/harness.scenario.json --mode deterministic
 ```
 
 Run deterministic harness scenario:
@@ -70,7 +77,41 @@ cd cli
   --report .tmp/nontrivial-scenario-report.json
 ```
 
-Run with an external LLM driver:
+Run with the built-in OpenAI-compatible LLM harness:
+
+```bash
+cd cli
+export OAR_LLM_API_KEY="<your-provider-key>"
+
+./oar-scenario \
+  --scenario scenarios/zesty-bots/harness.scenario.json \
+  --oar-bin ./oar \
+  --mode llm \
+  --llm-api-base https://api.z.ai/api/coding/paas/v4 \
+  --llm-model glm-4.7-flashx
+```
+
+Gitignored key file option:
+
+```bash
+cd cli
+mkdir -p .secrets
+printf '%s\n' '<your-provider-key>' > .secrets/zai_api_key
+chmod 600 .secrets/zai_api_key
+
+./oar-scenario \
+  --scenario scenarios/zesty-bots/harness.scenario.json \
+  --oar-bin ./oar \
+  --mode llm \
+  --llm-api-key-file .secrets/zai_api_key
+```
+
+Built-in LLM defaults:
+- `--llm-api-base`: `https://api.z.ai/api/coding/paas/v4`
+- `--llm-model`: `glm-4.7-flashx`
+- API key from `--llm-api-key`, `--llm-api-key-file`, or env (`OAR_LLM_API_KEY_FILE`, `OAR_LLM_API_KEY`, fallback `OPENAI_API_KEY`)
+
+Run with an external LLM driver (still supported):
 
 ```bash
 cd cli

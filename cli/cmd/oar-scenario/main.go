@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"organization-autorunner-cli/scenarios/harness"
@@ -31,13 +32,20 @@ func (f *repeatedStringFlag) Set(value string) error {
 
 func main() {
 	var (
-		scenarioPath string
-		oarBinary    string
-		baseURL      string
-		mode         string
-		outputPath   string
-		llmDriverBin string
-		verbose      bool
+		scenarioPath  string
+		oarBinary     string
+		baseURL       string
+		mode          string
+		outputPath    string
+		llmDriverBin  string
+		llmAPIBase    string
+		llmAPIKey     string
+		llmAPIKeyFile string
+		llmModel      string
+		llmTemp       float64
+		llmMaxTokens  int
+		llmTimeoutSec int
+		verbose       bool
 	)
 	var llmArgs repeatedStringFlag
 
@@ -47,8 +55,15 @@ func main() {
 	fs.StringVar(&baseURL, "base-url", "", "Override scenario base URL")
 	fs.StringVar(&mode, "mode", string(harness.ModeDeterministic), "Runner mode: deterministic or llm")
 	fs.StringVar(&outputPath, "report", "", "Optional path to write JSON report")
-	fs.StringVar(&llmDriverBin, "llm-driver-bin", "", "Path to external LLM driver program (required for --mode llm)")
+	fs.StringVar(&llmDriverBin, "llm-driver-bin", "", "Path to external LLM driver program (optional in --mode llm)")
 	fs.Var(&llmArgs, "llm-driver-arg", "Argument for external LLM driver (repeatable)")
+	fs.StringVar(&llmAPIBase, "llm-api-base", firstNonEmpty(strings.TrimSpace(os.Getenv("OAR_LLM_API_BASE")), harness.DefaultOpenAICompatBaseURL), "OpenAI-compatible LLM API base URL used when --llm-driver-bin is unset")
+	fs.StringVar(&llmAPIKey, "llm-api-key", firstNonEmpty(strings.TrimSpace(os.Getenv("OAR_LLM_API_KEY")), strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))), "API key for built-in OpenAI-compatible LLM mode")
+	fs.StringVar(&llmAPIKeyFile, "llm-api-key-file", strings.TrimSpace(os.Getenv("OAR_LLM_API_KEY_FILE")), "Path to file containing API key for built-in OpenAI-compatible LLM mode")
+	fs.StringVar(&llmModel, "llm-model", firstNonEmpty(strings.TrimSpace(os.Getenv("OAR_LLM_MODEL")), harness.DefaultOpenAICompatModel), "Model name for built-in OpenAI-compatible LLM mode")
+	fs.Float64Var(&llmTemp, "llm-temperature", 0.0, "Sampling temperature for built-in OpenAI-compatible LLM mode")
+	fs.IntVar(&llmMaxTokens, "llm-max-tokens", 2000, "Max completion tokens for built-in OpenAI-compatible LLM mode")
+	fs.IntVar(&llmTimeoutSec, "llm-timeout-seconds", firstNonZeroInt(parseEnvInt("OAR_LLM_TIMEOUT_SECONDS"), 180), "HTTP timeout in seconds for built-in OpenAI-compatible LLM requests")
 	fs.BoolVar(&verbose, "verbose", false, "Print executed commands to stderr")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
@@ -81,15 +96,27 @@ func main() {
 		oarBinary = filepath.Join(workingDir, oarBinary)
 	}
 
+	resolvedLLMAPIKey, err := resolveLLMAPIKey(strings.TrimSpace(llmAPIKey), strings.TrimSpace(llmAPIKeyFile), workingDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "resolve llm api key:", err)
+		os.Exit(1)
+	}
+
 	cfg := harness.Config{
-		ScenarioPath:     scenarioPath,
-		OARBinary:        oarBinary,
-		BaseURLOverride:  strings.TrimSpace(baseURL),
-		Mode:             harness.Mode(strings.ToLower(strings.TrimSpace(mode))),
-		LLMDriverBin:     strings.TrimSpace(llmDriverBin),
-		LLMDriverArgs:    append([]string(nil), llmArgs.values...),
-		Verbose:          verbose,
-		WorkingDirectory: workingDir,
+		ScenarioPath:      scenarioPath,
+		OARBinary:         oarBinary,
+		BaseURLOverride:   strings.TrimSpace(baseURL),
+		Mode:              harness.Mode(strings.ToLower(strings.TrimSpace(mode))),
+		LLMDriverBin:      strings.TrimSpace(llmDriverBin),
+		LLMDriverArgs:     append([]string(nil), llmArgs.values...),
+		LLMAPIBase:        strings.TrimSpace(llmAPIBase),
+		LLMAPIKey:         resolvedLLMAPIKey,
+		LLMModel:          strings.TrimSpace(llmModel),
+		LLMTemperature:    llmTemp,
+		LLMMaxTokens:      llmMaxTokens,
+		LLMTimeoutSeconds: llmTimeoutSec,
+		Verbose:           verbose,
+		WorkingDirectory:  workingDir,
 	}
 
 	report, runErr := harness.Run(context.Background(), cfg)
@@ -121,4 +148,57 @@ func main() {
 		fmt.Fprintln(os.Stderr, "scenario failed:", runErr)
 		os.Exit(1)
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func resolveLLMAPIKey(key string, keyFile string, workingDir string) (string, error) {
+	if strings.TrimSpace(key) != "" {
+		return strings.TrimSpace(key), nil
+	}
+	if strings.TrimSpace(keyFile) == "" {
+		return "", nil
+	}
+	path := strings.TrimSpace(keyFile)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(workingDir, path)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read key file %q: %w", path, err)
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return "", fmt.Errorf("key file %q is empty", path)
+	}
+	return trimmed, nil
+}
+
+func parseEnvInt(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0
+	}
+	return value
+}
+
+func firstNonZeroInt(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }

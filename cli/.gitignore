@@ -1,1 +1,4 @@
-oar
+/oar
+/oar-scenario
+
+.secrets/

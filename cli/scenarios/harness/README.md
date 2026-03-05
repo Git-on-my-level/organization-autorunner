@@ -4,7 +4,7 @@
 
 Goals:
 - provide deterministic, CI-friendly multi-agent scenario tests
-- support pluggable external LLM drivers for realistic agent behavior
+- support a built-in OpenAI-compatible LLM loop (plus pluggable external drivers)
 - capture scenario run reports in machine-readable JSON
 
 This package is intentionally thin: orchestration state machine + command execution + assertion checks.

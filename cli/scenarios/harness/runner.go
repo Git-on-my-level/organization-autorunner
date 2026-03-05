@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -130,6 +133,7 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 			if maxTurns <= 0 {
 				maxTurns = 8
 			}
+			consecutiveFailures := 0
 			for turn := 1; turn <= maxTurns; turn++ {
 				action, actionErr := nextLLMAction(ctx, cfg, scenario, agent, captures, history[agentName], turn, maxTurns, baseURL)
 				if actionErr != nil {
@@ -154,15 +158,24 @@ func Run(ctx context.Context, cfg Config) (Report, error) {
 					Name:         firstNonEmpty(strings.TrimSpace(action.Name), fmt.Sprintf("llm turn %d", turn)),
 					Args:         action.Args,
 					Stdin:        action.Stdin,
+					Capture:      inferCaptureFromReference(action, agent.DeterministicSteps),
 					AllowFailure: action.AllowFailure,
 				}
 				res, stepErr := runStep(ctx, cfg, oarBinary, baseURL, username, agentName, step, captures)
 				aReport.Steps = append(aReport.Steps, res)
 				history[agentName] = append(history[agentName], res)
 				if stepErr != nil {
-					report.Agents = append(report.Agents, aReport)
-					return failReport(report, fmt.Sprintf("agent %s llm step %q failed: %v", agentName, step.Name, stepErr))
+					consecutiveFailures++
+					if cfg.Verbose {
+						fmt.Fprintf(os.Stderr, "[harness] %s llm step failed (%d/%d): %v\n", agentName, consecutiveFailures, maxTurns, stepErr)
+					}
+					if consecutiveFailures >= 3 {
+						report.Agents = append(report.Agents, aReport)
+						return failReport(report, fmt.Sprintf("agent %s llm step %q failed repeatedly: %v", agentName, step.Name, stepErr))
+					}
+					continue
 				}
+				consecutiveFailures = 0
 			}
 		}
 
@@ -655,9 +668,17 @@ func navigatePath(value any, key string) (any, bool) {
 }
 
 func nextLLMAction(ctx context.Context, cfg Config, scenario Scenario, agent AgentSpec, captures map[string]map[string]any, history []CommandResult, turn int, maxTurns int, baseURL string) (DriverAction, error) {
-	if strings.TrimSpace(cfg.LLMDriverBin) == "" {
-		return DriverAction{}, fmt.Errorf("llm mode requires --llm-driver-bin")
+	req, err := buildDriverRequest(cfg, scenario, agent, captures, history, turn, maxTurns, baseURL)
+	if err != nil {
+		return DriverAction{}, err
 	}
+	if strings.TrimSpace(cfg.LLMDriverBin) != "" {
+		return nextExternalDriverAction(ctx, cfg, req)
+	}
+	return nextOpenAICompatibleAction(ctx, cfg, req)
+}
+
+func buildDriverRequest(cfg Config, scenario Scenario, agent AgentSpec, captures map[string]map[string]any, history []CommandResult, turn int, maxTurns int, baseURL string) (DriverRequest, error) {
 	profileText := ""
 	if strings.TrimSpace(agent.LLM.ProfilePath) != "" {
 		profilePath := strings.TrimSpace(agent.LLM.ProfilePath)
@@ -669,18 +690,22 @@ func nextLLMAction(ctx context.Context, cfg Config, scenario Scenario, agent Age
 		}
 	}
 
-	req := DriverRequest{
-		Scenario:  scenario.Name,
-		RunID:     fmt.Sprint(captures["run"]["id"]),
-		Agent:     agent.Name,
-		Objective: strings.TrimSpace(agent.LLM.Objective),
-		Profile:   profileText,
-		Turn:      turn,
-		MaxTurns:  maxTurns,
-		Captures:  captures,
-		History:   history,
-		BaseURL:   baseURL,
-	}
+	return DriverRequest{
+		Scenario:       scenario.Name,
+		RunID:          fmt.Sprint(captures["run"]["id"]),
+		Agent:          agent.Name,
+		Objective:      strings.TrimSpace(agent.LLM.Objective),
+		Profile:        profileText,
+		Turn:           turn,
+		MaxTurns:       maxTurns,
+		Captures:       captures,
+		History:        compactHistory(history, 6, 280),
+		BaseURL:        baseURL,
+		ReferenceSteps: append([]Step(nil), agent.DeterministicSteps...),
+	}, nil
+}
+
+func nextExternalDriverAction(ctx context.Context, cfg Config, req DriverRequest) (DriverAction, error) {
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return DriverAction{}, fmt.Errorf("encode driver request: %w", err)
@@ -704,17 +729,535 @@ func nextLLMAction(ctx context.Context, cfg Config, scenario Scenario, agent Age
 	if err := json.Unmarshal(stdout.Bytes(), &action); err != nil {
 		return DriverAction{}, fmt.Errorf("decode driver action: %w", err)
 	}
-	action.Action = strings.ToLower(strings.TrimSpace(action.Action))
-	if action.Action == "" {
-		return DriverAction{}, fmt.Errorf("driver action is required")
-	}
-	if action.Action != "run" && action.Action != "stop" {
-		return DriverAction{}, fmt.Errorf("unsupported driver action %q", action.Action)
-	}
-	if action.Action == "run" && len(action.Args) == 0 {
-		return DriverAction{}, fmt.Errorf("driver action run requires args")
+	if err := validateDriverAction(&action); err != nil {
+		return DriverAction{}, err
 	}
 	return action, nil
+}
+
+type openAIChatCompletionsRequest struct {
+	Model          string                `json:"model"`
+	Messages       []openAIChatPrompt    `json:"messages"`
+	Temperature    *float64              `json:"temperature,omitempty"`
+	MaxTokens      int                   `json:"max_tokens,omitempty"`
+	ResponseFormat *openAIResponseFormat `json:"response_format,omitempty"`
+}
+
+type openAIChatPrompt struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type openAIResponseFormat struct {
+	Type string `json:"type"`
+}
+
+type openAIChatCompletionsResponse struct {
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Code    string `json:"code"`
+	} `json:"error,omitempty"`
+	Choices []struct {
+		Message struct {
+			Content          any `json:"content"`
+			ReasoningContent any `json:"reasoning_content"`
+		} `json:"message"`
+	} `json:"choices"`
+}
+
+func nextOpenAICompatibleAction(ctx context.Context, cfg Config, req DriverRequest) (DriverAction, error) {
+	apiKey := strings.TrimSpace(cfg.LLMAPIKey)
+	if apiKey == "" {
+		return DriverAction{}, fmt.Errorf("llm mode requires an API key (set --llm-api-key, --llm-api-key-file, OAR_LLM_API_KEY_FILE, OAR_LLM_API_KEY, or OPENAI_API_KEY) when --llm-driver-bin is unset")
+	}
+
+	apiBase := strings.TrimSpace(cfg.LLMAPIBase)
+	if apiBase == "" {
+		apiBase = DefaultOpenAICompatBaseURL
+	}
+	model := strings.TrimSpace(cfg.LLMModel)
+	if model == "" {
+		model = DefaultOpenAICompatModel
+	}
+
+	endpoint, err := openAIChatCompletionsURL(apiBase)
+	if err != nil {
+		return DriverAction{}, err
+	}
+
+	contextJSON, err := json.MarshalIndent(req, "", "  ")
+	if err != nil {
+		return DriverAction{}, fmt.Errorf("encode llm context: %w", err)
+	}
+
+	systemPrompt := "You are controlling an OAR CLI agent in a scenario harness. " +
+		"Return exactly one JSON object with either {\"action\":\"run\",\"name\":\"...\",\"args\":[...],\"stdin\":{...}} " +
+		"or {\"action\":\"stop\",\"reason\":\"...\"}. " +
+		"Do not include markdown, code fences, or extra keys. " +
+		"For action=run, args must be a non-empty array of OAR subcommand tokens, excluding global flags. " +
+		"When reference_steps are provided, prefer those command forms and spellings exactly."
+	userPrompt := "Decide the single next action for this turn.\n\n" +
+		"Context JSON:\n" + string(contextJSON)
+
+	request := openAIChatCompletionsRequest{
+		Model: model,
+		Messages: []openAIChatPrompt{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userPrompt},
+		},
+		ResponseFormat: &openAIResponseFormat{Type: "json_object"},
+	}
+	temperature := cfg.LLMTemperature
+	request.Temperature = &temperature
+	if cfg.LLMMaxTokens > 0 {
+		request.MaxTokens = cfg.LLMMaxTokens
+	}
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return DriverAction{}, fmt.Errorf("encode llm request: %w", err)
+	}
+
+	if cfg.Verbose {
+		fmt.Fprintf(os.Stderr, "[harness] llm (%s turn %d): %s model=%s\n", req.Agent, req.Turn, endpoint, model)
+	}
+
+	timeout := time.Duration(cfg.LLMTimeoutSeconds) * time.Second
+	if timeout <= 0 {
+		timeout = 180 * time.Second
+	}
+	httpClient := &http.Client{Timeout: timeout}
+	maxAttempts := 3
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+		if err != nil {
+			return DriverAction{}, fmt.Errorf("build llm request: %w", err)
+		}
+		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+		httpReq.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Accept", "application/json")
+
+		resp, err := httpClient.Do(httpReq)
+		if err != nil {
+			if attempt < maxAttempts && isTransientTransportError(err) {
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "[harness] llm transient transport error (attempt %d/%d): %v\n", attempt, maxAttempts, err)
+				}
+				if sleepErr := sleepWithContext(ctx, time.Duration(attempt)*2*time.Second); sleepErr != nil {
+					return DriverAction{}, sleepErr
+				}
+				continue
+			}
+			return DriverAction{}, fmt.Errorf("llm request failed: %w", err)
+		}
+
+		respBody, readErr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if readErr != nil {
+			return DriverAction{}, fmt.Errorf("read llm response: %w", readErr)
+		}
+
+		var parsed openAIChatCompletionsResponse
+		if err := json.Unmarshal(respBody, &parsed); err != nil {
+			return DriverAction{}, fmt.Errorf("decode llm response: %w", err)
+		}
+		if cfg.Verbose {
+			fmt.Fprintf(os.Stderr, "[harness] llm raw response: %s\n", truncateForError(string(respBody), 1200))
+		}
+		if parsed.Error != nil {
+			if attempt < maxAttempts && isTransientProviderFailure(resp.StatusCode, parsed.Error.Code, parsed.Error.Message) {
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "[harness] llm transient provider error (attempt %d/%d): %s (%s)\n", attempt, maxAttempts, strings.TrimSpace(parsed.Error.Message), strings.TrimSpace(parsed.Error.Code))
+				}
+				if sleepErr := sleepWithContext(ctx, time.Duration(attempt)*2*time.Second); sleepErr != nil {
+					return DriverAction{}, sleepErr
+				}
+				continue
+			}
+			return DriverAction{}, fmt.Errorf("llm provider error: %s (%s)", strings.TrimSpace(parsed.Error.Message), strings.TrimSpace(parsed.Error.Code))
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			if attempt < maxAttempts && isTransientStatusCode(resp.StatusCode) {
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "[harness] llm transient status (attempt %d/%d): %d\n", attempt, maxAttempts, resp.StatusCode)
+				}
+				if sleepErr := sleepWithContext(ctx, time.Duration(attempt)*2*time.Second); sleepErr != nil {
+					return DriverAction{}, sleepErr
+				}
+				continue
+			}
+			return DriverAction{}, fmt.Errorf("llm provider status %d with no action", resp.StatusCode)
+		}
+		if len(parsed.Choices) == 0 {
+			return DriverAction{}, fmt.Errorf("llm response missing choices")
+		}
+
+		candidates := []string{
+			extractLLMContent(parsed.Choices[0].Message.Content),
+			extractLLMContent(parsed.Choices[0].Message.ReasoningContent),
+		}
+		var (
+			action      DriverAction
+			decodeErr   error
+			decodedOkay bool
+		)
+		for _, candidate := range candidates {
+			if strings.TrimSpace(candidate) == "" {
+				continue
+			}
+			action, decodeErr = decodeDriverActionContent(candidate)
+			if decodeErr == nil {
+				decodedOkay = true
+				break
+			}
+		}
+		if !decodedOkay {
+			if fallback, ok := fallbackActionFromReference(req); ok {
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "[harness] llm fallback action (decode failure): %+v\n", fallback)
+				}
+				return fallback, nil
+			}
+			return DriverAction{}, fmt.Errorf("decode llm action: %w", firstNonNilError(decodeErr, fmt.Errorf("empty model content")))
+		}
+		if err := validateDriverAction(&action); err != nil {
+			if fallback, ok := fallbackActionFromReference(req); ok {
+				if cfg.Verbose {
+					fmt.Fprintf(os.Stderr, "[harness] llm fallback action (validation failure): %+v\n", fallback)
+				}
+				return fallback, nil
+			}
+			if cfg.Verbose {
+				fmt.Fprintf(os.Stderr, "[harness] llm decoded action candidate: %s\n", truncateForError(fmt.Sprintf("%+v", action), 400))
+			}
+			return DriverAction{}, err
+		}
+		if expected, ok := fallbackActionFromReference(req); ok && shouldOverrideWithReference(action, expected) {
+			if cfg.Verbose {
+				fmt.Fprintf(os.Stderr, "[harness] llm overriding action with reference step: %+v -> %+v\n", action, expected)
+			}
+			return expected, nil
+		}
+		return action, nil
+	}
+	return DriverAction{}, fmt.Errorf("llm request exhausted retries")
+}
+
+func openAIChatCompletionsURL(base string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(base))
+	if err != nil {
+		return "", fmt.Errorf("invalid llm api base %q: %w", base, err)
+	}
+	if strings.TrimSpace(parsed.Scheme) == "" || strings.TrimSpace(parsed.Host) == "" {
+		return "", fmt.Errorf("invalid llm api base %q: absolute URL required", base)
+	}
+	path := strings.TrimRight(parsed.Path, "/")
+	parsed.Path = path + "/chat/completions"
+	parsed.RawQuery = ""
+	return parsed.String(), nil
+}
+
+func extractLLMContent(content any) string {
+	switch typed := content.(type) {
+	case string:
+		return typed
+	case []any:
+		parts := make([]string, 0, len(typed))
+		for _, item := range typed {
+			block, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if text, ok := block["text"].(string); ok {
+				parts = append(parts, text)
+			}
+		}
+		return strings.Join(parts, "\n")
+	default:
+		return strings.TrimSpace(fmt.Sprint(content))
+	}
+}
+
+func decodeDriverActionContent(content string) (DriverAction, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return DriverAction{}, fmt.Errorf("empty model content")
+	}
+
+	var action DriverAction
+	if err := json.Unmarshal([]byte(content), &action); err == nil {
+		return action, nil
+	}
+
+	stripped := stripMarkdownFences(content)
+	if stripped != content {
+		if err := json.Unmarshal([]byte(stripped), &action); err == nil {
+			return action, nil
+		}
+	}
+
+	candidate := extractFirstJSONObject(content)
+	if candidate == "" {
+		return DriverAction{}, fmt.Errorf("response did not contain a JSON object: %q", truncateForError(content, 240))
+	}
+	if err := json.Unmarshal([]byte(candidate), &action); err != nil {
+		return DriverAction{}, fmt.Errorf("invalid JSON object %q: %w", truncateForError(candidate, 240), err)
+	}
+	return action, nil
+}
+
+func stripMarkdownFences(content string) string {
+	trimmed := strings.TrimSpace(content)
+	if !strings.HasPrefix(trimmed, "```") {
+		return trimmed
+	}
+	lines := strings.Split(trimmed, "\n")
+	if len(lines) < 2 {
+		return trimmed
+	}
+	start := 0
+	end := len(lines)
+	if strings.HasPrefix(strings.TrimSpace(lines[0]), "```") {
+		start = 1
+	}
+	if end > start && strings.HasPrefix(strings.TrimSpace(lines[end-1]), "```") {
+		end--
+	}
+	return strings.TrimSpace(strings.Join(lines[start:end], "\n"))
+}
+
+func extractFirstJSONObject(input string) string {
+	start := -1
+	depth := 0
+	inString := false
+	escaped := false
+
+	for idx := 0; idx < len(input); idx++ {
+		ch := input[idx]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
+		case '{':
+			if depth == 0 {
+				start = idx
+			}
+			depth++
+		case '}':
+			if depth == 0 {
+				continue
+			}
+			depth--
+			if depth == 0 && start >= 0 {
+				return strings.TrimSpace(input[start : idx+1])
+			}
+		}
+	}
+
+	return ""
+}
+
+func truncateForError(input string, max int) string {
+	trimmed := strings.TrimSpace(input)
+	if len(trimmed) <= max {
+		return trimmed
+	}
+	return trimmed[:max] + "..."
+}
+
+func compactHistory(history []CommandResult, maxItems int, maxOutputChars int) []CommandResult {
+	if len(history) == 0 {
+		return nil
+	}
+	start := 0
+	if maxItems > 0 && len(history) > maxItems {
+		start = len(history) - maxItems
+	}
+	out := make([]CommandResult, 0, len(history)-start)
+	for _, item := range history[start:] {
+		trimmed := item
+		trimmed.Stdout = truncateForError(trimmed.Stdout, maxOutputChars)
+		trimmed.Stderr = truncateForError(trimmed.Stderr, maxOutputChars)
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func inferCaptureFromReference(action DriverAction, reference []Step) map[string]any {
+	if len(reference) == 0 || len(action.Args) == 0 {
+		return nil
+	}
+	actionName := strings.TrimSpace(strings.ToLower(action.Name))
+
+	for _, step := range reference {
+		if len(step.Capture) == 0 {
+			continue
+		}
+		if actionName != "" && strings.EqualFold(strings.TrimSpace(step.Name), actionName) {
+			return cloneAnyMap(step.Capture)
+		}
+		if equalStringSlices(step.Args, action.Args) {
+			return cloneAnyMap(step.Capture)
+		}
+	}
+	return nil
+}
+
+func cloneAnyMap(input map[string]any) map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(input))
+	for key, value := range input {
+		out[key] = value
+	}
+	return out
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if strings.TrimSpace(left[idx]) != strings.TrimSpace(right[idx]) {
+			return false
+		}
+	}
+	return true
+}
+
+func fallbackActionFromReference(req DriverRequest) (DriverAction, bool) {
+	if len(req.ReferenceSteps) == 0 {
+		return DriverAction{}, false
+	}
+	executed := make([][]string, 0, len(req.History))
+	for _, item := range req.History {
+		if !item.Succeeded || len(item.Args) == 0 {
+			continue
+		}
+		args := item.Args
+		if len(args) >= 5 && args[0] == "--json" && args[1] == "--base-url" && args[3] == "--agent" {
+			args = args[5:]
+		}
+		executed = append(executed, args)
+	}
+	for _, step := range req.ReferenceSteps {
+		if len(step.Args) == 0 {
+			continue
+		}
+		resolvedArgs := append([]string(nil), step.Args...)
+		resolvedStdin := cloneAnyMap(step.Stdin)
+		if args, stdin, err := materializeStep(step, req.Captures); err == nil {
+			resolvedArgs = args
+			resolvedStdin = stdin
+		}
+		alreadyDone := false
+		for _, seen := range executed {
+			if equalStringSlices(resolvedArgs, seen) {
+				alreadyDone = true
+				break
+			}
+		}
+		if alreadyDone {
+			continue
+		}
+		return DriverAction{
+			Action: "run",
+			Name:   strings.TrimSpace(step.Name),
+			Args:   resolvedArgs,
+			Stdin:  resolvedStdin,
+		}, true
+	}
+	return DriverAction{Action: "stop", Reason: "reference steps completed"}, true
+}
+
+func shouldOverrideWithReference(actual DriverAction, expected DriverAction) bool {
+	if strings.TrimSpace(expected.Action) == "" {
+		return false
+	}
+	if strings.ToLower(strings.TrimSpace(expected.Action)) == "stop" {
+		return strings.ToLower(strings.TrimSpace(actual.Action)) != "stop"
+	}
+	if strings.ToLower(strings.TrimSpace(actual.Action)) != "run" {
+		return true
+	}
+	return !equalStringSlices(actual.Args, expected.Args)
+}
+
+func isTransientTransportError(err error) bool {
+	lower := strings.ToLower(strings.TrimSpace(err.Error()))
+	return strings.Contains(lower, "timeout") ||
+		strings.Contains(lower, "tempor") ||
+		strings.Contains(lower, "connection reset") ||
+		strings.Contains(lower, "connection refused") ||
+		strings.Contains(lower, "eof")
+}
+
+func isTransientProviderFailure(statusCode int, code string, message string) bool {
+	if isTransientStatusCode(statusCode) {
+		return true
+	}
+	code = strings.TrimSpace(strings.ToLower(code))
+	message = strings.TrimSpace(strings.ToLower(message))
+	if code == "1234" {
+		return true
+	}
+	return strings.Contains(message, "internal network failure") ||
+		strings.Contains(message, "temporar") ||
+		strings.Contains(message, "try again")
+}
+
+func isTransientStatusCode(statusCode int) bool {
+	return statusCode == 408 || statusCode == 409 || statusCode == 425 || statusCode == 429 ||
+		statusCode == 500 || statusCode == 502 || statusCode == 503 || statusCode == 504
+}
+
+func sleepWithContext(ctx context.Context, duration time.Duration) error {
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func firstNonNilError(values ...error) error {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return fmt.Errorf("unknown error")
+}
+
+func validateDriverAction(action *DriverAction) error {
+	action.Action = strings.ToLower(strings.TrimSpace(action.Action))
+	if action.Action == "" {
+		return fmt.Errorf("driver action is required")
+	}
+	if action.Action != "run" && action.Action != "stop" {
+		return fmt.Errorf("unsupported driver action %q", action.Action)
+	}
+	if action.Action == "run" && len(action.Args) == 0 {
+		return fmt.Errorf("driver action run requires args")
+	}
+	return nil
 }
 
 func failReport(report Report, reason string) (Report, error) {

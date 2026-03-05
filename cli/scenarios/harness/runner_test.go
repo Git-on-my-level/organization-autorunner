@@ -2,9 +2,13 @@ package harness
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -141,10 +145,147 @@ else:
 	}
 }
 
+func TestRunLLMModeWithBuiltInOpenAICompatibleDriver(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	oarLogPath := filepath.Join(tmp, "fake-oar.log")
+	oarPath := filepath.Join(tmp, "fake-oar.sh")
+	scenarioPath := filepath.Join(tmp, "scenario.json")
+
+	writeExecutable(t, oarPath, strings.ReplaceAll(`#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "__LOG_PATH__"
+cat >/dev/null || true
+printf '{"ok":true,"data":{"body":{"command":"%s"}}}\n' "$*"
+`, "__LOG_PATH__", oarLogPath))
+
+	var llmTurns atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+		if got := r.URL.Path; got != "/v4/chat/completions" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
+			t.Fatalf("unexpected auth header: %q", got)
+		}
+
+		var req map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode llm request: %v", err)
+		}
+		if got := strings.TrimSpace(anyString(req["model"])); got != "glm-4.7-flashx" {
+			t.Fatalf("unexpected model: %q", got)
+		}
+
+		turn := llmTurns.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		if turn == 1 {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"choices": []any{
+					map[string]any{
+						"message": map[string]any{
+							"content": `{"action":"run","name":"llm list threads","args":["threads","list","--status","active"]}`,
+						},
+					},
+				},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{
+				map[string]any{
+					"message": map[string]any{
+						"content": `{"action":"stop","reason":"done"}`,
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	scenarioJSON := `{
+  "name": "llm-openai-test",
+  "base_url": "http://127.0.0.1:8000",
+  "agents": [
+    {
+      "name": "coordinator",
+      "username_prefix": "coord",
+      "llm": {
+        "objective": "List active threads once then stop.",
+        "profile_path": "",
+        "max_turns": 3
+      },
+      "deterministic_steps": []
+    }
+  ],
+  "assertions": []
+}`
+	if err := os.WriteFile(scenarioPath, []byte(scenarioJSON), 0o644); err != nil {
+		t.Fatalf("write scenario file: %v", err)
+	}
+
+	report, err := Run(context.Background(), Config{
+		ScenarioPath:     scenarioPath,
+		OARBinary:        oarPath,
+		Mode:             ModeLLM,
+		BaseURLOverride:  "http://127.0.0.1:8000",
+		LLMAPIBase:       server.URL + "/v4",
+		LLMAPIKey:        "test-key",
+		LLMModel:         "glm-4.7-flashx",
+		LLMTemperature:   0.0,
+		LLMMaxTokens:     128,
+		WorkingDirectory: tmp,
+	})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if report.Failed {
+		t.Fatalf("expected successful report, got failed report: %#v", report)
+	}
+	if len(report.Agents) != 1 {
+		t.Fatalf("expected one agent report, got %d", len(report.Agents))
+	}
+	steps := report.Agents[0].Steps
+	if len(steps) != 3 {
+		t.Fatalf("expected 3 steps (register + llm run + stop), got %d", len(steps))
+	}
+	if steps[1].Name != "llm list threads" {
+		t.Fatalf("unexpected llm step name: %#v", steps[1].Name)
+	}
+	if !strings.Contains(strings.ToLower(steps[2].Name), "llm stop") {
+		t.Fatalf("unexpected stop step name: %#v", steps[2].Name)
+	}
+
+	logBytes, err := os.ReadFile(oarLogPath)
+	if err != nil {
+		t.Fatalf("read fake oar log: %v", err)
+	}
+	logLines := strings.Split(strings.TrimSpace(string(logBytes)), "\n")
+	if len(logLines) != 2 {
+		t.Fatalf("expected fake oar to be called twice, got %d lines: %q", len(logLines), string(logBytes))
+	}
+
+	if got := llmTurns.Load(); got != 2 {
+		t.Fatalf("expected two llm turns, got %d", got)
+	}
+}
+
 func writeExecutable(t *testing.T, path string, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o755); err != nil {
 		t.Fatalf("write executable %s: %v", path, err)
+	}
+}
+
+func anyString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	default:
+		return ""
 	}
 }
 
