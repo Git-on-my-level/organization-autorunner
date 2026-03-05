@@ -119,6 +119,50 @@ func TestRunGeneratedHelpTopic(t *testing.T) {
 	}
 }
 
+func TestRunEventsHelpMentionsLocalExplainAcrossEntryPoints(t *testing.T) {
+	t.Parallel()
+
+	run := func(args []string) string {
+		t.Helper()
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		cli := New()
+		cli.Stdout = stdout
+		cli.Stderr = stderr
+		cli.Stdin = strings.NewReader("")
+		cli.StdinIsTTY = func() bool { return true }
+		cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+		cli.ReadFile = func(path string) ([]byte, error) {
+			return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+		}
+
+		exitCode := cli.Run(args)
+		if exitCode != 0 {
+			t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+		}
+		return stdout.String()
+	}
+
+	fromTopic := run([]string{"help", "events"})
+	fromFlag := run([]string{"events", "--help"})
+
+	for _, output := range []string{fromTopic, fromFlag} {
+		if !strings.Contains(output, "Generated Help: events") {
+			t.Fatalf("expected generated events help header output=%s", output)
+		}
+		if !strings.Contains(output, "events explain") {
+			t.Fatalf("expected local events explain helper output=%s", output)
+		}
+		if !strings.Contains(output, "oar events explain <event-type>") {
+			t.Fatalf("expected events explain usage hint output=%s", output)
+		}
+	}
+
+	if fromTopic != fromFlag {
+		t.Fatalf("expected same formatter output for help events and events --help\nhelp output:\n%s\nflag output:\n%s", fromTopic, fromFlag)
+	}
+}
+
 func TestRunSubcommandHelpToken(t *testing.T) {
 	t.Parallel()
 

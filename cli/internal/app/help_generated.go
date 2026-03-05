@@ -164,8 +164,22 @@ func formatGeneratedGroupHelp(topic string, commands []registry.Command) string 
 		}
 		b.WriteString(fmt.Sprintf("  %-24s %s\n", cliPath, summary))
 	}
+	if supplement := localGroupHelpSupplement(topic); supplement != "" {
+		b.WriteString("\n")
+		b.WriteString(supplement)
+		b.WriteString("\n")
+	}
 	b.WriteString("\nTip: `oar help <command path>` for full command-level generated details.\n")
 	return strings.TrimSpace(b.String())
+}
+
+func localGroupHelpSupplement(topic string) string {
+	if strings.TrimSpace(topic) != "events" {
+		return ""
+	}
+	return strings.TrimSpace(`Local-only helper:
+  events explain           Explain known event-type conventions and local validation constraints.
+  For details: ` + "`oar events explain <event-type>`")
 }
 
 func formatGeneratedCommandHelp(topic string, cmd registry.Command) string {
