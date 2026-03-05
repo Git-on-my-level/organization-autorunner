@@ -33,6 +33,9 @@ func (a *App) runCommand(ctx context.Context, args []string, cfg config.Resolved
 	case "auth":
 		result, name, err := a.runAuth(ctx, args[1:], cfg)
 		return name, result, err
+	case "threads", "commitments", "artifacts", "events", "inbox", "work-orders", "receipts", "reviews", "derived":
+		result, name, err := a.runTypedResource(ctx, args[0], args[1:], cfg)
+		return name, result, err
 	case "api":
 		if len(args) < 2 {
 			return "api", nil, errnorm.Usage("subcommand_required", "expected `oar api call`")

@@ -45,6 +45,18 @@ Supported env vars:
 - `oar auth revoke`
 - `oar auth token-status`
 
+## Typed resource commands (v0)
+
+- `oar threads list|get|create|update`
+- `oar commitments list|get|create|update`
+- `oar artifacts list|get|create|content`
+- `oar events get|create|tail`
+- `oar inbox list|ack|tail`
+- `oar work-orders create`
+- `oar receipts create`
+- `oar reviews create`
+- `oar derived rebuild`
+
 ### `oar api call` examples
 
 ```bash
@@ -68,3 +80,18 @@ Notes:
 - `auth register` and `auth update-username` also accept `OAR_USERNAME`.
 - Profile and key material are written with strict local permissions (`0700` directories, `0600` files).
 - Access tokens refresh automatically for authenticated commands when near expiry.
+
+## Typed command examples
+
+```bash
+oar --json threads list --status active
+printf '{"thread":{"title":"Incident #42"}}' | oar --json threads create
+printf '{"thread":{"status":"resolved"}}' | oar --json threads update --thread-id thread_123
+
+printf '{"commitment":{"thread_id":"thread_123","title":"Ship fix"}}' | oar --json commitments create
+
+oar --json events tail --thread-id thread_123 --last-event-id event_100
+oar --json inbox tail --cursor inbox:item-1@abcd
+
+oar artifacts content --artifact-id artifact_123 > artifact.bin
+```

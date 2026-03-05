@@ -3,6 +3,7 @@ package app
 import (
 	"flag"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -78,6 +79,48 @@ func (t *trackedDuration) String() string {
 	return t.value.String()
 }
 
+type trackedInt struct {
+	set   bool
+	value int
+}
+
+func (t *trackedInt) Set(raw string) error {
+	parsed, err := strconvParseInt(strings.TrimSpace(raw))
+	if err != nil {
+		return err
+	}
+	t.set = true
+	t.value = parsed
+	return nil
+}
+
+func (t *trackedInt) String() string {
+	if t == nil {
+		return "0"
+	}
+	return fmt.Sprintf("%d", t.value)
+}
+
+type trackedStrings struct {
+	values []string
+}
+
+func (t *trackedStrings) Set(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fmt.Errorf("value must not be empty")
+	}
+	t.values = append(t.values, raw)
+	return nil
+}
+
+func (t *trackedStrings) String() string {
+	if t == nil {
+		return ""
+	}
+	return strings.Join(t.values, ",")
+}
+
 type headerList []string
 
 func (h *headerList) String() string {
@@ -135,4 +178,12 @@ func strconvParseBool(raw string) (bool, error) {
 	default:
 		return false, fmt.Errorf("invalid boolean value %q", raw)
 	}
+}
+
+func strconvParseInt(raw string) (int, error) {
+	parsed, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return 0, fmt.Errorf("invalid integer value %q", raw)
+	}
+	return parsed, nil
 }

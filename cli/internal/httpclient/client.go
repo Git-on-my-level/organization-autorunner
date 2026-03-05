@@ -111,6 +111,48 @@ func (c *Client) RawCall(ctx context.Context, req RawRequest) (RawResponse, erro
 	return RawResponse{StatusCode: resp.StatusCode, Headers: resp.Header.Clone(), Body: respBody}, nil
 }
 
+func (c *Client) OpenStream(ctx context.Context, req RawRequest) (*http.Response, error) {
+	if c == nil {
+		return nil, fmt.Errorf("client is nil")
+	}
+	method := strings.ToUpper(strings.TrimSpace(req.Method))
+	if method == "" {
+		method = http.MethodGet
+	}
+	requestURL, err := c.resolveURL(req.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	var body io.Reader
+	if len(req.Body) > 0 {
+		body = bytes.NewReader(req.Body)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, method, requestURL, body)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+
+	for key, value := range c.defaultHeaders() {
+		httpReq.Header.Set(key, value)
+	}
+	for key, value := range req.Headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		httpReq.Header.Set(key, value)
+	}
+	if len(req.Body) > 0 && httpReq.Header.Get("Content-Type") == "" {
+		httpReq.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("perform request: %w", err)
+	}
+	return resp, nil
+}
+
 func (c *Client) resolveURL(rawPath string) (string, error) {
 	rawPath = strings.TrimSpace(rawPath)
 	if rawPath == "" {

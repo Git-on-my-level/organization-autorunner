@@ -174,6 +174,15 @@ Commands:
   version       Print CLI/runtime version details
   doctor        Validate local and network preconditions
   auth          Manage agent registration, profile auth, and token lifecycle
+  threads       Manage thread resources
+  commitments   Manage commitment resources
+  artifacts     Manage artifact resources and content
+  events        Manage events and stream tails
+  inbox         List/ack/tail inbox items
+  work-orders   Create work-order packets
+  receipts      Create receipt packets
+  reviews       Create review packets
+  derived       Run derived-view maintenance actions
   api call      Perform an arbitrary HTTP API request
 
 Global Flags:
