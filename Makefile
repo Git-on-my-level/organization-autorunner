@@ -13,13 +13,15 @@ FORCE_SEED ?= 0
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install check serve lint test format contract-gen contract-check e2e-smoke cli-check cli-test cli-build core-% web-ui-%
+.PHONY: help setup check serve lint test format contract-gen contract-check e2e-smoke cli-check cli-test cli-build core-% web-ui-%
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## Install workspace dependencies
+setup: ## Install dependencies for web-ui, core, and cli
 	pnpm install
+	cd $(CORE_DIR) && go mod download
+	cd $(CLI_DIR) && go mod download
 
 check: ## Run checks in both core and web-ui
 	$(MAKE) contract-check

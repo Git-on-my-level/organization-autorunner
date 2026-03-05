@@ -7,7 +7,7 @@ This runbook describes the repository-level release and verification process for
 Run from repo root:
 
 ```bash
-pnpm install
+make setup
 make check
 make e2e-smoke
 ```

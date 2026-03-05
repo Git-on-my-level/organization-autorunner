@@ -12,7 +12,7 @@ Monorepo for Organization Autorunner.
 ## Quickstart
 
 ```bash
-pnpm install
+make setup
 make check
 make serve
 make e2e-smoke
