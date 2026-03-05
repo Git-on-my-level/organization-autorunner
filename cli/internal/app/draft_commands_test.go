@@ -263,6 +263,37 @@ func TestDraftCreateAcceptsCLIPathCommand(t *testing.T) {
 	}
 }
 
+func TestDraftCreateHelpWithCommandShowsTargetSchema(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"draft", "create", "--command", "events.create", "--help"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "Target command: events.create") {
+		t.Fatalf("expected target command help output=%s", output)
+	}
+	if !strings.Contains(output, "Body schema:") {
+		t.Fatalf("expected body schema in draft create help output=%s", output)
+	}
+	if !strings.Contains(output, "work_order_claimed") {
+		t.Fatalf("expected enum values in draft create help output=%s", output)
+	}
+}
+
 func anyStringValue(raw any) string {
 	text, _ := raw.(string)
 	return strings.TrimSpace(text)
