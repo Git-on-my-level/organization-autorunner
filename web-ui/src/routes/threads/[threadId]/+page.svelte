@@ -495,54 +495,60 @@
   async function saveCommitmentEdit(commitmentId) {
     const original = commitmentMap.get(commitmentId);
     if (!original || !editCommitmentDraft) return;
+    const draft = { ...editCommitmentDraft };
+    const isStillEditingTarget = () => editingCommitmentId === commitmentId;
     savingCommitmentEdit = true;
     editCommitmentError = "";
     editCommitmentNotice = "";
     commitmentConflictWarning = "";
     try {
       const draftSnapshot = {
-        title: editCommitmentDraft.title.trim(),
-        owner: editCommitmentDraft.owner.trim(),
-        due_at: datetimeLocalToIso(editCommitmentDraft.due_at.trim()),
-        status: editCommitmentDraft.status,
+        title: draft.title.trim(),
+        owner: draft.owner.trim(),
+        due_at: datetimeLocalToIso(draft.due_at.trim()),
+        status: draft.status,
         definition_of_done: parseCommitmentListInput(
-          editCommitmentDraft.definitionOfDoneInput,
+          draft.definitionOfDoneInput,
         ),
-        links: parseCommitmentListInput(editCommitmentDraft.linksInput),
+        links: parseCommitmentListInput(draft.linksInput),
       };
       const patch = buildCommitmentPatch(original, draftSnapshot);
       if (Object.keys(patch).length === 0) {
-        editCommitmentNotice = "No changes.";
+        if (isStillEditingTarget()) editCommitmentNotice = "No changes.";
         return;
       }
       const refs = [];
       if (Object.prototype.hasOwnProperty.call(patch, "status")) {
         const v = validateCommitmentStatusTransition(
           patch.status,
-          editCommitmentDraft.statusRefInput,
+          draft.statusRefInput,
         );
         if (!v.valid) {
-          editCommitmentError = v.error;
+          if (isStillEditingTarget()) editCommitmentError = v.error;
           return;
         }
-        const ref = String(editCommitmentDraft.statusRefInput ?? "").trim();
+        const ref = String(draft.statusRefInput ?? "").trim();
         if (ref) refs.push(ref);
       }
       const payload = { patch, if_updated_at: original.updated_at };
       if (refs.length > 0) payload.refs = refs;
       await coreClient.updateCommitment(commitmentId, payload);
-      editCommitmentNotice = "Commitment updated.";
-      cancelCommitmentEdit();
-      commitmentConflictWarning = "";
+      if (isStillEditingTarget()) {
+        editCommitmentNotice = "Commitment updated.";
+        cancelCommitmentEdit();
+        commitmentConflictWarning = "";
+      }
       await reloadSnapshotAndCommitments();
     } catch (error) {
       if (error?.status === 409) {
         commitmentConflictWarning =
           "Updated elsewhere. Reloaded — reapply changes.";
-        cancelCommitmentEdit();
+        if (isStillEditingTarget()) cancelCommitmentEdit();
         await reloadSnapshotAndCommitments();
       } else {
-        editCommitmentError = `Failed to update: ${error instanceof Error ? error.message : String(error)}`;
+        if (isStillEditingTarget()) {
+          editCommitmentError = `Failed to update: ${error instanceof Error ? error.message : String(error)}`;
+        }
       }
     } finally {
       savingCommitmentEdit = false;

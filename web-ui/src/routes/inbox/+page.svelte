@@ -11,7 +11,7 @@
   let ackInFlightById = $state({});
   let decisionInFlightById = $state({});
   let decisionFormsById = $state({});
-  let postedDecisionByThread = $state({});
+  let postedDecisionByInboxItem = $state({});
 
   let groupedItems = $derived(groupInboxItems(items));
   let totalItems = $derived(items.length);
@@ -123,9 +123,9 @@
         },
       });
 
-      postedDecisionByThread = {
-        ...postedDecisionByThread,
-        [item.thread_id]: response.event,
+      postedDecisionByInboxItem = {
+        ...postedDecisionByInboxItem,
+        [item.id]: response.event,
       };
 
       toggleDecisionForm(item.id, false);
@@ -241,12 +241,12 @@
                   {/each}
                 </div>
 
-                {#if postedDecisionByThread[item.thread_id]}
+                {#if postedDecisionByInboxItem[item.id]}
                   <p class="mt-2 text-xs text-emerald-600">
                     Decision recorded.
                     <a
                       class="underline"
-                      href={`/threads/${item.thread_id}#event-${postedDecisionByThread[item.thread_id].id}`}
+                      href={`/threads/${item.thread_id}#event-${postedDecisionByInboxItem[item.id].id}`}
                       >View in timeline</a
                     >
                   </p>

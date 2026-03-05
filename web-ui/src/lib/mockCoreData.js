@@ -1,4 +1,4 @@
-import { cadenceMatchesFilter } from "./threadFilters";
+import { cadenceMatchesFilter } from "./threadFilters.js";
 
 // ─── Zesty Bots Lemonade Co. ──────────────────────────────────────────────────
 // A fully-automated lemonade stand operated by AI agents and robots.
@@ -1482,6 +1482,20 @@ const artifacts = [
 
 export function listMockActors() {
   return actors;
+}
+
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+export function getMockSeedData() {
+  return {
+    actors: deepClone(actors),
+    threads: deepClone(threads),
+    commitments: deepClone(commitments),
+    artifacts: deepClone(artifacts),
+    events: deepClone(events),
+  };
 }
 
 export function createMockActor(actor) {

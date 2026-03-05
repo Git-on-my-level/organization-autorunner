@@ -32,10 +32,6 @@ function shouldProxyToCore(pathname) {
   );
 }
 
-function isSnapshotPath(pathname) {
-  return pathname === "/snapshots" || pathname.startsWith("/snapshots/");
-}
-
 function isDocumentNavigationRequest(request) {
   const method = request.method.toUpperCase();
   if (method !== "GET" && method !== "HEAD") {
@@ -110,10 +106,9 @@ export async function handle({ event, resolve }) {
   );
 
   const pathname = event.url.pathname;
+  const documentNavigation = isDocumentNavigationRequest(event.request);
   const shouldProxy =
-    coreBaseUrl &&
-    shouldProxyToCore(pathname) &&
-    !(isSnapshotPath(pathname) && isDocumentNavigationRequest(event.request));
+    coreBaseUrl && shouldProxyToCore(pathname) && !documentNavigation;
 
   if (shouldProxy) {
     return proxyToCore(event, coreBaseUrl);

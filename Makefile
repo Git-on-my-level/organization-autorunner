@@ -7,6 +7,8 @@ CORE_HOST ?= 127.0.0.1
 CORE_PORT ?= 8000
 WEB_UI_PORT ?= 5173
 CORE_BASE_URL ?= http://$(CORE_HOST):$(CORE_PORT)
+SEED_CORE ?= 1
+FORCE_SEED ?= 0
 
 .DEFAULT_GOAL := help
 
@@ -34,11 +36,16 @@ format: ## Apply formatting in both core and web-ui
 	$(MAKE) -C $(CORE_DIR) fmt
 	$(MAKE) -C $(WEB_UI_DIR) format
 
-serve: ## Start core and web-ui dev servers
+serve: ## Start core, seed mock dataset into core, then start web-ui
 	@set -euo pipefail; \
 	trap 'for pid in $$(jobs -p); do kill "$$pid" 2>/dev/null || true; done' EXIT INT TERM; \
 	$(MAKE) -C $(CORE_DIR) serve HOST="$(CORE_HOST)" PORT="$(CORE_PORT)" & \
 	core_pid=$$!; \
+	if [ "$(SEED_CORE)" = "1" ]; then \
+		OAR_CORE_BASE_URL="$(CORE_BASE_URL)" OAR_FORCE_SEED="$(FORCE_SEED)" node "$(WEB_UI_DIR)/scripts/seed-core-from-mock.mjs"; \
+	else \
+		echo "Skipping core seed step (SEED_CORE=$(SEED_CORE))."; \
+	fi; \
 	OAR_CORE_BASE_URL="$(CORE_BASE_URL)" $(MAKE) -C $(WEB_UI_DIR) serve PORT="$(WEB_UI_PORT)" & \
 	ui_pid=$$!; \
 	wait $$core_pid $$ui_pid
