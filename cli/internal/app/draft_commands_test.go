@@ -151,6 +151,42 @@ func TestDraftCreateValidationFailure(t *testing.T) {
 	}
 }
 
+func TestDraftCreateAllowsDerivedRebuildWithoutActorID(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	env := map[string]string{}
+	raw := runCLIForTest(t, home, env, strings.NewReader(`{}`), []string{
+		"--json",
+		"--agent", "agent-a",
+		"draft", "create",
+		"--command", "derived.rebuild",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	if strings.TrimSpace(anyStringValue(data["command_id"])) != "derived.rebuild" {
+		t.Fatalf("unexpected command payload: %#v", payload)
+	}
+}
+
+func TestDraftCreateDerivedRebuildRejectsEmptyActorIDWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	env := map[string]string{}
+	raw := runCLIForTest(t, home, env, strings.NewReader(`{"actor_id":"   "}`), []string{
+		"--json",
+		"--agent", "agent-a",
+		"draft", "create",
+		"--command", "derived.rebuild",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || errObj["code"] != "draft_validation_failed" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+}
+
 func TestDraftCreateAcceptsCLIPathCommand(t *testing.T) {
 	t.Parallel()
 

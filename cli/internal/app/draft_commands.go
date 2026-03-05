@@ -458,7 +458,7 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 		"packets.work-orders.create": {"artifact", "packet"},
 		"packets.receipts.create":    {"artifact", "packet"},
 		"packets.reviews.create":     {"artifact", "packet"},
-		"derived.rebuild":            {"actor_id"},
+		"derived.rebuild":            {},
 	}
 	fields, exists := required[commandID]
 	if !exists {
@@ -479,6 +479,11 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 		}
 		if _, ok := value.(map[string]any); !ok {
 			out = append(out, fmt.Sprintf("field %q must be a JSON object", field))
+		}
+	}
+	if commandID == "derived.rebuild" {
+		if value, ok := body["actor_id"]; ok && strings.TrimSpace(anyToString(value)) == "" {
+			out = append(out, `field "actor_id" must be a non-empty string`)
 		}
 	}
 	return out
