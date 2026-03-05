@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"organization-autorunner-core/internal/primitives"
+	"organization-autorunner-core/internal/schedule"
 )
 
 const customCadenceWindow = 7 * 24 * time.Hour
@@ -133,8 +134,8 @@ func stalenessByThread(threads []map[string]any, events []map[string]any, now ti
 
 func isThreadStaleAt(now time.Time, thread map[string]any, lastActivityAt time.Time) bool {
 	cadence, _ := thread["cadence"].(string)
-	cadence = strings.TrimSpace(cadence)
-	if cadence == "reactive" || cadence == "" {
+	cadence = schedule.NormalizeCadence(cadence)
+	if schedule.IsReactiveCadence(cadence) {
 		return false
 	}
 
@@ -171,6 +172,10 @@ func cadenceWindowStart(cadence string, now time.Time, nextCheckInAt time.Time) 
 		// Implementation-defined: custom cadence uses a 7-day lookback window anchored to next_check_in_at.
 		return nextCheckInAt.Add(-customCadenceWindow), true
 	default:
-		return time.Time{}, false
+		previousRun, ok := schedule.PreviousCronRun(cadence, now)
+		if !ok {
+			return time.Time{}, false
+		}
+		return previousRun, true
 	}
 }

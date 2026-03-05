@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"organization-autorunner-core/internal/schedule"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -1458,7 +1460,10 @@ func containsString(values []string, expected string) bool {
 
 func threadIsStale(thread map[string]any, now time.Time) bool {
 	cadence, _ := thread["cadence"].(string)
-	if cadence == "reactive" {
+	if schedule.IsReactiveCadence(cadence) {
+		return false
+	}
+	if err := schedule.ValidateCadence(cadence); err != nil {
 		return false
 	}
 

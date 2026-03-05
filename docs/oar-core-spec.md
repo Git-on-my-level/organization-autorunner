@@ -249,7 +249,8 @@ These fields SHOULD include provenance indicating who updated them and on what b
 Threads define cadence; staleness is evaluated against cadence.
 
 - `reactive`: no scheduled check-ins — thread wakes on inbound events only.
-- `daily | weekly | monthly | custom`: thread is stale when `now > next_check_in_at` AND no receipt or decision event has occurred since the last check-in window.
+- `cron` (5-field expression): thread is stale when `now > next_check_in_at` AND no receipt or decision event has occurred since the previous expected cron run.
+- Legacy `daily | weekly | monthly | custom` values remain accepted for compatibility and retain their historical window behavior.
 
 When staleness is detected, oar-core MUST:
 - Emit an `exception_raised` event with subtype `stale_thread`.

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"organization-autorunner-core/internal/primitives"
+	"organization-autorunner-core/internal/schedule"
 	"organization-autorunner-core/internal/schema"
 )
 
@@ -245,7 +246,14 @@ func threadMatchesTagsAndCadence(thread map[string]any, tags []string, cadences 
 
 	if len(cadences) > 0 {
 		threadCadence, _ := thread["cadence"].(string)
-		if !containsStringValue(cadences, threadCadence) {
+		matchedCadence := false
+		for _, cadenceFilter := range cadences {
+			if schedule.CadenceMatchesFilter(threadCadence, cadenceFilter) {
+				matchedCadence = true
+				break
+			}
+		}
+		if !matchedCadence {
 			return false
 		}
 	}
@@ -418,6 +426,11 @@ func validateThreadField(contract *schema.Contract, fieldName string, value any,
 		}
 		if createMode && field.Required && strings.TrimSpace(text) == "" {
 			return fmt.Errorf("thread.%s must be non-empty", fieldName)
+		}
+		if fieldName == "cadence" {
+			if err := schedule.ValidateCadence(text); err != nil {
+				return fmt.Errorf("thread.%s: %w", fieldName, err)
+			}
 		}
 		if strings.HasPrefix(field.Ref, "enums.") {
 			enumName := strings.TrimPrefix(field.Ref, "enums.")

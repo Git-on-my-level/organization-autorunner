@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -471,9 +473,12 @@ func TestListThreadsCadenceAndMultiTagFilters(t *testing.T) {
 	}
 
 	threadDailyOpsBackend := createThread("daily ops backend", "daily", []string{"ops", "backend"})
+	threadCronDailyOps := createThread("cron daily ops", "0 9 * * *", []string{"ops", "backend", "cron"})
 	threadWeeklyOps := createThread("weekly ops", "weekly", []string{"ops"})
 	threadWeeklyBackend := createThread("weekly backend", "weekly", []string{"backend"})
 	threadReactiveOpsBackend := createThread("reactive ops backend", "reactive", []string{"ops", "backend", "infra"})
+	threadLegacyCustom := createThread("legacy custom cadence", "custom", []string{"ops", "legacy-custom"})
+	threadCustomCron := createThread("custom cron cadence", "*/15 * * * *", []string{"ops", "custom-cron"})
 
 	listIDs := func(rawURL string) []string {
 		t.Helper()
@@ -519,13 +524,13 @@ func TestListThreadsCadenceAndMultiTagFilters(t *testing.T) {
 
 	assertIDs(
 		listIDs(h.baseURL+"/threads?tag=backend"),
-		[]string{threadDailyOpsBackend, threadReactiveOpsBackend, threadWeeklyBackend},
+		[]string{threadCronDailyOps, threadDailyOpsBackend, threadReactiveOpsBackend, threadWeeklyBackend},
 		"single tag filter",
 	)
 
 	assertIDs(
 		listIDs(h.baseURL+"/threads?tag=ops&tag=backend"),
-		[]string{threadDailyOpsBackend, threadReactiveOpsBackend},
+		[]string{threadCronDailyOps, threadDailyOpsBackend, threadReactiveOpsBackend},
 		"multi tag AND filter",
 	)
 
@@ -537,7 +542,7 @@ func TestListThreadsCadenceAndMultiTagFilters(t *testing.T) {
 
 	assertIDs(
 		listIDs(h.baseURL+"/threads?cadence=daily&cadence=weekly"),
-		[]string{threadDailyOpsBackend, threadWeeklyBackend, threadWeeklyOps},
+		[]string{threadCronDailyOps, threadDailyOpsBackend, threadWeeklyBackend, threadWeeklyOps},
 		"multi cadence filter",
 	)
 
@@ -546,6 +551,77 @@ func TestListThreadsCadenceAndMultiTagFilters(t *testing.T) {
 		[]string{threadWeeklyBackend},
 		"cadence plus tag filter",
 	)
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?cadence="+url.QueryEscape("0 9 * * *")),
+		[]string{threadCronDailyOps, threadDailyOpsBackend},
+		"canonical daily cron cadence filter",
+	)
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?cadence=custom"),
+		[]string{threadCustomCron, threadLegacyCustom},
+		"custom cadence preset filter",
+	)
+
+	assertIDs(
+		listIDs(h.baseURL+"/threads?cadence="+url.QueryEscape("*/15 * * * *")),
+		[]string{threadCustomCron},
+		"exact custom cron cadence filter",
+	)
+}
+
+func TestThreadCadenceValidationSupportsCronAndRejectsInvalidValue(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	validCronResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"cron-valid-thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"0 9 * * *",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["step-1"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	validCronResp.Body.Close()
+
+	invalidResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"invalid-cadence-thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"every-day",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["step-1"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusBadRequest)
+	defer invalidResp.Body.Close()
+
+	var payload map[string]any
+	if err := json.NewDecoder(invalidResp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode invalid thread response: %v", err)
+	}
+	errObj, _ := payload["error"].(map[string]any)
+	message, _ := errObj["message"].(string)
+	if message == "" || !strings.Contains(message, "thread.cadence") {
+		t.Fatalf("expected cadence validation error message, got %#v", payload)
+	}
 }
 
 func TestThreadTimelineIncludesReferencedObjectsAndOmitsMissingRefs(t *testing.T) {

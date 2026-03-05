@@ -31,12 +31,18 @@ The schema of objects is defined by `contracts/oar-schema.yaml`.
 
 - `POST /threads`
   - Body: `{ "actor_id": "...", "thread": <thread_snapshot_fields_without_id> }`
+  - `thread.cadence`:
+    - MUST be either literal `reactive` or a 5-field cron expression.
+    - Legacy values `daily`, `weekly`, `monthly`, `custom` MAY be accepted for backward compatibility.
   - Response: `{ "thread": <thread_snapshot> }`
 
 - `GET /threads`
   - Query (optional): `status`, `priority`, `tag`, `cadence`, `stale` (boolean)
   - `tag` MAY be repeated (for example `?tag=ops&tag=backend`). Repeated tags use AND semantics: returned threads MUST contain all provided tags.
   - `cadence` MAY be repeated (for example `?cadence=daily&cadence=weekly`). Repeated cadence values use OR semantics: returned threads MAY match any provided cadence.
+  - `cadence` filter values are preset-oriented (`reactive`, `daily`, `weekly`, `monthly`, `custom`).
+  - Canonical preset cron expressions (for example `0 9 * * *`) are treated as their preset aliases.
+  - Non-preset cron expressions match by exact cadence string.
   - When both `tag` and `cadence` filters are present, both filters apply.
   - Response: `{ "threads": [<thread_snapshot>...] }`
 
@@ -46,6 +52,7 @@ The schema of objects is defined by `contracts/oar-schema.yaml`.
 - `PATCH /threads/{thread_id}`
   - Body: `{ "actor_id": "...", "patch": { <fields...> } , "if_updated_at"?: "..." }`
   - Semantics: patch/merge; list-valued fields replace wholesale when present.
+  - `patch.cadence` follows the same `reactive` or 5-field cron rule as create.
   - `if_updated_at` (optional) MUST be an RFC3339 timestamp. If provided and it does not match the current snapshot `updated_at`, the request fails with `409 Conflict` and no patch or event side effects are applied.
   - Conflict response shape: `{ "error": { "code": "conflict", "message": "..." } }`
   - Response: `{ "thread": <thread_snapshot> }`

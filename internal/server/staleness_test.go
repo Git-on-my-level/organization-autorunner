@@ -78,6 +78,33 @@ func TestIsThreadStaleAtCadenceRules(t *testing.T) {
 			lastActivityAt: now.Add(-10 * 24 * time.Hour),
 			want:           true,
 		},
+		{
+			name: "cron cadence stale when activity before previous run",
+			thread: map[string]any{
+				"cadence":          "0 * * * *",
+				"next_check_in_at": now.Add(-2 * time.Hour).Format(time.RFC3339),
+			},
+			lastActivityAt: now.Add(-2 * time.Hour),
+			want:           true,
+		},
+		{
+			name: "cron cadence not stale when activity after previous run",
+			thread: map[string]any{
+				"cadence":          "0 * * * *",
+				"next_check_in_at": now.Add(-2 * time.Hour).Format(time.RFC3339),
+			},
+			lastActivityAt: now.Add(-30 * time.Minute),
+			want:           false,
+		},
+		{
+			name: "invalid cadence is treated as not stale",
+			thread: map[string]any{
+				"cadence":          "not-a-cadence",
+				"next_check_in_at": now.Add(-24 * time.Hour).Format(time.RFC3339),
+			},
+			lastActivityAt: now.Add(-72 * time.Hour),
+			want:           false,
+		},
 	}
 
 	for _, tc := range tests {
