@@ -153,6 +153,71 @@ func TestDocsCommands(t *testing.T) {
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "revision", "get", "--document-id", "doc_1", "--revision-id", "rev_1"}))
 }
 
+func TestEventsExplainListMode(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"events", "explain"})
+	if !strings.Contains(raw, "Known event types") {
+		t.Fatalf("expected list heading in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "review_completed") {
+		t.Fatalf("expected review_completed in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "oar events explain <event-type>") {
+		t.Fatalf("expected follow-up hint in explain output, got %q", raw)
+	}
+}
+
+func TestEventsExplainSpecificTypeMode(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "events", "explain", "review_completed"})
+	payload := assertEnvelopeOK(t, raw)
+	if got := anyStringValue(payload["command"]); got != "events explain" {
+		t.Fatalf("unexpected command label: %#v", payload)
+	}
+	data, _ := payload["data"].(map[string]any)
+	if got := anyStringValue(data["event_type"]); got != "review_completed" {
+		t.Fatalf("expected event_type review_completed, got %q payload=%#v", got, payload)
+	}
+	constraints, _ := data["constraints"].([]any)
+	foundArtifactConstraint := false
+	for _, item := range constraints {
+		if strings.Contains(anyStringValue(item), "artifact:") {
+			foundArtifactConstraint = true
+			break
+		}
+	}
+	if !foundArtifactConstraint {
+		t.Fatalf("expected artifact constraint guidance, payload=%#v", payload)
+	}
+
+	rawFlag := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "events", "explain", "--type", "review_completed"})
+	payloadFlag := assertEnvelopeOK(t, rawFlag)
+	dataFlag, _ := payloadFlag["data"].(map[string]any)
+	if got := anyStringValue(dataFlag["event_type"]); got != "review_completed" {
+		t.Fatalf("expected event_type review_completed via --type, got %q payload=%#v", got, payloadFlag)
+	}
+}
+
+func TestEventsExplainUnknownTypeFailure(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "events", "explain", "--type", "totally_unknown"})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	message := anyStringValue(errObj["message"])
+	if !strings.Contains(message, "known types:") || !strings.Contains(message, "review_completed") {
+		t.Fatalf("expected known-types guidance in error message, got %q payload=%#v", message, payload)
+	}
+}
+
 func TestEventsCreateReviewCompletedInvalidRefsFailsLocally(t *testing.T) {
 	t.Parallel()
 
@@ -179,7 +244,7 @@ func TestEventsCreateReviewCompletedInvalidRefsFailsLocally(t *testing.T) {
 		t.Fatalf("unexpected error payload: %#v", payload)
 	}
 	message := anyStringValue(errObj["message"])
-	if !strings.Contains(message, `event.type "review_completed"`) || !strings.Contains(message, "artifact:") {
+	if !strings.Contains(message, `event.type "review_completed"`) || !strings.Contains(message, "artifact:") || !strings.Contains(message, "oar events explain review_completed") {
 		t.Fatalf("expected actionable artifact refs guidance, got message=%q payload=%#v", message, payload)
 	}
 
