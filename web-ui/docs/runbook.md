@@ -49,12 +49,12 @@ v0 uses actor selection only:
 
 ## Local Integration (Real Core)
 
-Use sibling backend repo `../organization-autorunner-core`.
+Use sibling backend repo `../core`.
 
 Terminal A (backend):
 
 ```bash
-cd ../organization-autorunner-core
+cd ../core
 ./scripts/dev
 ```
 
@@ -63,7 +63,7 @@ Backend defaults to `http://127.0.0.1:8000`.
 Terminal B (ui):
 
 ```bash
-cd ../organization-autorunner-ui
+cd ../web-ui
 OAR_CORE_BASE_URL=http://127.0.0.1:8000 ./scripts/dev
 ```
 
@@ -116,7 +116,7 @@ Symptoms:
 Actions:
 
 1. Confirm backend is running:
-   `cd ../organization-autorunner-core && ./scripts/dev`
+   `cd ../core && ./scripts/dev`
 2. Verify the exact URL:
    `curl -fsS http://127.0.0.1:8000/version`
 3. Re-run UI with matching base URL:

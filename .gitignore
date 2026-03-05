@@ -1,0 +1,6 @@
+node_modules/
+.pnpm-store/
+
+_src_core/
+_src_ui/
+_ui_working_tree.patch

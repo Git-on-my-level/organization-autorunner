@@ -64,13 +64,13 @@ Default local runbook:
 Terminal A (backend):
 
 ```bash
-cd ../organization-autorunner-core
+cd ../core
 ./scripts/dev
 ```
 
 Terminal B (ui):
 
 ```bash
-cd ../organization-autorunner-ui
+cd ../web-ui
 OAR_CORE_BASE_URL=http://127.0.0.1:8000 ./scripts/e2e-with-core
 ```

@@ -81,7 +81,7 @@ async function proxyToCore(event, coreBaseUrl) {
       JSON.stringify({
         error: {
           code: "core_unreachable",
-          message: `Unable to reach oar-core at ${coreBaseUrl}. Start backend with ../organization-autorunner-core/./scripts/dev and retry.`,
+          message: `Unable to reach oar-core at ${coreBaseUrl}. Start backend with ../core/scripts/dev and retry.`,
           reason,
         },
       }),

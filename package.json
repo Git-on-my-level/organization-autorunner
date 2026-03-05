@@ -1,0 +1,14 @@
+{
+  "name": "organization-autorunner",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "check": "make check",
+    "serve": "make serve"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

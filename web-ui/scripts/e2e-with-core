@@ -23,11 +23,11 @@ ERROR: Unable to reach oar-core at ${CORE_BASE_URL}.
 Start backend first, then rerun this command.
 
 Backend terminal:
-  cd ../organization-autorunner-core
+  cd ../core
   ./scripts/dev
 
 UI terminal:
-  cd ../organization-autorunner-ui
+  cd ../web-ui
   OAR_CORE_BASE_URL=http://127.0.0.1:8000 ./scripts/e2e-with-core
 EOF
   exit 1
