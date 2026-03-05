@@ -34,6 +34,113 @@ type queryParam struct {
 	values []string
 }
 
+type eventTypeGuidance struct {
+	Type        string
+	Summary     string
+	Constraints []string
+}
+
+var knownEventTypeGuidance = []eventTypeGuidance{
+	{
+		Type:    "message_posted",
+		Summary: "Thread message or reply event.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs may include "event:<parent_event_id>" for replies and "artifact:<artifact_id>" mentions.`,
+		},
+	},
+	{
+		Type:    "work_order_created",
+		Summary: "Work order packet artifact created.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs must include "artifact:<work_order_artifact_id>".`,
+		},
+	},
+	{
+		Type:    "work_order_claimed",
+		Summary: "Work order claim marker.",
+		Constraints: []string{
+			"No specific reference-convention constraints are defined for this type.",
+		},
+	},
+	{
+		Type:    "receipt_added",
+		Summary: "Receipt packet artifact added to the thread.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs must include "artifact:<receipt_artifact_id>" and "artifact:<work_order_artifact_id>".`,
+		},
+	},
+	{
+		Type:    "review_completed",
+		Summary: "Review packet artifact added for a receipt/work order.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs must include "artifact:<review_artifact_id>", "artifact:<receipt_artifact_id>", and "artifact:<work_order_artifact_id>".`,
+			`Local CLI validation for "oar events create" enforces at least 3 refs with prefix "artifact:".`,
+		},
+	},
+	{
+		Type:    "decision_needed",
+		Summary: "Decision request event.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs may include "artifact:<related_id>" and "snapshot:<commitment_id>".`,
+		},
+	},
+	{
+		Type:    "decision_made",
+		Summary: "Decision outcome event.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs may include "artifact:<decision_artifact_id>" and "snapshot:<commitment_id>".`,
+		},
+	},
+	{
+		Type:    "snapshot_updated",
+		Summary: "Snapshot mutation event.",
+		Constraints: []string{
+			`thread_id is required when the updated snapshot is thread-scoped.`,
+			`event.refs must include "snapshot:<snapshot_id>".`,
+			`event.payload should include "changed_fields" as a list of field names.`,
+		},
+	},
+	{
+		Type:    "commitment_created",
+		Summary: "Commitment snapshot created.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs must include "snapshot:<commitment_id>".`,
+		},
+	},
+	{
+		Type:    "commitment_status_changed",
+		Summary: "Commitment status transition.",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.refs must include "snapshot:<commitment_id>".`,
+			`If payload.to_status is "done", refs must include "artifact:<receipt_artifact_id>" or "event:<decision_event_id>".`,
+			`If payload.to_status is "canceled", refs must include "event:<decision_event_id>".`,
+		},
+	},
+	{
+		Type:    "exception_raised",
+		Summary: "Exception signal event (for example, stale_thread).",
+		Constraints: []string{
+			"thread_id is required.",
+			`event.payload must include "subtype".`,
+		},
+	},
+	{
+		Type:    "inbox_item_acknowledged",
+		Summary: "Inbox item acknowledgement event.",
+		Constraints: []string{
+			"No specific reference-convention constraints are defined for this type.",
+		},
+	},
+}
+
 func (a *App) runTypedResource(ctx context.Context, resource string, args []string, cfg config.Resolved) (*commandResult, string, error) {
 	if len(args) == 0 || (len(args) > 0 && isHelpToken(args[0])) {
 		if text, ok := generatedHelpText(resource); ok {
@@ -365,7 +472,7 @@ func (a *App) runDocsCommand(ctx context.Context, args []string, cfg config.Reso
 
 func (a *App) runEventsCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
 	if len(args) == 0 {
-		return nil, "events", errnorm.Usage("subcommand_required", "expected one of: get, create, stream")
+		return nil, "events", errnorm.Usage("subcommand_required", "expected one of: get, create, stream, tail, explain")
 	}
 	sub := strings.TrimSpace(args[0])
 	switch sub {
@@ -381,6 +488,9 @@ func (a *App) runEventsCommand(ctx context.Context, args []string, cfg config.Re
 		if err != nil {
 			return nil, "events create", err
 		}
+		if err := validateEventsCreateBody(body); err != nil {
+			return nil, "events create", err
+		}
 		result, callErr := a.invokeTypedJSON(ctx, cfg, "events create", "events.create", nil, nil, body)
 		return result, "events create", callErr
 	case "stream":
@@ -389,9 +499,72 @@ func (a *App) runEventsCommand(ctx context.Context, args []string, cfg config.Re
 	case "tail":
 		result, err := a.runEventsStream(ctx, args[1:], cfg, "events tail", true)
 		return result, "events tail", err
+	case "explain":
+		result, err := a.runEventsExplainCommand(args[1:])
+		return result, "events explain", err
 	default:
 		return nil, "events", errnorm.Usage("unknown_subcommand", fmt.Sprintf("unknown events subcommand %q", sub))
 	}
+}
+
+func (a *App) runEventsExplainCommand(args []string) (*commandResult, error) {
+	fs := newSilentFlagSet("events explain")
+	var eventTypeFlag trackedString
+	fs.Var(&eventTypeFlag, "type", "Event type to explain")
+	if err := fs.Parse(args); err != nil {
+		return nil, errnorm.Usage("invalid_flags", err.Error())
+	}
+	positionals := fs.Args()
+	eventType := strings.TrimSpace(eventTypeFlag.value)
+	if eventType == "" && len(positionals) > 0 {
+		eventType = strings.TrimSpace(positionals[0])
+		positionals = positionals[1:]
+	}
+	if len(positionals) > 0 {
+		return nil, errnorm.Usage("invalid_args", "unexpected positional arguments for `oar events explain`")
+	}
+	if eventType == "" {
+		textLines := []string{
+			"Known event types (open enum; unknown types are still accepted):",
+		}
+		items := make([]any, 0, len(knownEventTypeGuidance))
+		for _, guidance := range knownEventTypeGuidance {
+			textLines = append(textLines, "- "+guidance.Type+": "+guidance.Summary)
+			items = append(items, map[string]any{
+				"type":    guidance.Type,
+				"summary": guidance.Summary,
+			})
+		}
+		textLines = append(textLines, "For details: oar events explain <event-type>")
+		data := map[string]any{
+			"known_event_types": items,
+			"hint":              "oar events explain <event-type>",
+		}
+		return &commandResult{Text: strings.Join(textLines, "\n"), Data: data}, nil
+	}
+
+	guidance, ok := eventTypeGuidanceFor(eventType)
+	if !ok {
+		return nil, errnorm.Usage(
+			"invalid_request",
+			fmt.Sprintf("unknown event type %q; known types: %s", eventType, strings.Join(knownEventTypeNames(), ", ")),
+		)
+	}
+
+	textLines := []string{
+		"Event type: " + guidance.Type,
+		"Summary: " + guidance.Summary,
+		"Constraints:",
+	}
+	for _, constraint := range guidance.Constraints {
+		textLines = append(textLines, "- "+constraint)
+	}
+	data := map[string]any{
+		"event_type":  guidance.Type,
+		"summary":     guidance.Summary,
+		"constraints": append([]string(nil), guidance.Constraints...),
+	}
+	return &commandResult{Text: strings.Join(textLines, "\n"), Data: data}, nil
 }
 
 func (a *App) runInboxCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
@@ -1070,6 +1243,67 @@ func decodeJSONPayload(payload []byte) (any, error) {
 		return nil, errnorm.Usage("invalid_json", "input body must be valid JSON")
 	}
 	return parsed, nil
+}
+
+func validateEventsCreateBody(body any) error {
+	payload, ok := body.(map[string]any)
+	if !ok {
+		return nil
+	}
+	rawEvent, hasEvent := payload["event"]
+	if !hasEvent {
+		return nil
+	}
+	event, ok := rawEvent.(map[string]any)
+	if !ok {
+		return nil
+	}
+	if anyString(event["type"]) != "review_completed" {
+		return nil
+	}
+	rawRefs, hasRefs := event["refs"]
+	if !hasRefs {
+		return invalidReviewCompletedRefsError()
+	}
+	refs, ok := asStringList(rawRefs)
+	if !ok {
+		return invalidReviewCompletedRefsError()
+	}
+	artifactRefs := 0
+	for _, ref := range refs {
+		if strings.HasPrefix(strings.TrimSpace(ref), "artifact:") {
+			artifactRefs++
+		}
+	}
+	if artifactRefs < 3 {
+		return invalidReviewCompletedRefsError()
+	}
+	return nil
+}
+
+func invalidReviewCompletedRefsError() error {
+	return errnorm.Usage(
+		"invalid_request",
+		`event.type "review_completed" requires event.refs to include at least 3 refs prefixed with "artifact:" (for example: "artifact:work_order_1", "artifact:receipt_1", "artifact:review_1"). See `+"`oar events explain review_completed`"+` for full constraints.`,
+	)
+}
+
+func eventTypeGuidanceFor(eventType string) (eventTypeGuidance, bool) {
+	eventType = strings.TrimSpace(eventType)
+	for _, guidance := range knownEventTypeGuidance {
+		if guidance.Type == eventType {
+			return guidance, true
+		}
+	}
+	return eventTypeGuidance{}, false
+}
+
+func knownEventTypeNames() []string {
+	names := make([]string, 0, len(knownEventTypeGuidance))
+	for _, guidance := range knownEventTypeGuidance {
+		names = append(names, guidance.Type)
+	}
+	return names
 }
 
 func addSingleQuery(out *[]queryParam, name string, value string) {

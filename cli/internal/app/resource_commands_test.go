@@ -153,6 +153,150 @@ func TestDocsCommands(t *testing.T) {
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "revision", "get", "--document-id", "doc_1", "--revision-id", "rev_1"}))
 }
 
+func TestEventsExplainListMode(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"events", "explain"})
+	if !strings.Contains(raw, "Known event types") {
+		t.Fatalf("expected list heading in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "review_completed") {
+		t.Fatalf("expected review_completed in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "oar events explain <event-type>") {
+		t.Fatalf("expected follow-up hint in explain output, got %q", raw)
+	}
+}
+
+func TestEventsExplainSpecificTypeMode(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "events", "explain", "review_completed"})
+	payload := assertEnvelopeOK(t, raw)
+	if got := anyStringValue(payload["command"]); got != "events explain" {
+		t.Fatalf("unexpected command label: %#v", payload)
+	}
+	data, _ := payload["data"].(map[string]any)
+	if got := anyStringValue(data["event_type"]); got != "review_completed" {
+		t.Fatalf("expected event_type review_completed, got %q payload=%#v", got, payload)
+	}
+	constraints, _ := data["constraints"].([]any)
+	foundArtifactConstraint := false
+	for _, item := range constraints {
+		if strings.Contains(anyStringValue(item), "artifact:") {
+			foundArtifactConstraint = true
+			break
+		}
+	}
+	if !foundArtifactConstraint {
+		t.Fatalf("expected artifact constraint guidance, payload=%#v", payload)
+	}
+
+	rawFlag := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "events", "explain", "--type", "review_completed"})
+	payloadFlag := assertEnvelopeOK(t, rawFlag)
+	dataFlag, _ := payloadFlag["data"].(map[string]any)
+	if got := anyStringValue(dataFlag["event_type"]); got != "review_completed" {
+		t.Fatalf("expected event_type review_completed via --type, got %q payload=%#v", got, payloadFlag)
+	}
+}
+
+func TestEventsExplainUnknownTypeFailure(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "events", "explain", "--type", "totally_unknown"})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	message := anyStringValue(errObj["message"])
+	if !strings.Contains(message, "known types:") || !strings.Contains(message, "review_completed") {
+		t.Fatalf("expected known-types guidance in error message, got %q payload=%#v", message, payload)
+	}
+}
+
+func TestEventsCreateReviewCompletedInvalidRefsFailsLocally(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requestCount++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"event":{"id":"event_unexpected"}}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{"event":{"type":"review_completed","thread_id":"thread_1","summary":"review done","refs":["artifact:work_order_1","artifact:receipt_1","thread:thread_1"]}}`), []string{
+		"--json",
+		"--base-url", server.URL,
+		"events", "create",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	message := anyStringValue(errObj["message"])
+	if !strings.Contains(message, `event.type "review_completed"`) || !strings.Contains(message, "artifact:") || !strings.Contains(message, "oar events explain review_completed") {
+		t.Fatalf("expected actionable artifact refs guidance, got message=%q payload=%#v", message, payload)
+	}
+
+	mu.Lock()
+	gotRequests := requestCount
+	mu.Unlock()
+	if gotRequests != 0 {
+		t.Fatalf("expected no HTTP request for invalid local payload, got %d", gotRequests)
+	}
+}
+
+func TestEventsCreateReviewCompletedValidRefsCallsHTTP(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/events" {
+			http.NotFound(w, r)
+			return
+		}
+		mu.Lock()
+		requestCount++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"event":{"id":"event_review_completed_1"}}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{"event":{"type":"review_completed","thread_id":"thread_1","summary":"review done","refs":["artifact:work_order_1","artifact:receipt_1","artifact:review_1"]}}`), []string{
+		"--json",
+		"--base-url", server.URL,
+		"events", "create",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	body, _ := data["body"].(map[string]any)
+	event, _ := body["event"].(map[string]any)
+	if got := anyStringValue(event["id"]); got != "event_review_completed_1" {
+		t.Fatalf("unexpected event id in response payload: %#v", payload)
+	}
+
+	mu.Lock()
+	gotRequests := requestCount
+	mu.Unlock()
+	if gotRequests != 1 {
+		t.Fatalf("expected one HTTP request for valid payload, got %d", gotRequests)
+	}
+}
+
 func TestThreadsContextCommand(t *testing.T) {
 	t.Parallel()
 
