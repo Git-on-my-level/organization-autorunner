@@ -4,7 +4,7 @@ Last updated: 2026-03-04
 
 This checklist maps key requirements from:
 - `docs/oar-core-spec.md`
-- `contracts/oar-schema.yaml`
+- `../contracts/oar-schema.yaml`
 
 For each item, it points to implementation code, validating tests, and any known gap.
 

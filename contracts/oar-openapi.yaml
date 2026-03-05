@@ -1,0 +1,1213 @@
+openapi: 3.1.0
+info:
+  title: Organization Autorunner HTTP API
+  version: 0.2.2
+  description: |
+    Canonical HTTP contract for organization-autorunner.
+
+    This OpenAPI contract is the monorepo source of truth for generated clients,
+    CLI command registry metadata, and command docs.
+servers:
+  - url: http://127.0.0.1:8000
+x-oar-extension-vocabulary:
+  x-oar-command-id: "Stable command identifier (for example: threads.list)"
+  x-oar-cli-path: "CLI path segments (for example: threads list)"
+  x-oar-why: "Why the command exists and when an agent should use it"
+  x-oar-examples: "Deterministic examples for humans and agents"
+  x-oar-input-mode: "none | json-body | raw-stream | file-and-body"
+  x-oar-streaming: "Streaming characteristics for this operation"
+  x-oar-output-envelope: "Output shape and stability notes"
+  x-oar-error-codes: "Stable semantic error codes surfaced by core"
+  x-oar-concepts: "Concept tags for docs/help grouping"
+  x-oar-stability: "experimental | beta | stable"
+  x-oar-agent-notes: "Idempotency, retries, and protocol caveats"
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Health check
+      tags: [meta]
+      x-oar-command-id: "meta.health"
+      x-oar-cli-path: "meta health"
+      x-oar-why: "Probe whether core storage is available before issuing stateful commands."
+      x-oar-examples:
+        - title: Health check
+          command: oar meta health --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ ok: true }` when the service and storage are healthy."
+      x-oar-error-codes: [storage_unavailable]
+      x-oar-concepts: [health, readiness]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent; retry with backoff on transport failures."
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /version:
+    get:
+      operationId: getVersion
+      summary: Get schema contract version
+      tags: [meta]
+      x-oar-command-id: "meta.version"
+      x-oar-cli-path: "meta version"
+      x-oar-why: "Verify compatibility between core and generated clients before performing writes."
+      x-oar-examples:
+        - title: Read version
+          command: oar meta version --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ schema_version }` only."
+      x-oar-error-codes: []
+      x-oar-concepts: [compatibility, schema]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      responses:
+        '200':
+          description: Version payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /actors:
+    post:
+      operationId: registerActor
+      summary: Register actor identity metadata
+      tags: [actors]
+      x-oar-command-id: "actors.register"
+      x-oar-cli-path: "actors register"
+      x-oar-why: "Bootstrap an authenticated caller identity before mutating thread state."
+      x-oar-examples:
+        - title: Register actor
+          command: oar actors register --id bot-1 --display-name "Bot 1" --created-at 2026-03-04T10:00:00Z --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ actor }` with canonicalized stored values."
+      x-oar-error-codes: [invalid_json, invalid_request, actor_exists]
+      x-oar-concepts: [identity]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Not idempotent by default; repeated creates with same id return conflict."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterActorRequest'
+      responses:
+        '201':
+          description: Actor created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActorResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+    get:
+      operationId: listActors
+      summary: List actors
+      tags: [actors]
+      x-oar-command-id: "actors.list"
+      x-oar-cli-path: "actors list"
+      x-oar-why: "Resolve available actor identities for routing writes."
+      x-oar-examples:
+        - title: List actors
+          command: oar actors list --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ actors }` ordered by created time ascending."
+      x-oar-error-codes: [actor_registry_unavailable]
+      x-oar-concepts: [identity]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      responses:
+        '200':
+          description: Actor list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActorsResponse'
+
+  /threads:
+    post:
+      operationId: createThread
+      summary: Create thread snapshot
+      tags: [threads]
+      x-oar-command-id: "threads.create"
+      x-oar-cli-path: "threads create"
+      x-oar-why: "Open a new thread for tracking ongoing organizational work."
+      x-oar-examples:
+        - title: Create thread
+          command: oar threads create --from-file thread.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ thread }` including generated id and audit fields."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [threads, snapshots]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Non-idempotent unless caller enforces a deterministic id strategy externally."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateThreadRequest'
+      responses:
+        '201':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    get:
+      operationId: listThreads
+      summary: List thread snapshots
+      tags: [threads]
+      x-oar-command-id: "threads.list"
+      x-oar-cli-path: "threads list"
+      x-oar-why: "Retrieve current thread state for triage and scheduling decisions."
+      x-oar-examples:
+        - title: List active p1 threads
+          command: oar threads list --status active --priority p1 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ threads }`; query filters are additive."
+      x-oar-error-codes: [invalid_request]
+      x-oar-concepts: [threads, filtering]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: priority
+          schema: { type: string }
+        - in: query
+          name: tag
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+        - in: query
+          name: cadence
+          schema: { type: array, items: { type: string } }
+          style: form
+          explode: true
+        - in: query
+          name: stale
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Thread list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadsResponse'
+
+  /threads/{thread_id}:
+    get:
+      operationId: getThread
+      summary: Get thread snapshot by id
+      tags: [threads]
+      x-oar-command-id: "threads.get"
+      x-oar-cli-path: "threads get"
+      x-oar-why: "Resolve authoritative thread state before patching or composing packets."
+      x-oar-examples:
+        - title: Read thread
+          command: oar threads get --thread-id thread_123 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ thread }`."
+      x-oar-error-codes: [not_found]
+      x-oar-concepts: [threads]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      responses:
+        '200':
+          description: Thread payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      operationId: patchThread
+      summary: Patch thread snapshot
+      tags: [threads]
+      x-oar-command-id: "threads.patch"
+      x-oar-cli-path: "threads patch"
+      x-oar-why: "Update mutable thread fields while preserving unknown data and auditability."
+      x-oar-examples:
+        - title: Patch thread
+          command: oar threads patch --thread-id thread_123 --from-file patch.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ thread }` after patch merge and emitted event side effect."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id, conflict, not_found]
+      x-oar-concepts: [threads, patch]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Use `if_updated_at` for optimistic concurrency."
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchThreadRequest'
+      responses:
+        '200':
+          description: Thread patched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /threads/{thread_id}/timeline:
+    get:
+      operationId: getThreadTimeline
+      summary: Get thread timeline events and referenced entities
+      tags: [threads]
+      x-oar-command-id: "threads.timeline"
+      x-oar-cli-path: "threads timeline"
+      x-oar-why: "Retrieve narrative event history plus referenced snapshots/artifacts in one call."
+      x-oar-examples:
+        - title: Timeline
+          command: oar threads timeline --thread-id thread_123 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ events, snapshots, artifacts }` where snapshot/artifact maps are sparse."
+      x-oar-error-codes: [not_found]
+      x-oar-concepts: [threads, events, provenance]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Events stay time ordered; missing refs are omitted from expansion maps."
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      responses:
+        '200':
+          description: Timeline payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadTimelineResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /snapshots/{snapshot_id}:
+    get:
+      operationId: getSnapshot
+      summary: Get snapshot by id
+      tags: [snapshots]
+      x-oar-command-id: "snapshots.get"
+      x-oar-cli-path: "snapshots get"
+      x-oar-why: "Resolve arbitrary snapshot references encountered in event refs."
+      x-oar-examples:
+        - title: Get snapshot
+          command: oar snapshots get --snapshot-id snapshot_123 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ snapshot }`."
+      x-oar-error-codes: [not_found]
+      x-oar-concepts: [snapshots]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - $ref: '#/components/parameters/SnapshotID'
+      responses:
+        '200':
+          description: Snapshot payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SnapshotResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /commitments:
+    post:
+      operationId: createCommitment
+      summary: Create commitment snapshot
+      tags: [commitments]
+      x-oar-command-id: "commitments.create"
+      x-oar-cli-path: "commitments create"
+      x-oar-why: "Track accountable work items tied to a thread."
+      x-oar-examples:
+        - title: Create commitment
+          command: oar commitments create --from-file commitment.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ commitment }` with generated id."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [commitments]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Non-idempotent unless caller controls external dedupe."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCommitmentRequest'
+      responses:
+        '201':
+          description: Commitment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommitmentResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    get:
+      operationId: listCommitments
+      summary: List commitments
+      tags: [commitments]
+      x-oar-command-id: "commitments.list"
+      x-oar-cli-path: "commitments list"
+      x-oar-why: "Monitor open/blocked work and due windows."
+      x-oar-examples:
+        - title: List open commitments for a thread
+          command: oar commitments list --thread-id thread_123 --status open --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ commitments }`."
+      x-oar-error-codes: [invalid_request]
+      x-oar-concepts: [commitments, filtering]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - in: query
+          name: thread_id
+          schema: { type: string }
+        - in: query
+          name: owner
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: due_before
+          schema: { type: string, format: date-time }
+        - in: query
+          name: due_after
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Commitment list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommitmentsResponse'
+
+  /commitments/{commitment_id}:
+    get:
+      operationId: getCommitment
+      summary: Get commitment by id
+      tags: [commitments]
+      x-oar-command-id: "commitments.get"
+      x-oar-cli-path: "commitments get"
+      x-oar-why: "Read commitment status/details before status transitions."
+      x-oar-examples:
+        - title: Get commitment
+          command: oar commitments get --commitment-id commitment_123 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ commitment }`."
+      x-oar-error-codes: [not_found]
+      x-oar-concepts: [commitments]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - $ref: '#/components/parameters/CommitmentID'
+      responses:
+        '200':
+          description: Commitment payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommitmentResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+    patch:
+      operationId: patchCommitment
+      summary: Patch commitment snapshot
+      tags: [commitments]
+      x-oar-command-id: "commitments.patch"
+      x-oar-cli-path: "commitments patch"
+      x-oar-why: "Update ownership, due date, or status with evidence-aware transition rules."
+      x-oar-examples:
+        - title: Mark commitment done
+          command: oar commitments patch --commitment-id commitment_123 --from-file commitment-patch.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ commitment }` and emits a status-change event when applicable."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id, conflict, not_found]
+      x-oar-concepts: [commitments, patch, provenance]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Provide `refs` for restricted transitions and use `if_updated_at` to avoid lost updates."
+      parameters:
+        - $ref: '#/components/parameters/CommitmentID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchCommitmentRequest'
+      responses:
+        '200':
+          description: Commitment patched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommitmentResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events:
+    post:
+      operationId: createEvent
+      summary: Append event
+      tags: [events]
+      x-oar-command-id: "events.create"
+      x-oar-cli-path: "events create"
+      x-oar-why: "Record append-only narrative or protocol state changes that complement snapshots."
+      x-oar-examples:
+        - title: Append event
+          command: oar events create --from-file event.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ event }` with generated id and timestamp."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [events, append-only]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Non-idempotent unless external dedupe keying is used."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /events/{event_id}:
+    get:
+      operationId: getEvent
+      summary: Get event by id
+      tags: [events]
+      x-oar-command-id: "events.get"
+      x-oar-cli-path: "events get"
+      x-oar-why: "Resolve event references and evidence links."
+      x-oar-examples:
+        - title: Get event
+          command: oar events get --event-id event_123 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ event }`."
+      x-oar-error-codes: [not_found]
+      x-oar-concepts: [events]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - $ref: '#/components/parameters/EventID'
+      responses:
+        '200':
+          description: Event payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /artifacts:
+    post:
+      operationId: createArtifact
+      summary: Create artifact
+      tags: [artifacts]
+      x-oar-command-id: "artifacts.create"
+      x-oar-cli-path: "artifacts create"
+      x-oar-why: "Persist immutable evidence blobs and metadata for references and review."
+      x-oar-examples:
+        - title: Create structured artifact
+          command: oar artifacts create --from-file artifact-create.json --json
+      x-oar-input-mode: "file-and-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ artifact }` metadata after content write."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [artifacts, evidence]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Treat as non-idempotent unless caller controls artifact id collisions."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateArtifactRequest'
+      responses:
+        '201':
+          description: Artifact created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+    get:
+      operationId: listArtifacts
+      summary: List artifact metadata
+      tags: [artifacts]
+      x-oar-command-id: "artifacts.list"
+      x-oar-cli-path: "artifacts list"
+      x-oar-why: "Discover evidence and packets attached to threads."
+      x-oar-examples:
+        - title: List work orders for a thread
+          command: oar artifacts list --kind work_order --thread-id thread_123 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ artifacts }` metadata only."
+      x-oar-error-codes: [invalid_request]
+      x-oar-concepts: [artifacts, filtering]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - in: query
+          name: kind
+          schema: { type: string }
+        - in: query
+          name: thread_id
+          schema: { type: string }
+        - in: query
+          name: created_before
+          schema: { type: string, format: date-time }
+        - in: query
+          name: created_after
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Artifact list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactsResponse'
+
+  /artifacts/{artifact_id}:
+    get:
+      operationId: getArtifact
+      summary: Get artifact metadata by id
+      tags: [artifacts]
+      x-oar-command-id: "artifacts.get"
+      x-oar-cli-path: "artifacts get"
+      x-oar-why: "Resolve artifact refs before downloading or rendering content."
+      x-oar-examples:
+        - title: Get artifact
+          command: oar artifacts get --artifact-id artifact_123 --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ artifact }` metadata."
+      x-oar-error-codes: [not_found]
+      x-oar-concepts: [artifacts]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      parameters:
+        - $ref: '#/components/parameters/ArtifactID'
+      responses:
+        '200':
+          description: Artifact payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /artifacts/{artifact_id}/content:
+    get:
+      operationId: getArtifactContent
+      summary: Get artifact raw content
+      tags: [artifacts]
+      x-oar-command-id: "artifacts.content.get"
+      x-oar-cli-path: "artifacts content get"
+      x-oar-why: "Fetch opaque artifact bytes for downstream processors."
+      x-oar-examples:
+        - title: Download content
+          command: oar artifacts content get --artifact-id artifact_123 > artifact.bin
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: raw }
+      x-oar-output-envelope: "Raw bytes; content type mirrors stored artifact media."
+      x-oar-error-codes: [not_found]
+      x-oar-concepts: [artifacts, content]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Stream to file for large payloads."
+      parameters:
+        - $ref: '#/components/parameters/ArtifactID'
+      responses:
+        '200':
+          description: Artifact content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /work_orders:
+    post:
+      operationId: createWorkOrder
+      summary: Create work-order packet artifact
+      tags: [packets]
+      x-oar-command-id: "packets.work-orders.create"
+      x-oar-cli-path: "packets work-orders create"
+      x-oar-why: "Create structured action packets with deterministic schema enforcement."
+      x-oar-examples:
+        - title: Create work order
+          command: oar packets work-orders create --from-file work-order.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ artifact, event }`."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [packets, work-orders]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Treat as non-idempotent unless artifact ids are controlled."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkOrderRequest'
+      responses:
+        '201':
+          description: Packet created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PacketCreateResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /receipts:
+    post:
+      operationId: createReceipt
+      summary: Create receipt packet artifact
+      tags: [packets]
+      x-oar-command-id: "packets.receipts.create"
+      x-oar-cli-path: "packets receipts create"
+      x-oar-why: "Record execution output and verification evidence for a work order."
+      x-oar-examples:
+        - title: Create receipt
+          command: oar packets receipts create --from-file receipt.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ artifact, event }`."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [packets, receipts]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Include evidence refs that satisfy packet conventions."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReceiptRequest'
+      responses:
+        '201':
+          description: Packet created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PacketCreateResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /reviews:
+    post:
+      operationId: createReview
+      summary: Create review packet artifact
+      tags: [packets]
+      x-oar-command-id: "packets.reviews.create"
+      x-oar-cli-path: "packets reviews create"
+      x-oar-why: "Record acceptance/revision decisions over a receipt."
+      x-oar-examples:
+        - title: Create review
+          command: oar packets reviews create --from-file review.json --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ artifact, event }`."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [packets, reviews]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Include refs to both receipt and work order artifacts."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReviewRequest'
+      responses:
+        '201':
+          description: Packet created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PacketCreateResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /inbox:
+    get:
+      operationId: listInbox
+      summary: List derived inbox items
+      tags: [inbox]
+      x-oar-command-id: "inbox.list"
+      x-oar-cli-path: "inbox list"
+      x-oar-why: "Surface derived actionable risk and decision signals."
+      x-oar-examples:
+        - title: List inbox
+          command: oar inbox list --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ items, generated_at }`."
+      x-oar-error-codes: []
+      x-oar-concepts: [inbox, derived-views]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      responses:
+        '200':
+          description: Inbox items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxResponse'
+
+  /inbox/ack:
+    post:
+      operationId: ackInboxItem
+      summary: Acknowledge an inbox item
+      tags: [inbox]
+      x-oar-command-id: "inbox.ack"
+      x-oar-cli-path: "inbox ack"
+      x-oar-why: "Suppress already-acted-on derived inbox signals."
+      x-oar-examples:
+        - title: Ack inbox item
+          command: oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ event }` representing acknowledgment."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [inbox, events]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Idempotent at semantic level; repeated acks should not duplicate active inbox items."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AckInboxRequest'
+      responses:
+        '201':
+          description: Ack event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /derived/rebuild:
+    post:
+      operationId: rebuildDerivedViews
+      summary: Rebuild derived views
+      tags: [derived]
+      x-oar-command-id: "derived.rebuild"
+      x-oar-cli-path: "derived rebuild"
+      x-oar-why: "Force deterministic recomputation of derived views after maintenance or migration."
+      x-oar-examples:
+        - title: Rebuild derived
+          command: oar derived rebuild --actor-id system --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ ok: true }`."
+      x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
+      x-oar-concepts: [derived-views, maintenance]
+      x-oar-stability: "beta"
+      x-oar-agent-notes: "Mutating admin command; serialize with other writes."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActorOnlyRequest'
+      responses:
+        '200':
+          description: Rebuild complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OKResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+
+components:
+  parameters:
+    ThreadID:
+      in: path
+      name: thread_id
+      required: true
+      schema: { type: string }
+    SnapshotID:
+      in: path
+      name: snapshot_id
+      required: true
+      schema: { type: string }
+    CommitmentID:
+      in: path
+      name: commitment_id
+      required: true
+      schema: { type: string }
+    EventID:
+      in: path
+      name: event_id
+      required: true
+      schema: { type: string }
+    ArtifactID:
+      in: path
+      name: artifact_id
+      required: true
+      schema: { type: string }
+
+  responses:
+    ErrorResponse:
+      description: Error envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+
+  schemas:
+    AnyObject:
+      type: object
+      additionalProperties: true
+
+    HealthResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]
+
+    VersionResponse:
+      type: object
+      properties:
+        schema_version: { type: string }
+      required: [schema_version]
+
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+          required: [code, message]
+      required: [error]
+
+    Actor:
+      type: object
+      additionalProperties: true
+
+    Event:
+      type: object
+      additionalProperties: true
+
+    Snapshot:
+      type: object
+      additionalProperties: true
+
+    Thread:
+      type: object
+      additionalProperties: true
+
+    Commitment:
+      type: object
+      additionalProperties: true
+
+    Artifact:
+      type: object
+      additionalProperties: true
+
+    InboxItem:
+      type: object
+      additionalProperties: true
+
+    RegisterActorRequest:
+      type: object
+      properties:
+        actor:
+          $ref: '#/components/schemas/AnyObject'
+      required: [actor]
+
+    ActorResponse:
+      type: object
+      properties:
+        actor:
+          $ref: '#/components/schemas/Actor'
+      required: [actor]
+
+    ActorsResponse:
+      type: object
+      properties:
+        actors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Actor'
+      required: [actors]
+
+    ActorOnlyRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+      required: [actor_id]
+
+    CreateThreadRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        thread:
+          $ref: '#/components/schemas/AnyObject'
+      required: [actor_id, thread]
+
+    PatchThreadRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        patch:
+          $ref: '#/components/schemas/AnyObject'
+        if_updated_at:
+          type: string
+          format: date-time
+      required: [actor_id, patch]
+
+    ThreadResponse:
+      type: object
+      properties:
+        thread:
+          $ref: '#/components/schemas/Thread'
+      required: [thread]
+
+    ThreadsResponse:
+      type: object
+      properties:
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/Thread'
+      required: [threads]
+
+    ThreadTimelineResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        snapshots:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Snapshot'
+        artifacts:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Artifact'
+      required: [events, snapshots, artifacts]
+
+    SnapshotResponse:
+      type: object
+      properties:
+        snapshot:
+          $ref: '#/components/schemas/Snapshot'
+      required: [snapshot]
+
+    CreateCommitmentRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        commitment:
+          $ref: '#/components/schemas/AnyObject'
+      required: [actor_id, commitment]
+
+    PatchCommitmentRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        patch:
+          $ref: '#/components/schemas/AnyObject'
+        refs:
+          type: array
+          items: { type: string }
+        if_updated_at:
+          type: string
+          format: date-time
+      required: [actor_id, patch]
+
+    CommitmentResponse:
+      type: object
+      properties:
+        commitment:
+          $ref: '#/components/schemas/Commitment'
+      required: [commitment]
+
+    CommitmentsResponse:
+      type: object
+      properties:
+        commitments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Commitment'
+      required: [commitments]
+
+    CreateEventRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        event:
+          $ref: '#/components/schemas/AnyObject'
+      required: [actor_id, event]
+
+    EventResponse:
+      type: object
+      properties:
+        event:
+          $ref: '#/components/schemas/Event'
+      required: [event]
+
+    CreateArtifactRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        artifact:
+          $ref: '#/components/schemas/AnyObject'
+        content:
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+        content_type:
+          type: string
+      required: [actor_id, artifact, content, content_type]
+
+    ArtifactResponse:
+      type: object
+      properties:
+        artifact:
+          $ref: '#/components/schemas/Artifact'
+      required: [artifact]
+
+    ArtifactsResponse:
+      type: object
+      properties:
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artifact'
+      required: [artifacts]
+
+    CreateWorkOrderRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        artifact:
+          $ref: '#/components/schemas/AnyObject'
+        packet:
+          $ref: '#/components/schemas/AnyObject'
+      required: [actor_id, artifact, packet]
+
+    CreateReceiptRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        artifact:
+          $ref: '#/components/schemas/AnyObject'
+        packet:
+          $ref: '#/components/schemas/AnyObject'
+      required: [actor_id, artifact, packet]
+
+    CreateReviewRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        artifact:
+          $ref: '#/components/schemas/AnyObject'
+        packet:
+          $ref: '#/components/schemas/AnyObject'
+      required: [actor_id, artifact, packet]
+
+    PacketCreateResponse:
+      type: object
+      properties:
+        artifact:
+          $ref: '#/components/schemas/Artifact'
+        event:
+          $ref: '#/components/schemas/Event'
+      required: [artifact, event]
+
+    InboxResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InboxItem'
+        generated_at:
+          type: string
+          format: date-time
+      required: [items, generated_at]
+
+    AckInboxRequest:
+      type: object
+      properties:
+        actor_id: { type: string }
+        thread_id: { type: string }
+        inbox_item_id: { type: string }
+      required: [actor_id, thread_id, inbox_item_id]
+
+    OKResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+      required: [ok]

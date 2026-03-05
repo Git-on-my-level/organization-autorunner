@@ -12,7 +12,7 @@ FORCE_SEED ?= 0
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install check serve lint test format core-% web-ui-%
+.PHONY: help install check serve lint test format contract-gen contract-check core-% web-ui-%
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -21,6 +21,7 @@ install: ## Install workspace dependencies
 	pnpm install
 
 check: ## Run checks in both core and web-ui
+	$(MAKE) contract-check
 	$(MAKE) -C $(CORE_DIR) check
 	$(MAKE) -C $(WEB_UI_DIR) check
 
@@ -35,6 +36,12 @@ test: ## Run tests in both core and web-ui
 format: ## Apply formatting in both core and web-ui
 	$(MAKE) -C $(CORE_DIR) fmt
 	$(MAKE) -C $(WEB_UI_DIR) format
+
+contract-gen: ## Regenerate OpenAPI-derived contract artifacts
+	./scripts/contract-gen
+
+contract-check: ## Verify generated contract artifacts are committed
+	./scripts/contract-check
 
 serve: ## Start core, seed mock dataset into core, then start web-ui
 	@set -euo pipefail; \

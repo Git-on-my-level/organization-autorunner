@@ -4,6 +4,7 @@ Monorepo for Organization Autorunner.
 
 ## Layout
 
+- `contracts/`: canonical OpenAPI + schema contracts and generated artifacts
 - `core/`: Go backend (`oar-core`)
 - `web-ui/`: SvelteKit frontend (`oar-ui`)
 
@@ -15,6 +16,12 @@ make check
 make serve
 ```
 
+Regenerate contract artifacts from the canonical OpenAPI contract:
+
+```bash
+make contract-gen
+```
+
 `make serve` starts both services with the UI pointed at core:
 
 - core: `http://127.0.0.1:8000`
@@ -24,6 +31,7 @@ make serve
 ## Useful Targets
 
 - `make check`: run checks for both projects
+- `make contract-check`: verify generated contract artifacts are up to date
 - `make core-<target>`: pass through to `core/Makefile`
 - `make web-ui-<target>`: pass through to `web-ui/Makefile`
 

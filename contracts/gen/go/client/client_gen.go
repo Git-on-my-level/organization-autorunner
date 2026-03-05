@@ -1,0 +1,652 @@
+package client
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+)
+
+type Example struct {
+	Title       string `json:"title"`
+	Command     string `json:"command"`
+	Description string `json:"description,omitempty"`
+}
+
+type CommandSpec struct {
+	CommandID  string    `json:"command_id"`
+	CLIPath    string    `json:"cli_path"`
+	Method     string    `json:"method"`
+	Path       string    `json:"path"`
+	PathParams []string  `json:"path_params,omitempty"`
+	InputMode  string    `json:"input_mode,omitempty"`
+	Stability  string    `json:"stability,omitempty"`
+	Concepts   []string  `json:"concepts,omitempty"`
+	Examples   []Example `json:"examples,omitempty"`
+}
+
+var CommandRegistry = []CommandSpec{
+	{
+		CommandID: "actors.list",
+		CLIPath:   "actors list",
+		Method:    "GET",
+		Path:      "/actors",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"identity"},
+		Examples: []Example{
+			{
+				Title:   "List actors",
+				Command: "oar actors list --json",
+			},
+		},
+	},
+	{
+		CommandID: "actors.register",
+		CLIPath:   "actors register",
+		Method:    "POST",
+		Path:      "/actors",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"identity"},
+		Examples: []Example{
+			{
+				Title:   "Register actor",
+				Command: "oar actors register --id bot-1 --display-name \"Bot 1\" --created-at 2026-03-04T10:00:00Z --json",
+			},
+		},
+	},
+	{
+		CommandID:  "artifacts.content.get",
+		CLIPath:    "artifacts content get",
+		Method:     "GET",
+		Path:       "/artifacts/{artifact_id}/content",
+		PathParams: []string{"artifact_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"artifacts", "content"},
+		Examples: []Example{
+			{
+				Title:   "Download content",
+				Command: "oar artifacts content get --artifact-id artifact_123 > artifact.bin",
+			},
+		},
+	},
+	{
+		CommandID: "artifacts.create",
+		CLIPath:   "artifacts create",
+		Method:    "POST",
+		Path:      "/artifacts",
+		InputMode: "file-and-body",
+		Stability: "stable",
+		Concepts:  []string{"artifacts", "evidence"},
+		Examples: []Example{
+			{
+				Title:   "Create structured artifact",
+				Command: "oar artifacts create --from-file artifact-create.json --json",
+			},
+		},
+	},
+	{
+		CommandID:  "artifacts.get",
+		CLIPath:    "artifacts get",
+		Method:     "GET",
+		Path:       "/artifacts/{artifact_id}",
+		PathParams: []string{"artifact_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"artifacts"},
+		Examples: []Example{
+			{
+				Title:   "Get artifact",
+				Command: "oar artifacts get --artifact-id artifact_123 --json",
+			},
+		},
+	},
+	{
+		CommandID: "artifacts.list",
+		CLIPath:   "artifacts list",
+		Method:    "GET",
+		Path:      "/artifacts",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"artifacts", "filtering"},
+		Examples: []Example{
+			{
+				Title:   "List work orders for a thread",
+				Command: "oar artifacts list --kind work_order --thread-id thread_123 --json",
+			},
+		},
+	},
+	{
+		CommandID: "commitments.create",
+		CLIPath:   "commitments create",
+		Method:    "POST",
+		Path:      "/commitments",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"commitments"},
+		Examples: []Example{
+			{
+				Title:   "Create commitment",
+				Command: "oar commitments create --from-file commitment.json --json",
+			},
+		},
+	},
+	{
+		CommandID:  "commitments.get",
+		CLIPath:    "commitments get",
+		Method:     "GET",
+		Path:       "/commitments/{commitment_id}",
+		PathParams: []string{"commitment_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"commitments"},
+		Examples: []Example{
+			{
+				Title:   "Get commitment",
+				Command: "oar commitments get --commitment-id commitment_123 --json",
+			},
+		},
+	},
+	{
+		CommandID: "commitments.list",
+		CLIPath:   "commitments list",
+		Method:    "GET",
+		Path:      "/commitments",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"commitments", "filtering"},
+		Examples: []Example{
+			{
+				Title:   "List open commitments for a thread",
+				Command: "oar commitments list --thread-id thread_123 --status open --json",
+			},
+		},
+	},
+	{
+		CommandID:  "commitments.patch",
+		CLIPath:    "commitments patch",
+		Method:     "PATCH",
+		Path:       "/commitments/{commitment_id}",
+		PathParams: []string{"commitment_id"},
+		InputMode:  "json-body",
+		Stability:  "stable",
+		Concepts:   []string{"commitments", "patch", "provenance"},
+		Examples: []Example{
+			{
+				Title:   "Mark commitment done",
+				Command: "oar commitments patch --commitment-id commitment_123 --from-file commitment-patch.json --json",
+			},
+		},
+	},
+	{
+		CommandID: "derived.rebuild",
+		CLIPath:   "derived rebuild",
+		Method:    "POST",
+		Path:      "/derived/rebuild",
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"derived-views", "maintenance"},
+		Examples: []Example{
+			{
+				Title:   "Rebuild derived",
+				Command: "oar derived rebuild --actor-id system --json",
+			},
+		},
+	},
+	{
+		CommandID: "events.create",
+		CLIPath:   "events create",
+		Method:    "POST",
+		Path:      "/events",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"events", "append-only"},
+		Examples: []Example{
+			{
+				Title:   "Append event",
+				Command: "oar events create --from-file event.json --json",
+			},
+		},
+	},
+	{
+		CommandID:  "events.get",
+		CLIPath:    "events get",
+		Method:     "GET",
+		Path:       "/events/{event_id}",
+		PathParams: []string{"event_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"events"},
+		Examples: []Example{
+			{
+				Title:   "Get event",
+				Command: "oar events get --event-id event_123 --json",
+			},
+		},
+	},
+	{
+		CommandID: "inbox.ack",
+		CLIPath:   "inbox ack",
+		Method:    "POST",
+		Path:      "/inbox/ack",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"inbox", "events"},
+		Examples: []Example{
+			{
+				Title:   "Ack inbox item",
+				Command: "oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json",
+			},
+		},
+	},
+	{
+		CommandID: "inbox.list",
+		CLIPath:   "inbox list",
+		Method:    "GET",
+		Path:      "/inbox",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"inbox", "derived-views"},
+		Examples: []Example{
+			{
+				Title:   "List inbox",
+				Command: "oar inbox list --json",
+			},
+		},
+	},
+	{
+		CommandID: "meta.health",
+		CLIPath:   "meta health",
+		Method:    "GET",
+		Path:      "/health",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"health", "readiness"},
+		Examples: []Example{
+			{
+				Title:   "Health check",
+				Command: "oar meta health --json",
+			},
+		},
+	},
+	{
+		CommandID: "meta.version",
+		CLIPath:   "meta version",
+		Method:    "GET",
+		Path:      "/version",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"compatibility", "schema"},
+		Examples: []Example{
+			{
+				Title:   "Read version",
+				Command: "oar meta version --json",
+			},
+		},
+	},
+	{
+		CommandID: "packets.receipts.create",
+		CLIPath:   "packets receipts create",
+		Method:    "POST",
+		Path:      "/receipts",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"packets", "receipts"},
+		Examples: []Example{
+			{
+				Title:   "Create receipt",
+				Command: "oar packets receipts create --from-file receipt.json --json",
+			},
+		},
+	},
+	{
+		CommandID: "packets.reviews.create",
+		CLIPath:   "packets reviews create",
+		Method:    "POST",
+		Path:      "/reviews",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"packets", "reviews"},
+		Examples: []Example{
+			{
+				Title:   "Create review",
+				Command: "oar packets reviews create --from-file review.json --json",
+			},
+		},
+	},
+	{
+		CommandID: "packets.work-orders.create",
+		CLIPath:   "packets work-orders create",
+		Method:    "POST",
+		Path:      "/work_orders",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"packets", "work-orders"},
+		Examples: []Example{
+			{
+				Title:   "Create work order",
+				Command: "oar packets work-orders create --from-file work-order.json --json",
+			},
+		},
+	},
+	{
+		CommandID:  "snapshots.get",
+		CLIPath:    "snapshots get",
+		Method:     "GET",
+		Path:       "/snapshots/{snapshot_id}",
+		PathParams: []string{"snapshot_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"snapshots"},
+		Examples: []Example{
+			{
+				Title:   "Get snapshot",
+				Command: "oar snapshots get --snapshot-id snapshot_123 --json",
+			},
+		},
+	},
+	{
+		CommandID: "threads.create",
+		CLIPath:   "threads create",
+		Method:    "POST",
+		Path:      "/threads",
+		InputMode: "json-body",
+		Stability: "stable",
+		Concepts:  []string{"threads", "snapshots"},
+		Examples: []Example{
+			{
+				Title:   "Create thread",
+				Command: "oar threads create --from-file thread.json --json",
+			},
+		},
+	},
+	{
+		CommandID:  "threads.get",
+		CLIPath:    "threads get",
+		Method:     "GET",
+		Path:       "/threads/{thread_id}",
+		PathParams: []string{"thread_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"threads"},
+		Examples: []Example{
+			{
+				Title:   "Read thread",
+				Command: "oar threads get --thread-id thread_123 --json",
+			},
+		},
+	},
+	{
+		CommandID: "threads.list",
+		CLIPath:   "threads list",
+		Method:    "GET",
+		Path:      "/threads",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"threads", "filtering"},
+		Examples: []Example{
+			{
+				Title:   "List active p1 threads",
+				Command: "oar threads list --status active --priority p1 --json",
+			},
+		},
+	},
+	{
+		CommandID:  "threads.patch",
+		CLIPath:    "threads patch",
+		Method:     "PATCH",
+		Path:       "/threads/{thread_id}",
+		PathParams: []string{"thread_id"},
+		InputMode:  "json-body",
+		Stability:  "stable",
+		Concepts:   []string{"threads", "patch"},
+		Examples: []Example{
+			{
+				Title:   "Patch thread",
+				Command: "oar threads patch --thread-id thread_123 --from-file patch.json --json",
+			},
+		},
+	},
+	{
+		CommandID:  "threads.timeline",
+		CLIPath:    "threads timeline",
+		Method:     "GET",
+		Path:       "/threads/{thread_id}/timeline",
+		PathParams: []string{"thread_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"threads", "events", "provenance"},
+		Examples: []Example{
+			{
+				Title:   "Timeline",
+				Command: "oar threads timeline --thread-id thread_123 --json",
+			},
+		},
+	},
+}
+
+var commandIndex = func() map[string]CommandSpec {
+	index := make(map[string]CommandSpec, len(CommandRegistry))
+	for _, cmd := range CommandRegistry {
+		index[cmd.CommandID] = cmd
+	}
+	return index
+}()
+
+type RequestOptions struct {
+	Query   map[string][]string
+	Headers map[string]string
+	Body    any
+}
+
+type Client struct {
+	BaseURL    string
+	HTTPClient *http.Client
+}
+
+func New(baseURL string, httpClient *http.Client) *Client {
+	if httpClient == nil {
+		httpClient = &http.Client{}
+	}
+	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), HTTPClient: httpClient}
+}
+
+func (c *Client) Invoke(ctx context.Context, commandID string, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	if c == nil {
+		return nil, nil, fmt.Errorf("client is nil")
+	}
+	if strings.TrimSpace(c.BaseURL) == "" {
+		return nil, nil, fmt.Errorf("base url is required")
+	}
+	if c.HTTPClient == nil {
+		return nil, nil, fmt.Errorf("http client is required")
+	}
+	cmd, ok := commandIndex[commandID]
+	if !ok {
+		return nil, nil, fmt.Errorf("unknown command id: %s", commandID)
+	}
+	path, err := renderPath(cmd.Path, pathParams)
+	if err != nil {
+		return nil, nil, err
+	}
+	urlString := c.BaseURL + path
+	u, err := url.Parse(urlString)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse request url: %w", err)
+	}
+	if len(opts.Query) > 0 {
+		q := u.Query()
+		for key, values := range opts.Query {
+			for _, value := range values {
+				q.Add(key, value)
+			}
+		}
+		u.RawQuery = q.Encode()
+	}
+	var body io.Reader
+	if opts.Body != nil {
+		encoded, err := json.Marshal(opts.Body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("encode request body: %w", err)
+		}
+		body = bytes.NewReader(encoded)
+	}
+	req, err := http.NewRequestWithContext(ctx, cmd.Method, u.String(), body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	if opts.Body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range opts.Headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		req.Header.Set(key, value)
+	}
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("perform request: %w", err)
+	}
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if readErr != nil {
+		return resp, nil, fmt.Errorf("read response: %w", readErr)
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return resp, bodyBytes, fmt.Errorf("request failed: status=%d body=%s", resp.StatusCode, string(bodyBytes))
+	}
+	return resp, bodyBytes, nil
+}
+
+func renderPath(template string, pathParams map[string]string) (string, error) {
+	b := template
+	for {
+		start := strings.IndexByte(b, '{')
+		if start < 0 {
+			return b, nil
+		}
+		end := strings.IndexByte(b[start:], '}')
+		if end < 0 {
+			return "", fmt.Errorf("invalid path template: %s", template)
+		}
+		end += start
+		name := b[start+1 : end]
+		value, ok := pathParams[name]
+		if !ok {
+			return "", fmt.Errorf("missing path param %q", name)
+		}
+		b = b[:start] + url.PathEscape(value) + b[end+1:]
+	}
+}
+
+func (c *Client) ActorsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "actors.list", nil, opts)
+}
+
+func (c *Client) ActorsRegister(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "actors.register", nil, opts)
+}
+
+func (c *Client) ArtifactsContentGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "artifacts.content.get", pathParams, opts)
+}
+
+func (c *Client) ArtifactsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "artifacts.create", nil, opts)
+}
+
+func (c *Client) ArtifactsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "artifacts.get", pathParams, opts)
+}
+
+func (c *Client) ArtifactsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "artifacts.list", nil, opts)
+}
+
+func (c *Client) CommitmentsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "commitments.create", nil, opts)
+}
+
+func (c *Client) CommitmentsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "commitments.get", pathParams, opts)
+}
+
+func (c *Client) CommitmentsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "commitments.list", nil, opts)
+}
+
+func (c *Client) CommitmentsPatch(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "commitments.patch", pathParams, opts)
+}
+
+func (c *Client) DerivedRebuild(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "derived.rebuild", nil, opts)
+}
+
+func (c *Client) EventsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "events.create", nil, opts)
+}
+
+func (c *Client) EventsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "events.get", pathParams, opts)
+}
+
+func (c *Client) InboxAck(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "inbox.ack", nil, opts)
+}
+
+func (c *Client) InboxList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "inbox.list", nil, opts)
+}
+
+func (c *Client) MetaHealth(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.health", nil, opts)
+}
+
+func (c *Client) MetaVersion(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.version", nil, opts)
+}
+
+func (c *Client) PacketsReceiptsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "packets.receipts.create", nil, opts)
+}
+
+func (c *Client) PacketsReviewsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "packets.reviews.create", nil, opts)
+}
+
+func (c *Client) PacketsWorkOrdersCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "packets.work-orders.create", nil, opts)
+}
+
+func (c *Client) SnapshotsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "snapshots.get", pathParams, opts)
+}
+
+func (c *Client) ThreadsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "threads.create", nil, opts)
+}
+
+func (c *Client) ThreadsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "threads.get", pathParams, opts)
+}
+
+func (c *Client) ThreadsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "threads.list", nil, opts)
+}
+
+func (c *Client) ThreadsPatch(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "threads.patch", pathParams, opts)
+}
+
+func (c *Client) ThreadsTimeline(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "threads.timeline", pathParams, opts)
+}

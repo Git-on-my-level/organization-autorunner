@@ -6,7 +6,7 @@ organization-autorunner-ui is the frontend/client application for the Organizati
 ## Primary spec
 - Repo spec: `docs/oar-ui-spec.md`
 - HTTP contract: `docs/http-api.md`
-- Shared schema: `contracts/oar-schema.yaml`
+- Shared schema: `../contracts/oar-schema.yaml`
 - Spec compliance matrix: `docs/spec-compliance.md`
 - Build/serve/integration runbook: `docs/runbook.md`
 

@@ -21,7 +21,7 @@ import (
 const (
 	defaultHost          = "127.0.0.1"
 	defaultPort          = 8000
-	defaultSchemaPath    = "contracts/oar-schema.yaml"
+	defaultSchemaPath    = "../contracts/oar-schema.yaml"
 	defaultWorkspaceRoot = ".oar-workspace"
 )
 
@@ -37,7 +37,7 @@ func main() {
 	flag.StringVar(&host, "host", host, "host interface to bind")
 	flag.IntVar(&port, "port", port, "port to listen on")
 	flag.StringVar(&listenAddress, "listen-addr", listenAddress, "full listen address host:port; overrides --host/--port")
-	flag.StringVar(&schemaPath, "schema-path", schemaPath, "path to contracts/oar-schema.yaml")
+	flag.StringVar(&schemaPath, "schema-path", schemaPath, "path to ../contracts/oar-schema.yaml")
 	flag.StringVar(&workspaceRoot, "workspace-root", workspaceRoot, "root directory for sqlite/filesystem workspace")
 	flag.Parse()
 
