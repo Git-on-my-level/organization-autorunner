@@ -81,16 +81,57 @@ func formatCommandSummary(commandID string, body any) string {
 
 func formatThreadContext(body any) string {
 	root := asMap(body)
+	fullID := asBool(root["full_id"])
+	if len(asSlice(root["contexts"])) > 1 {
+		return formatThreadContextAggregate(root, fullID)
+	}
 	thread := extractNestedMap(root, "thread")
 	lines := make([]string, 0, 24)
 	lines = append(lines, formatThreadRecord(thread))
 	collaboration := extractNestedMap(root, "collaboration_summary")
 	if collaboration != nil {
-		lines = appendListSection(lines, "recommendations", asSlice(collaboration["recommendations"]), renderEventListItem)
-		lines = appendListSection(lines, "decision_requests", asSlice(collaboration["decision_requests"]), renderEventListItem)
-		lines = appendListSection(lines, "decisions", asSlice(collaboration["decisions"]), renderEventListItem)
+		lines = appendEventListSection(lines, "recommendations", asSlice(collaboration["recommendations"]), fullID)
+		lines = appendEventListSection(lines, "decision_requests", asSlice(collaboration["decision_requests"]), fullID)
+		lines = appendEventListSection(lines, "decisions", asSlice(collaboration["decisions"]), fullID)
 	}
-	lines = appendListSection(lines, "recent_events", asSlice(root["recent_events"]), renderEventListItem)
+	lines = appendEventListSection(lines, "recent_events", asSlice(root["recent_events"]), fullID)
+	lines = appendListSection(lines, "key_artifacts", asSlice(root["key_artifacts"]), renderArtifactListItem)
+	lines = appendListSection(lines, "open_commitments", asSlice(root["open_commitments"]), renderCommitmentListItem)
+	return strings.Join(lines, "\n")
+}
+
+func formatThreadContextAggregate(root map[string]any, fullID bool) string {
+	contexts := asSlice(root["contexts"])
+	lines := []string{
+		fmt.Sprintf("Thread contexts (%d):", len(contexts)),
+	}
+	for _, raw := range contexts {
+		context := asMap(raw)
+		if context == nil {
+			continue
+		}
+		thread := asMap(context["thread"])
+		collaboration := asMap(context["collaboration_summary"])
+		recommendations := len(asSlice(collaboration["recommendations"]))
+		decisionRequests := len(asSlice(collaboration["decision_requests"]))
+		decisions := len(asSlice(collaboration["decisions"]))
+		openCommitments := len(asSlice(context["open_commitments"]))
+		lines = append(lines, fmt.Sprintf(
+			"- %s :: recommendations=%d :: decision_requests=%d :: decisions=%d :: open_commitments=%d",
+			displayID(thread),
+			recommendations,
+			decisionRequests,
+			decisions,
+			openCommitments,
+		))
+	}
+
+	if collaboration := extractNestedMap(root, "collaboration_summary"); collaboration != nil {
+		lines = appendEventListSection(lines, "recommendations", asSlice(collaboration["recommendations"]), fullID)
+		lines = appendEventListSection(lines, "decision_requests", asSlice(collaboration["decision_requests"]), fullID)
+		lines = appendEventListSection(lines, "decisions", asSlice(collaboration["decisions"]), fullID)
+	}
+	lines = appendEventListSection(lines, "recent_events", asSlice(root["recent_events"]), fullID)
 	lines = appendListSection(lines, "key_artifacts", asSlice(root["key_artifacts"]), renderArtifactListItem)
 	lines = appendListSection(lines, "open_commitments", asSlice(root["open_commitments"]), renderCommitmentListItem)
 	return strings.Join(lines, "\n")
