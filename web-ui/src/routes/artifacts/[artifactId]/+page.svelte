@@ -196,28 +196,85 @@
     };
     return labels[kind] ?? kind;
   }
+
+  function kindBadge(kind) {
+    const styles = {
+      work_order: "bg-blue-50 text-blue-700",
+      receipt: "bg-emerald-50 text-emerald-700",
+      review: "bg-purple-50 text-purple-700",
+      doc: "bg-amber-50 text-amber-700",
+    };
+    return styles[kind] ?? "bg-gray-100 text-gray-600";
+  }
 </script>
 
 <nav
-  class="mb-3 flex items-center gap-1.5 text-sm text-gray-400"
+  class="mb-4 flex items-center gap-1.5 text-sm text-gray-400"
   aria-label="Breadcrumb"
 >
-  <a class="hover:text-gray-600" href="/artifacts">Artifacts</a>
-  <span class="text-gray-300">/</span>
-  <span class="truncate text-gray-700">{artifact?.summary || artifactId}</span>
+  <a class="transition-colors hover:text-gray-600" href="/artifacts"
+    >Artifacts</a
+  >
+  <svg
+    class="h-3 w-3 text-gray-300"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    stroke-width="2"
+  >
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+  </svg>
+  <span class="truncate text-gray-600">{artifact?.summary || artifactId}</span>
 </nav>
 
 {#if loading}
-  <p class="text-sm text-gray-400">Loading...</p>
+  <div
+    class="mt-12 flex items-center justify-center gap-2 text-sm text-gray-400"
+  >
+    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle
+        class="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        stroke-width="4"
+      ></circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+    Loading...
+  </div>
 {:else if loadError}
-  <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{loadError}</p>
+  <div
+    class="flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+  >
+    <svg
+      class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+      />
+    </svg>
+    {loadError}
+  </div>
 {:else if artifact}
-  <h1 class="text-lg font-semibold text-gray-900">
+  <h1 class="text-xl font-semibold text-gray-900">
     {artifact.summary || artifact.id}
   </h1>
 
   <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-    <span class="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-600"
+    <span
+      class={`rounded-md px-2 py-0.5 font-medium ${kindBadge(artifact.kind)}`}
       >{kindLabel(artifact.kind)}</span
     >
     <span class="text-gray-400"
@@ -245,34 +302,52 @@
   </div>
 
   {#if !isKnownPacketArtifactKind && artifact.kind !== "doc"}
-    <p class="mt-3 rounded bg-amber-50 px-3 py-2 text-xs text-amber-700">
+    <div
+      class="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-700"
+    >
+      <svg
+        class="h-4 w-4 shrink-0 text-amber-400"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+        />
+      </svg>
       Unknown artifact kind: {artifact.kind}
-    </p>
+    </div>
   {/if}
 
   {#if workOrderPacket}
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
-      <div class="border-b border-gray-100 px-4 py-2.5">
-        <h2
-          class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-        >
-          Work Order
-        </h2>
+    <div class="mt-5 rounded-xl border border-gray-200/80 bg-white shadow-sm">
+      <div class="border-b border-gray-100 px-5 py-3">
+        <h2 class="text-sm font-medium text-gray-900">Work Order</h2>
       </div>
-      <div class="px-4 py-3 text-sm text-gray-800">
+      <div class="px-5 py-4 text-sm text-gray-800">
         <p class="font-medium">{workOrderPacket.objective || "No objective"}</p>
         {#if (workOrderPacket.constraints ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Constraints</p>
-            <ul class="mt-1 list-inside list-disc text-sm">
-              {#each workOrderPacket.constraints as c}<li>{c}</li>{/each}
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">Constraints</p>
+            <ul class="mt-1.5 space-y-1 text-sm">
+              {#each workOrderPacket.constraints as c}
+                <li class="flex items-start gap-2">
+                  <span
+                    class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300"
+                  ></span>
+                  {c}
+                </li>
+              {/each}
             </ul>
           </div>
         {/if}
         {#if (workOrderPacket.context_refs ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Context</p>
-            <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">Context</p>
+            <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
               {#each workOrderPacket.context_refs as r}<RefLink
                   refValue={r}
                   threadId={workOrderPacket.thread_id}
@@ -281,20 +356,32 @@
           </div>
         {/if}
         {#if (workOrderPacket.acceptance_criteria ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Acceptance criteria</p>
-            <ul class="mt-1 list-inside list-disc text-sm">
-              {#each workOrderPacket.acceptance_criteria as c}<li>
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">Acceptance criteria</p>
+            <ul class="mt-1.5 space-y-1 text-sm">
+              {#each workOrderPacket.acceptance_criteria as c}
+                <li class="flex items-start gap-2">
+                  <span
+                    class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300"
+                  ></span>
                   {c}
-                </li>{/each}
+                </li>
+              {/each}
             </ul>
           </div>
         {/if}
         {#if (workOrderPacket.definition_of_done ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Definition of done</p>
-            <ul class="mt-1 list-inside list-disc text-sm">
-              {#each workOrderPacket.definition_of_done as d}<li>{d}</li>{/each}
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">Definition of done</p>
+            <ul class="mt-1.5 space-y-1 text-sm">
+              {#each workOrderPacket.definition_of_done as d}
+                <li class="flex items-start gap-2">
+                  <span
+                    class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300"
+                  ></span>
+                  {d}
+                </li>
+              {/each}
             </ul>
           </div>
         {/if}
@@ -303,31 +390,27 @@
   {/if}
 
   {#if receiptPacket}
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
-      <div class="border-b border-gray-100 px-4 py-2.5">
-        <h2
-          class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-        >
-          Receipt
-        </h2>
+    <div class="mt-5 rounded-xl border border-gray-200/80 bg-white shadow-sm">
+      <div class="border-b border-gray-100 px-5 py-3">
+        <h2 class="text-sm font-medium text-gray-900">Receipt</h2>
       </div>
-      <div class="px-4 py-3 text-sm">
-        <div class="flex flex-wrap gap-2 text-xs text-gray-500">
-          <span
+      <div class="px-5 py-4 text-sm">
+        <div class="flex flex-wrap gap-3 text-xs text-gray-500">
+          <span class="flex items-center gap-1"
             >Work order: <RefLink
               refValue={`artifact:${receiptPacket.work_order_id}`}
             /></span
           >
-          <span
+          <span class="flex items-center gap-1"
             >Thread: <RefLink
               refValue={`thread:${receiptPacket.thread_id}`}
             /></span
           >
         </div>
         {#if (receiptPacket.outputs ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Outputs</p>
-            <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">Outputs</p>
+            <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
               {#each receiptPacket.outputs as r}<RefLink
                   refValue={r}
                   threadId={receiptPacket.thread_id}
@@ -336,9 +419,11 @@
           </div>
         {/if}
         {#if (receiptPacket.verification_evidence ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Verification evidence</p>
-            <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">
+              Verification evidence
+            </p>
+            <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
               {#each receiptPacket.verification_evidence as r}<RefLink
                   refValue={r}
                   threadId={receiptPacket.thread_id}
@@ -346,55 +431,88 @@
             </div>
           </div>
         {/if}
-        <div class="mt-3">
-          <p class="text-xs text-gray-400">Changes summary</p>
-          <p class="mt-1 text-gray-800">
+        <div class="mt-4">
+          <p class="text-xs font-medium text-gray-400">Changes summary</p>
+          <p class="mt-1.5 leading-relaxed text-gray-800">
             {receiptPacket.changes_summary || "—"}
           </p>
         </div>
         {#if (receiptPacket.known_gaps ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Known gaps</p>
-            <ul class="mt-1 list-inside list-disc text-gray-600">
-              {#each receiptPacket.known_gaps as g}<li>{g}</li>{/each}
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">Known gaps</p>
+            <ul class="mt-1.5 space-y-1 text-gray-600">
+              {#each receiptPacket.known_gaps as g}
+                <li class="flex items-start gap-2">
+                  <span
+                    class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"
+                  ></span>
+                  {g}
+                </li>
+              {/each}
             </ul>
           </div>
         {/if}
       </div>
 
       <!-- Review form -->
-      <div class="border-t border-gray-100 px-4 py-3">
-        <h3
-          class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-        >
-          Review
-        </h3>
-        {#if reviewErrors.length > 0}<ul
-            class="mt-2 list-inside list-disc rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+      <div class="border-t border-gray-100 px-5 py-4">
+        <h3 class="text-sm font-medium text-gray-900">Submit Review</h3>
+        {#if reviewErrors.length > 0}
+          <ul
+            class="mt-3 list-inside list-disc rounded-lg bg-red-50 px-4 py-2.5 text-xs text-red-700"
           >
             {#each reviewErrors as e}<li>{e}</li>{/each}
-          </ul>{/if}
-        {#if reviewNotice}<p
-            class="mt-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+          </ul>
+        {/if}
+        {#if reviewNotice}
+          <div
+            class="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
           >
-            {reviewNotice}
-          </p>{/if}
-        {#if reviseFollowupLink}
-          <p
-            class="mt-2 rounded bg-amber-50 px-3 py-1.5 text-xs text-amber-700"
-          >
-            Outcome is revise. <a
-              class="font-medium underline"
-              href={reviseFollowupLink}>Create follow-up work order</a
+            <svg
+              class="h-3.5 w-3.5 shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
             >
-          </p>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            {reviewNotice}
+          </div>
+        {/if}
+        {#if reviseFollowupLink}
+          <div
+            class="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700"
+          >
+            <svg
+              class="h-3.5 w-3.5 shrink-0"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Outcome is revise.
+            <a class="font-medium underline" href={reviseFollowupLink}
+              >Create follow-up work order</a
+            >
+          </div>
         {/if}
         {#if reviewDraft}
-          <form class="mt-2 grid gap-2" onsubmit={submitReview}>
+          <form class="mt-3 grid gap-4" onsubmit={submitReview}>
             <label class="text-xs font-medium text-gray-600"
               >Outcome <select
                 bind:value={reviewDraft.outcome}
-                class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
                 ><option value="accept">Accept</option><option value="revise"
                   >Revise</option
                 ><option value="escalate">Escalate</option></select
@@ -403,53 +521,90 @@
             <label class="text-xs font-medium text-gray-600"
               >Notes <textarea
                 bind:value={reviewDraft.notes}
-                class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
+                placeholder="Review notes..."
                 rows="2"
               ></textarea></label
             >
             <label class="text-xs font-medium text-gray-600"
-              >Evidence refs (optional, one per line) <textarea
+              >Evidence refs <span class="font-normal text-gray-400"
+                >optional, one per line</span
+              >
+              <textarea
                 bind:value={reviewDraft.evidenceRefsInput}
-                class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
                 rows="2"
               ></textarea></label
             >
-            <button
-              class="w-fit rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-              disabled={submittingReview}
-              type="submit"
-              >{submittingReview ? "Submitting..." : "Submit review"}</button
-            >
+            <div class="flex justify-end">
+              <button
+                class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                disabled={submittingReview}
+                type="submit"
+                >{submittingReview ? "Submitting..." : "Submit review"}</button
+              >
+            </div>
           </form>
         {/if}
         {#if createdReview}
-          <p class="mt-2 text-xs text-gray-500">
-            Review submitted: <a
-              class="text-indigo-600 underline"
+          <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
+            <svg
+              class="h-3.5 w-3.5 text-emerald-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            Review submitted:
+            <a
+              class="font-medium text-indigo-600 hover:text-indigo-700"
               href={`/artifacts/${createdReview.id}`}
               >{createdReview.summary || createdReview.id}</a
             >
-          </p>
+          </div>
         {/if}
       </div>
 
       <!-- Thread timeline -->
       {#if threadTimeline.length > 0 || timelineLoading}
-        <div class="border-t border-gray-100 px-4 py-3">
-          <h3
-            class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-          >
-            Thread Timeline
-          </h3>
+        <div class="border-t border-gray-100 px-5 py-4">
+          <h3 class="text-sm font-medium text-gray-900">Thread Timeline</h3>
           {#if timelineLoading}
-            <p class="mt-2 text-xs text-gray-400">Loading...</p>
+            <div class="mt-3 flex items-center gap-2 text-xs text-gray-400">
+              <svg
+                class="h-3.5 w-3.5 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                ></circle>
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                ></path>
+              </svg>
+              Loading...
+            </div>
           {:else if timelineError}
-            <p class="mt-2 text-xs text-red-600">{timelineError}</p>
+            <p class="mt-3 text-xs text-red-600">{timelineError}</p>
           {:else}
-            <div class="mt-2 space-y-1">
+            <div class="mt-3 space-y-1.5">
               {#each timelineView.slice(0, 10) as event}
                 <div
-                  class="rounded border border-gray-100 bg-gray-50 px-3 py-2 text-xs"
+                  class="rounded-lg border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs"
                 >
                   <p class="font-medium text-gray-800">{event.summary}</p>
                   <p class="mt-0.5 text-gray-400">
@@ -467,18 +622,14 @@
   {/if}
 
   {#if reviewPacket}
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
-      <div class="border-b border-gray-100 px-4 py-2.5">
-        <h2
-          class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-        >
-          Review
-        </h2>
+    <div class="mt-5 rounded-xl border border-gray-200/80 bg-white shadow-sm">
+      <div class="border-b border-gray-100 px-5 py-3">
+        <h2 class="text-sm font-medium text-gray-900">Review</h2>
       </div>
-      <div class="px-4 py-3 text-sm">
+      <div class="px-5 py-4 text-sm">
         <div class="flex items-center gap-3">
           <span
-            class="rounded px-2 py-0.5 text-xs font-medium {reviewPacket.outcome ===
+            class="rounded-md px-2.5 py-0.5 text-xs font-medium {reviewPacket.outcome ===
             'accept'
               ? 'bg-emerald-50 text-emerald-700'
               : reviewPacket.outcome === 'revise'
@@ -498,13 +649,13 @@
             /></span
           >
         </div>
-        {#if reviewPacket.notes}<p class="mt-3 text-gray-700">
+        {#if reviewPacket.notes}<p class="mt-3 leading-relaxed text-gray-700">
             {reviewPacket.notes}
           </p>{/if}
         {#if (reviewPacket.evidence_refs ?? []).length > 0}
-          <div class="mt-3">
-            <p class="text-xs text-gray-400">Evidence</p>
-            <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
+          <div class="mt-4">
+            <p class="text-xs font-medium text-gray-400">Evidence</p>
+            <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
               {#each reviewPacket.evidence_refs as r}<RefLink
                   refValue={r}
                   threadId={artifact.thread_id}
@@ -517,27 +668,25 @@
   {/if}
 
   {#if textContent}
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
-      <div class="border-b border-gray-100 px-4 py-2.5">
-        <h2
-          class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-        >
-          Content
-        </h2>
+    <div class="mt-5 rounded-xl border border-gray-200/80 bg-white shadow-sm">
+      <div
+        class="flex items-center justify-between border-b border-gray-100 px-5 py-3"
+      >
+        <h2 class="text-sm font-medium text-gray-900">Content</h2>
         <span class="text-[11px] text-gray-400">{artifactContentType}</span>
       </div>
       <pre
-        class="max-h-96 overflow-auto whitespace-pre-wrap px-4 py-3 text-xs text-gray-800">{textContent}</pre>
+        class="max-h-96 overflow-auto whitespace-pre-wrap px-5 py-4 text-xs text-gray-800">{textContent}</pre>
     </div>
   {/if}
 
-  <details class="mt-4 rounded-lg border border-gray-200 bg-white">
+  <details class="mt-5 rounded-xl border border-gray-200/80 bg-white shadow-sm">
     <summary
-      class="cursor-pointer px-4 py-2.5 text-xs text-gray-400 hover:text-gray-600"
+      class="cursor-pointer px-5 py-3 text-xs text-gray-400 transition-colors hover:text-gray-600"
       >Raw metadata JSON</summary
     >
     <pre
-      class="overflow-auto px-4 pb-3 text-[11px] text-gray-600">{JSON.stringify(
+      class="overflow-auto px-5 pb-4 text-[11px] text-gray-500">{JSON.stringify(
         artifact,
         null,
         2,
@@ -545,13 +694,15 @@
   </details>
 
   {#if artifactContent && !textContent}
-    <details class="mt-2 rounded-lg border border-gray-200 bg-white">
+    <details
+      class="mt-2 rounded-xl border border-gray-200/80 bg-white shadow-sm"
+    >
       <summary
-        class="cursor-pointer px-4 py-2.5 text-xs text-gray-400 hover:text-gray-600"
+        class="cursor-pointer px-5 py-3 text-xs text-gray-400 transition-colors hover:text-gray-600"
         >Raw content JSON</summary
       >
       <pre
-        class="overflow-auto px-4 pb-3 text-[11px] text-gray-600">{JSON.stringify(
+        class="overflow-auto px-5 pb-4 text-[11px] text-gray-500">{JSON.stringify(
           artifactContent,
           null,
           2,
@@ -559,5 +710,5 @@
     </details>
   {/if}
 {:else}
-  <p class="text-sm text-gray-400">Artifact not found.</p>
+  <div class="mt-8 text-center text-sm text-gray-400">Artifact not found.</div>
 {/if}

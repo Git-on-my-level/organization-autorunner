@@ -160,13 +160,13 @@
     return colors[priority] ?? "bg-gray-300";
   }
 
-  function statusColor(status) {
-    const colors = {
-      active: "text-emerald-600",
-      paused: "text-amber-600",
-      closed: "text-gray-400",
+  function statusBadge(status) {
+    const styles = {
+      active: "bg-emerald-50 text-emerald-700",
+      paused: "bg-amber-50 text-amber-700",
+      closed: "bg-gray-100 text-gray-500",
     };
-    return colors[status] ?? "text-gray-500";
+    return styles[status] ?? "bg-gray-100 text-gray-500";
   }
 </script>
 
@@ -174,36 +174,79 @@
   <h1 class="text-lg font-semibold text-gray-900">Threads</h1>
   <div class="flex items-center gap-2">
     <button
-      class="rounded-md px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
+      class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100"
       onclick={() => (filtersOpen = !filtersOpen)}
       type="button"
     >
-      {filtersOpen ? "Hide filters" : "Filters"}
+      <svg
+        class="h-3.5 w-3.5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+        />
+      </svg>
+      {filtersOpen ? "Hide filters" : "Filter"}
     </button>
     <button
-      class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500"
+      class="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-500"
       onclick={() => (createOpen = !createOpen)}
       type="button"
     >
+      {#if !createOpen}
+        <svg
+          class="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M12 4v16m8-8H4"
+          />
+        </svg>
+      {/if}
       {createOpen ? "Cancel" : "New thread"}
     </button>
   </div>
 </div>
 
 {#if error}
-  <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+  <div
+    class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+  >
+    <svg
+      class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+      />
+    </svg>
     {error}
-  </p>
+  </div>
 {/if}
 
 {#if filtersOpen}
-  <div class="mt-3 rounded-lg border border-gray-200 bg-white p-3">
-    <div class="grid gap-2 sm:grid-cols-5">
-      <label class="text-xs text-gray-500">
+  <div class="mt-3 rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm">
+    <div class="grid gap-3 sm:grid-cols-5">
+      <label class="text-xs font-medium text-gray-500">
         Status
         <select
           bind:value={filters.status}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm transition-colors focus:bg-white"
         >
           <option value="">All</option>
           {#each THREAD_STATUSES as status}<option value={status}
@@ -211,11 +254,11 @@
             >{/each}
         </select>
       </label>
-      <label class="text-xs text-gray-500">
+      <label class="text-xs font-medium text-gray-500">
         Priority
         <select
           bind:value={filters.priority}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm transition-colors focus:bg-white"
         >
           <option value="">All</option>
           {#each THREAD_PRIORITIES as priority}<option value={priority}
@@ -223,11 +266,11 @@
             >{/each}
         </select>
       </label>
-      <label class="text-xs text-gray-500">
+      <label class="text-xs font-medium text-gray-500">
         Cadence
         <select
           bind:value={filters.cadence}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm transition-colors focus:bg-white"
         >
           <option value="">All</option>
           {#each THREAD_SCHEDULE_PRESETS as cadence}<option value={cadence}
@@ -235,38 +278,35 @@
             >{/each}
         </select>
       </label>
-      <label class="text-xs text-gray-500">
+      <label class="text-xs font-medium text-gray-500">
         Staleness
         <select
           bind:value={filters.staleness}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm transition-colors focus:bg-white"
         >
           <option value="all">All</option>
           <option value="stale">Stale</option>
           <option value="fresh">Fresh</option>
         </select>
       </label>
-      <label class="text-xs text-gray-500">
-        Tags (match all)
+      <label class="text-xs font-medium text-gray-500">
+        Tags
         <input
           bind:value={filters.tagInput}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm transition-colors focus:bg-white"
           placeholder="ops, customer"
           type="text"
         />
-        <span class="mt-1 block text-[11px] text-gray-400">
-          Comma-separated; a thread must contain every tag.
-        </span>
       </label>
     </div>
-    <div class="mt-2 flex gap-2">
+    <div class="mt-3 flex gap-2">
       <button
-        class="rounded bg-gray-900 px-3 py-1 text-xs font-medium text-white hover:bg-gray-700"
+        class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-gray-800"
         onclick={applyFilters}
         type="button">Apply</button
       >
       <button
-        class="rounded px-3 py-1 text-xs text-gray-500 hover:bg-gray-100"
+        class="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100"
         onclick={resetFilters}
         type="button">Reset</button
       >
@@ -276,23 +316,24 @@
 
 {#if createOpen}
   <form
-    class="mt-3 rounded-lg border border-gray-200 bg-white p-4"
+    class="mt-3 rounded-xl border border-gray-200/80 bg-white p-5 shadow-sm"
     onsubmit={(event) => {
       event.preventDefault();
       createThread();
     }}
   >
     {#if createError}
-      <p class="mb-3 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700">
+      <div class="mb-4 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
         {createError}
-      </p>
+      </div>
     {/if}
-    <div class="grid gap-3 sm:grid-cols-2">
+    <div class="grid gap-4 sm:grid-cols-2">
       <label class="text-xs font-medium text-gray-600 sm:col-span-2">
         Title
         <input
           bind:value={threadDraft.title}
-          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
+          placeholder="Thread title..."
           required
           type="text"
         />
@@ -301,7 +342,7 @@
         Status
         <select
           bind:value={threadDraft.status}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
         >
           {#each THREAD_STATUSES as status}<option value={status}
               >{status}</option
@@ -312,7 +353,7 @@
         Priority
         <select
           bind:value={threadDraft.priority}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
         >
           {#each THREAD_PRIORITIES as priority}<option value={priority}
               >{THREAD_PRIORITY_LABELS[priority]}</option
@@ -323,7 +364,7 @@
         Schedule
         <select
           bind:value={threadDraft.cadencePreset}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
         >
           {#each THREAD_SCHEDULE_PRESETS as cadence}<option value={cadence}
               >{THREAD_SCHEDULE_PRESET_LABELS[cadence]}</option
@@ -335,20 +376,17 @@
           Cron expression
           <input
             bind:value={threadDraft.cadenceCron}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
             placeholder="0 9 * * *"
             type="text"
           />
-          <span class="mt-1 block text-[11px] text-gray-400">
-            Use five cron fields in server timezone.
-          </span>
         </label>
       {/if}
       <label class="text-xs font-medium text-gray-600">
         Tags
         <input
           bind:value={threadDraft.tagsInput}
-          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
           placeholder="ops, customer"
           type="text"
         />
@@ -357,36 +395,70 @@
         Summary
         <textarea
           bind:value={threadDraft.summary}
-          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
+          placeholder="Brief description..."
           rows="2"
         ></textarea>
       </label>
     </div>
-    <button
-      class="mt-3 rounded-md bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-      disabled={creatingThread}
-      type="submit"
-    >
-      {creatingThread ? "Creating..." : "Create thread"}
-    </button>
+    <div class="mt-4 flex justify-end">
+      <button
+        class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+        disabled={creatingThread}
+        type="submit"
+      >
+        {creatingThread ? "Creating..." : "Create thread"}
+      </button>
+    </div>
   </form>
 {/if}
 
 {#if loading}
-  <p class="mt-6 text-sm text-gray-400">Loading threads...</p>
+  <div
+    class="mt-12 flex items-center justify-center gap-2 text-sm text-gray-400"
+  >
+    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle
+        class="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        stroke-width="4"
+      ></circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+    Loading threads...
+  </div>
 {:else if threads.length === 0}
-  <p class="mt-6 text-sm text-gray-400">
-    No threads match the current filters.
-  </p>
+  <div class="mt-8 text-center">
+    <svg
+      class="mx-auto h-8 w-8 text-gray-300"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="1.5"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+      />
+    </svg>
+    <p class="mt-2 text-sm text-gray-400">
+      No threads match the current filters.
+    </p>
+  </div>
 {:else}
-  <div class="mt-4 overflow-hidden rounded-lg border border-gray-200 bg-white">
-    {#each threads as thread, i}
+  <div class="mt-4 space-y-1">
+    {#each threads as thread}
       {@const staleness = computeStaleness(thread)}
       <a
-        class="flex items-center gap-3 border-b border-gray-100 px-4 py-3 transition-colors hover:bg-gray-50 {i ===
-        threads.length - 1
-          ? 'border-b-0'
-          : ''}"
+        class="flex items-center gap-3 rounded-lg border border-gray-200/80 bg-white px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:border-gray-300/80 hover:shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
         href={`/threads/${thread.id}`}
       >
         <span
@@ -399,30 +471,33 @@
           <p class="truncate text-sm font-medium text-gray-900">
             {thread.title}
           </p>
-          <p class="mt-0.5 truncate text-xs text-gray-500">
+          <p class="mt-0.5 truncate text-[13px] text-gray-500">
             {thread.current_summary}
           </p>
         </div>
-        <div class="flex shrink-0 items-center gap-3 text-xs">
-          <span class="capitalize {statusColor(thread.status)}"
-            >{thread.status}</span
+        <div class="flex shrink-0 items-center gap-2 text-xs">
+          <span
+            class="rounded-md px-2 py-0.5 font-medium capitalize {statusBadge(
+              thread.status,
+            )}">{thread.status}</span
           >
           <span
-            class="hidden rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 sm:inline"
+            class="hidden rounded-md bg-gray-50 px-2 py-0.5 text-gray-500 sm:inline"
             >{formatCadenceLabel(thread.cadence, {
               includeExpression: false,
             })}</span
           >
           {#if (thread.tags ?? []).length > 0}
             <span
-              class="hidden rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 sm:inline"
+              class="hidden rounded-md bg-gray-50 px-2 py-0.5 text-gray-500 sm:inline"
               >{thread.tags[0]}{thread.tags.length > 1
                 ? ` +${thread.tags.length - 1}`
                 : ""}</span
             >
           {/if}
           {#if staleness.stale}
-            <span class="rounded bg-red-50 px-1.5 py-0.5 text-red-600"
+            <span
+              class="rounded-md bg-red-50 px-2 py-0.5 font-medium text-red-600"
               >Stale</span
             >
           {/if}

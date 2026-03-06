@@ -368,6 +368,7 @@ func runtimeSupportedCommandIDs() map[string]struct{} {
 		"packets.work-orders.create": {},
 		"packets.receipts.create":    {},
 		"packets.reviews.create":     {},
+		"threads.context":            {},
 		"derived.rebuild":            {},
 		"meta.commands.list":         {},
 		"meta.commands.get":          {},

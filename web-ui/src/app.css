@@ -16,8 +16,8 @@
 
 body {
   margin: 0;
-  background: #f9fafb;
-  color: #111827;
+  background: #f8f9fb;
+  color: #1a1d23;
   font-size: 14px;
   line-height: 1.5;
 }
@@ -38,5 +38,21 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Scrollbar styling for a cleaner look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
 }

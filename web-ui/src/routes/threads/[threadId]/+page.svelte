@@ -690,48 +690,99 @@
 </script>
 
 <nav
-  class="mb-3 flex items-center gap-1.5 text-sm text-gray-400"
+  class="mb-4 flex items-center gap-1.5 text-sm text-gray-400"
   aria-label="Breadcrumb"
 >
-  <a class="hover:text-gray-600" href="/threads">Threads</a>
-  <span class="text-gray-300">/</span>
-  <span class="truncate text-gray-700">{snapshot?.title || threadId}</span>
+  <a class="transition-colors hover:text-gray-600" href="/threads">Threads</a>
+  <svg
+    class="h-3 w-3 text-gray-300"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    stroke-width="2"
+  >
+    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+  </svg>
+  <span class="truncate text-gray-600">{snapshot?.title || threadId}</span>
 </nav>
 
 {#if snapshotLoading}
-  <p class="text-sm text-gray-400">Loading...</p>
+  <div
+    class="mt-12 flex items-center justify-center gap-2 text-sm text-gray-400"
+  >
+    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle
+        class="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        stroke-width="4"
+      ></circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+    Loading...
+  </div>
 {:else if snapshotError}
-  <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+  <div
+    class="flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+  >
+    <svg
+      class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+      />
+    </svg>
     {snapshotError}
-  </p>
+  </div>
 {:else if !snapshot}
-  <p class="text-sm text-gray-400">Thread not found.</p>
+  <div class="mt-8 text-center">
+    <p class="text-sm text-gray-400">Thread not found.</p>
+  </div>
 {:else}
   <div class="flex items-start justify-between gap-4">
-    <h1 class="text-lg font-semibold text-gray-900">{snapshot.title}</h1>
-    <div class="flex shrink-0 items-center gap-2 text-xs">
-      <span class="rounded bg-gray-100 px-2 py-0.5 capitalize text-gray-600"
-        >{snapshot.status}</span
+    <h1 class="text-xl font-semibold text-gray-900">{snapshot.title}</h1>
+    <div class="flex shrink-0 items-center gap-2">
+      <span
+        class="rounded-md px-2 py-0.5 text-xs font-medium capitalize {snapshot.status ===
+        'active'
+          ? 'bg-emerald-50 text-emerald-700'
+          : snapshot.status === 'paused'
+            ? 'bg-amber-50 text-amber-700'
+            : 'bg-gray-100 text-gray-500'}">{snapshot.status}</span
       >
-      <span class="rounded bg-gray-100 px-2 py-0.5 text-gray-600"
+      <span
+        class="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
         >{getPriorityLabel(snapshot.priority)}</span
       >
     </div>
   </div>
 
   <nav
-    class="mt-3 flex gap-0 border-b border-gray-200"
+    class="mt-4 flex gap-0 border-b border-gray-200"
     aria-label="Thread sections"
   >
     {#each [["overview", "Overview"], ["work", "Work"], ["timeline", "Timeline"]] as [tabId, tabLabel]}
       <button
-        class={`relative px-3 py-2 text-sm font-medium transition-colors ${activeTab === tabId ? "text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+        class={`relative px-4 py-2.5 text-[13px] font-medium transition-colors ${activeTab === tabId ? "text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
         onclick={() => (activeTab = tabId)}
         type="button"
       >
         {tabLabel}
         {#if activeTab === tabId}
-          <span class="absolute inset-x-0 -bottom-px h-0.5 bg-indigo-600"
+          <span
+            class="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-indigo-600"
           ></span>
         {/if}
       </button>
@@ -740,29 +791,53 @@
 
   {#if activeTab === "overview"}
     {#if conflictWarning}
-      <p class="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+      <div
+        class="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-700"
+      >
+        <svg
+          class="h-4 w-4 shrink-0 text-amber-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+          />
+        </svg>
         {conflictWarning}
-      </p>
+      </div>
     {/if}
     {#if editNotice}
-      <p
-        class="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
+      <div
+        class="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3 text-xs text-emerald-700"
       >
+        <svg
+          class="h-4 w-4 shrink-0 text-emerald-400"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
         {editNotice}
-      </p>
+      </div>
     {/if}
 
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
+    <div class="mt-4 rounded-xl border border-gray-200/80 bg-white shadow-sm">
       <div
-        class="flex items-center justify-between border-b border-gray-100 px-4 py-2.5"
+        class="flex items-center justify-between border-b border-gray-100 px-5 py-3"
       >
-        <h2
-          class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-        >
-          Details
-        </h2>
+        <h2 class="text-sm font-medium text-gray-900">Details</h2>
         <button
-          class="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+          class="rounded-md px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
           onclick={editOpen ? cancelEdit : beginEdit}
           type="button"
         >
@@ -771,40 +846,43 @@
       </div>
 
       <div
-        class="grid grid-cols-2 gap-x-6 gap-y-2 px-4 py-3 text-sm sm:grid-cols-4"
+        class="grid grid-cols-2 gap-x-6 gap-y-3 px-5 py-4 text-sm sm:grid-cols-4"
       >
         <div>
-          <p class="text-xs text-gray-400">Type</p>
-          <p class="capitalize text-gray-900">{snapshot.type}</p>
+          <p class="text-xs font-medium text-gray-400">Type</p>
+          <p class="mt-0.5 capitalize text-gray-900">{snapshot.type}</p>
         </div>
         <div>
-          <p class="text-xs text-gray-400">Cadence</p>
-          <p class="text-gray-900">{formatCadenceLabel(snapshot.cadence)}</p>
+          <p class="text-xs font-medium text-gray-400">Cadence</p>
+          <p class="mt-0.5 text-gray-900">
+            {formatCadenceLabel(snapshot.cadence)}
+          </p>
         </div>
         <div>
-          <p class="text-xs text-gray-400">Next check-in</p>
-          <p class="text-gray-900">
+          <p class="text-xs font-medium text-gray-400">Next check-in</p>
+          <p class="mt-0.5 text-gray-900">
             {snapshot.next_check_in_at
               ? formatTimestamp(snapshot.next_check_in_at)
               : "—"}
           </p>
         </div>
         <div>
-          <p class="text-xs text-gray-400">Updated</p>
-          <p class="text-gray-900">
-            {formatTimestamp(snapshot.updated_at) || "—"} by {actorName(
-              snapshot.updated_by,
-            )}
+          <p class="text-xs font-medium text-gray-400">Updated</p>
+          <p class="mt-0.5 text-gray-900">
+            {formatTimestamp(snapshot.updated_at) || "—"}
+          </p>
+          <p class="text-xs text-gray-400">
+            by {actorName(snapshot.updated_by)}
           </p>
         </div>
       </div>
 
       {#if (snapshot.tags ?? []).length > 0}
-        <div class="border-t border-gray-100 px-4 py-2.5">
+        <div class="border-t border-gray-100 px-5 py-3">
           <div class="flex flex-wrap gap-1.5">
             {#each snapshot.tags ?? [] as tag}
               <span
-                class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+                class="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600"
                 >{tag}</span
               >
             {/each}
@@ -812,26 +890,33 @@
         </div>
       {/if}
 
-      <div class="border-t border-gray-100 px-4 py-3">
-        <p class="text-xs text-gray-400">Summary</p>
-        <p class="mt-1 text-sm text-gray-800">{snapshot.current_summary}</p>
+      <div class="border-t border-gray-100 px-5 py-4">
+        <p class="text-xs font-medium text-gray-400">Summary</p>
+        <p class="mt-1.5 text-sm leading-relaxed text-gray-800">
+          {snapshot.current_summary}
+        </p>
       </div>
 
       {#if (snapshot.next_actions ?? []).length > 0}
-        <div class="border-t border-gray-100 px-4 py-3">
-          <p class="text-xs text-gray-400">Next actions</p>
-          <ul class="mt-1 list-inside list-disc text-sm text-gray-800">
-            {#each snapshot.next_actions ?? [] as action}<li>
+        <div class="border-t border-gray-100 px-5 py-4">
+          <p class="text-xs font-medium text-gray-400">Next actions</p>
+          <ul class="mt-1.5 space-y-1 text-sm text-gray-800">
+            {#each snapshot.next_actions ?? [] as action}
+              <li class="flex items-start gap-2">
+                <span
+                  class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300"
+                ></span>
                 {action}
-              </li>{/each}
+              </li>
+            {/each}
           </ul>
         </div>
       {/if}
 
       {#if (snapshot.key_artifacts ?? []).length > 0}
-        <div class="border-t border-gray-100 px-4 py-3">
-          <p class="text-xs text-gray-400">Key artifacts</p>
-          <div class="mt-1 flex flex-wrap gap-2 text-sm">
+        <div class="border-t border-gray-100 px-5 py-4">
+          <p class="text-xs font-medium text-gray-400">Key artifacts</p>
+          <div class="mt-1.5 flex flex-wrap gap-2 text-sm">
             {#each snapshot.key_artifacts ?? [] as artifactId}
               <RefLink
                 refValue={normalizeKeyArtifactRef(artifactId)}
@@ -842,17 +927,17 @@
         </div>
       {/if}
 
-      <div class="border-t border-gray-100 px-4 py-2.5">
+      <div class="border-t border-gray-100 px-5 py-3">
         <ProvenanceBadge provenance={snapshot.provenance} />
       </div>
 
       <details class="border-t border-gray-100">
         <summary
-          class="cursor-pointer px-4 py-2.5 text-xs text-gray-400 hover:text-gray-600"
+          class="cursor-pointer px-5 py-3 text-xs text-gray-400 transition-colors hover:text-gray-600"
           >Raw JSON</summary
         >
         <pre
-          class="overflow-auto px-4 pb-3 text-[11px] text-gray-600">{JSON.stringify(
+          class="overflow-auto px-5 pb-4 text-[11px] text-gray-500">{JSON.stringify(
             snapshot,
             null,
             2,
@@ -862,22 +947,22 @@
 
     {#if editOpen && editDraft}
       <form
-        class="mt-3 rounded-lg border border-gray-200 bg-white p-4"
+        class="mt-3 rounded-xl border border-gray-200/80 bg-white p-5 shadow-sm"
         onsubmit={(event) => {
           event.preventDefault();
           void saveEdit();
         }}
       >
-        {#if editError}<p
-            class="mb-3 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+        {#if editError}<div
+            class="mb-4 rounded-lg bg-red-50 px-4 py-2.5 text-xs text-red-700"
           >
             {editError}
-          </p>{/if}
-        <div class="grid gap-3 sm:grid-cols-2">
+          </div>{/if}
+        <div class="grid gap-4 sm:grid-cols-2">
           <label class="text-xs font-medium text-gray-600 sm:col-span-2"
             >Title <input
               bind:value={editDraft.title}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               required
               type="text"
             /></label
@@ -885,7 +970,7 @@
           <label class="text-xs font-medium text-gray-600"
             >Type <select
               bind:value={editDraft.type}
-              class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
               ><option value="case">case</option><option value="process"
                 >process</option
               ><option value="relationship">relationship</option><option
@@ -898,7 +983,7 @@
           <label class="text-xs font-medium text-gray-600"
             >Status <select
               bind:value={editDraft.status}
-              class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
               ><option value="active">active</option><option value="paused"
                 >paused</option
               ><option value="closed">closed</option></select
@@ -907,7 +992,7 @@
           <label class="text-xs font-medium text-gray-600"
             >Priority <select
               bind:value={editDraft.priority}
-              class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
               ><option value="p0">Critical (P0)</option><option value="p1"
                 >High (P1)</option
               ><option value="p2">Medium (P2)</option><option value="p3"
@@ -918,7 +1003,7 @@
           <label class="text-xs font-medium text-gray-600"
             >Schedule <select
               bind:value={editDraft.cadencePreset}
-              class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
               >{#each THREAD_SCHEDULE_PRESETS as cadence}
                 <option value={cadence}
                   >{THREAD_SCHEDULE_PRESET_LABELS[cadence]}</option
@@ -930,58 +1015,56 @@
             <label class="text-xs font-medium text-gray-600"
               >Cron expression <input
                 bind:value={editDraft.cadenceCron}
-                class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
                 placeholder="0 9 * * *"
                 type="text"
-              /><span class="mt-1 block text-[11px] text-gray-400"
-                >Use five cron fields in server timezone.</span
-              ></label
+              /></label
             >
           {/if}
           <label class="text-xs font-medium text-gray-600"
             >Next check-in <input
               bind:value={editDraft.next_check_in_at}
-              class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
               type="datetime-local"
             /></label
           >
           <label class="text-xs font-medium text-gray-600"
             >Tags (one per line) <textarea
               bind:value={editDraft.tagsInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600 sm:col-span-2"
             >Summary <textarea
               bind:value={editDraft.current_summary}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600 sm:col-span-2"
             >Next actions (one per line) <textarea
               bind:value={editDraft.nextActionsInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600 sm:col-span-2"
             >Key artifacts (one per line) <textarea
               bind:value={editDraft.keyArtifactsInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
         </div>
-        <div class="mt-3 flex gap-2">
+        <div class="mt-4 flex gap-2">
           <button
-            class="rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
             disabled={savingEdit}
             type="submit">{savingEdit ? "Saving..." : "Save changes"}</button
           >
           <button
-            class="rounded px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
+            class="rounded-md px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100"
             onclick={cancelEdit}
             type="button">Cancel</button
           >
@@ -990,51 +1073,71 @@
     {/if}
 
     <!-- Commitments -->
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white">
+    <div class="mt-4 rounded-xl border border-gray-200/80 bg-white shadow-sm">
       <div
-        class="flex items-center justify-between border-b border-gray-100 px-4 py-2.5"
+        class="flex items-center justify-between border-b border-gray-100 px-5 py-3"
       >
-        <h2
-          class="text-xs font-semibold uppercase tracking-wider text-gray-400"
-        >
-          Commitments
-        </h2>
+        <h2 class="text-sm font-medium text-gray-900">Commitments</h2>
         <button
-          class="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+          class="inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
           onclick={() => (commitmentFormOpen = !commitmentFormOpen)}
-          type="button">{commitmentFormOpen ? "Cancel" : "New"}</button
+          type="button"
         >
+          {#if !commitmentFormOpen}
+            <svg
+              class="h-3 w-3"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+          {/if}
+          {commitmentFormOpen ? "Cancel" : "Add"}
+        </button>
       </div>
 
-      {#if commitmentConflictWarning}<p
-          class="border-b border-gray-100 bg-amber-50 px-4 py-2 text-xs text-amber-700"
+      {#if commitmentConflictWarning}
+        <div
+          class="border-b border-gray-100 bg-amber-50 px-5 py-2.5 text-xs text-amber-700"
         >
           {commitmentConflictWarning}
-        </p>{/if}
-      {#if createCommitmentNotice}<p
-          class="border-b border-gray-100 bg-emerald-50 px-4 py-2 text-xs text-emerald-700"
+        </div>
+      {/if}
+      {#if createCommitmentNotice}
+        <div
+          class="border-b border-gray-100 bg-emerald-50 px-5 py-2.5 text-xs text-emerald-700"
         >
           {createCommitmentNotice}
-        </p>{/if}
+        </div>
+      {/if}
 
       {#if commitmentFormOpen}
         <form
-          class="border-b border-gray-100 px-4 py-3"
+          class="border-b border-gray-100 px-5 py-4"
           onsubmit={(event) => {
             event.preventDefault();
             void createCommitment();
           }}
         >
-          {#if createCommitmentError}<p
-              class="mb-2 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+          {#if createCommitmentError}
+            <div
+              class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
             >
               {createCommitmentError}
-            </p>{/if}
-          <div class="grid gap-2 sm:grid-cols-2">
+            </div>
+          {/if}
+          <div class="grid gap-3 sm:grid-cols-2">
             <label class="text-xs font-medium text-gray-600 sm:col-span-2"
               >Title <input
                 bind:value={createCommitmentDraft.title}
-                class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
+                placeholder="What needs to be done?"
                 required
                 type="text"
               /></label
@@ -1042,7 +1145,7 @@
             <label class="text-xs font-medium text-gray-600"
               >Owner <select
                 bind:value={createCommitmentDraft.owner}
-                class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
                 required
                 ><option disabled value="">Select</option
                 >{#each $actorRegistry as actor}<option value={actor.id}
@@ -1053,7 +1156,7 @@
             <label class="text-xs font-medium text-gray-600"
               >Due date <input
                 bind:value={createCommitmentDraft.due_at}
-                class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
                 required
                 type="datetime-local"
               /></label
@@ -1061,31 +1164,36 @@
             <label class="text-xs font-medium text-gray-600 sm:col-span-2"
               >Completion criteria (one per line) <textarea
                 bind:value={createCommitmentDraft.definitionOfDoneInput}
-                class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
                 rows="2"
               ></textarea></label
             >
           </div>
-          <button
-            class="mt-2 rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-            disabled={creatingCommitment}
-            type="submit"
-            >{creatingCommitment ? "Creating..." : "Create"}</button
-          >
+          <div class="mt-3 flex justify-end">
+            <button
+              class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+              disabled={creatingCommitment}
+              type="submit"
+              >{creatingCommitment
+                ? "Creating..."
+                : "Create commitment"}</button
+            >
+          </div>
         </form>
       {/if}
 
       {#if commitmentsLoading}
-        <p class="px-4 py-3 text-xs text-gray-400">Loading...</p>
+        <div class="px-5 py-6 text-center text-xs text-gray-400">
+          Loading commitments...
+        </div>
       {:else if openCommitments.length === 0}
-        <p class="px-4 py-3 text-sm text-gray-400">No open commitments.</p>
+        <div class="px-5 py-6 text-center text-sm text-gray-400">
+          No open commitments
+        </div>
       {:else}
-        {#each openCommitments as commitment, i}
+        {#each openCommitments as commitment}
           <div
-            class="border-b border-gray-100 px-4 py-3 {i ===
-            openCommitments.length - 1
-              ? 'border-b-0'
-              : ''}"
+            class="border-b border-gray-100 px-5 py-3.5 last:border-b-0"
             id={`commitment-card-${commitment.id}`}
           >
             <div class="flex items-start justify-between gap-2">
@@ -1101,11 +1209,11 @@
               </div>
               <div class="flex shrink-0 items-center gap-2">
                 <span
-                  class={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(commitment.status)}`}
+                  class={`rounded-md px-2 py-0.5 text-xs font-medium ${statusBadgeClass(commitment.status)}`}
                   >{commitment.status}</span
                 >
                 <button
-                  class="text-xs text-gray-400 hover:text-gray-600"
+                  class="rounded-md px-2 py-1 text-xs text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                   onclick={() =>
                     editingCommitmentId === commitment.id
                       ? cancelCommitmentEdit()
@@ -1118,15 +1226,20 @@
             </div>
 
             {#if (commitment.definition_of_done ?? []).length > 0}
-              <ul class="mt-1.5 list-inside list-disc text-xs text-gray-600">
-                {#each commitment.definition_of_done ?? [] as item}<li>
+              <ul class="mt-2 space-y-0.5 text-xs text-gray-600">
+                {#each commitment.definition_of_done ?? [] as item}
+                  <li class="flex items-start gap-2">
+                    <span
+                      class="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300"
+                    ></span>
                     {item}
-                  </li>{/each}
+                  </li>
+                {/each}
               </ul>
             {/if}
 
             {#if (commitment.links ?? []).length > 0}
-              <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+              <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
                 {#each commitment.links ?? [] as refValue}<RefLink
                     {refValue}
                     {threadId}
@@ -1136,27 +1249,31 @@
 
             {#if editingCommitmentId === commitment.id && editCommitmentDraft}
               <form
-                class="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+                class="mt-3 rounded-lg border border-gray-100 bg-gray-50 p-4"
                 onsubmit={(event) => {
                   event.preventDefault();
                   void saveCommitmentEdit(commitment.id);
                 }}
               >
-                {#if editCommitmentError}<p
-                    class="mb-2 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+                {#if editCommitmentError}
+                  <div
+                    class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
                   >
                     {editCommitmentError}
-                  </p>{/if}
-                {#if editCommitmentNotice}<p
-                    class="mb-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+                  </div>
+                {/if}
+                {#if editCommitmentNotice}
+                  <div
+                    class="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
                   >
                     {editCommitmentNotice}
-                  </p>{/if}
-                <div class="grid gap-2 sm:grid-cols-2">
+                  </div>
+                {/if}
+                <div class="grid gap-3 sm:grid-cols-2">
                   <label class="text-xs font-medium text-gray-600 sm:col-span-2"
                     >Title <input
                       bind:value={editCommitmentDraft.title}
-                      class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                      class="mt-1.5 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
                       required
                       type="text"
                     /></label
@@ -1164,7 +1281,7 @@
                   <label class="text-xs font-medium text-gray-600"
                     >Owner <select
                       bind:value={editCommitmentDraft.owner}
-                      class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                      class="mt-1.5 w-full rounded-md border border-gray-200 bg-white px-2.5 py-2 text-sm"
                       required
                       ><option disabled value="">Select</option
                       >{#each $actorRegistry as actor}<option value={actor.id}
@@ -1175,7 +1292,7 @@
                   <label class="text-xs font-medium text-gray-600"
                     >Due date <input
                       bind:value={editCommitmentDraft.due_at}
-                      class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                      class="mt-1.5 w-full rounded-md border border-gray-200 bg-white px-2.5 py-2 text-sm"
                       required
                       type="datetime-local"
                     /></label
@@ -1183,7 +1300,7 @@
                   <label class="text-xs font-medium text-gray-600"
                     >Status <select
                       bind:value={editCommitmentDraft.status}
-                      class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                      class="mt-1.5 w-full rounded-md border border-gray-200 bg-white px-2.5 py-2 text-sm"
                       ><option value="open">open</option><option value="blocked"
                         >blocked</option
                       ><option value="done">done</option><option
@@ -1201,7 +1318,7 @@
                   <label class="text-xs font-medium text-gray-600 sm:col-span-2"
                     >Evidence link <input
                       bind:value={editCommitmentDraft.statusRefInput}
-                      class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                      class="mt-1.5 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
                       placeholder="artifact:receipt-123 or event:decision-456"
                       type="text"
                     /></label
@@ -1209,27 +1326,27 @@
                   <label class="text-xs font-medium text-gray-600 sm:col-span-2"
                     >Completion criteria (one per line) <textarea
                       bind:value={editCommitmentDraft.definitionOfDoneInput}
-                      class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                      class="mt-1.5 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
                       rows="2"
                     ></textarea></label
                   >
                   <label class="text-xs font-medium text-gray-600 sm:col-span-2"
                     >Links (one per line) <textarea
                       bind:value={editCommitmentDraft.linksInput}
-                      class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                      class="mt-1.5 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
                       rows="2"
                     ></textarea></label
                   >
                 </div>
-                <div class="mt-2 flex gap-2">
+                <div class="mt-3 flex gap-2">
                   <button
-                    class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                    class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
                     disabled={savingCommitmentEdit}
                     type="submit"
                     >{savingCommitmentEdit ? "Saving..." : "Save"}</button
                   >
                   <button
-                    class="rounded px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
+                    class="rounded-md px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100"
                     onclick={cancelCommitmentEdit}
                     type="button">Cancel</button
                   >
@@ -1244,84 +1361,146 @@
 
   {#if activeTab === "work"}
     <!-- Work Order -->
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">
-        New Work Order
-      </h2>
-      <p class="mt-0.5 text-xs text-gray-500">
+    <div
+      class="mt-4 rounded-xl border border-gray-200/80 bg-white p-5 shadow-sm"
+    >
+      <h2 class="text-sm font-medium text-gray-900">New Work Order</h2>
+      <p class="mt-0.5 text-[13px] text-gray-500">
         Create a new work order for this thread.
       </p>
-      {#if workOrderPrefillNotice}<p
-          class="mt-2 rounded bg-indigo-50 px-3 py-1.5 text-xs text-indigo-700"
+      {#if workOrderPrefillNotice}
+        <div
+          class="mt-3 flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700"
         >
+          <svg
+            class="h-3.5 w-3.5 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
           {workOrderPrefillNotice}
-        </p>{/if}
-      {#if workOrderErrors.length > 0}<ul
-          class="mt-2 list-inside list-disc rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+        </div>
+      {/if}
+      {#if workOrderErrors.length > 0}
+        <ul
+          class="mt-3 list-inside list-disc rounded-lg bg-red-50 px-4 py-2.5 text-xs text-red-700"
         >
           {#each workOrderErrors as e}<li>{e}</li>{/each}
-        </ul>{/if}
-      {#if workOrderNotice}<p
-          class="mt-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+        </ul>
+      {/if}
+      {#if workOrderNotice}
+        <div
+          class="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
         >
+          <svg
+            class="h-3.5 w-3.5 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
           {workOrderNotice}
-        </p>{/if}
+        </div>
+      {/if}
       {#if workOrderDraft}
         <form
-          class="mt-3 grid gap-3"
+          class="mt-4 grid gap-4"
           onsubmit={(event) => {
             event.preventDefault();
             void submitWorkOrder();
           }}
         >
           <label class="text-xs font-medium text-gray-600"
-            >Work order objective <textarea
+            >Objective <textarea
               bind:value={workOrderDraft.objective}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
+              placeholder="What should be accomplished?"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600"
-            >Constraints (one per line) <textarea
+            >Constraints <span class="font-normal text-gray-400"
+              >one per line</span
+            >
+            <textarea
               bind:value={workOrderDraft.constraintsInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600"
-            >Context references (one per line) <textarea
+            >Context references <span class="font-normal text-gray-400"
+              >one per line</span
+            >
+            <textarea
               bind:value={workOrderDraft.contextRefsInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600"
-            >Acceptance criteria (one per line) <textarea
+            >Acceptance criteria <span class="font-normal text-gray-400"
+              >one per line</span
+            >
+            <textarea
               bind:value={workOrderDraft.acceptanceCriteriaInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600"
-            >Definition of done (one per line) <textarea
+            >Definition of done <span class="font-normal text-gray-400"
+              >one per line</span
+            >
+            <textarea
               bind:value={workOrderDraft.definitionOfDoneInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
-          <button
-            class="w-fit rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-            disabled={creatingWorkOrder}
-            type="submit"
-            >{creatingWorkOrder ? "Creating..." : "Create work order"}</button
-          >
+          <div class="flex justify-end">
+            <button
+              class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+              disabled={creatingWorkOrder}
+              type="submit"
+              >{creatingWorkOrder ? "Creating..." : "Create work order"}</button
+            >
+          </div>
         </form>
       {/if}
       {#if createdWorkOrder}
-        <div class="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3">
-          <p class="text-xs text-gray-500">
+        <div
+          class="mt-3 flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
+        >
+          <svg
+            class="h-4 w-4 text-emerald-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <p class="text-xs text-gray-600">
             Created: <a
-              class="text-indigo-600 underline"
+              class="font-medium text-indigo-600 hover:text-indigo-700"
               href={`/artifacts/${createdWorkOrder.id}`}
               >{createdWorkOrder.summary || createdWorkOrder.id}</a
             >
@@ -1331,31 +1510,50 @@
     </div>
 
     <!-- Receipt -->
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">
-        Add Receipt
-      </h2>
-      <p class="mt-0.5 text-xs text-gray-500">
+    <div
+      class="mt-4 rounded-xl border border-gray-200/80 bg-white p-5 shadow-sm"
+    >
+      <h2 class="text-sm font-medium text-gray-900">Add Receipt</h2>
+      <p class="mt-0.5 text-[13px] text-gray-500">
         Submit a receipt tied to an existing work order.
       </p>
-      {#if workOrdersError}<p
-          class="mt-2 rounded bg-amber-50 px-3 py-1.5 text-xs text-amber-700"
+      {#if workOrdersError}
+        <div
+          class="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700"
         >
           {workOrdersError}
-        </p>{/if}
-      {#if receiptErrors.length > 0}<ul
-          class="mt-2 list-inside list-disc rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+        </div>
+      {/if}
+      {#if receiptErrors.length > 0}
+        <ul
+          class="mt-3 list-inside list-disc rounded-lg bg-red-50 px-4 py-2.5 text-xs text-red-700"
         >
           {#each receiptErrors as e}<li>{e}</li>{/each}
-        </ul>{/if}
-      {#if receiptNotice}<p
-          class="mt-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+        </ul>
+      {/if}
+      {#if receiptNotice}
+        <div
+          class="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
         >
+          <svg
+            class="h-3.5 w-3.5 shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
           {receiptNotice}
-        </p>{/if}
+        </div>
+      {/if}
       {#if receiptDraft}
         <form
-          class="mt-3 grid gap-3"
+          class="mt-4 grid gap-4"
           onsubmit={(event) => {
             event.preventDefault();
             void submitReceipt();
@@ -1364,7 +1562,7 @@
           <label class="text-xs font-medium text-gray-600"
             >Work order <select
               bind:value={receiptDraft.workOrderId}
-              class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
               required
               ><option value="">Select work order</option
               >{#each workOrderArtifacts as wo}<option value={wo.id}
@@ -1373,46 +1571,71 @@
             ></label
           >
           <label class="text-xs font-medium text-gray-600"
-            >Outputs (one per line) <textarea
+            >Outputs <span class="font-normal text-gray-400">one per line</span>
+            <textarea
               bind:value={receiptDraft.outputsInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600"
-            >Verification evidence (one per line) <textarea
+            >Verification evidence <span class="font-normal text-gray-400"
+              >one per line</span
+            >
+            <textarea
               bind:value={receiptDraft.verificationEvidenceInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600"
             >Changes summary <textarea
               bind:value={receiptDraft.changesSummary}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
+              placeholder="What changed?"
               rows="2"
             ></textarea></label
           >
           <label class="text-xs font-medium text-gray-600"
-            >Known gaps (one per line) <textarea
+            >Known gaps <span class="font-normal text-gray-400"
+              >one per line</span
+            >
+            <textarea
               bind:value={receiptDraft.knownGapsInput}
-              class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+              class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
               rows="2"
             ></textarea></label
           >
-          <button
-            class="w-fit rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-            disabled={creatingReceipt || workOrderArtifacts.length === 0}
-            type="submit"
-            >{creatingReceipt ? "Submitting..." : "Submit receipt"}</button
-          >
+          <div class="flex justify-end">
+            <button
+              class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+              disabled={creatingReceipt || workOrderArtifacts.length === 0}
+              type="submit"
+              >{creatingReceipt ? "Submitting..." : "Submit receipt"}</button
+            >
+          </div>
         </form>
       {/if}
       {#if createdReceipt}
-        <div class="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3">
-          <p class="text-xs text-gray-500">
+        <div
+          class="mt-3 flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
+        >
+          <svg
+            class="h-4 w-4 text-emerald-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+          <p class="text-xs text-gray-600">
             Submitted: <a
-              class="text-indigo-600 underline"
+              class="font-medium text-indigo-600 hover:text-indigo-700"
               href={`/artifacts/${createdReceipt.id}`}
               >{createdReceipt.summary || createdReceipt.id}</a
             >
@@ -1424,32 +1647,49 @@
 
   {#if activeTab === "timeline"}
     <!-- Post Message -->
-    <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
-      {#if postMessageError}<p
-          class="mb-3 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
-        >
+    <div
+      class="mt-4 rounded-xl border border-gray-200/80 bg-white p-4 shadow-sm"
+    >
+      {#if postMessageError}
+        <div class="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
           {postMessageError}
-        </p>{/if}
+        </div>
+      {/if}
       <textarea
         bind:value={messageText}
-        class="w-full rounded border border-gray-200 px-3 py-2 text-sm"
+        class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm transition-colors focus:bg-white"
         id="message-text"
         placeholder="Write a message..."
         rows="2"
       ></textarea>
-      <div class="mt-2 flex items-center justify-between gap-2">
+      <div class="mt-2.5 flex items-center justify-between gap-2">
         <div class="flex items-center gap-2 text-xs text-gray-400">
           {#if replyToEventId}
-            <span>Replying to event</span>
+            <span class="flex items-center gap-1">
+              <svg
+                class="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                />
+              </svg>
+              Replying to event
+            </span>
             <button
-              class="text-indigo-600 hover:text-indigo-800"
+              class="font-medium text-indigo-600 hover:text-indigo-700"
               onclick={clearReplyTarget}
               type="button">Clear</button
             >
           {/if}
         </div>
         <button
-          class="rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
           disabled={!canPost}
           onclick={postMessage}
           type="button"
@@ -1460,76 +1700,129 @@
     </div>
 
     <!-- Timeline -->
-    <div class="mt-4">
-      <h2
-        class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400"
-      >
-        Timeline
-      </h2>
+    <div class="mt-5">
       {#if timelineLoading}
-        <p class="text-sm text-gray-400">Loading timeline...</p>
+        <div
+          class="flex items-center justify-center gap-2 py-8 text-sm text-gray-400"
+        >
+          <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle
+              class="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="4"
+            ></circle>
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            ></path>
+          </svg>
+          Loading timeline...
+        </div>
       {:else if timelineError}
-        <p class="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div
+          class="flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+        >
+          <svg
+            class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+            />
+          </svg>
           {timelineError}
-        </p>
+        </div>
       {:else if timelineView.length === 0}
-        <p class="text-sm text-gray-400">No events yet.</p>
+        <div class="py-8 text-center text-sm text-gray-400">No events yet</div>
       {:else}
-        <div class="space-y-1">
+        <div class="relative space-y-0">
+          <!-- Timeline line -->
+          <div
+            class="absolute left-[11px] top-3 bottom-3 w-px bg-gray-200"
+          ></div>
+
           {#each timelineView as event}
             <div
-              class="group rounded-md border border-gray-200 bg-white px-4 py-2.5"
+              class="group relative flex gap-3 py-2.5"
               id={`event-${event.id}`}
             >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0 flex-1">
-                  <p class="text-sm text-gray-900">{event.summary}</p>
-                  <p class="mt-0.5 text-xs text-gray-400">
-                    {actorName(event.actor_id)} · {event.typeLabel} · {formatTimestamp(
-                      event.ts,
-                    ) || "—"}
-                  </p>
-                </div>
-                <button
-                  class="shrink-0 rounded px-2 py-0.5 text-xs text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100"
-                  onclick={() => setReplyTarget(event.id)}
-                  type="button">Reply</button
-                >
+              <!-- Timeline dot -->
+              <div
+                class="relative z-10 mt-1.5 flex h-[23px] w-[23px] shrink-0 items-center justify-center"
+              >
+                <span
+                  class="h-2 w-2 rounded-full {event.rawType === 'decision_made'
+                    ? 'bg-indigo-500'
+                    : event.rawType === 'exception_raised'
+                      ? 'bg-red-400'
+                      : event.rawType === 'message_posted'
+                        ? 'bg-blue-400'
+                        : 'bg-gray-300'}"
+                ></span>
               </div>
 
-              {#if event.changedFields.length > 0}
-                <div class="mt-1.5 flex flex-wrap gap-1 text-xs">
-                  {#each event.changedFields as field}
-                    <span
-                      class="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500"
-                      >{field}</span
-                    >
-                  {/each}
-                </div>
-              {/if}
-
-              {#if event.refs.length > 0}
-                <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
-                  {#each event.refs as refValue}<RefLink
-                      {refValue}
-                      {threadId}
-                    />{/each}
-                </div>
-              {/if}
-
-              {#if !event.isKnownType}
-                <details class="mt-1.5">
-                  <summary class="cursor-pointer text-xs text-gray-400"
-                    >Details</summary
+              <div
+                class="min-w-0 flex-1 rounded-lg border border-transparent px-3 py-2 transition-colors hover:border-gray-100 hover:bg-gray-50/50"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm text-gray-900">{event.summary}</p>
+                    <p class="mt-0.5 text-xs text-gray-400">
+                      {actorName(event.actor_id)} ·
+                      <span class="text-gray-300">{event.typeLabel}</span>
+                      · {formatTimestamp(event.ts) || "—"}
+                    </p>
+                  </div>
+                  <button
+                    class="shrink-0 rounded-md px-2 py-1 text-xs text-gray-400 opacity-0 transition-all hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100"
+                    onclick={() => setReplyTarget(event.id)}
+                    type="button">Reply</button
                   >
-                  <pre
-                    class="mt-1 overflow-auto rounded bg-gray-50 p-2 text-[11px] text-gray-600">{JSON.stringify(
-                      event.payload ?? {},
-                      null,
-                      2,
-                    )}</pre>
-                </details>
-              {/if}
+                </div>
+
+                {#if event.changedFields.length > 0}
+                  <div class="mt-1.5 flex flex-wrap gap-1 text-xs">
+                    {#each event.changedFields as field}
+                      <span
+                        class="rounded-md bg-gray-100 px-1.5 py-0.5 text-gray-500"
+                        >{field}</span
+                      >
+                    {/each}
+                  </div>
+                {/if}
+
+                {#if event.refs.length > 0}
+                  <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+                    {#each event.refs as refValue}<RefLink
+                        {refValue}
+                        {threadId}
+                      />{/each}
+                  </div>
+                {/if}
+
+                {#if !event.isKnownType}
+                  <details class="mt-1.5">
+                    <summary class="cursor-pointer text-xs text-gray-400"
+                      >Details</summary
+                    >
+                    <pre
+                      class="mt-1 overflow-auto rounded-md bg-gray-100 p-2.5 text-[11px] text-gray-600">{JSON.stringify(
+                        event.payload ?? {},
+                        null,
+                        2,
+                      )}</pre>
+                  </details>
+                {/if}
+              </div>
             </div>
           {/each}
         </div>

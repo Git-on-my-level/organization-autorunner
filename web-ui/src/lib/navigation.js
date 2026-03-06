@@ -1,7 +1,19 @@
 export const navigationItems = [
-  { label: "Inbox", href: "/inbox" },
-  { label: "Threads", href: "/threads" },
-  { label: "Artifacts", href: "/artifacts" },
+  {
+    label: "Inbox",
+    href: "/inbox",
+    icon: "inbox",
+  },
+  {
+    label: "Threads",
+    href: "/threads",
+    icon: "threads",
+  },
+  {
+    label: "Artifacts",
+    href: "/artifacts",
+    icon: "artifacts",
+  },
 ];
 
 export function isKnownSection(pathname) {

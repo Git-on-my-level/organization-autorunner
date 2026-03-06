@@ -108,118 +108,220 @@
       creatingActor = false;
     }
   }
+
+  function isActive(href) {
+    return (
+      $page.url.pathname === href || $page.url.pathname.startsWith(href + "/")
+    );
+  }
 </script>
 
-<div class="flex min-h-screen bg-gray-50 text-gray-900">
+<div class="flex min-h-screen">
   {#if !$actorSessionReady}
-    <main class="flex flex-1 items-center justify-center">
-      <p class="text-sm text-gray-500">Loading...</p>
+    <main class="flex flex-1 items-center justify-center bg-gray-50">
+      <div class="flex items-center gap-2 text-sm text-gray-400">
+        <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        Loading...
+      </div>
     </main>
   {:else if gateVisible}
-    <main class="flex flex-1 items-center justify-center p-8">
-      <section
-        class="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6"
-      >
-        <h1 class="text-lg font-semibold text-gray-900">
-          Choose your identity
-        </h1>
-        <p class="mt-1 text-sm text-gray-500">
-          Select an actor or create a new one to continue.
-        </p>
-
-        {#if actorError}
-          <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {actorError}
+    <main class="flex flex-1 items-center justify-center bg-gray-50 p-8">
+      <section class="w-full max-w-sm">
+        <div class="mb-8 text-center">
+          <div
+            class="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600"
+          >
+            <svg
+              class="h-5 w-5 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+          </div>
+          <h1 class="text-xl font-semibold text-gray-900">Welcome to OAR</h1>
+          <p class="mt-1 text-sm text-gray-500">
+            Select an identity to get started.
           </p>
-        {/if}
-
-        <div class="mt-5">
-          {#if loadingActors}
-            <p class="text-sm text-gray-400">Loading...</p>
-          {:else if $actorRegistry.length === 0}
-            <p class="text-sm text-gray-400">
-              No actors yet. Create one below.
-            </p>
-          {:else}
-            <ul class="space-y-1">
-              {#each $actorRegistry as actor}
-                <li>
-                  <button
-                    class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-                    onclick={() => selectActor(actor.id)}
-                    type="button"
-                  >
-                    <span
-                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
-                    >
-                      {(actor.display_name || "?").slice(0, 1).toUpperCase()}
-                    </span>
-                    <span class="font-medium text-gray-900"
-                      >{actor.display_name}</span
-                    >
-                  </button>
-                </li>
-              {/each}
-            </ul>
-          {/if}
         </div>
 
-        <form
-          class="mt-5 border-t border-gray-100 pt-5"
-          onsubmit={(event) => {
-            event.preventDefault();
-            createActor();
-          }}
-        >
-          <label
-            class="block text-sm font-medium text-gray-700"
-            for="actor-display-name"
-          >
-            New actor name
-          </label>
-          <div class="mt-1.5 flex gap-2">
-            <input
-              bind:value={newActorName}
-              class="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
-              id="actor-display-name"
-              name="actor-display-name"
-              placeholder="Jane Doe"
-              type="text"
-            />
-            <button
-              class="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-              disabled={creatingActor}
-              type="submit"
-            >
-              {creatingActor ? "Creating..." : "Create"}
-            </button>
+        {#if actorError}
+          <div class="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+            {actorError}
           </div>
-        </form>
+        {/if}
+
+        <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div class="p-1.5">
+            {#if loadingActors}
+              <div class="px-3 py-6 text-center text-sm text-gray-400">
+                Loading actors...
+              </div>
+            {:else if $actorRegistry.length === 0}
+              <div class="px-3 py-6 text-center text-sm text-gray-400">
+                No actors yet. Create one below.
+              </div>
+            {:else}
+              {#each $actorRegistry as actor}
+                <button
+                  class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-gray-50"
+                  onclick={() => selectActor(actor.id)}
+                  type="button"
+                >
+                  <span
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-xs font-semibold text-white"
+                  >
+                    {(actor.display_name || "?").slice(0, 1).toUpperCase()}
+                  </span>
+                  <span class="text-sm font-medium text-gray-900"
+                    >{actor.display_name}</span
+                  >
+                </button>
+              {/each}
+            {/if}
+          </div>
+
+          <form
+            class="border-t border-gray-100 p-4"
+            onsubmit={(event) => {
+              event.preventDefault();
+              createActor();
+            }}
+          >
+            <label
+              class="block text-xs font-medium text-gray-500"
+              for="actor-display-name"
+            >
+              Create new actor
+            </label>
+            <div class="mt-2 flex gap-2">
+              <input
+                bind:value={newActorName}
+                class="flex-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
+                id="actor-display-name"
+                name="actor-display-name"
+                placeholder="Enter a name..."
+                type="text"
+              />
+              <button
+                class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                disabled={creatingActor}
+                type="submit"
+              >
+                {creatingActor ? "..." : "Create"}
+              </button>
+            </div>
+          </form>
+        </div>
       </section>
     </main>
   {:else}
     <aside
-      class="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-white"
+      class="flex w-[220px] shrink-0 flex-col border-r border-gray-200/80 bg-white"
     >
-      <div class="px-4 pb-2 pt-5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">
-          OAR
-        </p>
+      <div class="flex items-center gap-2.5 px-5 py-4">
+        <div
+          class="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600"
+        >
+          <svg
+            class="h-3.5 w-3.5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            />
+          </svg>
+        </div>
+        <span class="text-[15px] font-semibold text-gray-900">OAR</span>
       </div>
 
-      <nav class="flex-1 px-2 py-1" aria-label="Primary">
+      <nav class="flex-1 px-3 py-1" aria-label="Primary">
         <ul class="space-y-0.5">
           {#each navigationItems as item}
+            {@const active = isActive(item.href)}
             <li>
               <a
-                class={`flex items-center rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                  $page.url.pathname === item.href ||
-                  $page.url.pathname.startsWith(item.href + "/")
+                class={`flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13px] font-medium transition-all ${
+                  active
                     ? "bg-indigo-50 text-indigo-700"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
                 href={item.href}
               >
+                {#if item.icon === "inbox"}
+                  <svg
+                    class="h-4 w-4 {active
+                      ? 'text-indigo-500'
+                      : 'text-gray-400'}"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+                    />
+                  </svg>
+                {:else if item.icon === "threads"}
+                  <svg
+                    class="h-4 w-4 {active
+                      ? 'text-indigo-500'
+                      : 'text-gray-400'}"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                    />
+                  </svg>
+                {:else if item.icon === "artifacts"}
+                  <svg
+                    class="h-4 w-4 {active
+                      ? 'text-indigo-500'
+                      : 'text-gray-400'}"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.75"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
+                  </svg>
+                {/if}
                 {item.label}
               </a>
             </li>
@@ -228,30 +330,42 @@
       </nav>
 
       <div class="border-t border-gray-100 px-3 py-3">
-        <div class="flex items-center gap-2">
-          <span
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
-          >
-            {initials}
-          </span>
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-[13px] font-medium text-gray-900">
-              {selectedActorName}
-            </p>
-          </div>
-        </div>
         <button
-          class="mt-2 w-full rounded-md px-2 py-1 text-left text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-50"
+          aria-label="Switch identity"
           onclick={switchIdentity}
           type="button"
         >
-          Switch identity
+          <span
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 text-[11px] font-semibold text-white"
+          >
+            {initials}
+          </span>
+          <div class="min-w-0 flex-1 text-left">
+            <p class="truncate text-[13px] font-medium text-gray-900">
+              {selectedActorName}
+            </p>
+            <p class="text-[11px] text-gray-400">Switch identity</p>
+          </div>
+          <svg
+            class="h-4 w-4 shrink-0 text-gray-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
+            />
+          </svg>
         </button>
       </div>
     </aside>
 
-    <main class="flex-1 overflow-y-auto px-8 py-6">
-      <div class="mx-auto max-w-4xl">
+    <main class="flex-1 overflow-y-auto bg-gray-50/50 px-8 py-6">
+      <div class="mx-auto max-w-3xl">
         {@render children?.()}
       </div>
     </main>
