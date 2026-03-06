@@ -32,7 +32,7 @@ var idPattern = regexp.MustCompile(`^[A-Za-z0-9._:@/-]+$`)
 
 const shortIDLength = 12
 const inboxAliasPrefix = "ibx_"
-const inboxAliasMinDigestLength = 6
+const inboxAliasDigestLength = 12
 
 type resourceIDLookupSpec struct {
 	idLabel        string
@@ -1819,35 +1819,14 @@ func inboxAliasByID(ids []string) map[string]string {
 	if len(ids) == 0 {
 		return map[string]string{}
 	}
-	digestByID := make(map[string]string, len(ids))
+	aliasByID := make(map[string]string, len(ids))
 	for _, id := range ids {
 		trimmed := strings.TrimSpace(id)
 		if trimmed == "" {
 			continue
 		}
-		digestByID[trimmed] = inboxAliasDigest(trimmed)
-	}
-	length := inboxAliasMinDigestLength
-	maxDigestLength := 40
-	for length < maxDigestLength {
-		countByPrefix := make(map[string]int, len(digestByID))
-		hasCollision := false
-		for _, digest := range digestByID {
-			prefix := digest[:length]
-			countByPrefix[prefix]++
-			if countByPrefix[prefix] > 1 {
-				hasCollision = true
-			}
-		}
-		if !hasCollision {
-			break
-		}
-		length++
-	}
-
-	aliasByID := make(map[string]string, len(digestByID))
-	for id, digest := range digestByID {
-		aliasByID[id] = inboxAliasPrefix + digest[:length]
+		digest := inboxAliasDigest(trimmed)
+		aliasByID[trimmed] = inboxAliasPrefix + digest[:inboxAliasDigestLength]
 	}
 	return aliasByID
 }

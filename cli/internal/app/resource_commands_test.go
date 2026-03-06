@@ -197,6 +197,25 @@ func TestInboxListIncludesAliasesAndLinkedShortIDs(t *testing.T) {
 	}
 }
 
+func TestInboxAliasStableAcrossListMembershipChanges(t *testing.T) {
+	t.Parallel()
+
+	const targetID = "inbox:decision_needed:thread_target:none:event_target"
+	const otherID = "inbox:decision_needed:thread_other:none:event_other"
+
+	aliasSingle := inboxAliasByID([]string{targetID})[targetID]
+	aliasWithOther := inboxAliasByID([]string{targetID, otherID})[targetID]
+	if aliasSingle != aliasWithOther {
+		t.Fatalf("expected alias to remain stable across list membership changes, single=%q with_other=%q", aliasSingle, aliasWithOther)
+	}
+	if !strings.HasPrefix(aliasSingle, inboxAliasPrefix) {
+		t.Fatalf("expected alias prefix %q, got %q", inboxAliasPrefix, aliasSingle)
+	}
+	if len(aliasSingle) != len(inboxAliasPrefix)+inboxAliasDigestLength {
+		t.Fatalf("expected alias length %d, got %d alias=%q", len(inboxAliasPrefix)+inboxAliasDigestLength, len(aliasSingle), aliasSingle)
+	}
+}
+
 func TestInboxGetByAliasTargetsSingleItem(t *testing.T) {
 	t.Parallel()
 
