@@ -429,6 +429,7 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 		recentEvents := make([]any, 0, len(threadIDs)*4)
 		keyArtifacts := make([]any, 0, len(threadIDs)*2)
 		openCommitments := make([]any, 0, len(threadIDs)*2)
+		seenContextThreadIDs := make(map[string]struct{}, len(threadIDs))
 		statusCode := http.StatusOK
 		headers := map[string][]string{"Content-Type": {"application/json"}}
 		capturedTransport := false
@@ -466,11 +467,23 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 			body["full_id"] = fullID
 
 			thread := asMap(body["thread"])
+			resolvedContextThreadID := strings.TrimSpace(anyString(body["thread_id"]))
+			if thread != nil {
+				resolvedContextThreadID = firstNonEmpty(strings.TrimSpace(anyString(thread["id"])), resolvedContextThreadID)
+			}
+			if resolvedContextThreadID == "" {
+				resolvedContextThreadID = strings.TrimSpace(threadID)
+			}
+			if resolvedContextThreadID != "" {
+				if _, exists := seenContextThreadIDs[resolvedContextThreadID]; exists {
+					continue
+				}
+				seenContextThreadIDs[resolvedContextThreadID] = struct{}{}
+				resolvedThreadIDs = append(resolvedThreadIDs, resolvedContextThreadID)
+			}
+
 			if thread != nil {
 				threadRecords = append(threadRecords, thread)
-				if resolved := strings.TrimSpace(anyString(thread["id"])); resolved != "" {
-					resolvedThreadIDs = append(resolvedThreadIDs, resolved)
-				}
 			}
 			contexts = append(contexts, body)
 			recentEvents = append(recentEvents, asSlice(body["recent_events"])...)

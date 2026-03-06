@@ -1643,6 +1643,67 @@ func TestThreadsContextCommandResolvesUniquePrefix(t *testing.T) {
 	}
 }
 
+func TestThreadsContextDeduplicatesResolvedDuplicateIDs(t *testing.T) {
+	t.Parallel()
+
+	const canonicalID = "fff63e25-084b-4598-af8f-b6d0a4fbf001"
+	const shortPrefix = "fff63e25-084b-4598-af8f"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/"+shortPrefix+"/context":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"not_found","message":"thread not found"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads":
+			_, _ = w.Write([]byte(`{"threads":[{"id":"` + canonicalID + `"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/"+canonicalID+"/context":
+			_, _ = w.Write([]byte(`{
+				"thread":{"id":"` + canonicalID + `","title":"Pilot Rescue"},
+				"recent_events":[{"id":"event_actor_1","type":"actor_statement","summary":"ship Friday scope"}],
+				"key_artifacts":[],
+				"open_commitments":[]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "context",
+		"--thread-id", shortPrefix,
+		"--thread-id", canonicalID,
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	body, _ := data["body"].(map[string]any)
+	threadIDs := stringList(body["thread_ids"])
+	if len(threadIDs) != 1 || threadIDs[0] != canonicalID {
+		t.Fatalf("expected one canonical thread_id %q, got %#v", canonicalID, body)
+	}
+	threadCount, _ := body["thread_count"].(float64)
+	if got := int(threadCount); got != 1 {
+		t.Fatalf("expected thread_count=1, got %#v", body)
+	}
+	contexts, _ := body["contexts"].([]any)
+	if len(contexts) != 1 {
+		t.Fatalf("expected one deduplicated context, got %#v", body)
+	}
+	recentEvents, _ := body["recent_events"].([]any)
+	if len(recentEvents) != 1 {
+		t.Fatalf("expected one deduplicated recent event, got %#v", body)
+	}
+	collaboration, _ := body["collaboration_summary"].(map[string]any)
+	recommendationCount, _ := collaboration["recommendation_count"].(float64)
+	if got := int(recommendationCount); got != 1 {
+		t.Fatalf("expected recommendation_count=1 after dedupe, got %#v", collaboration)
+	}
+}
+
 func TestThreadsContextCommandAmbiguousPrefixShowsGuidance(t *testing.T) {
 	t.Parallel()
 
