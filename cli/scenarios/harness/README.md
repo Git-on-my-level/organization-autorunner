@@ -8,6 +8,14 @@ Goals:
 - capture scenario run reports in machine-readable JSON
 - separate in-run feedback from post-run agent reflections for later analysis
 
+Intended use:
+- deterministic mode is the repeatable automation baseline
+- `llm` mode is primarily for manual simulation, product dogfood, and simulated user interviews with agent callers
+
+The long-running `llm` scenarios are intentionally not designed as CI gates. They are for humans to run after larger changes and inspect for emergent behavior, confusion, regressions in affordances, and qualitative UX feedback.
+For handoff and product review, prefer the full committed scenario manifests over local one-off probes so everyone is evaluating the same surface.
+Use `bash cli/scenarios/cleanup.sh` before a fresh manual run if you want to clear prior local reports and logs from `cli/.tmp`.
+
 This package is intentionally thin: orchestration state machine + command execution + assertion checks.
 
 LLM actions:

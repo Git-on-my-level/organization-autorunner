@@ -2,6 +2,12 @@
 
 Scenario-based UX testing for OAR agent callers. Scenarios run real CLI agents against a live core instance to discover ergonomic gaps, missing primitives, and onboarding friction.
 
+The important split is:
+- deterministic scenarios are the stable, automation-friendly baseline
+- long-running `llm` scenarios are manual product dogfood runs
+
+Treat the `llm` runs as simulated user interviews for your agents. They are intended for manual use after meaningful product or UX changes to surface emergent behavior, confusion, and real-world friction. They are not intended to be CI gates.
+
 ## Structure
 
 ```
@@ -25,7 +31,7 @@ scenarios/
 `oar-scenario` is a thin in-repo harness that executes scenario manifests in two modes:
 
 - `deterministic`: fixed command sequences per agent (CI-friendly baseline)
-- `llm`: built-in OpenAI-compatible LLM loop (or optional external driver)
+- `llm`: built-in OpenAI-compatible LLM loop (or optional external driver) for manual simulation and dogfood
 
 Build binaries:
 
@@ -40,6 +46,13 @@ Binary-free local run (avoids generating tracked/untracked binaries):
 ```bash
 cd cli
 go run ./cmd/oar-scenario --scenario scenarios/zesty-bots/harness.scenario.json --mode deterministic
+```
+
+Repeatable experiment cleanup:
+
+```bash
+cd cli
+bash scenarios/cleanup.sh
 ```
 
 Run deterministic harness scenario:
@@ -77,6 +90,24 @@ jq '.final_feedback' .tmp/team-fuzz-report.json
 
 `feedback` contains both explicit model `action=feedback` notes and auto-captured command-failure feedback emitted by the harness.
 `final_feedback` contains the separate post-run reflection collected after an agent stops making CLI moves.
+This run is intentionally not a CI target. Use it as a manual simulated-user session after larger changes to evaluate how agents actually experience the product.
+The canonical manual interview run is the full multi-role `harness.team-fuzz.scenario.json`, not a reduced probe scenario.
+Expect this run to take multiple minutes with real providers because the agents are evaluated sequentially and each turn is a real model call.
+
+Recommended manual loop:
+
+```bash
+cd cli
+bash scenarios/cleanup.sh
+
+./oar-scenario \
+  --scenario scenarios/zesty-bots/harness.team-fuzz.scenario.json \
+  --mode llm \
+  --llm-api-key-file .secrets/zai_api_key \
+  --llm-timeout-seconds 60 \
+  --llm-retries 2 \
+  --report .tmp/team-fuzz-report.json
+```
 
 Run with the built-in OpenAI-compatible LLM harness:
 

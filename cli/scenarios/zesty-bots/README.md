@@ -56,7 +56,18 @@ This scenario also has a harness manifest for multi-agent integration runs:
 
 - `harness.scenario.json`
 - `harness.nontrivial.scenario.json` (docs lifecycle + optimistic concurrency conflict)
-- `harness.team-fuzz.scenario.json` (non-deterministic multi-role LLM roleplay + feedback capture)
+- `harness.team-fuzz.scenario.json` (manual non-deterministic multi-role LLM roleplay + feedback capture)
+
+Use the deterministic manifests for automation and regression coverage.
+Use `harness.team-fuzz.scenario.json` as a manual simulated-user interview after larger changes. It is meant to show how agent users actually behave and what they complain about, not to serve as a stable CI signal.
+This full four-role scenario is the canonical manual dogfood path for Zesty Bots.
+
+Before a fresh manual run, clean prior local artifacts:
+
+```bash
+cd cli
+bash scenarios/cleanup.sh
+```
 
 From `cli/`:
 
@@ -107,6 +118,8 @@ chmod 600 .secrets/zai_api_key
 
 `feedback` captures explicit `action=feedback` notes and automatic command-failure capture.
 `final_feedback` captures one end-of-run reflection per participating agent when `collect_final_feedback` is enabled.
+Treat this report as a qualitative dogfood artifact, not a release gate by itself.
+With a real provider, expect the full run to take several minutes.
 
 ## Resetting Workspace State
 
