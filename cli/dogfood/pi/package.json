@@ -1,0 +1,12 @@
+{
+  "name": "@organization-autorunner/pi-dogfood",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node ./run.mjs",
+    "zesty-bots": "node ./run.mjs --scenario zesty-bots"
+  },
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "0.56.2"
+  }
+}
