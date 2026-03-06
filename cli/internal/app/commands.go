@@ -23,6 +23,9 @@ func (a *App) runCommand(ctx context.Context, args []string, cfg config.Resolved
 	if len(args) == 0 {
 		return "root", nil, errnorm.Usage("command_required", "a command is required")
 	}
+	if rewritten, ok := applyCommandShapeCompatibilityAlias(args); ok {
+		args = rewritten
+	}
 	if len(args) >= 2 && isHelpToken(args[1]) {
 		if a.printHelpTopic(args[0]) {
 			return "help", &commandResult{}, nil

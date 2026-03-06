@@ -125,6 +125,34 @@ func TestRunGeneratedHelpTopic(t *testing.T) {
 	}
 }
 
+func TestRunGeneratedHelpTopicSupportsCompatibilityAliasPath(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help", "packets", "receipts", "create"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "Generated Help: receipts create") {
+		t.Fatalf("expected compatibility alias help to resolve to canonical topic output=%s", output)
+	}
+	if !strings.Contains(output, "- CLI path: `receipts create`") {
+		t.Fatalf("expected canonical CLI path in help output=%s", output)
+	}
+}
+
 func TestRunEventsHelpMentionsLocalExplainAcrossEntryPoints(t *testing.T) {
 	t.Parallel()
 
