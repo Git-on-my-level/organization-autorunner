@@ -46,7 +46,12 @@ func InitializeWorkspace(ctx context.Context, workspaceRoot string) (*Workspace,
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite", sqliteDSN(layout.DatabasePath))
+	databasePath, err := filepath.Abs(layout.DatabasePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve sqlite database path: %w", err)
+	}
+
+	db, err := sql.Open("sqlite", sqliteDSN(databasePath))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite database: %w", err)
 	}
