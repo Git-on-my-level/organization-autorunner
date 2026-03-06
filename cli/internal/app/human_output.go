@@ -431,6 +431,20 @@ func asSlice(raw any) []any {
 }
 
 func stringList(raw any) []string {
+	if typed, ok := raw.([]string); ok {
+		if len(typed) == 0 {
+			return nil
+		}
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			value := strings.TrimSpace(item)
+			if value == "" {
+				continue
+			}
+			out = append(out, value)
+		}
+		return out
+	}
 	items, _ := raw.([]any)
 	if len(items) == 0 {
 		return nil

@@ -375,6 +375,17 @@ func TestEventsListCommandFiltersAndLimits(t *testing.T) {
 	if got := anyStringValue(event["id"]); got != "event_3" {
 		t.Fatalf("expected most recent matching event event_3, got %#v", body)
 	}
+
+	human := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"events", "list",
+		"--thread-id", "thread_1",
+		"--type", "actor_statement",
+		"--max-events", "1",
+	})
+	if !strings.Contains(human, "types:") || !strings.Contains(human, "- actor_statement") {
+		t.Fatalf("expected human output to include selected filter types, got:\n%s", human)
+	}
 }
 
 func TestDocsCommands(t *testing.T) {
