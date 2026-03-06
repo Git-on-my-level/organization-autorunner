@@ -38,6 +38,7 @@ type resourceIDLookupSpec struct {
 	listCommand    string
 	listCommandID  string
 	listField      string
+	notFoundHints  []string
 }
 
 var (
@@ -48,6 +49,7 @@ var (
 		listCommand:    "threads list",
 		listCommandID:  "threads.list",
 		listField:      "threads",
+		notFoundHints:  []string{"thread not found"},
 	}
 	commitmentIDLookupSpec = resourceIDLookupSpec{
 		idLabel:        "commitment id",
@@ -56,6 +58,7 @@ var (
 		listCommand:    "commitments list",
 		listCommandID:  "commitments.list",
 		listField:      "commitments",
+		notFoundHints:  []string{"commitment not found"},
 	}
 	artifactIDLookupSpec = resourceIDLookupSpec{
 		idLabel:        "artifact id",
@@ -64,6 +67,7 @@ var (
 		listCommand:    "artifacts list",
 		listCommandID:  "artifacts.list",
 		listField:      "artifacts",
+		notFoundHints:  []string{"artifact not found", "artifact content not found"},
 	}
 )
 
@@ -1025,7 +1029,7 @@ func (a *App) invokeTypedJSONWithIDResolution(
 	if err == nil {
 		return result, nil
 	}
-	if !isNotFoundError(err) {
+	if !isResolvableResourceNotFoundError(err, lookupSpec) {
 		return nil, err
 	}
 
@@ -1051,7 +1055,7 @@ func (a *App) invokeArtifactContentWithIDResolution(
 	if err == nil {
 		return result, nil
 	}
-	if !isNotFoundError(err) {
+	if !isResolvableResourceNotFoundError(err, lookupSpec) {
 		return nil, err
 	}
 	resolvedID, resolveErr := a.resolveResourceIDFromList(ctx, cfg, rawID, lookupSpec)
@@ -1458,9 +1462,21 @@ func listResourceIDs(result *commandResult, spec resourceIDLookupSpec) []string 
 	return out
 }
 
-func isNotFoundError(err error) bool {
+func isResolvableResourceNotFoundError(err error, spec resourceIDLookupSpec) bool {
 	normalized := errnorm.Normalize(err)
-	return normalized != nil && normalized.Kind == errnorm.KindRemote && normalized.Code == "not_found"
+	if normalized == nil || normalized.Kind != errnorm.KindRemote || normalized.Code != "not_found" {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(normalized.Message))
+	if message == "" || message == "endpoint not found" {
+		return false
+	}
+	for _, hint := range spec.notFoundHints {
+		if message == strings.ToLower(strings.TrimSpace(hint)) {
+			return true
+		}
+	}
+	return false
 }
 
 func ambiguousResourceIDError(rawID string, spec resourceIDLookupSpec, matches []string) error {

@@ -443,6 +443,42 @@ func TestThreadsContextCommandMissingIDShowsGuidance(t *testing.T) {
 	}
 }
 
+func TestThreadsContextCommandEndpointNotFoundDoesNotAttemptIDResolution(t *testing.T) {
+	t.Parallel()
+
+	const rawID = "fff63e25-084b-4598-af8f"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/"+rawID+"/context":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"not_found","message":"endpoint not found"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads":
+			t.Fatalf("did not expect fallback list call when endpoint is missing")
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "context",
+		"--thread-id", rawID,
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "not_found" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	if got := anyStringValue(errObj["message"]); got != "endpoint not found" {
+		t.Fatalf("expected endpoint-not-found passthrough, got %q payload=%#v", got, payload)
+	}
+}
+
 func TestThreadsListIncludesShortID(t *testing.T) {
 	t.Parallel()
 
