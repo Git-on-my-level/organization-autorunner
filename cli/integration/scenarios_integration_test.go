@@ -66,7 +66,7 @@ func TestThreadEventHandoffScenario(t *testing.T) {
 			"type":            "incident",
 			"status":          "active",
 			"priority":        "p2",
-			"tags":            []string{"harness", "zesty-bots"},
+			"tags":            []string{"harness", "thread-handoff"},
 			"cadence":         "reactive",
 			"current_summary": "Thread created by CLI integration coverage.",
 			"next_actions":    []string{"Record decision-needed event", "Worker acknowledges state"},

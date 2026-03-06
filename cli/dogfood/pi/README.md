@@ -22,7 +22,7 @@ pnpm install --filter @organization-autorunner/pi-dogfood...
 From the repo root:
 
 ```bash
-pnpm --dir cli/dogfood/pi run zesty-bots -- \
+pnpm --dir cli/dogfood/pi run pilot-rescue -- \
   --api-key-file ../../.secrets/zai_api_key \
   --provider zai \
   --model glm-5
@@ -31,11 +31,11 @@ pnpm --dir cli/dogfood/pi run zesty-bots -- \
 Concurrent team run:
 
 ```bash
-pnpm --dir cli/dogfood/pi run zesty-bots -- \
+pnpm --dir cli/dogfood/pi run pilot-rescue -- \
   --api-key-file ../../.secrets/zai_api_key \
   --provider zai \
   --model glm-5 \
-  --agent-count 3
+  --agent-count 4
 ```
 
 Artifacts are written under `cli/.tmp/pi-dogfood/<run-id>/`:
@@ -51,7 +51,7 @@ Artifacts are written under `cli/.tmp/pi-dogfood/<run-id>/`:
 The runner also:
 - builds temporary `oar` and `oar-core` binaries
 - starts a managed `oar-core` on a random local port
-- seeds the core from `web-ui/src/lib/mockCoreData.js`
+- seeds the core from CLI-owned scenario data under `cli/dogfood/pi/seed/`
 - points Pi at that isolated core via `OAR_BASE_URL`
 
 Constraints enforced by the run workspace:

@@ -9,9 +9,107 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = here;
 const repoRoot = path.resolve(packageRoot, "../../..");
 
+const scenarioConfigs = {
+  "pilot-rescue": {
+    roleLimit: 4,
+    threadTitles: {
+      main: "Pilot Rescue Sprint: NorthWave Launch Readiness",
+      feedback: "Customer Escalation: NorthWave Pilot Feedback",
+      delivery: "Delivery Plan: Pilot Fix + Rollout Sequencing",
+    },
+    documentId: "northwave-pilot-rescue-brief",
+    artifactIds: {
+      feedbackMatrix: "artifact-feedback-matrix",
+      feedbackQuotes: "artifact-feedback-quotes",
+      launchChecklist: "artifact-launch-checklist",
+      riskRegister: "artifact-risk-register",
+      pilotMetrics: "artifact-pilot-metrics",
+    },
+    commitmentTitles: {
+      digestFix: "Patch pilot digest cards to include commitment owner and due date",
+      dedupeFix: "Stop duplicate escalation thread creation on commitment updates",
+      closurePack: "Publish pilot rescue brief and customer closure plan",
+    },
+    roles: [
+      {
+        name: "support-lead",
+        focus: "Translate customer pain into concrete launch requirements and closure conditions.",
+        primaryThreadKey: "feedback",
+        relatedThreadKeys: ["main"],
+        artifactIds: ["feedbackMatrix", "feedbackQuotes"],
+        commitmentTitles: [],
+        privateContext: [
+          "NorthWave's sponsor will judge Friday readiness mostly on the digest owner/due-date fix.",
+          "BriskPay can tolerate staged artifact timeline work if support noise drops immediately.",
+          "Do not promise implementation details. Your job is to preserve customer truth and closure criteria.",
+        ],
+        deliverable: "Publish one actor_statement on the main thread that summarizes customer impact, must-have fixes for Friday, and what can wait one week.",
+        eventSummary: "Support recommendation: customer-critical fixes for Friday pilot rescue",
+        eventThreadKeys: ["main", "feedback"],
+        eventIncludeDocument: false,
+        requireDocsUpdate: false,
+      },
+      {
+        name: "delivery-engineer",
+        focus: "Define the minimum safe technical scope and call out what does not fit Friday.",
+        primaryThreadKey: "delivery",
+        relatedThreadKeys: ["main", "feedback"],
+        artifactIds: ["riskRegister", "launchChecklist"],
+        commitmentTitles: ["digestFix", "dedupeFix"],
+        privateContext: [
+          "The digest field omission is low-risk and should fit Friday.",
+          "Duplicate escalation thread creation is moderate risk but can still fit as a narrow pilot-path fix.",
+          "Artifact timeline visibility is not a safe Friday fix; recommend a documented follow-up instead of pretending it is solved.",
+        ],
+        deliverable: "Publish one actor_statement on the main thread with the minimum safe fix set, explicit out-of-scope items, and the technical risks.",
+        eventSummary: "Delivery recommendation: minimum safe Friday scope for pilot rescue",
+        eventThreadKeys: ["main", "delivery"],
+        eventIncludeDocument: false,
+        requireDocsUpdate: false,
+      },
+      {
+        name: "project-manager",
+        focus: "Sequence work, launch gates, and customer validation so Friday is either credible or explicitly slipped.",
+        primaryThreadKey: "delivery",
+        relatedThreadKeys: ["main", "feedback"],
+        artifactIds: ["launchChecklist", "pilotMetrics"],
+        commitmentTitles: ["digestFix", "dedupeFix", "closurePack"],
+        privateContext: [
+          "There is only one practical Friday launch window. If the rescue brief is not credible by 11:00 local time, the pilot should slip one week.",
+          "Your job is sequencing and risk ownership, not product scope definition.",
+          "A good answer names the exact gate, the owner for each dependency, and the slip condition.",
+        ],
+        deliverable: "Publish one actor_statement on the main thread with the launch gate, ownership, and the exact condition that would force a one-week slip.",
+        eventSummary: "Project manager recommendation: Friday pilot gate and ownership plan",
+        eventThreadKeys: ["main", "delivery"],
+        eventIncludeDocument: false,
+        requireDocsUpdate: false,
+      },
+      {
+        name: "product-manager",
+        focus: "Make the final launch recommendation and update the GTM rescue brief after reviewing the other roles' outputs.",
+        primaryThreadKey: "main",
+        relatedThreadKeys: ["feedback", "delivery"],
+        artifactIds: ["pilotMetrics", "feedbackMatrix", "launchChecklist"],
+        commitmentTitles: ["closurePack"],
+        privateContext: [
+          "You can approve a limited Friday pilot rescue, but you cannot promise a platform rewrite this week.",
+          "Your recommendation should explicitly separate Friday scope from follow-up scope.",
+          "Before posting the final event, re-read the main thread context and wait until support, delivery, and project management have each posted a recommendation.",
+        ],
+        deliverable: "Update the `northwave-pilot-rescue-brief` document, then publish the final actor_statement on the main thread referencing that document and making a clear go/no-go recommendation.",
+        eventSummary: "Product decision: final NorthWave pilot rescue recommendation",
+        eventThreadKeys: ["main", "feedback", "delivery"],
+        eventIncludeDocument: true,
+        requireDocsUpdate: true,
+      },
+    ],
+  },
+};
+
 function parseArgs(argv) {
   const options = {
-    scenario: "zesty-bots",
+    scenario: "pilot-rescue",
     provider: "zai",
     model: "glm-5",
     baseUrl: "",
@@ -21,7 +119,7 @@ function parseArgs(argv) {
     oarBin: "",
     coreBin: "",
     maxSeconds: 900,
-    agentCount: 1,
+    agentCount: 4,
     agentPrefix: "pi-dogfood-agent",
   };
 
@@ -75,8 +173,8 @@ function parseArgs(argv) {
   if (!options.apiKey && !options.apiKeyFile) {
     throw new Error("set --api-key or --api-key-file");
   }
-  if (!options.scenario) {
-    throw new Error("--scenario is required");
+  if (!scenarioConfigs[options.scenario]) {
+    throw new Error(`unknown scenario: ${options.scenario}`);
   }
   if (!Number.isFinite(options.maxSeconds) || options.maxSeconds <= 0) {
     throw new Error("--max-seconds must be a positive number");
@@ -135,66 +233,15 @@ Read workflow state:
 - List artifacts: \`oar artifacts list --thread-id <thread-id>\`
 - Read artifact metadata: \`oar artifacts get --artifact-id <artifact-id>\`
 - Read artifact content: \`oar artifacts content --artifact-id <artifact-id>\`
+- List commitments for a thread: \`oar commitments list --thread-id <thread-id> --status open\`
+- Read a seeded brief document: \`oar docs get --document-id northwave-pilot-rescue-brief\`
+- Update a document revision: \`oar docs update --document-id northwave-pilot-rescue-brief --from-file doc-update-template.json\`
 
 Write workflow state:
 - Edit \`event-template.json\` in place, then create the event: \`oar events create --from-file event-template.json\`
 
 Working event type for this scenario:
 - \`actor_statement\`
-
-Minimal event JSON shape:
-\`\`\`json
-{
-  "event": {
-    "type": "actor_statement",
-    "thread_id": "<thread-id>",
-    "refs": [
-      "thread:<thread-id>"
-    ],
-    "summary": "Operational recommendation for lemon supply disruption",
-    "payload": {
-      "recommendation": "Place emergency order with backup supplier and throttle menu exposure.",
-      "confidence": "medium"
-    },
-    "provenance": {
-      "sources": [
-        "inferred"
-      ]
-    }
-  }
-}
-\`\`\`
-`;
-}
-
-function eventTemplate(targets) {
-  const threadId = targets?.thread?.id ?? "<thread-id>";
-  const refs = [`thread:${threadId}`];
-  if (targets?.artifact?.id) {
-    refs.push(`artifact:${targets.artifact.id}`);
-  }
-  if (targets?.commitment?.id) {
-    refs.push(`commitment:${targets.commitment.id}`);
-  }
-  return `{
-  "event": {
-    "type": "actor_statement",
-    "thread_id": "${threadId}",
-    "refs": ${JSON.stringify(refs, null, 6)},
-    "summary": "Operational recommendation for lemon supply disruption",
-    "payload": {
-      "recommendation": "Replace this with a concrete recommendation grounded in the thread and artifacts.",
-      "evidence": [
-        "Replace with concrete evidence."
-      ]
-    },
-    "provenance": {
-      "sources": [
-        "inferred"
-      ]
-    }
-  }
-}
 `;
 }
 
@@ -229,100 +276,207 @@ async function apiJSON(baseUrl, apiPath) {
   return response.json();
 }
 
-async function resolveScenarioTargets(baseUrl) {
+async function resolveSharedTargets(baseUrl, config) {
   const threadsResponse = await apiJSON(baseUrl, "/threads");
   const threads = Array.isArray(threadsResponse?.threads) ? threadsResponse.threads : [];
-  const thread = threads.find((candidate) => valueFrom(candidate, "title", "summary") === "Emergency: Lemon Supply Disruption");
-  if (!thread?.id) {
-    throw new Error("failed to resolve target thread");
+  const byTitle = Object.fromEntries(threads.map((thread) => [valueFrom(thread, "title", "summary"), thread]));
+
+  const mainThread = byTitle[config.threadTitles.main];
+  const feedbackThread = byTitle[config.threadTitles.feedback];
+  const deliveryThread = byTitle[config.threadTitles.delivery];
+  if (!mainThread?.id || !feedbackThread?.id || !deliveryThread?.id) {
+    throw new Error("failed to resolve scenario threads");
   }
 
-  const artifactsResponse = await apiJSON(baseUrl, `/artifacts?thread_id=${encodeURIComponent(thread.id)}`);
-  const artifacts = Array.isArray(artifactsResponse?.artifacts) ? artifactsResponse.artifacts : [];
-  const artifact = artifacts.find((candidate) => {
-    const id = valueFrom(candidate, "id");
-    const summary = valueFrom(candidate, "summary", "title");
-    return id === "artifact-supplier-sla" || summary.includes("Supplier SLA");
-  }) ?? null;
+  const artifacts = {};
+  for (const artifactId of Object.values(config.artifactIds)) {
+    const response = await apiJSON(baseUrl, `/artifacts/${encodeURIComponent(artifactId)}`);
+    artifacts[artifactId] = response?.artifact;
+  }
 
-  const commitmentsResponse = await apiJSON(baseUrl, `/commitments?thread_id=${encodeURIComponent(thread.id)}&status=open`);
-  const commitments = Array.isArray(commitmentsResponse?.commitments) ? commitmentsResponse.commitments : [];
-  const commitment = commitments.find((candidate) => {
-    const title = valueFrom(candidate, "title", "summary");
-    return title.includes("emergency lemon restock order");
-  }) ?? commitments[0] ?? null;
+  const commitmentsResponse = await apiJSON(baseUrl, "/commitments?status=open");
+  const allCommitments = Array.isArray(commitmentsResponse?.commitments) ? commitmentsResponse.commitments : [];
+  const commitmentsByTitle = Object.fromEntries(allCommitments.map((commitment) => [valueFrom(commitment, "title", "summary"), commitment]));
 
   const inboxResponse = await apiJSON(baseUrl, "/inbox");
   const inboxItems = Array.isArray(inboxResponse?.items) ? inboxResponse.items : [];
-  const relatedInboxItems = inboxItems.filter((item) => valueFrom(item, "thread_id", "threadId") === thread.id);
+
+  const documentResponse = await apiJSON(baseUrl, `/docs/${encodeURIComponent(config.documentId)}`);
 
   return {
-    thread,
-    artifact,
-    commitment,
-    inboxItems: relatedInboxItems,
+    threads: {
+      main: mainThread,
+      feedback: feedbackThread,
+      delivery: deliveryThread,
+    },
+    artifacts,
+    commitments: {
+      digestFix: commitmentsByTitle[config.commitmentTitles.digestFix] ?? null,
+      dedupeFix: commitmentsByTitle[config.commitmentTitles.dedupeFix] ?? null,
+      closurePack: commitmentsByTitle[config.commitmentTitles.closurePack] ?? null,
+      all: allCommitments,
+    },
+    inboxItems,
+    document: {
+      id: config.documentId,
+      response: documentResponse,
+    },
   };
 }
 
-function targetsGuide(targets) {
+function roleTargets(config, shared, role) {
+  const primaryThread = shared.threads[role.primaryThreadKey];
+  const relatedThreads = role.relatedThreadKeys.map((key) => shared.threads[key]).filter(Boolean);
+  const roleArtifacts = role.artifactIds.map((key) => shared.artifacts[config.artifactIds[key]]).filter(Boolean);
+  const roleCommitments = role.commitmentTitles.map((key) => shared.commitments[key]).filter(Boolean);
+  const relevantThreadIds = new Set([primaryThread?.id, ...relatedThreads.map((thread) => thread.id)]);
+  const relevantInboxItems = shared.inboxItems.filter((item) => relevantThreadIds.has(valueFrom(item, "thread_id", "threadId")));
+  return {
+    mainThread: shared.threads.main,
+    primaryThread,
+    relatedThreads,
+    artifacts: roleArtifacts,
+    commitments: roleCommitments,
+    inboxItems: relevantInboxItems,
+    document: shared.document,
+  };
+}
+
+function eventTemplate(role, targets) {
+  const threadKeyToThread = {
+    main: targets.mainThread,
+    feedback: [targets.primaryThread, ...targets.relatedThreads].find((thread) => thread.title.includes("Customer Escalation")),
+    delivery: [targets.primaryThread, ...targets.relatedThreads].find((thread) => thread.title.includes("Delivery Plan")),
+  };
+  const refs = [];
+  for (const threadKey of role.eventThreadKeys ?? []) {
+    const thread = threadKeyToThread[threadKey];
+    if (thread?.id) {
+      refs.push(`thread:${thread.id}`);
+    }
+  }
+  if (role.eventIncludeDocument) {
+    refs.push(`document:${targets.document.id}`);
+  }
+  for (const artifact of targets.artifacts) {
+    refs.push(`artifact:${artifact.id}`);
+  }
+  for (const commitment of targets.commitments) {
+    refs.push(`commitment:${commitment.id}`);
+  }
+  const uniqueRefs = [...new Set(refs.filter(Boolean))];
+  return `{
+  "event": {
+    "type": "actor_statement",
+    "thread_id": "${targets.mainThread.id}",
+    "refs": ${JSON.stringify(uniqueRefs, null, 6)},
+    "summary": "${role.eventSummary}",
+    "payload": {
+      "recommendation": "Replace this with a concrete recommendation from your role.",
+      "evidence": [
+        "Replace with specific facts from the threads, artifacts, and commitments you inspected."
+      ],
+      "follow_ups": [
+        "Replace with explicit next steps and owners."
+      ]
+    },
+    "provenance": {
+      "sources": [
+        "inferred"
+      ]
+    }
+  }
+}
+`;
+}
+
+function docUpdateTemplate(targets) {
+  const headRevision = valueFrom(targets.document.response?.revision, "revision_id");
+  return `{
+  "if_base_revision": "${headRevision}",
+  "refs": [
+    "thread:${targets.mainThread.id}",
+    "document:${targets.document.id}",
+    "artifact:artifact-feedback-matrix",
+    "artifact:artifact-launch-checklist"
+  ],
+  "content_type": "text",
+  "content": "# NorthWave Pilot Rescue Brief\n\nStatus: replace with recommended status\n\nFriday scope:\n- replace with scoped fixes\n\nDeferred follow-up:\n- replace with follow-up work\n\nLaunch recommendation:\n- replace with go/no-go call and rationale\n\nCustomer closure plan:\n- replace with exact commitments to NorthWave and BriskPay\n"
+}
+`;
+}
+
+function targetsGuide(role, targets) {
   const lines = [
     "# Scenario Targets",
     "",
     "Use these resolved IDs directly. Do not spend turns rediscovering them.",
     "",
-    `Target thread: ${targets.thread.id}`,
-    `Target thread title: ${valueFrom(targets.thread, "title", "summary")}`,
-    `Read thread: oar threads get --thread-id ${targets.thread.id}`,
-    `Read thread context: oar threads context --thread-id ${targets.thread.id}`,
-    `List artifacts: oar artifacts list --thread-id ${targets.thread.id}`,
-    `List open commitments: oar commitments list --thread-id ${targets.thread.id} --status open`,
+    `Shared goal thread: ${targets.mainThread.id}`,
+    `Shared goal title: ${targets.mainThread.title}`,
+    `Primary thread for your role: ${targets.primaryThread.id}`,
+    `Primary thread title: ${targets.primaryThread.title}`,
+    `Read shared goal thread: oar threads get --thread-id ${targets.mainThread.id}`,
+    `Read shared goal context: oar threads context --thread-id ${targets.mainThread.id}`,
+    `Read your primary thread: oar threads get --thread-id ${targets.primaryThread.id}`,
+    `Read your primary thread context: oar threads context --thread-id ${targets.primaryThread.id}`,
   ];
 
-  if (targets.artifact?.id) {
-    lines.push(
-      `Key artifact: ${targets.artifact.id}`,
-      `Artifact summary: ${valueFrom(targets.artifact, "summary", "title")}`,
-      `Read artifact metadata: oar artifacts get --artifact-id ${targets.artifact.id}`,
-      `Read artifact content: oar artifacts content --artifact-id ${targets.artifact.id}`,
-    );
+  if (targets.relatedThreads.length > 0) {
+    lines.push("", "Related threads:");
+    for (const thread of targets.relatedThreads) {
+      lines.push(`- ${thread.id} :: ${thread.title}`);
+    }
   }
 
-  if (targets.commitment?.id) {
-    lines.push(
-      `Key commitment: ${targets.commitment.id}`,
-      `Commitment title: ${valueFrom(targets.commitment, "title", "summary")}`,
-    );
+  if (targets.artifacts.length > 0) {
+    lines.push("", "Artifacts to inspect:");
+    for (const artifact of targets.artifacts) {
+      lines.push(`- ${artifact.id} :: ${valueFrom(artifact, "summary", "title")}`);
+      lines.push(`  metadata: oar artifacts get --artifact-id ${artifact.id}`);
+      lines.push(`  content: oar artifacts content --artifact-id ${artifact.id}`);
+    }
+  }
+
+  if (targets.commitments.length > 0) {
+    lines.push("", "Commitments in scope:");
+    for (const commitment of targets.commitments) {
+      lines.push(`- ${commitment.id} :: ${valueFrom(commitment, "title", "summary")}`);
+    }
   }
 
   if (targets.inboxItems.length > 0) {
-    lines.push("", "Related inbox items:");
+    lines.push("", "Relevant inbox items:");
     for (const item of targets.inboxItems) {
-      lines.push(`- ${valueFrom(item, "id", "inbox_item_id")} (${valueFrom(item, "category", "kind", "type")})`);
+      lines.push(`- ${valueFrom(item, "id")} :: ${valueFrom(item, "category", "kind", "type")} :: ${valueFrom(item, "title", "summary")}`);
     }
+  }
+
+  lines.push("", `Your deliverable: ${role.deliverable}`);
+  if (role.requireDocsUpdate) {
+    lines.push(
+      `Document to update: ${targets.document.id}`,
+      `Read it first: oar docs get --document-id ${targets.document.id}`,
+      `Then update it: oar docs update --document-id ${targets.document.id} --from-file doc-update-template.json`,
+    );
   }
 
   return `${lines.join("\n")}\n`;
 }
 
-function agentRole(agentIndex) {
-  const presets = [
-    {
-      name: "coordinator",
-      focus: "Synthesize the incident context and publish a clear operational recommendation.",
-    },
-    {
-      name: "procurement",
-      focus: "Inspect supplier, pricing, and artifact evidence. Publish a procurement-specific recommendation.",
-    },
-    {
-      name: "reviewer",
-      focus: "Challenge assumptions, inspect risk, and publish a review recommendation grounded in the same thread.",
-    },
+function privateContextGuide(role) {
+  const lines = [
+    "# Role Context",
+    "",
+    `Role: ${role.name}`,
+    `Focus: ${role.focus}`,
+    "",
+    "Private context and constraints:",
+    ...role.privateContext.map((line) => `- ${line}`),
+    "",
+    `Deliverable: ${role.deliverable}`,
   ];
-  return presets[agentIndex] ?? {
-    name: `analyst-${String(agentIndex + 1).padStart(2, "0")}`,
-    focus: "Read the same thread carefully and publish one useful, non-duplicate actor_statement.",
-  };
+  return `${lines.join("\n")}\n`;
 }
 
 function buildGoBinary(runDir, providedPath, moduleDir, packageDir, outputName) {
@@ -395,7 +549,8 @@ async function waitForCore(baseUrl, timeoutMs) {
 }
 
 async function seedCore(baseUrl) {
-  const result = spawnSync("node", ["./web-ui/scripts/seed-core-from-mock.mjs"], {
+  const seedScript = path.join(packageRoot, "seed", "seed-core.mjs");
+  const result = spawnSync("node", [seedScript], {
     cwd: repoRoot,
     stdio: "inherit",
     env: {
@@ -405,7 +560,7 @@ async function seedCore(baseUrl) {
     },
   });
   if (result.status !== 0) {
-    throw new Error("failed to seed core from mock data");
+    throw new Error("failed to seed core from CLI-owned mock data");
   }
 }
 
@@ -560,17 +715,26 @@ Environment:
 - Scenario brief: ./SCENARIO.md
 - Command guide: ./COMMANDS.md
 - Scenario targets: ./TARGETS.md
+- Role context: ./ROLE_CONTEXT.md
 - Event template: ./event-template.json
+- Document update template (if present): ./doc-update-template.json
 - Result template: ./result-template.md
 `;
   writeFile(path.join(workspaceDir, "AGENTS.md"), agentsContent);
   writeFile(path.join(workspaceDir, "SCENARIO.md"), scenarioMarkdown);
   writeFile(path.join(workspaceDir, "COMMANDS.md"), commandGuide(coreBaseUrl, agentUsername));
-  writeFile(path.join(workspaceDir, "TARGETS.md"), targetsGuide(targets));
-  writeFile(path.join(workspaceDir, "event-template.json"), eventTemplate(targets));
+  writeFile(path.join(workspaceDir, "TARGETS.md"), targetsGuide(role, targets));
+  writeFile(path.join(workspaceDir, "ROLE_CONTEXT.md"), privateContextGuide(role));
+  writeFile(path.join(workspaceDir, "event-template.json"), eventTemplate(role, targets));
+  if (role.requireDocsUpdate) {
+    writeFile(path.join(workspaceDir, "doc-update-template.json"), docUpdateTemplate(targets));
+  }
   writeFile(path.join(workspaceDir, "result-template.md"), resultTemplate());
 
-  const prompt = "Read SCENARIO.md, COMMANDS.md, and TARGETS.md, execute the scenario with the real oar CLI, edit event-template.json in place, create the event from that file, write result.md, and then give a short final summary.";
+  const prompt = role.requireDocsUpdate
+    ? "Read SCENARIO.md, COMMANDS.md, TARGETS.md, and ROLE_CONTEXT.md. Execute your role with the real oar CLI. Update doc-update-template.json in place and use it to update the seeded rescue brief before posting your final event. Edit event-template.json in place, create the event from that file, write result.md, and then give a short final summary."
+    : "Read SCENARIO.md, COMMANDS.md, TARGETS.md, and ROLE_CONTEXT.md. Execute your role with the real oar CLI. Edit event-template.json in place, create the event from that file, write result.md, and then give a short final summary.";
+
   const piArgs = [
     "--print",
     "--mode",
@@ -655,6 +819,11 @@ Environment:
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  const config = scenarioConfigs[options.scenario];
+  if (options.agentCount > config.roleLimit) {
+    throw new Error(`scenario ${options.scenario} supports at most ${config.roleLimit} agents`);
+  }
+
   const apiKey = resolveApiKey(options);
   const scenarioPath = path.join(packageRoot, "scenarios", `${options.scenario}.md`);
   if (!fs.existsSync(scenarioPath)) {
@@ -671,7 +840,8 @@ async function main() {
   const core = await startManagedCore(runDir, coreBin, options.baseUrl);
   const scenarioContent = fs.readFileSync(scenarioPath, "utf8");
   const renderedScenario = renderScenario(scenarioContent, core.baseUrl);
-  const targets = await resolveScenarioTargets(core.baseUrl);
+  const sharedTargets = await resolveSharedTargets(core.baseUrl, config);
+  const roles = config.roles.slice(0, options.agentCount);
 
   console.log(`pi dogfood run: ${runId}`);
   console.log(`base url: ${core.baseUrl}`);
@@ -679,9 +849,8 @@ async function main() {
 
   let agentRuns = [];
   try {
-    const pendingAgents = Array.from({ length: options.agentCount }, (_, agentIndex) => {
+    const pendingAgents = roles.map((role, agentIndex) => {
       const agentId = `agent-${String(agentIndex + 1).padStart(2, "0")}`;
-      const role = agentRole(agentIndex);
       const agentUsername = `${options.agentPrefix}-${role.name}`;
       return runPiAgent({
         runDir,
@@ -697,20 +866,23 @@ async function main() {
         agentUsername,
         scenarioMarkdown: renderedScenario,
         role,
-        targets,
+        targets: roleTargets(config, sharedTargets, role),
       });
     });
+
     const settled = await Promise.allSettled(pendingAgents);
     agentRuns = settled.map((result, index) => {
       if (result.status === "fulfilled") {
-        return { status: "ok", ...result.value };
+        return { status: "ok", role: roles[index].name, ...result.value };
       }
       return {
         status: "failed",
+        role: roles[index].name,
         agentId: `agent-${String(index + 1).padStart(2, "0")}`,
         error: result.reason instanceof Error ? result.reason.message : String(result.reason),
       };
     });
+
     const failedAgents = agentRuns.filter((agent) => agent.status !== "ok");
     if (failedAgents.length > 0) {
       throw new Error(`pi dogfood failed for ${failedAgents.map((agent) => `${agent.agentId}: ${agent.error}`).join(", ")}`);
@@ -729,7 +901,7 @@ async function main() {
     core_workspace_dir: core.workspaceDir,
     core_log_path: core.logPath,
     agent_count: options.agentCount,
-    targets,
+    targets: sharedTargets,
     agents: agentRuns,
     oar_bin: oarBin,
     core_bin: coreBin,

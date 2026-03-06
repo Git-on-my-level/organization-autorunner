@@ -91,7 +91,7 @@ Install and run Pi dogfood:
 ```bash
 pnpm install --filter @organization-autorunner/pi-dogfood...
 
-pnpm --dir cli/dogfood/pi run zesty-bots -- \
+pnpm --dir cli/dogfood/pi run pilot-rescue -- \
   --api-key-file ../../.secrets/zai_api_key \
   --provider zai \
   --model glm-5
@@ -100,7 +100,7 @@ pnpm --dir cli/dogfood/pi run zesty-bots -- \
 The runner:
 - builds `oar` and `oar-core`
 - starts a managed temporary core on a random local port
-- seeds that core from `web-ui/src/lib/mockCoreData.js`
+- seeds that core from CLI-owned dogfood data under `cli/dogfood/pi/seed/`
 - runs Pi against the isolated seeded environment
 - writes artifacts under `cli/.tmp/pi-dogfood/`
 

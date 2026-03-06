@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "run": "node ./run.mjs",
-    "zesty-bots": "node ./run.mjs --scenario zesty-bots"
+    "pilot-rescue": "node ./run.mjs --scenario pilot-rescue"
   },
   "dependencies": {
     "@mariozechner/pi-coding-agent": "0.56.2"
