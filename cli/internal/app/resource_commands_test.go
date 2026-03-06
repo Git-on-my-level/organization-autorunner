@@ -2160,8 +2160,8 @@ func TestMachineFacingNonStreamErrorsIncludeCommandIdentity(t *testing.T) {
 	if got := anyStringValue(eventsListErr["command"]); got != "events list" {
 		t.Fatalf("expected events list error command, got %q payload=%#v", got, eventsListErr)
 	}
-	if got := anyStringValue(eventsListErr["command_id"]); got != "events.list" {
-		t.Fatalf("expected events.list command_id, got %q payload=%#v", got, eventsListErr)
+	if got := anyStringValue(eventsListErr["command_id"]); got != "threads.timeline" {
+		t.Fatalf("expected threads.timeline command_id, got %q payload=%#v", got, eventsListErr)
 	}
 
 	eventsGetErr := assertEnvelopeError(t, runCLIForTest(t, home, env, nil, []string{
