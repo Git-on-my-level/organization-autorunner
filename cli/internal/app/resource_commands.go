@@ -869,6 +869,12 @@ func (a *App) runThreadsRecommendationsCommand(ctx context.Context, args []strin
 		"context_source":            "threads.context",
 		"inbox_source":              "inbox.list",
 	}
+	if warningCount := intValue(relatedThreadReview["warning_count"]); warningCount > 0 {
+		recommendationBody["warnings"] = map[string]any{
+			"items": relatedThreadReview["warnings"],
+			"count": warningCount,
+		}
+	}
 
 	data["body"] = recommendationBody
 	contextResult.Data = data
@@ -889,6 +895,7 @@ func (a *App) collectRelatedThreadRecommendationReview(ctx context.Context, cfg 
 	relatedRecommendations := make([]any, 0)
 	relatedDecisionRequests := make([]any, 0)
 	relatedDecisions := make([]any, 0)
+	warnings := make([]any, 0)
 	totalReviewItems := 0
 
 	for _, relatedThreadID := range relatedThreadIDs {
@@ -904,7 +911,11 @@ func (a *App) collectRelatedThreadRecommendationReview(ctx context.Context, cfg 
 			nil,
 		)
 		if err != nil {
-			return nil, err
+			warnings = append(warnings, map[string]any{
+				"thread_id": relatedThreadID,
+				"message":   fmt.Sprintf("skipped related thread %s: %s", relatedThreadID, err.Error()),
+			})
+			continue
 		}
 		data := asMap(contextResult.Data)
 		body := extractNestedMap(data, "body")
@@ -958,6 +969,8 @@ func (a *App) collectRelatedThreadRecommendationReview(ctx context.Context, cfg 
 			"items": relatedDecisions,
 			"count": len(relatedDecisions),
 		},
+		"warnings":           warnings,
+		"warning_count":      len(warnings),
 		"total_review_items": totalReviewItems,
 	}, nil
 }

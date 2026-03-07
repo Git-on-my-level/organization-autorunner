@@ -225,9 +225,34 @@ func formatThreadRecommendations(body any) string {
 	lines = appendRecommendationEventSection(lines, "decision_requests", extractNestedSlice(extractNestedMap(root, "decision_requests"), "items"), fullID, fullSummary)
 	lines = appendRecommendationEventSection(lines, "decisions", extractNestedSlice(extractNestedMap(root, "decisions"), "items"), fullID, fullSummary)
 	lines = appendInboxListSection(lines, "pending_decisions", extractNestedSlice(extractNestedMap(root, "pending_decisions"), "items"), fullID)
+	lines = appendWarningListSection(lines, "warnings", extractNestedSlice(extractNestedMap(root, "warnings"), "items"))
 	lines = appendScalar(lines, "total_review_items", root, "total_review_items")
 	lines = appendFollowUpSection(lines, extractNestedMap(root, "follow_up"))
 	return strings.Join(lines, "\n")
+}
+
+func appendWarningListSection(lines []string, label string, items []any) []string {
+	if len(items) == 0 {
+		return lines
+	}
+	lines = append(lines, label+":")
+	for _, raw := range items {
+		item := asMap(raw)
+		if item == nil {
+			continue
+		}
+		threadID := strings.TrimSpace(anyString(item["thread_id"]))
+		message := strings.TrimSpace(anyString(item["message"]))
+		switch {
+		case threadID != "" && message != "":
+			lines = append(lines, fmt.Sprintf("- %s :: %s", threadID, message))
+		case message != "":
+			lines = append(lines, "- "+message)
+		case threadID != "":
+			lines = append(lines, "- "+threadID)
+		}
+	}
+	return lines
 }
 
 func formatThreadRecord(thread map[string]any) string {

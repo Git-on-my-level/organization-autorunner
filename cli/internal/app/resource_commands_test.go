@@ -2008,6 +2008,84 @@ func TestThreadsRecommendationsIncludesRelatedThreadReview(t *testing.T) {
 	}
 }
 
+func TestThreadsRecommendationsSkipsMissingRelatedThreadsWithWarnings(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_main/context":
+			_, _ = w.Write([]byte(`{
+				"thread":{"id":"thread_main","title":"Main Pilot Rescue","status":"active","type":"initiative"},
+				"recent_events":[
+					{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","summary":"Main recommendation","refs":["thread:thread_missing","thread:thread_related"]}
+				],
+				"key_artifacts":[],
+				"open_commitments":[]
+			}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_related/context":
+			_, _ = w.Write([]byte(`{
+				"thread":{"id":"thread_related","title":"Related Feedback Thread","status":"active","type":"case"},
+				"recent_events":[
+					{"id":"event_related_1","thread_id":"thread_related","type":"actor_statement","summary":"Related recommendation"}
+				],
+				"key_artifacts":[],
+				"open_commitments":[]
+			}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_missing/context":
+			http.NotFound(w, r)
+		case r.Method == http.MethodGet && r.URL.Path == "/inbox":
+			_, _ = w.Write([]byte(`{"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "recommendations",
+		"--thread-id", "thread_main",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	body, _ := data["body"].(map[string]any)
+
+	relatedRecommendations, _ := body["related_recommendations"].(map[string]any)
+	relatedRecommendationCount, _ := relatedRecommendations["count"].(float64)
+	if got := int(relatedRecommendationCount); got != 1 {
+		t.Fatalf("expected one successful related recommendation despite missing thread, got %#v", body)
+	}
+
+	warnings, _ := body["warnings"].(map[string]any)
+	warningCount, _ := warnings["count"].(float64)
+	if got := int(warningCount); got != 1 {
+		t.Fatalf("expected one warning for skipped related thread, got %#v", body)
+	}
+	warningItems, _ := warnings["items"].([]any)
+	if len(warningItems) != 1 {
+		t.Fatalf("expected warning item, got %#v", warnings)
+	}
+	warning, _ := warningItems[0].(map[string]any)
+	if got := anyStringValue(warning["thread_id"]); got != "thread_missing" {
+		t.Fatalf("expected skipped thread id in warning, got %#v", warning)
+	}
+	if !strings.Contains(anyStringValue(warning["message"]), "skipped related thread thread_missing") {
+		t.Fatalf("expected skipped related thread warning, got %#v", warning)
+	}
+
+	human := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"threads", "recommendations",
+		"--thread-id", "thread_main",
+	})
+	if !strings.Contains(human, "warnings:") || !strings.Contains(human, "thread_missing") {
+		t.Fatalf("expected warning section in human output, got:\n%s", human)
+	}
+}
+
 func TestThreadsRecommendationsFullSummaryToggle(t *testing.T) {
 	t.Parallel()
 
