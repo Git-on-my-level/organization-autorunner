@@ -293,22 +293,11 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 		result, callErr := a.invokeTypedJSON(ctx, cfg, "threads create", "threads.create", nil, nil, body)
 		return result, "threads create", callErr
 	case "patch":
-		id, body, err := a.parseIDAndBodyInput(args[1:], "thread-id", "thread id", "threads patch")
-		if err != nil {
-			return nil, "threads patch", err
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"threads patch",
-			"threads.patch",
-			"thread_id",
-			id,
-			threadIDLookupSpec,
-			nil,
-			body,
-		)
+		result, callErr := a.runThreadsPatchProposalCommand(ctx, args[1:], cfg)
 		return result, "threads patch", callErr
+	case "apply":
+		result, callErr := a.runThreadsApplyCommand(ctx, args[1:], cfg)
+		return result, "threads apply", callErr
 	case "timeline":
 		id, err := parseIDArg(args[1:], "thread-id", "thread id")
 		if err != nil {
@@ -474,6 +463,9 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 	case "inspect":
 		result, err := a.runThreadsInspectCommand(ctx, args[1:], cfg)
 		return result, "threads inspect", err
+	case "workspace":
+		result, err := a.runThreadsWorkspaceCommand(ctx, args[1:], cfg)
+		return result, "threads workspace", err
 	case "recommendations":
 		result, err := a.runThreadsRecommendationsCommand(ctx, args[1:], cfg)
 		return result, "threads recommendations", err
@@ -535,22 +527,11 @@ func (a *App) runCommitmentsCommand(ctx context.Context, args []string, cfg conf
 		result, callErr := a.invokeTypedJSON(ctx, cfg, "commitments create", "commitments.create", nil, nil, body)
 		return result, "commitments create", callErr
 	case "update":
-		id, body, err := a.parseIDAndBodyInput(args[1:], "commitment-id", "commitment id", "commitments update")
-		if err != nil {
-			return nil, "commitments update", err
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"commitments update",
-			"commitments.patch",
-			"commitment_id",
-			id,
-			commitmentIDLookupSpec,
-			nil,
-			body,
-		)
+		result, callErr := a.runCommitmentsUpdateProposalCommand(ctx, args[1:], cfg)
 		return result, "commitments update", callErr
+	case "apply":
+		result, callErr := a.runCommitmentsApplyCommand(ctx, args[1:], cfg)
+		return result, "commitments apply", callErr
 	default:
 		return nil, "commitments", commitmentsSubcommandSpec.unknownError(args[0])
 	}
@@ -612,6 +593,7 @@ func parseThreadRecommendationsArgs(args []string) (threadRecommendationsSelecti
 	var statusFlag, priorityFlag, staleFlag, typeFlag trackedString
 	var tagsFlag, cadenceFlag trackedStrings
 	var maxEventsFlag trackedInt
+	var includeArtifactContentFlag trackedBool
 	var fullIDFlag, fullSummaryFlag trackedBool
 
 	fs.Var(&threadIDFlags, "thread-id", "Thread id (repeatable)")
@@ -622,6 +604,7 @@ func parseThreadRecommendationsArgs(args []string) (threadRecommendationsSelecti
 	fs.Var(&cadenceFlag, "cadence", "Discover threads by cadence (repeatable)")
 	fs.Var(&typeFlag, "type", "Discover threads by type (local filter after list)")
 	fs.Var(&maxEventsFlag, "max-events", "Maximum recent events to include")
+	fs.Var(&includeArtifactContentFlag, "include-artifact-content", "Include key artifact content previews")
 	fs.Var(&fullIDFlag, "full-id", "Render full ids in human output")
 	fs.Var(&fullSummaryFlag, "full-summary", "Show full recommendation summaries in human output")
 	if err := fs.Parse(args); err != nil {
@@ -647,12 +630,13 @@ func parseThreadRecommendationsArgs(args []string) (threadRecommendationsSelecti
 
 	return threadRecommendationsSelection{
 		threadContextSelection: threadContextSelection{
-			threadIDs:      threadIDs,
-			discoveryQuery: discoveryQuery,
-			discoveryType:  strings.TrimSpace(typeFlag.value),
-			maxEventsSet:   maxEventsFlag.set,
-			maxEvents:      maxEventsFlag.value,
-			fullID:         fullIDFlag.set && fullIDFlag.value,
+			threadIDs:              threadIDs,
+			discoveryQuery:         discoveryQuery,
+			discoveryType:          strings.TrimSpace(typeFlag.value),
+			maxEventsSet:           maxEventsFlag.set,
+			maxEvents:              maxEventsFlag.value,
+			includeArtifactContent: includeArtifactContentFlag.set && includeArtifactContentFlag.value,
+			fullID:                 fullIDFlag.set && fullIDFlag.value,
 		},
 		fullSummary: fullSummaryFlag.set && fullSummaryFlag.value,
 	}, nil
@@ -1151,25 +1135,11 @@ func (a *App) runDocsCommand(ctx context.Context, args []string, cfg config.Reso
 		result, callErr := a.runDocsContentCommand(ctx, args[1:], cfg)
 		return result, "docs content", callErr
 	case "update":
-		id, body, dryRun, err := a.parseIDAndBodyInputWithOptions(args[1:], "document-id", "document id", "docs update", jsonBodyInputOptions{
-			allowContentFile: true,
-			allowDryRun:      true,
-		})
-		if err != nil {
-			return nil, "docs update", err
-		}
-		if err := validateDocsUpdateBody(body, "docs update"); err != nil {
-			return nil, "docs update", err
-		}
-		if dryRun {
-			return dryRunResult("docs update", "docs.update", map[string]string{"document_id": id}, nil, body), "docs update", nil
-		}
-		body, err = ensureDocsUpdateActorIdentity(body, cfg)
-		if err != nil {
-			return nil, "docs update", err
-		}
-		result, callErr := a.invokeTypedJSON(ctx, cfg, "docs update", "docs.update", map[string]string{"document_id": id}, nil, body)
+		result, callErr := a.runDocsUpdateProposalCommand(ctx, args[1:], cfg)
 		return result, "docs update", callErr
+	case "apply":
+		result, callErr := a.runDocsApplyCommand(ctx, args[1:], cfg)
+		return result, "docs apply", callErr
 	case "validate-update":
 		id, body, _, err := a.parseIDAndBodyInputWithOptions(args[1:], "document-id", "document id", "docs validate-update", jsonBodyInputOptions{
 			allowContentFile: true,

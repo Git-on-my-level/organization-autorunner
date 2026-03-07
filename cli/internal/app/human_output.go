@@ -60,6 +60,8 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatThreadContext(body)
 	case "threads.inspect":
 		return formatThreadInspect(body)
+	case "threads.workspace":
+		return formatThreadWorkspace(body)
 	case "threads.recommendations":
 		return formatThreadRecommendations(body)
 	case "threads.timeline":
@@ -74,6 +76,10 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatEventRecord(extractNestedMap(body, "event"))
 	case "docs.get", "docs.create", "docs.update":
 		return formatDocumentRecord(body)
+	case "threads.patch.propose", "commitments.patch.propose", "docs.update.propose":
+		return formatProposalPreview(body)
+	case "threads.patch.apply", "commitments.patch.apply", "docs.update.apply":
+		return formatProposalApply(body)
 	case "docs.content":
 		return formatDocumentContentRecord(body)
 	case "docs.revision.get":
@@ -228,6 +234,71 @@ func formatThreadRecommendations(body any) string {
 	lines = appendWarningListSection(lines, "warnings", extractNestedSlice(extractNestedMap(root, "warnings"), "items"))
 	lines = appendScalar(lines, "total_review_items", root, "total_review_items")
 	lines = appendFollowUpSection(lines, extractNestedMap(root, "follow_up"))
+	return strings.Join(lines, "\n")
+}
+
+func formatThreadWorkspace(body any) string {
+	root := asMap(body)
+	lines := make([]string, 0, 64)
+	lines = append(lines, formatThreadRecord(extractNestedMap(root, "thread")))
+	fullID := asBool(root["full_id"])
+	fullSummary := asBool(root["full_summary"])
+
+	collaboration := extractNestedMap(root, "collaboration")
+	context := extractNestedMap(root, "context")
+	if collaboration != nil {
+		lines = appendRecommendationEventSection(lines, "recommendations", extractNestedSlice(collaboration, "recommendations"), fullID, fullSummary)
+		lines = appendRecommendationEventSection(lines, "decision_requests", extractNestedSlice(collaboration, "decision_requests"), fullID, fullSummary)
+		lines = appendRecommendationEventSection(lines, "decisions", extractNestedSlice(collaboration, "decisions"), fullID, fullSummary)
+	}
+	if context != nil {
+		lines = appendEventListSection(lines, "recent_events", asSlice(context["recent_events"]), fullID)
+		lines = appendArtifactListSection(lines, "key_artifacts", asSlice(context["key_artifacts"]), fullID)
+		lines = appendCommitmentListSection(lines, "open_commitments", asSlice(context["open_commitments"]), fullID)
+	}
+	inbox := extractNestedMap(root, "inbox")
+	lines = appendInboxListSection(lines, "inbox_items", extractNestedSlice(inbox, "items"), fullID)
+	lines = appendInboxListSection(lines, "pending_decisions", extractNestedSlice(extractNestedMap(root, "pending_decisions"), "items"), fullID)
+	lines = appendRecommendationEventSection(lines, "related_recommendations", extractNestedSlice(extractNestedMap(root, "related_recommendations"), "items"), fullID, fullSummary)
+	lines = appendRecommendationEventSection(lines, "related_decision_requests", extractNestedSlice(extractNestedMap(root, "related_decision_requests"), "items"), fullID, fullSummary)
+	lines = appendRecommendationEventSection(lines, "related_decisions", extractNestedSlice(extractNestedMap(root, "related_decisions"), "items"), fullID, fullSummary)
+	lines = appendWarningListSection(lines, "warnings", extractNestedSlice(extractNestedMap(root, "warnings"), "items"))
+	lines = appendScalar(lines, "total_review_items", root, "total_review_items")
+	lines = appendFollowUpSection(lines, extractNestedMap(root, "follow_up"))
+	return strings.Join(lines, "\n")
+}
+
+func formatProposalPreview(body any) string {
+	root := asMap(body)
+	lines := []string{
+		"Proposal " + firstNonEmpty(anyString(root["proposal_id"]), "unknown"),
+	}
+	lines = appendScalar(lines, "target_command_id", root, "target_command_id")
+	lines = appendScalar(lines, "method", root, "method")
+	lines = appendScalar(lines, "path", root, "path")
+	lines = appendScalar(lines, "apply_command", root, "apply_command")
+	diff := extractNestedMap(root, "diff")
+	if diffText := strings.TrimSpace(anyString(diff["text"])); diffText != "" {
+		lines = append(lines, "diff:")
+		lines = append(lines, indentBlock(diffText)...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatProposalApply(body any) string {
+	root := asMap(body)
+	lines := []string{
+		"Proposal " + firstNonEmpty(anyString(root["proposal_id"]), "unknown"),
+	}
+	lines = appendScalar(lines, "target_command_id", root, "target_command_id")
+	lines = appendScalar(lines, "applied", root, "applied")
+	lines = appendScalar(lines, "kept", root, "kept")
+	lines = appendScalar(lines, "warning", root, "warning")
+	result := root["result"]
+	if result != nil {
+		lines = append(lines, "")
+		lines = append(lines, formatPrettyBody(result))
+	}
 	return strings.Join(lines, "\n")
 }
 

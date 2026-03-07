@@ -69,3 +69,8 @@ Constraints enforced by the run workspace:
 - do not edit repo source files
 - work inside the temporary run directory
 - in team mode, each agent gets its own profile/home/workspace but shares the same managed core
+
+Scenario command-shape guidance:
+- default to `oar threads workspace --thread-id <thread-id>` for the main coordination read
+- use `oar threads recommendations --thread-id <thread-id>` for recommendation/decision review
+- document updates are a two-step proposal flow: `oar docs update ...` then `oar docs apply --proposal-id <proposal-id>`

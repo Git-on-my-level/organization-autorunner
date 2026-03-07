@@ -22,15 +22,16 @@ import (
 const draftVersion = 1
 
 type persistedDraft struct {
-	Version   int                    `json:"version"`
-	DraftID   string                 `json:"draft_id"`
-	CommandID string                 `json:"command_id"`
-	Agent     string                 `json:"agent"`
-	BaseURL   string                 `json:"base_url"`
-	Body      map[string]any         `json:"body"`
-	CreatedAt string                 `json:"created_at"`
-	UpdatedAt string                 `json:"updated_at"`
-	Meta      map[string]interface{} `json:"meta,omitempty"`
+	Version    int                    `json:"version"`
+	DraftID    string                 `json:"draft_id"`
+	CommandID  string                 `json:"command_id"`
+	Agent      string                 `json:"agent"`
+	BaseURL    string                 `json:"base_url"`
+	PathParams map[string]string      `json:"path_params,omitempty"`
+	Body       map[string]any         `json:"body"`
+	CreatedAt  string                 `json:"created_at"`
+	UpdatedAt  string                 `json:"updated_at"`
+	Meta       map[string]interface{} `json:"meta,omitempty"`
 }
 
 func (a *App) runDraft(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
@@ -81,6 +82,9 @@ func (a *App) runDraftCreate(args []string, cfg config.Resolved) (*commandResult
 
 	commandID, err := resolveDraftCommandID(commandFlag.value)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateDraftCreateCommand(commandID); err != nil {
 		return nil, err
 	}
 	bodyRaw, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
@@ -135,14 +139,15 @@ func (a *App) runDraftCreate(args []string, cfg config.Resolved) (*commandResult
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	draft := persistedDraft{
-		Version:   draftVersion,
-		DraftID:   draftID,
-		CommandID: commandID,
-		Agent:     cfg.Agent,
-		BaseURL:   cfg.BaseURL,
-		Body:      bodyObj,
-		CreatedAt: now,
-		UpdatedAt: now,
+		Version:    draftVersion,
+		DraftID:    draftID,
+		CommandID:  commandID,
+		Agent:      cfg.Agent,
+		BaseURL:    cfg.BaseURL,
+		PathParams: nil,
+		Body:       bodyObj,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 	if err := saveDraftFile(draftPath, draft); err != nil {
 		return nil, err
@@ -271,20 +276,9 @@ func (a *App) runDraftCommit(ctx context.Context, args []string, cfg config.Reso
 		return nil, errnorm.Usage("invalid_args", "unexpected positional arguments for `oar draft commit`")
 	}
 
-	draftsDir, err := a.draftsDir()
+	draftPath, draft, err := a.loadDraftByInput(draftID)
 	if err != nil {
 		return nil, err
-	}
-	draftPath, err := draftPathForID(draftsDir, draftID)
-	if err != nil {
-		return nil, err
-	}
-	draft, err := loadDraftFile(draftPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, errnorm.Local("draft_not_found", fmt.Sprintf("draft %q was not found", draftID))
-		}
-		return nil, errnorm.Wrap(errnorm.KindLocal, "draft_read_failed", "failed to load draft", err)
 	}
 	if validation := validateDraftBody(draft.CommandID, draft.Body); len(validation) > 0 {
 		return nil, errnorm.WithDetails(errnorm.Usage("draft_validation_failed", "draft body failed local validation"), map[string]any{
@@ -292,13 +286,16 @@ func (a *App) runDraftCommit(ctx context.Context, args []string, cfg config.Reso
 			"errors":     validation,
 		})
 	}
+	if err := validateDraftPathParams(draft.CommandID, draft.PathParams); err != nil {
+		return nil, err
+	}
 
 	if targetErr := ensureDraftTargetMatchesConfig(draft, cfg); targetErr != nil {
 		return nil, targetErr
 	}
 
 	commandLabel := "draft commit"
-	invokeResult, invokeErr := a.invokeTypedJSON(ctx, cfg, commandLabel, draft.CommandID, nil, nil, draft.Body)
+	invokeResult, invokeErr := a.invokeTypedJSON(ctx, cfg, commandLabel, draft.CommandID, draft.PathParams, nil, draft.Body)
 	if invokeErr != nil {
 		return nil, invokeErr
 	}
@@ -352,7 +349,11 @@ func (a *App) runDraftDiscard(args []string, _ config.Resolved) (*commandResult,
 	if err != nil {
 		return nil, err
 	}
-	draftPath, err := draftPathForID(draftsDir, draftID)
+	resolvedID, err := resolveDraftIDFromInput(draftsDir, draftID)
+	if err != nil {
+		return nil, err
+	}
+	draftPath, err := draftPathForID(draftsDir, resolvedID)
 	if err != nil {
 		return nil, err
 	}
@@ -362,8 +363,8 @@ func (a *App) runDraftDiscard(args []string, _ config.Resolved) (*commandResult,
 		}
 		return nil, errnorm.Wrap(errnorm.KindLocal, "draft_discard_failed", "failed to discard draft", err)
 	}
-	data := map[string]any{"draft_id": draftID, "discarded": true}
-	return &commandResult{Text: "Draft discarded: " + draftID, Data: data}, nil
+	data := map[string]any{"draft_id": resolvedID, "discarded": true}
+	return &commandResult{Text: "Draft discarded: " + resolvedID, Data: data}, nil
 }
 
 func (a *App) draftsDir() (string, error) {
@@ -411,11 +412,11 @@ func saveDraftFile(path string, draft persistedDraft) error {
 }
 
 func generateDraftID() (string, error) {
-	buf := make([]byte, 6)
+	buf := make([]byte, 5)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
-	return "draft-" + time.Now().UTC().Format("20060102T150405") + "-" + hex.EncodeToString(buf), nil
+	return "draft-" + hex.EncodeToString(buf), nil
 }
 
 func resolveDraftCommandID(raw string) (string, error) {
@@ -451,15 +452,12 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 	if strings.TrimSpace(spec.InputMode) == "" || strings.TrimSpace(spec.InputMode) == "none" {
 		return []string{fmt.Sprintf("command %q does not accept a request body", commandID)}
 	}
-	if len(spec.PathParams) > 0 {
-		return []string{fmt.Sprintf("command %q requires path parameters and is not yet supported by draft create", commandID)}
-	}
-
 	validators := map[string]func(map[string]any) []string{
 		"threads.create":             validateDraftThreadCreate,
 		"threads.patch":              validateDraftThreadPatch,
 		"commitments.create":         validateDraftCommitmentCreate,
 		"commitments.patch":          validateDraftCommitmentPatch,
+		"docs.update":                validateDraftDocsUpdate,
 		"events.create":              validateDraftEventCreate,
 		"artifacts.create":           validateDraftArtifactCreate,
 		"inbox.ack":                  validateDraftInboxAck,
@@ -473,6 +471,32 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 		return []string{fmt.Sprintf("command %q is not yet supported by draft create", commandID)}
 	}
 	return validate(body)
+}
+
+func validateDraftCreateCommand(commandID string) error {
+	spec, ok := commandSpecByID(commandID)
+	if !ok {
+		return errnorm.Usage("invalid_request", fmt.Sprintf("unknown command id %q", commandID))
+	}
+	if len(spec.PathParams) == 0 {
+		return nil
+	}
+	return errnorm.Usage(
+		"invalid_request",
+		fmt.Sprintf(
+			"`oar draft create` cannot stage %s because it requires path parameters (%s); use the typed proposal command instead",
+			commandID,
+			strings.Join(spec.PathParams, ", "),
+		),
+	)
+}
+
+func validateDraftDocsUpdate(body map[string]any) []string {
+	out := make([]string, 0)
+	if err := validateDocsUpdateBody(body, "docs update"); err != nil {
+		out = append(out, err.Error())
+	}
+	return out
 }
 
 func validateDraftThreadCreate(body map[string]any) []string {
