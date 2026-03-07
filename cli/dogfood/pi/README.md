@@ -38,6 +38,11 @@ pnpm --dir cli/dogfood/pi run pilot-rescue -- \
   --agent-count 4
 ```
 
+Timeout guidance:
+- The runner defaults to `--max-seconds 900`.
+- For multi-agent scenario validation, do not lower `--max-seconds` below `600` unless you are intentionally stress-testing timeout behavior.
+- A lower override can terminate agents after they have already done most of the workflow, which makes the run look worse than the actual CLI ergonomics.
+
 Artifacts are written under `cli/.tmp/pi-dogfood/<run-id>/`:
 
 - `events.jsonl` or `events-agent-*.jsonl`: Pi JSON event stream

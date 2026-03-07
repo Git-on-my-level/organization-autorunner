@@ -769,6 +769,8 @@ Rules:
 - Do not use \`curl\` for OAR API calls.
 - Do not edit repository source files.
 - Keep notes and artifacts inside the current working directory.
+- This scenario lane is fixed to \`--provider zai --model glm-5\`. Do not change provider/model when validating the scenario.
+- If you need to debug another provider or model, do it outside this scenario runner and label it separately from scenario results.
 - Register with username \`${agentUsername}\`.
 - Before finishing, write \`result.md\` containing:
   - summary
@@ -932,6 +934,10 @@ async function main() {
   console.log(`pi dogfood run: ${runId}`);
   console.log(`base url: ${core.baseUrl}`);
   console.log(`agents: ${options.agentCount}`);
+  console.log(`max seconds: ${options.maxSeconds}`);
+  if (options.agentCount > 1 && options.maxSeconds < 600) {
+    console.warn(`warning: --max-seconds ${options.maxSeconds} is below the recommended 600s floor for multi-agent scenario validation`);
+  }
 
   let agentRuns = [];
   try {
