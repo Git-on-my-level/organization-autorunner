@@ -199,23 +199,34 @@ test("receipt form validates typed refs and creates receipt that appears in time
     .getByLabel("Receipt changes summary")
     .fill("Implemented requested fixes");
   await page
+    .getByRole("button", { name: "Use advanced raw output input" })
+    .click();
+  await page
     .getByLabel("Receipt outputs (typed refs, comma/newline separated)")
     .fill("not-a-ref");
   await page
-    .getByLabel(
-      "Receipt verification evidence (typed refs, comma/newline separated)",
-    )
+    .getByLabel("Add receipt evidence ref")
     .fill("artifact:artifact-evidence-1");
+  await page.getByRole("button", { name: "Add evidence ref" }).click();
   await page.getByRole("button", { name: "Submit receipt" }).click();
 
   await expect(
-    page.getByText("Invalid typed refs in outputs", { exact: false }),
+    page
+      .getByRole("listitem")
+      .filter({ hasText: "Invalid typed refs in outputs" }),
   ).toBeVisible();
   expect(postedPayload).toBeNull();
 
   await page
     .getByLabel("Receipt outputs (typed refs, comma/newline separated)")
+    .fill("");
+  await page
+    .getByRole("button", { name: "Hide advanced raw output input" })
+    .click();
+  await page
+    .getByLabel("Add receipt output ref")
     .fill("artifact:artifact-output-1");
+  await page.getByRole("button", { name: "Add output ref" }).click();
   await page.getByRole("button", { name: "Submit receipt" }).click();
 
   await expect.poll(() => postedPayload !== null).toBe(true);

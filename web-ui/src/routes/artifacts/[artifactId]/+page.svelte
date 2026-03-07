@@ -1,12 +1,14 @@
 <script>
   import { page } from "$app/stores";
 
+  import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import ProvenanceBadge from "$lib/components/ProvenanceBadge.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { buildReviewPayload } from "$lib/reviewUtils";
   import { toTimelineView } from "$lib/timelineUtils";
+  import { parseRef } from "$lib/typedRefs";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
 
   const KNOWN_PACKET_ARTIFACT_KINDS = new Set([
@@ -26,6 +28,7 @@
   let reviewDraft = $state(null);
   let submittingReview = $state(false);
   let reviewErrors = $state([]);
+  let reviewFieldErrors = $state({});
   let reviewNotice = $state("");
   let createdReview = $state(null);
   let reviseFollowupLink = $state("");
@@ -76,12 +79,82 @@
   let timelineView = $derived(
     toTimelineView(threadTimeline, { threadId: artifact?.thread_id ?? "" }),
   );
+  let reviewEvidenceSuggestions = $derived(
+    buildRefSuggestions([
+      receiptPacket?.receipt_id
+        ? {
+            value: `artifact:${receiptPacket.receipt_id}`,
+            label: `Receipt · ${receiptPacket.receipt_id}`,
+          }
+        : artifact?.id
+          ? {
+              value: `artifact:${artifact.id}`,
+              label: `Receipt · ${artifact.id}`,
+            }
+          : null,
+      receiptPacket?.work_order_id
+        ? {
+            value: `artifact:${receiptPacket.work_order_id}`,
+            label: `Work order · ${receiptPacket.work_order_id}`,
+          }
+        : null,
+      ...(receiptPacket?.verification_evidence ?? []).map((refValue) => ({
+        value: refValue,
+        label: `Receipt evidence · ${refValue}`,
+      })),
+      ...(receiptPacket?.outputs ?? []).map((refValue) => ({
+        value: refValue,
+        label: `Receipt output · ${refValue}`,
+      })),
+      ...timelineView.slice(0, 8).map((event) => ({
+        value: `event:${event.id}`,
+        label: `Event · ${event.typeLabel}`,
+      })),
+    ]),
+  );
+
+  let reviewOutcomeGuidance = $derived(
+    reviewDraft?.outcome === "accept"
+      ? "Accept records that this receipt is sufficient and closes review without follow-up action."
+      : reviewDraft?.outcome === "revise"
+        ? "Revise records that more work is required. You can open a follow-up work order right after submit."
+        : reviewDraft?.outcome === "escalate"
+          ? "Escalate marks this as requiring higher-level intervention and should include clear justification in notes."
+          : "",
+  );
 
   function blankReviewDraft() {
     return { outcome: "accept", notes: "", evidenceRefsInput: "" };
   }
   function generateReviewId() {
     return `artifact-review-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function buildRefSuggestions(candidates = []) {
+    const seen = new Set();
+    const suggestions = [];
+
+    candidates.forEach((candidate) => {
+      const value = String(candidate?.value ?? "").trim();
+      if (!value || seen.has(value)) return;
+      const parsed = parseRef(value);
+      if (!parsed.prefix || !parsed.value) return;
+      seen.add(value);
+      suggestions.push({
+        value,
+        label: String(candidate?.label ?? "").trim() || value,
+      });
+    });
+
+    return suggestions;
+  }
+
+  function firstFieldError(fieldErrors, fieldName) {
+    const candidates = fieldErrors?.[fieldName];
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return "";
+    }
+    return candidates[0];
   }
 
   async function loadThreadTimeline(threadId) {
@@ -108,6 +181,7 @@
     }
     if (!artifact || !receiptPacket || !reviewDraft) return;
     reviewErrors = [];
+    reviewFieldErrors = {};
     reviewNotice = "";
     reviseFollowupLink = "";
     submittingReview = true;
@@ -120,6 +194,7 @@
     });
     if (!payload.valid) {
       reviewErrors = payload.errors;
+      reviewFieldErrors = payload.fieldErrors ?? {};
       submittingReview = false;
       return;
     }
@@ -130,6 +205,7 @@
       });
       createdReview = response.artifact ?? null;
       reviewNotice = "Review submitted.";
+      reviewFieldErrors = {};
       reviewDraft = blankReviewDraft();
       if (payload.packet.outcome === "revise") {
         const params = new URLSearchParams();
@@ -166,6 +242,7 @@
       artifactContentType = contentResponse.contentType ?? "";
       reviewDraft = blankReviewDraft();
       reviewErrors = [];
+      reviewFieldErrors = {};
       reviewNotice = "";
       createdReview = null;
       reviseFollowupLink = "";
@@ -511,6 +588,7 @@
           <form class="mt-3 grid gap-4" onsubmit={submitReview}>
             <label class="text-xs font-medium text-gray-600"
               >Outcome <select
+                aria-label="Review outcome"
                 bind:value={reviewDraft.outcome}
                 class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-sm transition-colors focus:bg-white"
                 ><option value="accept">Accept</option><option value="revise"
@@ -518,24 +596,47 @@
                 ><option value="escalate">Escalate</option></select
               ></label
             >
+            {#if firstFieldError(reviewFieldErrors, "outcome")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(reviewFieldErrors, "outcome")}
+              </p>
+            {/if}
+            <p
+              class="-mt-1 rounded-md border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-700"
+            >
+              {reviewOutcomeGuidance}
+            </p>
             <label class="text-xs font-medium text-gray-600"
               >Notes <textarea
+                aria-label="Review notes"
                 bind:value={reviewDraft.notes}
                 class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
                 placeholder="Review notes..."
                 rows="2"
               ></textarea></label
             >
-            <label class="text-xs font-medium text-gray-600"
-              >Evidence refs <span class="font-normal text-gray-400"
-                >optional, one per line</span
-              >
-              <textarea
+            {#if firstFieldError(reviewFieldErrors, "notes")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(reviewFieldErrors, "notes")}
+              </p>
+            {/if}
+            <div class="text-xs font-medium text-gray-600">
+              Evidence refs
+              <GuidedTypedRefsInput
+                addButtonLabel="Add review evidence ref"
+                addInputLabel="Add review evidence ref"
+                addInputPlaceholder="artifact:artifact-evidence-123 or event:event-456"
+                advancedHint="Paste typed refs separated by commas or new lines. This is for advanced/manual entry."
+                advancedLabel="Advanced raw review evidence refs"
+                advancedToggleLabel="Use advanced raw review evidence input"
                 bind:value={reviewDraft.evidenceRefsInput}
-                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
-                rows="2"
-              ></textarea></label
-            >
+                fieldError={firstFieldError(reviewFieldErrors, "evidence_refs")}
+                helperText="Optional supporting refs. Quick picks include receipt outputs, evidence, and recent events."
+                hideAdvancedToggleLabel="Hide advanced raw review evidence input"
+                suggestions={reviewEvidenceSuggestions}
+                textareaAriaLabel="Review evidence refs (typed refs, comma/newline separated; optional)"
+              />
+            </div>
             <div class="flex justify-end">
               <button
                 class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"

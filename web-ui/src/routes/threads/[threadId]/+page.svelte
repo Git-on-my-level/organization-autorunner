@@ -18,6 +18,7 @@
     isoToDatetimeLocal,
     datetimeLocalToIso,
   } from "$lib/formatDate";
+  import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
   import ProvenanceBadge from "$lib/components/ProvenanceBadge.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
@@ -89,6 +90,7 @@
   let workOrderDraft = $state(null);
   let creatingWorkOrder = $state(false);
   let workOrderErrors = $state([]);
+  let workOrderFieldErrors = $state({});
   let workOrderNotice = $state("");
   let createdWorkOrder = $state(null);
   let workOrderArtifacts = $state([]);
@@ -98,6 +100,7 @@
   let receiptDraft = $state(null);
   let creatingReceipt = $state(false);
   let receiptErrors = $state([]);
+  let receiptFieldErrors = $state({});
   let receiptNotice = $state("");
   let createdReceipt = $state(null);
   let messageText = $state("");
@@ -145,6 +148,59 @@
   let staleCheckIn = $derived(
     Boolean(snapshot?.next_check_in_at) &&
       Date.parse(String(snapshot.next_check_in_at)) < Date.now(),
+  );
+  let selectedReceiptWorkOrder = $derived(
+    workOrderArtifacts.find(
+      (artifact) => artifact.id === receiptDraft?.workOrderId,
+    ) ?? null,
+  );
+  let workOrderContextSuggestions = $derived(
+    buildRefSuggestions([
+      { value: `thread:${threadId}`, label: "Thread context" },
+      ...(snapshot?.key_artifacts ?? []).map((artifactId) => ({
+        value: normalizeKeyArtifactRef(artifactId),
+        label: `Key artifact · ${artifactId}`,
+      })),
+      ...timelineView.slice(0, 8).map((event) => ({
+        value: `event:${event.id}`,
+        label: `Event · ${event.typeLabel}`,
+      })),
+    ]),
+  );
+  let receiptOutputSuggestions = $derived(
+    buildRefSuggestions([
+      { value: `thread:${threadId}`, label: "Thread context" },
+      selectedReceiptWorkOrder
+        ? {
+            value: `artifact:${selectedReceiptWorkOrder.id}`,
+            label: `Selected work order · ${selectedReceiptWorkOrder.id}`,
+          }
+        : null,
+      ...(snapshot?.key_artifacts ?? []).map((artifactId) => ({
+        value: normalizeKeyArtifactRef(artifactId),
+        label: `Key artifact · ${artifactId}`,
+      })),
+    ]),
+  );
+  let receiptEvidenceSuggestions = $derived(
+    buildRefSuggestions([
+      ...(selectedReceiptWorkOrder
+        ? [
+            {
+              value: `artifact:${selectedReceiptWorkOrder.id}`,
+              label: `Selected work order · ${selectedReceiptWorkOrder.id}`,
+            },
+          ]
+        : []),
+      ...timelineView.slice(0, 8).map((event) => ({
+        value: `event:${event.id}`,
+        label: `Event · ${event.typeLabel}`,
+      })),
+      ...(snapshot?.key_artifacts ?? []).map((artifactId) => ({
+        value: normalizeKeyArtifactRef(artifactId),
+        label: `Key artifact · ${artifactId}`,
+      })),
+    ]),
   );
 
   $effect(() => {
@@ -284,6 +340,33 @@
     const parsed = parseRef(normalized);
     if (parsed.prefix && parsed.value) return normalized;
     return `artifact:${normalized}`;
+  }
+
+  function buildRefSuggestions(candidates = []) {
+    const seen = new Set();
+    const suggestions = [];
+
+    candidates.forEach((candidate) => {
+      const value = String(candidate?.value ?? "").trim();
+      if (!value || seen.has(value)) return;
+      const parsed = parseRef(value);
+      if (!parsed.prefix || !parsed.value) return;
+      seen.add(value);
+      suggestions.push({
+        value,
+        label: String(candidate?.label ?? "").trim() || value,
+      });
+    });
+
+    return suggestions;
+  }
+
+  function firstFieldError(fieldErrors, fieldName) {
+    const candidates = fieldErrors?.[fieldName];
+    if (!Array.isArray(candidates) || candidates.length === 0) {
+      return "";
+    }
+    return candidates[0];
   }
 
   function toCommitmentEditDraft(commitment) {
@@ -630,10 +713,12 @@
     if (!workOrderDraft || !snapshot) return;
     creatingWorkOrder = true;
     workOrderErrors = [];
+    workOrderFieldErrors = {};
     workOrderNotice = "";
     const v = validateWorkOrderDraft(workOrderDraft, { threadId });
     if (!v.valid) {
       workOrderErrors = v.errors;
+      workOrderFieldErrors = v.fieldErrors ?? {};
       creatingWorkOrder = false;
       return;
     }
@@ -655,6 +740,7 @@
       });
       createdWorkOrder = response.artifact ?? null;
       workOrderNotice = "Work order created.";
+      workOrderFieldErrors = {};
       workOrderDraft = blankWorkOrderDraft();
       await Promise.all([loadTimeline(threadId), loadWorkOrders(threadId)]);
     } catch (error) {
@@ -670,10 +756,12 @@
     if (!receiptDraft || !snapshot) return;
     creatingReceipt = true;
     receiptErrors = [];
+    receiptFieldErrors = {};
     receiptNotice = "";
     const v = validateReceiptDraft(receiptDraft, { threadId });
     if (!v.valid) {
       receiptErrors = v.errors;
+      receiptFieldErrors = v.fieldErrors ?? {};
       creatingReceipt = false;
       return;
     }
@@ -699,6 +787,7 @@
       });
       createdReceipt = response.artifact ?? null;
       receiptNotice = "Receipt submitted.";
+      receiptFieldErrors = {};
       receiptDraft = blankReceiptDraft();
       await Promise.all([loadTimeline(threadId), loadWorkOrders(threadId)]);
     } catch (error) {
@@ -1668,6 +1757,11 @@
                 rows="2"
               ></textarea></label
             >
+            {#if firstFieldError(workOrderFieldErrors, "objective")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(workOrderFieldErrors, "objective")}
+              </p>
+            {/if}
             <label class="text-xs font-medium text-gray-600"
               >Constraints <span class="font-normal text-gray-400"
                 >one per line</span
@@ -1679,17 +1773,31 @@
                 rows="2"
               ></textarea></label
             >
-            <label class="text-xs font-medium text-gray-600"
-              >Context references <span class="font-normal text-gray-400"
-                >one per line</span
-              >
-              <textarea
-                aria-label="Context refs (typed refs, comma/newline separated)"
+            {#if firstFieldError(workOrderFieldErrors, "constraints")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(workOrderFieldErrors, "constraints")}
+              </p>
+            {/if}
+            <div class="text-xs font-medium text-gray-600">
+              Context references
+              <GuidedTypedRefsInput
+                addButtonLabel="Add ref to context"
+                addInputLabel="Add context ref"
+                addInputPlaceholder="artifact:artifact-123 or event:event-456"
+                advancedHint="Paste typed refs separated by commas or new lines. This is for advanced/manual entry."
+                advancedLabel="Advanced raw context refs"
+                advancedToggleLabel="Use advanced raw context input"
                 bind:value={workOrderDraft.contextRefsInput}
-                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
-                rows="2"
-              ></textarea></label
-            >
+                fieldError={firstFieldError(
+                  workOrderFieldErrors,
+                  "context_refs",
+                )}
+                helperText="Choose related artifacts/events with quick picks or add typed refs manually."
+                hideAdvancedToggleLabel="Hide advanced raw context input"
+                suggestions={workOrderContextSuggestions}
+                textareaAriaLabel="Context refs (typed refs, comma/newline separated)"
+              />
+            </div>
             <label class="text-xs font-medium text-gray-600"
               >Acceptance criteria <span class="font-normal text-gray-400"
                 >one per line</span
@@ -1701,6 +1809,11 @@
                 rows="2"
               ></textarea></label
             >
+            {#if firstFieldError(workOrderFieldErrors, "acceptance_criteria")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(workOrderFieldErrors, "acceptance_criteria")}
+              </p>
+            {/if}
             <label class="text-xs font-medium text-gray-600"
               >Definition of done <span class="font-normal text-gray-400"
                 >one per line</span
@@ -1712,6 +1825,11 @@
                 rows="2"
               ></textarea></label
             >
+            {#if firstFieldError(workOrderFieldErrors, "definition_of_done")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(workOrderFieldErrors, "definition_of_done")}
+              </p>
+            {/if}
             <div class="flex justify-end">
               <button
                 class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
@@ -1817,28 +1935,61 @@
                   >{/each}</select
               ></label
             >
-            <label class="text-xs font-medium text-gray-600"
-              >Outputs <span class="font-normal text-gray-400"
-                >one per line</span
-              >
-              <textarea
-                aria-label="Receipt outputs (typed refs, comma/newline separated)"
+            {#if firstFieldError(receiptFieldErrors, "work_order_id")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(receiptFieldErrors, "work_order_id")}
+              </p>
+            {/if}
+            <p
+              class="-mt-1 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700"
+            >
+              {#if selectedReceiptWorkOrder}
+                Completing work order:
+                <span class="font-medium"
+                  >{selectedReceiptWorkOrder.summary ||
+                    selectedReceiptWorkOrder.id}</span
+                >
+              {:else}
+                Select the work order this receipt completes before submission.
+              {/if}
+            </p>
+            <div class="text-xs font-medium text-gray-600">
+              Outputs
+              <GuidedTypedRefsInput
+                addButtonLabel="Add output ref"
+                addInputLabel="Add receipt output ref"
+                addInputPlaceholder="artifact:artifact-output-123"
+                advancedHint="Paste typed refs separated by commas or new lines. This is for advanced/manual entry."
+                advancedLabel="Advanced raw output refs"
+                advancedToggleLabel="Use advanced raw output input"
                 bind:value={receiptDraft.outputsInput}
-                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
-                rows="2"
-              ></textarea></label
-            >
-            <label class="text-xs font-medium text-gray-600"
-              >Verification evidence <span class="font-normal text-gray-400"
-                >one per line</span
-              >
-              <textarea
-                aria-label="Receipt verification evidence (typed refs, comma/newline separated)"
+                fieldError={firstFieldError(receiptFieldErrors, "outputs")}
+                helperText="Reference the artifacts or URLs produced by this work."
+                hideAdvancedToggleLabel="Hide advanced raw output input"
+                suggestions={receiptOutputSuggestions}
+                textareaAriaLabel="Receipt outputs (typed refs, comma/newline separated)"
+              />
+            </div>
+            <div class="text-xs font-medium text-gray-600">
+              Verification evidence
+              <GuidedTypedRefsInput
+                addButtonLabel="Add evidence ref"
+                addInputLabel="Add receipt evidence ref"
+                addInputPlaceholder="artifact:artifact-test-log-456"
+                advancedHint="Paste typed refs separated by commas or new lines. This is for advanced/manual entry."
+                advancedLabel="Advanced raw verification evidence refs"
+                advancedToggleLabel="Use advanced raw verification evidence input"
                 bind:value={receiptDraft.verificationEvidenceInput}
-                class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm transition-colors focus:bg-white"
-                rows="2"
-              ></textarea></label
-            >
+                fieldError={firstFieldError(
+                  receiptFieldErrors,
+                  "verification_evidence",
+                )}
+                helperText="Attach proof that validates the output (tests, logs, reviews, or decisions)."
+                hideAdvancedToggleLabel="Hide advanced raw verification evidence input"
+                suggestions={receiptEvidenceSuggestions}
+                textareaAriaLabel="Receipt verification evidence (typed refs, comma/newline separated)"
+              />
+            </div>
             <label class="text-xs font-medium text-gray-600"
               >Changes summary <textarea
                 aria-label="Receipt changes summary"
@@ -1848,6 +1999,11 @@
                 rows="2"
               ></textarea></label
             >
+            {#if firstFieldError(receiptFieldErrors, "changes_summary")}
+              <p class="-mt-2 text-xs text-red-700">
+                {firstFieldError(receiptFieldErrors, "changes_summary")}
+              </p>
+            {/if}
             <label class="text-xs font-medium text-gray-600"
               >Known gaps <span class="font-normal text-gray-400"
                 >one per line</span
