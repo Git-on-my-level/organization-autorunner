@@ -97,6 +97,7 @@ test("work order composer validates typed refs and sends correct POST payload", 
   });
 
   await page.goto("/threads/thread-onboarding");
+  await page.getByRole("button", { name: "Work" }).click();
 
   await page.getByLabel("Work order objective").fill("Ship onboarding update");
   await page
@@ -143,6 +144,7 @@ test("work order composer validates typed refs and sends correct POST payload", 
     definition_of_done: ["Merged to main"],
   });
 
+  await page.getByRole("button", { name: "Timeline" }).click();
   await expect(
     page.getByText("Work order created: Ship onboarding update", {
       exact: true,

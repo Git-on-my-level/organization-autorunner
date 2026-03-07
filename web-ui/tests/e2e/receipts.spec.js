@@ -193,6 +193,7 @@ test("receipt form validates typed refs and creates receipt that appears in time
   });
 
   await page.goto("/threads/thread-onboarding");
+  await page.getByRole("button", { name: "Work" }).click();
 
   await page
     .getByLabel("Receipt changes summary")
@@ -231,17 +232,22 @@ test("receipt form validates typed refs and creates receipt that appears in time
     `artifact:${workOrderId}`,
   ]);
 
+  await page.getByRole("button", { name: "Timeline" }).click();
   await expect(
     page.getByText("Receipt added: Implemented requested fixes", {
       exact: true,
     }),
   ).toBeVisible();
 
+  await page.getByRole("button", { name: "Work" }).click();
   await page
     .getByRole("link", { name: createdReceiptArtifact.id, exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Receipt Packet" }),
+    page.getByRole("heading", {
+      name: createdReceiptArtifact.summary,
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: "artifact:artifact-output-1" }),
