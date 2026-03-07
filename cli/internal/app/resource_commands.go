@@ -1280,6 +1280,8 @@ func (a *App) runEventsListCommand(ctx context.Context, args []string, cfg confi
 	resolvedThreadIDs := make([]string, 0, len(threadIDs))
 	allEvents := make([]any, 0, 32)
 	matching := make([]any, 0, 32)
+	expandedSnapshots := make(map[string]any)
+	expandedArtifacts := make(map[string]any)
 	statusCode := http.StatusOK
 	headers := map[string][]string{"Content-Type": {"application/json"}}
 	capturedResponse := false
@@ -1314,6 +1316,8 @@ func (a *App) runEventsListCommand(ctx context.Context, args []string, cfg confi
 		filtered := filterEventsByType(threadEvents, typeFilters)
 		filtered = filterEventsByActorID(filtered, resolvedActorID)
 		matching = append(matching, filtered...)
+		mergeExpandedTimelineObjects(expandedSnapshots, asMap(body["snapshots"]))
+		mergeExpandedTimelineObjects(expandedArtifacts, asMap(body["artifacts"]))
 		resolvedThreadID := firstNonEmpty(anyString(body["thread_id"]), eventThreadIDFromList(threadEvents), threadID)
 		if resolvedThreadID != "" {
 			resolvedThreadIDs = append(resolvedThreadIDs, resolvedThreadID)
@@ -1335,6 +1339,8 @@ func (a *App) runEventsListCommand(ctx context.Context, args []string, cfg confi
 		"events":          matching,
 		"total_events":    len(allEvents),
 		"returned_events": len(matching),
+		"snapshots":       expandedSnapshots,
+		"artifacts":       expandedArtifacts,
 	}
 	if len(resolvedThreadIDs) == 1 {
 		listBody["thread_id"] = resolvedThreadIDs[0]
@@ -3041,28 +3047,33 @@ func sortEventsByCreatedAt(events []any) {
 		if left == nil || right == nil {
 			return false
 		}
-		leftTS, leftOK := eventCreatedAt(left)
-		rightTS, rightOK := eventCreatedAt(right)
+		leftTS, leftOK := eventCanonicalTimestamp(left)
+		rightTS, rightOK := eventCanonicalTimestamp(right)
 		if leftOK && rightOK {
+			if leftTS.Equal(rightTS) {
+				return strings.TrimSpace(anyString(left["id"])) < strings.TrimSpace(anyString(right["id"]))
+			}
 			return leftTS.Before(rightTS)
 		}
 		if leftOK != rightOK {
-			return !leftOK
+			return leftOK
 		}
 		return false
 	})
 }
 
-func eventCreatedAt(event map[string]any) (time.Time, bool) {
-	raw := strings.TrimSpace(anyString(event["created_at"]))
-	if raw == "" {
-		return time.Time{}, false
-	}
-	if ts, err := time.Parse(time.RFC3339Nano, raw); err == nil {
-		return ts, true
-	}
-	if ts, err := time.Parse(time.RFC3339, raw); err == nil {
-		return ts, true
+func eventCanonicalTimestamp(event map[string]any) (time.Time, bool) {
+	for _, field := range []string{"ts", "created_at"} {
+		raw := strings.TrimSpace(anyString(event[field]))
+		if raw == "" {
+			continue
+		}
+		if ts, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+			return ts, true
+		}
+		if ts, err := time.Parse(time.RFC3339, raw); err == nil {
+			return ts, true
+		}
 	}
 	return time.Time{}, false
 }
@@ -3196,7 +3207,10 @@ func eventSummaryPreview(event map[string]any) string {
 	if len(refs) > 0 {
 		return truncatePreview(strings.Join(refs, ", "))
 	}
-	return truncatePreview(strings.TrimSpace(anyString(event["created_at"])))
+	return truncatePreview(firstNonEmpty(
+		strings.TrimSpace(anyString(event["ts"])),
+		strings.TrimSpace(anyString(event["created_at"])),
+	))
 }
 
 func compactPreviewValue(raw any) string {
@@ -3322,6 +3336,22 @@ func uniqueMapsByID(items []any) []any {
 		out = append(out, item)
 	}
 	return out
+}
+
+func mergeExpandedTimelineObjects(dst map[string]any, src map[string]any) {
+	if len(dst) == 0 && len(src) == 0 {
+		return
+	}
+	for id, raw := range src {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, exists := dst[id]; exists {
+			continue
+		}
+		dst[id] = raw
+	}
 }
 
 func uniqueContextArtifactItems(items []any) []any {
@@ -3612,27 +3642,187 @@ func validateEventsCreateBody(body any) error {
 	if !ok {
 		return nil
 	}
-	if anyString(event["type"]) != "review_completed" {
+	eventType := strings.TrimSpace(anyString(event["type"]))
+	if eventType == "" {
 		return nil
 	}
-	rawRefs, hasRefs := event["refs"]
-	if !hasRefs {
-		return invalidReviewCompletedRefsError()
+
+	rule, known := localEventReferenceRules[eventType]
+	if !known {
+		// Keep local validation open for unknown event types, matching core behavior.
+		return nil
 	}
-	refs, ok := asStringList(rawRefs)
-	if !ok {
-		return invalidReviewCompletedRefsError()
+
+	if rule.threadRequired && strings.TrimSpace(anyString(event["thread_id"])) == "" {
+		return errnorm.Usage("invalid_request", fmt.Sprintf("event.thread_id is required for event.type=%q", eventType))
 	}
-	artifactRefs := 0
-	for _, ref := range refs {
-		if strings.HasPrefix(strings.TrimSpace(ref), "artifact:") {
-			artifactRefs++
+
+	rawRefs, _ := event["refs"]
+	refs, _ := asStringList(rawRefs)
+	if err := validateLocalEventRequiredRefPrefixes(eventType, refs, rule.requiredRefPrefixes); err != nil {
+		return err
+	}
+
+	payloadMap := asMap(event["payload"])
+	if payloadMap == nil {
+		payloadMap = map[string]any{}
+	}
+	if err := validateLocalEventRequiredPayloadKeys(eventType, payloadMap, rule.requiredPayloadKeys); err != nil {
+		return err
+	}
+	if eventType == "commitment_status_changed" {
+		if err := validateLocalCommitmentStatusChangedRefs(payloadMap, refs); err != nil {
+			return err
 		}
 	}
-	if artifactRefs < 3 {
-		return invalidReviewCompletedRefsError()
+
+	return nil
+}
+
+type localEventReferenceRule struct {
+	threadRequired      bool
+	requiredRefPrefixes map[string]int
+	requiredPayloadKeys []string
+}
+
+var localEventReferenceRules = map[string]localEventReferenceRule{
+	"work_order_created": {
+		threadRequired:      true,
+		requiredRefPrefixes: map[string]int{"artifact": 1},
+	},
+	"receipt_added": {
+		threadRequired:      true,
+		requiredRefPrefixes: map[string]int{"artifact": 2},
+	},
+	"review_completed": {
+		threadRequired:      true,
+		requiredRefPrefixes: map[string]int{"artifact": 3},
+	},
+	"commitment_created": {
+		threadRequired:      true,
+		requiredRefPrefixes: map[string]int{"snapshot": 1},
+	},
+	"commitment_status_changed": {
+		threadRequired:      true,
+		requiredRefPrefixes: map[string]int{"snapshot": 1},
+	},
+	"decision_needed": {
+		threadRequired: true,
+	},
+	"decision_made": {
+		threadRequired: true,
+	},
+	"snapshot_updated": {
+		requiredRefPrefixes: map[string]int{"snapshot": 1},
+	},
+	"exception_raised": {
+		threadRequired:      true,
+		requiredPayloadKeys: []string{"subtype"},
+	},
+	"message_posted": {
+		threadRequired: true,
+	},
+	"inbox_item_acknowledged": {
+		threadRequired:      true,
+		requiredRefPrefixes: map[string]int{"inbox": 1},
+	},
+}
+
+func validateLocalEventRequiredRefPrefixes(eventType string, refs []string, requiredByPrefix map[string]int) error {
+	if len(requiredByPrefix) == 0 {
+		return nil
+	}
+
+	actualByPrefix := make(map[string]int)
+	for _, ref := range refs {
+		prefix := typedRefPrefix(ref)
+		if prefix == "" {
+			continue
+		}
+		actualByPrefix[prefix]++
+	}
+
+	for prefix, requiredCount := range requiredByPrefix {
+		if actualByPrefix[prefix] >= requiredCount {
+			continue
+		}
+		if eventType == "review_completed" && prefix == "artifact" && requiredCount == 3 {
+			return invalidReviewCompletedRefsError()
+		}
+		if requiredCount == 1 {
+			return errnorm.Usage("invalid_request", fmt.Sprintf("event.refs must include a %q typed ref for event.type=%q", prefix+":<id>", eventType))
+		}
+		return errnorm.Usage("invalid_request", fmt.Sprintf("event.refs must include at least %d refs with prefix %q for event.type=%q", requiredCount, prefix, eventType))
+	}
+
+	return nil
+}
+
+func validateLocalEventRequiredPayloadKeys(eventType string, payload map[string]any, keys []string) error {
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		value, exists := payload[key]
+		if !exists || value == nil {
+			return errnorm.Usage("invalid_request", fmt.Sprintf("event.payload.%s is required for event.type=%q", key, eventType))
+		}
 	}
 	return nil
+}
+
+func validateLocalCommitmentStatusChangedRefs(payload map[string]any, refs []string) error {
+	status := localCommitmentTargetStatus(payload)
+	if status == "" {
+		return nil
+	}
+
+	hasArtifactRef := false
+	hasEventRef := false
+	for _, ref := range refs {
+		prefix := typedRefPrefix(ref)
+		if prefix == "artifact" {
+			hasArtifactRef = true
+		}
+		if prefix == "event" {
+			hasEventRef = true
+		}
+	}
+
+	switch status {
+	case "done":
+		if hasArtifactRef || hasEventRef {
+			return nil
+		}
+		return errnorm.Usage("invalid_request", "event.refs must include artifact:<receipt_id> or event:<decision_event_id> when event.type=\"commitment_status_changed\" and payload.to_status=\"done\"")
+	case "canceled":
+		if hasEventRef {
+			return nil
+		}
+		return errnorm.Usage("invalid_request", "event.refs must include event:<decision_event_id> when event.type=\"commitment_status_changed\" and payload.to_status=\"canceled\"")
+	default:
+		return nil
+	}
+}
+
+func localCommitmentTargetStatus(payload map[string]any) string {
+	if toStatus, ok := payload["to_status"].(string); ok {
+		return strings.TrimSpace(toStatus)
+	}
+	if status, ok := payload["status"].(string); ok {
+		return strings.TrimSpace(status)
+	}
+	return ""
+}
+
+func typedRefPrefix(ref string) string {
+	ref = strings.TrimSpace(ref)
+	idx := strings.Index(ref, ":")
+	if idx <= 0 {
+		return ""
+	}
+	return strings.TrimSpace(ref[:idx])
 }
 
 func invalidReviewCompletedRefsError() error {

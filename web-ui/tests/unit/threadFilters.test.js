@@ -6,6 +6,7 @@ import {
   cadenceMatchesFilter,
   cadencePresetFromValue,
   cadenceToRequestValue,
+  computeStaleness,
   formatCadenceLabel,
   validateCadenceSelection,
   parseTagFilterInput,
@@ -120,5 +121,24 @@ describe("thread filter query builders", () => {
     expect(
       formatCadenceLabel("*/15 * * * *", { includeExpression: false }),
     ).toBe("Custom");
+  });
+
+  it("prefers backend stale state when present", () => {
+    expect(computeStaleness({ stale: true }).stale).toBe(true);
+    expect(computeStaleness({ stale: true }).label).toBe("Stale");
+
+    expect(computeStaleness({ stale: false }).stale).toBe(false);
+    expect(computeStaleness({ stale: false }).label).toBe("Fresh");
+  });
+
+  it("falls back to local check-in heuristics when stale state is absent", () => {
+    expect(computeStaleness({ next_check_in_at: null }).label).toBe(
+      "No check-in",
+    );
+    expect(
+      computeStaleness({
+        next_check_in_at: new Date(Date.now() - 60_000).toISOString(),
+      }).stale,
+    ).toBe(true);
   });
 });

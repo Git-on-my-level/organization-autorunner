@@ -723,6 +723,9 @@ func validateDraftEventCreate(body map[string]any) []string {
 			out = append(out, "event.payload must be an object")
 		}
 	}
+	if err := validateEventsCreateBody(body); err != nil {
+		out = append(out, err.Error())
+	}
 	return out
 }
 

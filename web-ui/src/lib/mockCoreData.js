@@ -1529,7 +1529,91 @@ export function ackMockInboxItem({ thread_id, inbox_item_id }) {
 export function listMockTimelineEvents(threadId) {
   return events
     .filter((event) => event.thread_id === threadId)
-    .sort((a, b) => String(b.ts).localeCompare(String(a.ts)));
+    .sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+}
+
+function splitTypedRef(refValue) {
+  const raw = String(refValue ?? "").trim();
+  const separatorIndex = raw.indexOf(":");
+  if (separatorIndex <= 0 || separatorIndex >= raw.length - 1) {
+    return { prefix: "", id: "" };
+  }
+  return {
+    prefix: raw.slice(0, separatorIndex).trim(),
+    id: raw.slice(separatorIndex + 1).trim(),
+  };
+}
+
+function mockSnapshotByID(snapshotId) {
+  const threadSnapshot = threads.find((thread) => thread.id === snapshotId);
+  if (threadSnapshot) {
+    return {
+      ...threadSnapshot,
+      kind: "thread",
+      thread_id: threadSnapshot.id,
+    };
+  }
+
+  const commitmentSnapshot = commitments.find(
+    (commitment) => commitment.id === snapshotId,
+  );
+  if (commitmentSnapshot) {
+    return {
+      ...commitmentSnapshot,
+      kind: "commitment",
+    };
+  }
+
+  return null;
+}
+
+function mockArtifactByID(artifactId) {
+  const artifact = artifacts.find((item) => item.id === artifactId);
+  return artifact ? { ...artifact } : null;
+}
+
+function buildMockTimelineExpansions(timelineEvents) {
+  const snapshots = {};
+  const expandedArtifacts = {};
+
+  for (const event of timelineEvents) {
+    for (const ref of normalizeRefList(event?.refs)) {
+      const { prefix, id } = splitTypedRef(ref);
+      if (!prefix || !id) {
+        continue;
+      }
+
+      if (prefix === "snapshot") {
+        if (!snapshots[id]) {
+          const snapshot = mockSnapshotByID(id);
+          if (snapshot) {
+            snapshots[id] = snapshot;
+          }
+        }
+        continue;
+      }
+
+      if (prefix === "artifact" && !expandedArtifacts[id]) {
+        const artifact = mockArtifactByID(id);
+        if (artifact) {
+          expandedArtifacts[id] = artifact;
+        }
+      }
+    }
+  }
+
+  return { snapshots, artifacts: expandedArtifacts };
+}
+
+export function getMockThreadTimeline(threadId) {
+  const threadEvents = listMockTimelineEvents(threadId);
+  const expanded = buildMockTimelineExpansions(threadEvents);
+
+  return {
+    events: threadEvents,
+    snapshots: expanded.snapshots,
+    artifacts: expanded.artifacts,
+  };
 }
 
 function isOpenCommitmentStatus(status) {
@@ -1600,35 +1684,42 @@ export function listMockThreads(filters = {}) {
   const staleFilter =
     filters.stale === undefined ? undefined : String(filters.stale) === "true";
 
-  return threads.filter((thread) => {
-    if (filters.status && String(thread.status) !== String(filters.status)) {
-      return false;
-    }
-
-    if (
-      filters.priority &&
-      String(thread.priority) !== String(filters.priority)
-    ) {
-      return false;
-    }
-
-    if (!cadenceMatchesFilter(thread.cadence, filters.cadence)) {
-      return false;
-    }
-
-    if (tagFilters.length > 0) {
-      const hasTagMatch = tagFilters.every((tag) => thread.tags?.includes(tag));
-      if (!hasTagMatch) {
+  return threads
+    .filter((thread) => {
+      if (filters.status && String(thread.status) !== String(filters.status)) {
         return false;
       }
-    }
 
-    if (staleFilter !== undefined && isThreadStale(thread) !== staleFilter) {
-      return false;
-    }
+      if (
+        filters.priority &&
+        String(thread.priority) !== String(filters.priority)
+      ) {
+        return false;
+      }
 
-    return true;
-  });
+      if (!cadenceMatchesFilter(thread.cadence, filters.cadence)) {
+        return false;
+      }
+
+      if (tagFilters.length > 0) {
+        const hasTagMatch = tagFilters.every((tag) =>
+          thread.tags?.includes(tag),
+        );
+        if (!hasTagMatch) {
+          return false;
+        }
+      }
+
+      if (staleFilter !== undefined && isThreadStale(thread) !== staleFilter) {
+        return false;
+      }
+
+      return true;
+    })
+    .map((thread) => ({
+      ...thread,
+      stale: isThreadStale(thread),
+    }));
 }
 
 export function createMockThread({ actor_id, thread }) {

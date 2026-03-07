@@ -244,6 +244,26 @@ export function buildThreadFilterRequestQuery(filters = {}) {
 }
 
 export function computeStaleness(thread) {
+  if (typeof thread?.stale === "boolean") {
+    return thread.stale
+      ? { stale: true, label: "Stale", className: "bg-rose-100 text-rose-700" }
+      : {
+          stale: false,
+          label: "Fresh",
+          className: "bg-emerald-100 text-emerald-700",
+        };
+  }
+
+  if (typeof thread?.is_stale === "boolean") {
+    return thread.is_stale
+      ? { stale: true, label: "Stale", className: "bg-rose-100 text-rose-700" }
+      : {
+          stale: false,
+          label: "Fresh",
+          className: "bg-emerald-100 text-emerald-700",
+        };
+  }
+
   if (!thread?.next_check_in_at) {
     return {
       stale: false,

@@ -38,7 +38,10 @@
     validateCadenceSelection,
   } from "$lib/threadFilters";
   import { validateReceiptDraft } from "$lib/receiptUtils";
-  import { toTimelineView } from "$lib/timelineUtils";
+  import {
+    buildTimelineRefLabelHints,
+    toTimelineView,
+  } from "$lib/timelineUtils";
   import { parseRef } from "$lib/typedRefs";
   import { validateWorkOrderDraft } from "$lib/workOrderUtils";
 
@@ -85,8 +88,11 @@
   let commitmentConflictWarning = $state("");
   let savingCommitmentEdit = $state(false);
   let timeline = $state([]);
+  let timelineSnapshots = $state({});
+  let timelineArtifacts = $state({});
   let timelineLoading = $state(false);
   let timelineError = $state("");
+  let threadStale = $state(null);
   let workOrderDraft = $state(null);
   let creatingWorkOrder = $state(false);
   let workOrderErrors = $state([]);
@@ -124,7 +130,17 @@
     await loadThreadDetail(threadId);
   });
 
-  let timelineView = $derived(toTimelineView(timeline, { threadId }));
+  let timelineRefLabelHints = $derived(
+    buildTimelineRefLabelHints(timelineSnapshots, timelineArtifacts),
+  );
+  let timelineView = $derived(
+    toTimelineView(timeline, {
+      threadId,
+      snapshots: timelineSnapshots,
+      artifacts: timelineArtifacts,
+      labelHints: timelineRefLabelHints,
+    }),
+  );
   let canPost = $derived(Boolean(messageText.trim()) && !postingMessage);
   let workOrderShouldPrefill = $derived(
     $page.url.searchParams.get("compose") === "work-order",
@@ -146,8 +162,10 @@
     ),
   );
   let staleCheckIn = $derived(
-    Boolean(snapshot?.next_check_in_at) &&
-      Date.parse(String(snapshot.next_check_in_at)) < Date.now(),
+    typeof threadStale === "boolean"
+      ? threadStale
+      : Boolean(snapshot?.next_check_in_at) &&
+          Date.parse(String(snapshot.next_check_in_at)) < Date.now(),
   );
   let selectedReceiptWorkOrder = $derived(
     workOrderArtifacts.find(
@@ -540,6 +558,7 @@
     const s = await loadSnapshot(id);
     await Promise.all([
       loadTimeline(id),
+      loadThreadStaleness(id),
       loadOpenCommitments(s?.open_commitments ?? []),
       loadWorkOrders(id),
       ensureActorRegistry(),
@@ -550,6 +569,9 @@
     snapshotError = "";
     try {
       snapshot = (await coreClient.getThread(id)).thread ?? null;
+      if (typeof snapshot?.stale === "boolean") {
+        threadStale = snapshot.stale;
+      }
       return snapshot;
     } catch (e) {
       snapshotError = `Failed to load thread: ${e instanceof Error ? e.message : String(e)}`;
@@ -694,12 +716,33 @@
     timelineLoading = true;
     timelineError = "";
     try {
-      timeline = (await coreClient.listThreadTimeline(id)).events ?? [];
+      const response = await coreClient.listThreadTimeline(id);
+      timeline = response.events ?? [];
+      timelineSnapshots = response.snapshots ?? {};
+      timelineArtifacts = response.artifacts ?? {};
     } catch (e) {
       timelineError = `Failed to load timeline: ${e instanceof Error ? e.message : String(e)}`;
       timeline = [];
+      timelineSnapshots = {};
+      timelineArtifacts = {};
     } finally {
       timelineLoading = false;
+    }
+  }
+
+  async function loadThreadStaleness(id) {
+    try {
+      const listed = (await coreClient.listThreads({})).threads ?? [];
+      const thread = listed.find((item) => item?.id === id);
+      if (typeof thread?.stale === "boolean") {
+        threadStale = thread.stale;
+        return;
+      }
+      if (typeof thread?.is_stale === "boolean") {
+        threadStale = thread.is_stale;
+      }
+    } catch {
+      // Ignore list fallback errors; stale health can still use local fallback.
     }
   }
   function setReplyTarget(eventId) {
@@ -2087,6 +2130,10 @@
   {#if activeTab === "timeline"}
     <!-- Timeline -->
     <div class="mt-4">
+      <p class="mb-2 text-xs text-gray-500">
+        Referenced snapshots: {Object.keys(timelineSnapshots ?? {}).length} · Referenced
+        artifacts: {Object.keys(timelineArtifacts ?? {}).length}
+      </p>
       {#if timelineLoading}
         <div
           class="flex items-center justify-center gap-2 py-8 text-sm text-gray-400"
@@ -2191,6 +2238,8 @@
                     {#each event.refs as refValue}<RefLink
                         {refValue}
                         {threadId}
+                        humanize={true}
+                        labelHints={timelineRefLabelHints}
                       />{/each}
                   </div>
                 {/if}

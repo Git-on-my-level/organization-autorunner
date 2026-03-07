@@ -209,6 +209,34 @@ func TestDraftCreateAggregatesEventValidationErrors(t *testing.T) {
 	}
 }
 
+func TestDraftCreateEventRequiresThreadIDForThreadScopedTypes(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	env := map[string]string{}
+	raw := runCLIForTest(t, home, env, strings.NewReader(`{"event":{"type":"message_posted","summary":"hello","refs":["thread:thread_1"],"provenance":{"sources":["actor_statement:event_seed"]}}}`), []string{
+		"--json",
+		"--agent", "agent-a",
+		"draft", "create",
+		"--command", "events.create",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || errObj["code"] != "draft_validation_failed" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	details, _ := errObj["details"].(map[string]any)
+	rawErrors, _ := details["errors"].([]any)
+	joined := make([]string, 0, len(rawErrors))
+	for _, item := range rawErrors {
+		joined = append(joined, anyStringValue(item))
+	}
+	joinedText := strings.Join(joined, "\n")
+	if !strings.Contains(joinedText, `event.thread_id is required for event.type="message_posted"`) {
+		t.Fatalf("expected thread requirement validation in payload=%#v", payload)
+	}
+}
+
 func TestDraftCreateAllowsDerivedRebuildWithoutActorID(t *testing.T) {
 	t.Parallel()
 

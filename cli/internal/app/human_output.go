@@ -166,6 +166,8 @@ func formatEventsList(body any) string {
 	}
 	lines = appendScalar(lines, "total_events", root, "total_events")
 	lines = appendScalar(lines, "returned_events", root, "returned_events")
+	lines = append(lines, fmt.Sprintf("referenced_snapshots: %d", len(asMap(root["snapshots"]))))
+	lines = append(lines, fmt.Sprintf("referenced_artifacts: %d", len(asMap(root["artifacts"]))))
 	lines = appendStringList(lines, "types", stringList(root["types"]))
 	if actorID := strings.TrimSpace(anyString(root["actor_id"])); actorID != "" {
 		lines = append(lines, "actor_id: "+actorID)
@@ -260,7 +262,11 @@ func formatCommitmentRecord(commitment map[string]any) string {
 	lines = appendScalar(lines, "owner", commitment, "owner")
 	lines = appendScalar(lines, "due_at", commitment, "due_at", "due_on")
 	lines = appendScalar(lines, "summary", commitment, "summary")
-	lines = appendStringList(lines, "refs", stringList(commitment["refs"]))
+	links := stringList(commitment["links"])
+	if len(links) == 0 {
+		links = stringList(commitment["refs"])
+	}
+	lines = appendStringList(lines, "links", links)
 	return strings.Join(lines, "\n")
 }
 
@@ -286,7 +292,7 @@ func formatEventRecord(event map[string]any) string {
 	lines = appendScalar(lines, "type", event, "type")
 	lines = appendScalar(lines, "thread_id", event, "thread_id")
 	lines = appendScalar(lines, "actor_id", event, "actor_id")
-	lines = appendScalar(lines, "created_at", event, "created_at")
+	lines = appendScalar(lines, "ts", event, "ts", "created_at")
 	lines = appendScalar(lines, "summary", event, "summary")
 	lines = appendStringList(lines, "refs", stringList(event["refs"]))
 	if payload := asMap(event["payload"]); len(payload) > 0 {
