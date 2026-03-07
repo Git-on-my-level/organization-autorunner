@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 
-import { listMockTimelineEvents } from "$lib/mockCoreData";
+import { getMockThreadTimeline } from "$lib/mockCoreData";
 import { guardMockRoute } from "$lib/server/mockGuard";
 
 export function GET({ params, url }) {
@@ -9,7 +9,5 @@ export function GET({ params, url }) {
     return guardResponse;
   }
 
-  return json({
-    events: listMockTimelineEvents(params.threadId),
-  });
+  return json(getMockThreadTimeline(params.threadId));
 }

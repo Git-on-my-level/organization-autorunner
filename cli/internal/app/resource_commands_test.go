@@ -600,14 +600,14 @@ func TestEventsListCommandSupportsMultipleThreadIDs(t *testing.T) {
 		switch r.URL.Path {
 		case "/threads/thread_1/timeline":
 			_, _ = w.Write([]byte(`{"thread_id":"thread_1","events":[
-				{"id":"event_1","thread_id":"thread_1","type":"actor_statement","summary":"first","created_at":"2026-03-06T12:00:00Z"},
-				{"id":"event_2","thread_id":"thread_1","type":"actor_statement","summary":"second","created_at":"2026-03-06T12:05:00Z"}
-			],"snapshots":{},"artifacts":{}}`))
+				{"id":"event_1","thread_id":"thread_1","type":"actor_statement","summary":"first","ts":"2026-03-06T12:01:00Z","created_at":"2026-03-06T12:10:00Z"},
+				{"id":"event_2","thread_id":"thread_1","type":"actor_statement","summary":"second","ts":"2026-03-06T12:02:00Z","created_at":"2026-03-06T12:11:00Z"}
+			],"snapshots":{"snapshot_1":{"id":"snapshot_1","title":"Snap One"}},"artifacts":{"artifact_1":{"id":"artifact_1","kind":"note"}}}`))
 		case "/threads/thread_2/timeline":
 			_, _ = w.Write([]byte(`{"thread_id":"thread_2","events":[
-				{"id":"event_3","thread_id":"thread_2","type":"actor_statement","summary":"third","created_at":"2026-03-06T12:06:00Z"},
-				{"id":"event_4","thread_id":"thread_2","type":"actor_statement","summary":"fourth","created_at":"2026-03-06T12:07:00Z"}
-			],"snapshots":{},"artifacts":{}}`))
+				{"id":"event_3","thread_id":"thread_2","type":"actor_statement","summary":"third","ts":"2026-03-06T12:03:00Z","created_at":"2026-03-06T12:00:00Z"},
+				{"id":"event_4","thread_id":"thread_2","type":"actor_statement","summary":"fourth","ts":"2026-03-06T12:04:00Z","created_at":"2026-03-06T12:01:00Z"}
+			],"snapshots":{"snapshot_2":{"id":"snapshot_2","title":"Snap Two"}},"artifacts":{"artifact_2":{"id":"artifact_2","kind":"report"}}}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -643,6 +643,14 @@ func TestEventsListCommandSupportsMultipleThreadIDs(t *testing.T) {
 	second, _ := events[1].(map[string]any)
 	if anyStringValue(first["id"]) != "event_3" || anyStringValue(second["id"]) != "event_4" {
 		t.Fatalf("expected most recent cross-thread events, got %#v", body)
+	}
+	snapshots, _ := body["snapshots"].(map[string]any)
+	if len(snapshots) != 2 {
+		t.Fatalf("expected merged timeline snapshots, got %#v", body["snapshots"])
+	}
+	artifacts, _ := body["artifacts"].(map[string]any)
+	if len(artifacts) != 2 {
+		t.Fatalf("expected merged timeline artifacts, got %#v", body["artifacts"])
 	}
 
 	mu.Lock()
@@ -1311,6 +1319,80 @@ func TestEventsCreateReviewCompletedValidRefsCallsHTTP(t *testing.T) {
 	mu.Unlock()
 	if gotRequests != 1 {
 		t.Fatalf("expected one HTTP request for valid payload, got %d", gotRequests)
+	}
+}
+
+func TestEventsCreateMissingThreadIDFailsLocally(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	requestCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requestCount++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"event":{"id":"event_unexpected"}}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{"event":{"type":"message_posted","summary":"hello","refs":["thread:thread_1"],"provenance":{"sources":["artifact:source_1"]}}}`), []string{
+		"--json",
+		"--base-url", server.URL,
+		"events", "create",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	message := anyStringValue(errObj["message"])
+	if !strings.Contains(message, "event.thread_id is required for event.type=\"message_posted\"") {
+		t.Fatalf("expected thread requirement validation message, got %q payload=%#v", message, payload)
+	}
+
+	mu.Lock()
+	gotRequests := requestCount
+	mu.Unlock()
+	if gotRequests != 0 {
+		t.Fatalf("expected no HTTP request for invalid local payload, got %d", gotRequests)
+	}
+}
+
+func TestCommitmentsGetHumanOutputPrefersLinks(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/commitments/commitment_1" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"commitment":{
+			"id":"commitment_1",
+			"title":"Publish launch brief",
+			"status":"open",
+			"thread_id":"thread_1",
+			"owner":"actor_1",
+			"due_at":"2026-03-07T12:00:00Z",
+			"links":["artifact:artifact_launch_brief","url:https://example.com/launch"],
+			"refs":["artifact:legacy_ref_should_not_render"]
+		}}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	out := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"commitments", "get",
+		"--commitment-id", "commitment_1",
+	})
+	if !strings.Contains(out, "links:") || !strings.Contains(out, "artifact:artifact_launch_brief") {
+		t.Fatalf("expected human output to render commitment links, got:\n%s", out)
+	}
+	if strings.Contains(out, "\nrefs:") {
+		t.Fatalf("expected human output to avoid non-canonical refs label, got:\n%s", out)
 	}
 }
 

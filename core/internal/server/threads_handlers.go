@@ -192,27 +192,28 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		threads = filtered
 	}
 
-	if staleFilter != nil {
-		events, err := opts.primitiveStore.ListEvents(r.Context(), primitives.EventListFilter{
-			Types: []string{"receipt_added", "decision_made"},
-		})
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to evaluate thread staleness")
-			return
-		}
-
-		now := time.Now().UTC()
-		staleByThread := stalenessByThread(threads, events, now)
-
-		filtered := make([]map[string]any, 0, len(threads))
-		for _, thread := range threads {
-			threadID, _ := thread["id"].(string)
-			if staleByThread[threadID] == *staleFilter {
-				filtered = append(filtered, thread)
-			}
-		}
-		threads = filtered
+	events, err := opts.primitiveStore.ListEvents(r.Context(), primitives.EventListFilter{
+		Types: []string{"receipt_added", "decision_made"},
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to evaluate thread staleness")
+		return
 	}
+
+	now := time.Now().UTC()
+	staleByThread := stalenessByThread(threads, events, now)
+
+	withStale := make([]map[string]any, 0, len(threads))
+	for _, thread := range threads {
+		threadID, _ := thread["id"].(string)
+		stale := staleByThread[threadID]
+		thread["stale"] = stale
+		if staleFilter != nil && stale != *staleFilter {
+			continue
+		}
+		withStale = append(withStale, thread)
+	}
+	threads = withStale
 
 	writeJSON(w, http.StatusOK, map[string]any{"threads": threads})
 }

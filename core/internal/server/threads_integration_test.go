@@ -113,6 +113,9 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 	if len(listedFiltered.Threads) != 1 {
 		t.Fatalf("expected exactly one filtered thread, got %d", len(listedFiltered.Threads))
 	}
+	if stale, ok := listedFiltered.Threads[0]["stale"].(bool); !ok || !stale {
+		t.Fatalf("expected filtered thread to include stale=true, got %#v", listedFiltered.Threads[0]["stale"])
+	}
 
 	staleResp, err := http.Get(h.baseURL + "/threads?stale=true")
 	if err != nil {
@@ -131,6 +134,9 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 	}
 	if len(staleListed.Threads) < 1 {
 		t.Fatalf("expected stale list to contain created thread")
+	}
+	if stale, ok := staleListed.Threads[0]["stale"].(bool); !ok || !stale {
+		t.Fatalf("expected stale list thread to include stale=true, got %#v", staleListed.Threads[0]["stale"])
 	}
 
 	timelineResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")

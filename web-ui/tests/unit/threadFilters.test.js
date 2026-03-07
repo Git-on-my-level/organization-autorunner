@@ -6,7 +6,9 @@ import {
   cadenceMatchesFilter,
   cadencePresetFromValue,
   cadenceToRequestValue,
+  computeStaleness,
   formatCadenceLabel,
+  readBackendStaleState,
   validateCadenceSelection,
   parseTagFilterInput,
 } from "../../src/lib/threadFilters.js";
@@ -120,5 +122,33 @@ describe("thread filter query builders", () => {
     expect(
       formatCadenceLabel("*/15 * * * *", { includeExpression: false }),
     ).toBe("Custom");
+  });
+
+  it("prefers backend stale state when present", () => {
+    expect(computeStaleness({ stale: true }).stale).toBe(true);
+    expect(computeStaleness({ stale: true }).label).toBe("Stale");
+
+    expect(computeStaleness({ stale: false }).stale).toBe(false);
+    expect(computeStaleness({ stale: false }).label).toBe("Fresh");
+  });
+
+  it("reads backend stale state across supported flag names", () => {
+    expect(readBackendStaleState({ stale: true })).toBe(true);
+    expect(readBackendStaleState({ stale: false })).toBe(false);
+    expect(readBackendStaleState({ is_stale: true })).toBe(true);
+    expect(readBackendStaleState({ is_stale: false })).toBe(false);
+    expect(readBackendStaleState({})).toBeNull();
+    expect(readBackendStaleState(null)).toBeNull();
+  });
+
+  it("falls back to local check-in heuristics when stale state is absent", () => {
+    expect(computeStaleness({ next_check_in_at: null }).label).toBe(
+      "No check-in",
+    );
+    expect(
+      computeStaleness({
+        next_check_in_at: new Date(Date.now() - 60_000).toISOString(),
+      }).stale,
+    ).toBe(true);
   });
 });

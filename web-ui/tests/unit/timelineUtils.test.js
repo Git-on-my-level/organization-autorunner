@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { toTimelineViewEvent } from "../../src/lib/timelineUtils.js";
+import {
+  buildTimelineRefLabelHints,
+  toTimelineViewEvent,
+} from "../../src/lib/timelineUtils.js";
 
 describe("timeline utils", () => {
   it("marks unknown event types and preserves raw payload/refs", () => {
@@ -49,5 +52,19 @@ describe("timeline utils", () => {
       href: "/threads/thread-1",
       isLink: true,
     });
+  });
+
+  it("builds label hints from timeline expansions", () => {
+    const hints = buildTimelineRefLabelHints(
+      {
+        snapshot_1: { kind: "thread", title: "Incident thread" },
+      },
+      {
+        artifact_1: { kind: "work_order", summary: "Reproduce issue" },
+      },
+    );
+
+    expect(hints["snapshot:snapshot_1"]).toBe("Incident thread");
+    expect(hints["artifact:artifact_1"]).toBe("Reproduce issue");
   });
 });
