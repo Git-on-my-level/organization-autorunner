@@ -116,6 +116,7 @@ oar --agent agent-a events stream --follow
 oar --agent agent-a events list --thread-id thread_123 --thread-id thread_456 --type actor_statement --mine --full-id --max-events 20
 oar --json --agent agent-a provenance walk --from event:event_123 --depth 2
 oar --agent agent-a threads context --thread-id thread_123 --max-events 50
+oar --agent agent-a threads context --status active --tag pilot-rescue --type initiative --full-id
 oar --agent agent-a docs content --document-id product-constitution
 oar --agent agent-a commitments inspect --commitment-id commitment_123
 oar --agent agent-a artifacts inspect --artifact-id artifact_123

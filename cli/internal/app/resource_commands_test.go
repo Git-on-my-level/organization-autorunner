@@ -1320,6 +1320,190 @@ func TestThreadsContextIncludesCollaborationSummarySections(t *testing.T) {
 	}
 }
 
+func TestThreadsContextAggregatesAcrossMultipleThreads(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_1/context":
+			_, _ = w.Write([]byte(`{
+				"thread":{"id":"thread_1","title":"Pilot Rescue","status":"active"},
+				"recent_events":[
+					{"id":"event_actor_1","type":"actor_statement","summary":"support recommends Friday launch","created_at":"2026-03-06T10:00:00Z"},
+					{"id":"event_need_1","type":"decision_needed","summary":"pick launch day","created_at":"2026-03-06T10:01:00Z"}
+				],
+				"key_artifacts":[{"id":"artifact_1","kind":"brief"}],
+				"open_commitments":[{"id":"commitment_1","status":"open","title":"Publish brief"}]
+			}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_2/context":
+			_, _ = w.Write([]byte(`{
+				"thread":{"id":"thread_2","title":"Delivery Readiness","status":"active"},
+				"recent_events":[
+					{"id":"event_actor_2","type":"actor_statement","summary":"delivery recommends staged rollout","created_at":"2026-03-06T10:05:00Z"},
+					{"id":"event_done_2","type":"decision_made","summary":"ship Friday scope","created_at":"2026-03-06T10:10:00Z"}
+				],
+				"key_artifacts":[{"id":"artifact_2","kind":"plan"}],
+				"open_commitments":[{"id":"commitment_2","status":"open","title":"Prep release runbook"}]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "context",
+		"--thread-id", "thread_1",
+		"--thread-id", "thread_2",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	body, _ := data["body"].(map[string]any)
+	contexts, _ := body["contexts"].([]any)
+	if len(contexts) != 2 {
+		t.Fatalf("expected 2 contexts, got %#v", body)
+	}
+	collaboration, _ := body["collaboration_summary"].(map[string]any)
+	if collaboration == nil {
+		t.Fatalf("expected collaboration summary, got %#v", body)
+	}
+	recommendationCount, _ := collaboration["recommendation_count"].(float64)
+	if got := int(recommendationCount); got != 2 {
+		t.Fatalf("expected recommendation_count=2, got %#v", collaboration)
+	}
+	decisionRequestCount, _ := collaboration["decision_request_count"].(float64)
+	if got := int(decisionRequestCount); got != 1 {
+		t.Fatalf("expected decision_request_count=1, got %#v", collaboration)
+	}
+	decisionCount, _ := collaboration["decision_count"].(float64)
+	if got := int(decisionCount); got != 1 {
+		t.Fatalf("expected decision_count=1, got %#v", collaboration)
+	}
+
+	human := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"threads", "context",
+		"--thread-id", "thread_1",
+		"--thread-id", "thread_2",
+	})
+	if !strings.Contains(human, "Thread contexts (2):") || !strings.Contains(human, "recommendations (2):") {
+		t.Fatalf("expected aggregate context sections in human output, got:\n%s", human)
+	}
+}
+
+func TestThreadsContextDiscoversByFiltersAndType(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	contextRequests := make([]string, 0, 2)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads":
+			if got := r.URL.Query().Get("status"); got != "active" {
+				t.Fatalf("expected status=active, got %q", got)
+			}
+			if got := r.URL.Query().Get("tag"); got != "pilot" {
+				t.Fatalf("expected tag=pilot, got %q", got)
+			}
+			_, _ = w.Write([]byte(`{"threads":[
+				{"id":"thread_init_1","type":"initiative","status":"active"},
+				{"id":"thread_case_1","type":"case","status":"active"},
+				{"id":"thread_init_2","type":"initiative","status":"active"}
+			]}`))
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/context"):
+			mu.Lock()
+			contextRequests = append(contextRequests, r.URL.Path)
+			mu.Unlock()
+			switch r.URL.Path {
+			case "/threads/thread_init_1/context":
+				_, _ = w.Write([]byte(`{"thread":{"id":"thread_init_1","type":"initiative"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+			case "/threads/thread_init_2/context":
+				_, _ = w.Write([]byte(`{"thread":{"id":"thread_init_2","type":"initiative"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+			default:
+				http.NotFound(w, r)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "context",
+		"--status", "active",
+		"--tag", "pilot",
+		"--type", "initiative",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	body, _ := data["body"].(map[string]any)
+	threadIDs := stringList(body["thread_ids"])
+	if len(threadIDs) != 2 || threadIDs[0] != "thread_init_1" || threadIDs[1] != "thread_init_2" {
+		t.Fatalf("expected initiative thread_ids [thread_init_1 thread_init_2], got %#v", body)
+	}
+
+	mu.Lock()
+	gotRequests := append([]string(nil), contextRequests...)
+	mu.Unlock()
+	if len(gotRequests) != 2 {
+		t.Fatalf("expected exactly 2 context requests, got %v", gotRequests)
+	}
+}
+
+func TestThreadsContextSupportsFullIDForEventSections(t *testing.T) {
+	t.Parallel()
+
+	const eventID = "event_1234567890abcdef"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/threads/thread_1/context" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"thread":{"id":"thread_1","title":"Pilot Rescue"},
+			"recent_events":[
+				{"id":"` + eventID + `","type":"actor_statement","summary":"ship Friday rescue scope"}
+			],
+			"key_artifacts":[],
+			"open_commitments":[]
+		}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	humanFull := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"threads", "context",
+		"--thread-id", "thread_1",
+		"--full-id",
+	})
+	if !strings.Contains(humanFull, eventID) {
+		t.Fatalf("expected full event id in output, got:\n%s", humanFull)
+	}
+
+	humanShort := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"threads", "context",
+		"--thread-id", "thread_1",
+	})
+	if strings.Contains(humanShort, eventID) {
+		t.Fatalf("expected short-id rendering without --full-id, got:\n%s", humanShort)
+	}
+	if !strings.Contains(humanShort, eventID[:12]) {
+		t.Fatalf("expected short event id in default output, got:\n%s", humanShort)
+	}
+}
+
 func TestThreadsContextHumanOutputIsPayloadFirst(t *testing.T) {
 	t.Parallel()
 
@@ -1456,6 +1640,67 @@ func TestThreadsContextCommandResolvesUniquePrefix(t *testing.T) {
 	thread, _ := body["thread"].(map[string]any)
 	if got := anyStringValue(thread["id"]); got != canonicalID {
 		t.Fatalf("expected canonical thread id %q, got %q payload=%#v", canonicalID, got, payload)
+	}
+}
+
+func TestThreadsContextDeduplicatesResolvedDuplicateIDs(t *testing.T) {
+	t.Parallel()
+
+	const canonicalID = "fff63e25-084b-4598-af8f-b6d0a4fbf001"
+	const shortPrefix = "fff63e25-084b-4598-af8f"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/"+shortPrefix+"/context":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"not_found","message":"thread not found"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads":
+			_, _ = w.Write([]byte(`{"threads":[{"id":"` + canonicalID + `"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/"+canonicalID+"/context":
+			_, _ = w.Write([]byte(`{
+				"thread":{"id":"` + canonicalID + `","title":"Pilot Rescue"},
+				"recent_events":[{"id":"event_actor_1","type":"actor_statement","summary":"ship Friday scope"}],
+				"key_artifacts":[],
+				"open_commitments":[]
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "context",
+		"--thread-id", shortPrefix,
+		"--thread-id", canonicalID,
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	body, _ := data["body"].(map[string]any)
+	threadIDs := stringList(body["thread_ids"])
+	if len(threadIDs) != 1 || threadIDs[0] != canonicalID {
+		t.Fatalf("expected one canonical thread_id %q, got %#v", canonicalID, body)
+	}
+	threadCount, _ := body["thread_count"].(float64)
+	if got := int(threadCount); got != 1 {
+		t.Fatalf("expected thread_count=1, got %#v", body)
+	}
+	contexts, _ := body["contexts"].([]any)
+	if len(contexts) != 1 {
+		t.Fatalf("expected one deduplicated context, got %#v", body)
+	}
+	recentEvents, _ := body["recent_events"].([]any)
+	if len(recentEvents) != 1 {
+		t.Fatalf("expected one deduplicated recent event, got %#v", body)
+	}
+	collaboration, _ := body["collaboration_summary"].(map[string]any)
+	recommendationCount, _ := collaboration["recommendation_count"].(float64)
+	if got := int(recommendationCount); got != 1 {
+		t.Fatalf("expected recommendation_count=1 after dedupe, got %#v", collaboration)
 	}
 }
 

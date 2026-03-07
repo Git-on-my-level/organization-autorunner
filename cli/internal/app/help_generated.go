@@ -188,6 +188,10 @@ func formatGeneratedGroupHelp(topic string, commands []registry.Command) string 
 
 func localGroupHelpSupplement(topic string) string {
 	switch strings.TrimSpace(topic) {
+	case "threads":
+		return strings.TrimSpace(`Coordination helper:
+  threads context             Supports one or many thread ids and discovery filters in one command.
+  Tip: use ` + "`--status/--tag/--type initiative`" + ` to build cross-thread initiative views; add ` + "`--full-id`" + ` for copy/paste event ids.`)
 	case "events":
 		return strings.TrimSpace(`Local inspection helpers:
   events list              List timeline events with thread/type/actor filters, id mode, and preview summaries.
