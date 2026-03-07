@@ -1941,6 +1941,69 @@ func TestThreadsRecommendationsSelectionValidation(t *testing.T) {
 	}
 }
 
+func TestThreadsRecommendationsDiscoveryErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		threadsJSON    string
+		wantMessageSub string
+	}{
+		{
+			name:           "no matches",
+			threadsJSON:    `{"threads":[]}`,
+			wantMessageSub: "threads recommendations discovery returned no matching threads",
+		},
+		{
+			name: "multiple matches",
+			threadsJSON: `{"threads":[
+				{"id":"thread_init_1","type":"initiative","status":"active"},
+				{"id":"thread_init_2","type":"initiative","status":"active"}
+			]}`,
+			wantMessageSub: "threads recommendations requires exactly one thread",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/threads" {
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.threadsJSON))
+			}))
+			defer server.Close()
+
+			home := t.TempDir()
+			payload := assertEnvelopeError(t, runCLIForTest(t, home, map[string]string{}, nil, []string{
+				"--json",
+				"--base-url", server.URL,
+				"threads", "recommendations",
+				"--status", "active",
+				"--type", "initiative",
+			}))
+			if got := anyStringValue(payload["command"]); got != "threads recommendations" {
+				t.Fatalf("expected threads recommendations error command, got %#v", payload)
+			}
+			if got := anyStringValue(payload["command_id"]); got != "threads.recommendations" {
+				t.Fatalf("expected threads.recommendations command_id, got %#v", payload)
+			}
+			errObj, _ := payload["error"].(map[string]any)
+			if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+				t.Fatalf("expected invalid_request error payload, got %#v", payload)
+			}
+			if !strings.Contains(anyStringValue(errObj["message"]), tt.wantMessageSub) {
+				t.Fatalf("expected message containing %q, got %#v", tt.wantMessageSub, payload)
+			}
+		})
+	}
+}
+
 func TestThreadsContextHumanOutputIsPayloadFirst(t *testing.T) {
 	t.Parallel()
 
