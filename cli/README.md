@@ -23,4 +23,16 @@ Generated command/concept docs are under `docs/generated/`.
 
 Human-readable inspection commands now default to payload-first summaries. Use `--verbose` to print the full response body and `--headers` to opt into response status/header framing when debugging.
 
+## Command-shape compatibility aliases
+
+The CLI supports a small exact-token compatibility layer for high-value command-shape drift:
+
+- `oar packets receipts create ...` -> `oar receipts create ...`
+- `oar packets reviews create ...` -> `oar reviews create ...`
+- `oar packets work-orders create ...` -> `oar work-orders create ...`
+- `oar artifacts content get ...` -> `oar artifacts content ...`
+- `oar threads update ...` -> `oar threads patch ...`
+
+These aliases are explicit and exact only; unknown command paths still fail when no compatibility alias matches.
+
 See `docs/runbook.md` for command, integration-test, and Pi dogfood details.

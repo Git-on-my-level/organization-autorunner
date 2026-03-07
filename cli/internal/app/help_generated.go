@@ -109,6 +109,9 @@ func generatedHelpText(topic string) (string, bool) {
 	if topic == "" {
 		return "", false
 	}
+	if rewritten, ok := applyCommandShapeCompatibilityAlias(strings.Fields(topic)); ok {
+		topic = strings.Join(rewritten, " ")
+	}
 	meta, err := registry.LoadEmbedded()
 	if err != nil {
 		return "", false
