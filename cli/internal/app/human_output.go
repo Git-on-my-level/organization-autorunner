@@ -708,6 +708,26 @@ func formatScalar(raw any) string {
 			return "true"
 		}
 		return "false"
+	case int:
+		return fmt.Sprintf("%d", typed)
+	case int8:
+		return fmt.Sprintf("%d", typed)
+	case int16:
+		return fmt.Sprintf("%d", typed)
+	case int32:
+		return fmt.Sprintf("%d", typed)
+	case int64:
+		return fmt.Sprintf("%d", typed)
+	case uint:
+		return fmt.Sprintf("%d", typed)
+	case uint8:
+		return fmt.Sprintf("%d", typed)
+	case uint16:
+		return fmt.Sprintf("%d", typed)
+	case uint32:
+		return fmt.Sprintf("%d", typed)
+	case uint64:
+		return fmt.Sprintf("%d", typed)
 	case float64:
 		if typed == float64(int64(typed)) {
 			return fmt.Sprintf("%d", int64(typed))

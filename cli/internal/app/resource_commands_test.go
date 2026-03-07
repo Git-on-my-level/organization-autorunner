@@ -248,6 +248,16 @@ func TestInboxListSupportsClientSideThreadAndTypeFilters(t *testing.T) {
 	if got := anyStringValue(item["id"]); got != matchingID {
 		t.Fatalf("expected matching inbox item %q, got %#v", matchingID, body)
 	}
+
+	human := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"inbox", "list",
+		"--thread-id", "thread_1234567890",
+		"--type", "decision_needed",
+	})
+	if !strings.Contains(human, "total_items: 3") || !strings.Contains(human, "returned_items: 1") {
+		t.Fatalf("expected rendered inbox counts in human output, got:\n%s", human)
+	}
 }
 
 func TestInboxAliasStableAcrossListMembershipChanges(t *testing.T) {
