@@ -217,73 +217,72 @@
   function filterButtonClass(filterName) {
     const active = urgencyFilter === filterName;
     if (active) {
-      return "border-indigo-200 bg-indigo-50 text-indigo-700";
+      return "border-slate-900 bg-slate-900 text-white";
     }
-    return "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-800";
+    return "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300";
   }
 </script>
 
 <header
-  class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm"
+  class="rounded-xl border border-slate-200 bg-white px-6 py-5 shadow-sm mb-6"
 >
   <div
-    class="flex flex-wrap items-start justify-between gap-3"
+    class="flex flex-wrap items-start justify-between gap-4"
     data-testid="inbox-triage-header"
   >
     <div>
-      <h1 class="text-lg font-semibold text-gray-900">Inbox</h1>
-      <p class="mt-1 text-sm text-gray-600">
-        Prioritized for human triage. Urgency is inferred from category and
-        source event age.
+      <h1 class="text-2xl font-semibold text-slate-900 tracking-tight">Inbox</h1>
+      <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+        Prioritized for human triage. Urgency is inferred from category and source event age.
       </p>
     </div>
     <div
-      class="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2"
+      class="inline-flex items-center gap-2 rounded-lg bg-slate-50 px-4 py-2.5"
     >
-      <span class="text-xs uppercase tracking-[0.08em] text-slate-500"
+      <span class="text-xs uppercase tracking-wide font-medium text-slate-500"
         >Open</span
       >
-      <span class="text-lg font-semibold text-slate-900">{totalItems}</span>
+      <span class="text-xl font-semibold text-slate-900">{totalItems}</span>
     </div>
   </div>
 
-  <div class="mt-4 grid gap-2 sm:grid-cols-3">
+  <div class="mt-5 grid gap-3 sm:grid-cols-3">
     <div
-      class="rounded-lg border border-red-100 bg-red-50 px-3 py-2"
+      class="rounded-lg border border-red-200 bg-red-50 px-4 py-3"
       data-testid="urgency-summary-immediate"
     >
-      <p class="text-[11px] uppercase tracking-[0.08em] text-red-600">
+      <p class="text-xs uppercase tracking-wide font-medium text-red-600">
         Immediate
       </p>
-      <p class="mt-1 text-lg font-semibold text-red-700">
+      <p class="mt-1 text-2xl font-semibold text-red-700">
         {urgencySummary.immediate}
       </p>
     </div>
     <div
-      class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2"
+      class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3"
       data-testid="urgency-summary-high"
     >
-      <p class="text-[11px] uppercase tracking-[0.08em] text-amber-600">High</p>
-      <p class="mt-1 text-lg font-semibold text-amber-700">
+      <p class="text-xs uppercase tracking-wide font-medium text-amber-600">High</p>
+      <p class="mt-1 text-2xl font-semibold text-amber-700">
         {urgencySummary.high}
       </p>
     </div>
     <div
-      class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+      class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
       data-testid="urgency-summary-normal"
     >
-      <p class="text-[11px] uppercase tracking-[0.08em] text-slate-500">
+      <p class="text-xs uppercase tracking-wide font-medium text-slate-500">
         Normal
       </p>
-      <p class="mt-1 text-lg font-semibold text-slate-700">
+      <p class="mt-1 text-2xl font-semibold text-slate-700">
         {urgencySummary.normal}
       </p>
     </div>
   </div>
 
-  <div class="mt-4 flex flex-wrap gap-2" data-testid="inbox-filter-bar">
+  <div class="mt-5 flex flex-wrap gap-2" data-testid="inbox-filter-bar">
     <button
-      class={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${filterButtonClass("all")}`}
+      class={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${filterButtonClass("all")}`}
       onclick={() => {
         urgencyFilter = "all";
       }}
@@ -292,7 +291,7 @@
       All ({totalItems})
     </button>
     <button
-      class={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${filterButtonClass("immediate")}`}
+      class={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${filterButtonClass("immediate")}`}
       onclick={() => {
         urgencyFilter = "immediate";
       }}
@@ -301,7 +300,7 @@
       Immediate ({urgencySummary.immediate})
     </button>
     <button
-      class={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${filterButtonClass("high")}`}
+      class={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${filterButtonClass("high")}`}
       onclick={() => {
         urgencyFilter = "high";
       }}
@@ -310,7 +309,7 @@
       High ({urgencySummary.high})
     </button>
     <button
-      class={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${filterButtonClass("aging")}`}
+      class={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${filterButtonClass("aging")}`}
       onclick={() => {
         urgencyFilter = "aging";
       }}
@@ -323,10 +322,10 @@
 
 {#if error}
   <div
-    class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+    class="mb-6 flex items-start gap-3 rounded-lg bg-red-50 px-5 py-4 text-sm text-red-700"
   >
     <svg
-      class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+      class="mt-0.5 h-5 w-5 shrink-0 text-red-400"
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -344,9 +343,9 @@
 
 {#if loading}
   <div
-    class="mt-12 flex items-center justify-center gap-2 text-sm text-gray-400"
+    class="mt-16 flex items-center justify-center gap-3 text-sm text-slate-400"
   >
-    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+    <svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle
         class="opacity-25"
         cx="12"
@@ -365,28 +364,28 @@
   </div>
 {:else if totalItems === 0}
   <section
-    class="mt-5 rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center"
+    class="rounded-xl border border-dashed border-slate-300 bg-white px-8 py-12 text-center"
     data-testid="inbox-empty-state"
   >
-    <h2 class="text-base font-semibold text-slate-800">Inbox is clear</h2>
-    <p class="mt-1.5 text-sm text-slate-600">
+    <h2 class="text-lg font-semibold text-slate-900">Inbox is clear</h2>
+    <p class="mt-2 text-sm text-slate-600 leading-relaxed">
       No triage items are pending right now. New exceptions, risks, or decisions
       will appear here.
     </p>
   </section>
 {:else if !hasFilteredItems}
   <section
-    class="mt-5 rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center"
+    class="rounded-xl border border-dashed border-slate-300 bg-white px-8 py-12 text-center"
     data-testid="inbox-filter-empty-state"
   >
-    <h2 class="text-base font-semibold text-slate-800">
+    <h2 class="text-lg font-semibold text-slate-900">
       No items match this view
     </h2>
-    <p class="mt-1.5 text-sm text-slate-600">
-      Try switching back to <span class="font-medium">All</span> to see the full queue.
+    <p class="mt-2 text-sm text-slate-600 leading-relaxed">
+      Try switching back to <span class="font-semibold">All</span> to see the full queue.
     </p>
     <button
-      class="mt-4 rounded-md border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+      class="mt-5 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300"
       onclick={() => {
         urgencyFilter = "all";
       }}
@@ -396,13 +395,13 @@
     </button>
   </section>
 {:else}
-  <div class="mt-5 space-y-5">
+  <div class="space-y-6">
     {#each visibleGroups as group}
       <section data-testid={`inbox-group-${group.category}`}>
-        <div class="mb-2.5 flex items-center gap-2">
+        <div class="mb-3 flex items-center gap-2">
           {#if categoryIcon(group.category) === "decision"}
             <svg
-              class="h-3.5 w-3.5 text-indigo-400"
+              class="h-4 w-4 text-indigo-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -411,12 +410,12 @@
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                d="M8.228 9c.549 1.165 2.03 2 3.772 2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
           {:else if categoryIcon(group.category) === "exception"}
             <svg
-              class="h-3.5 w-3.5 text-red-400"
+              class="h-4 w-4 text-red-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -430,7 +429,7 @@
             </svg>
           {:else if categoryIcon(group.category) === "risk"}
             <svg
-              class="h-3.5 w-3.5 text-amber-400"
+              class="h-4 w-4 text-amber-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -444,7 +443,7 @@
             </svg>
           {:else}
             <svg
-              class="h-3.5 w-3.5 text-gray-400"
+              class="h-4 w-4 text-slate-400"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -458,53 +457,53 @@
             </svg>
           {/if}
           <h2
-            class="text-xs font-semibold uppercase tracking-[0.08em] text-gray-500"
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
           >
             {getInboxCategoryLabel(group.category)}
           </h2>
           <span
-            class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-medium text-slate-600"
+            class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-100 px-2 text-xs font-medium text-slate-600"
           >
             {group.items.length}
           </span>
         </div>
 
-        <div class="space-y-2.5">
+        <div class="space-y-3">
           {#each group.items as item}
             <article
-              class={`rounded-xl border bg-white px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.04)] ${urgencyCardClass(item.urgency_level)}`}
+              class={`rounded-xl border bg-white px-5 py-4 shadow-sm transition-all hover:shadow ${urgencyCardClass(item.urgency_level)}`}
               data-testid={`inbox-card-${item.id}`}
             >
               <div class="flex flex-wrap items-center gap-2">
                 <span
-                  class={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${urgencyBadgeClass(item.urgency_level)}`}
+                  class={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold ${urgencyBadgeClass(item.urgency_level)}`}
                 >
                   {item.urgency_label}
                 </span>
                 <span
-                  class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600"
+                  class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
                 >
                   {item.age_label}
                 </span>
                 {#if item.has_source_event_time}
-                  <span class="text-[11px] text-slate-400">
+                  <span class="text-xs text-slate-400">
                     Source: {formatTimestamp(item.source_event_time)}
                   </span>
                 {/if}
               </div>
 
               <h3
-                class="mt-2 text-base font-semibold leading-tight text-slate-900"
+                class="mt-3 text-base font-semibold leading-tight text-slate-900"
               >
                 {item.title}
               </h3>
 
               {#if item.recommended_action}
                 <div
-                  class="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                  class="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
                 >
                   <p
-                    class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500"
+                    class="text-xs font-semibold uppercase tracking-wide text-slate-500"
                   >
                     Recommended action
                   </p>
@@ -514,14 +513,14 @@
                 </div>
               {/if}
 
-              <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
                 {#if item.thread_id}
                   <a
-                    class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700"
+                    class="inline-flex items-center gap-1 font-medium text-slate-600 hover:text-slate-900 transition-colors"
                     href={`/threads/${item.thread_id}`}
                   >
                     <svg
-                      class="h-3 w-3"
+                      class="h-3.5 w-3.5"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -538,7 +537,7 @@
                 {/if}
                 {#if item.commitment_id}
                   <a
-                    class="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700"
+                    class="inline-flex items-center gap-1 font-medium text-slate-600 hover:text-slate-900 transition-colors"
                     href={item.thread_id
                       ? `/threads/${item.thread_id}#commitment-card-${item.commitment_id}`
                       : `/threads#commitment-card-${item.commitment_id}`}
@@ -551,10 +550,10 @@
                 {/each}
               </div>
 
-              <div class="mt-3 flex flex-wrap gap-2">
+              <div class="mt-4 flex flex-wrap gap-2">
                 <button
                   aria-label="Acknowledge"
-                  class="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                  class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50"
                   disabled={Boolean(ackInFlightById[item.id])}
                   onclick={() => acknowledgeItem(item)}
                   type="button"
@@ -562,23 +561,23 @@
                   {ackInFlightById[item.id] ? "Dismissing..." : "Dismiss"}
                 </button>
                 <button
-                  class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500"
+                  class="inline-flex items-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-slate-800"
                   onclick={() =>
                     toggleDecisionForm(item, !getDecisionForm(item.id).open)}
                   type="button"
                 >
                   {getDecisionForm(item.id).open
-                    ? "Close decision form"
+                    ? "Close form"
                     : "Decide"}
                 </button>
               </div>
 
               {#if postedDecisionByInboxItem[item.id]}
                 <div
-                  class="mt-2.5 flex items-center gap-1.5 text-xs text-emerald-600"
+                  class="mt-3 flex items-center gap-2 text-sm text-emerald-600"
                 >
                   <svg
-                    class="h-3.5 w-3.5"
+                    class="h-4 w-4"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -602,25 +601,25 @@
 
               {#if getDecisionForm(item.id).open}
                 <form
-                  class="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
+                  class="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4"
                   data-testid={`decision-form-${item.id}`}
                   onsubmit={(event) => {
                     event.preventDefault();
                     void recordDecision(item);
                   }}
                 >
-                  <p class="text-xs text-slate-600">
+                  <p class="text-sm text-slate-600">
                     Record a clear decision for this inbox item. This creates a
                     `decision_made` event on the linked thread.
                   </p>
                   <label
-                    class="mt-2.5 block text-xs font-semibold text-slate-700"
+                    class="mt-3 block text-sm font-medium text-slate-700"
                     for={`decision-summary-${item.id}`}
                   >
                     Decision summary
                   </label>
                   <input
-                    class="mt-1.5 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+                    class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm transition-all focus:border-slate-300"
                     id={`decision-summary-${item.id}`}
                     oninput={(event) =>
                       updateDecisionField(
@@ -637,14 +636,14 @@
                     </p>
                   {/if}
                   <label
-                    class="mt-2.5 block text-xs font-semibold text-slate-700"
+                    class="mt-3 block text-sm font-medium text-slate-700"
                     for={`decision-notes-${item.id}`}
                   >
                     Notes
                     <span class="font-normal text-slate-500">optional</span>
                   </label>
                   <textarea
-                    class="mt-1.5 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm"
+                    class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm transition-all focus:border-slate-300"
                     id={`decision-notes-${item.id}`}
                     oninput={(event) =>
                       updateDecisionField(
@@ -653,11 +652,11 @@
                         event.currentTarget.value,
                       )}
                     placeholder="Additional context..."
-                    rows="2">{getDecisionForm(item.id).notes}</textarea
+                    rows="3">{getDecisionForm(item.id).notes}</textarea
                   >
-                  <div class="mt-3 flex justify-end">
+                  <div class="mt-4 flex justify-end">
                     <button
-                      class="rounded-md bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                      class="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-slate-800 disabled:opacity-50"
                       disabled={Boolean(decisionInFlightById[item.id])}
                       type="submit"
                     >
