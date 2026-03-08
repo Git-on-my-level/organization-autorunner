@@ -39,10 +39,8 @@ func validateEventReferenceConventions(contract *schema.Contract, event map[stri
 		return err
 	}
 
-	if eventType == "commitment_status_changed" {
-		if err := validateCommitmentStatusChangedRefs(payload, refs); err != nil {
-			return err
-		}
+	if err := validateConditionalRefRules(eventType, payload, refs, rule.ConditionalRefs); err != nil {
+		return err
 	}
 
 	return nil
@@ -86,7 +84,7 @@ func validateRequiredRefPatterns(eventType string, refs []string, patterns []str
 
 func validateRequiredPayloadKeys(eventType string, payload map[string]any, requiredKeys []string) error {
 	for _, key := range requiredKeys {
-		key = strings.TrimSpace(key)
+		key = normalizeRequiredPayloadKey(key)
 		if key == "" {
 			continue
 		}
@@ -98,51 +96,82 @@ func validateRequiredPayloadKeys(eventType string, payload map[string]any, requi
 	return nil
 }
 
-func validateCommitmentStatusChangedRefs(payload map[string]any, refs []string) error {
-	status := commitmentTargetStatus(payload)
-	if status == "" {
+func validateConditionalRefRules(eventType string, payload map[string]any, refs []string, conditions []schema.ConditionalRefRule) error {
+	if len(conditions) == 0 {
 		return nil
 	}
 
-	hasArtifactRef := false
-	hasEventRef := false
+	prefixesPresent := make(map[string]bool)
 	for _, ref := range refs {
 		prefix, _, err := schema.SplitTypedRef(ref)
 		if err != nil {
 			continue
 		}
-		if prefix == "artifact" {
-			hasArtifactRef = true
+		prefixesPresent[prefix] = true
+	}
+
+	for _, cond := range conditions {
+		payloadValue := getPayloadValue(payload, cond.When.PayloadField)
+		if !strings.EqualFold(strings.TrimSpace(payloadValue), cond.When.Equals) {
+			continue
 		}
-		if prefix == "event" {
-			hasEventRef = true
+
+		matchedCount := 0
+		for _, req := range cond.MustHave {
+			if prefixesPresent[req.Prefix] {
+				matchedCount++
+			}
+		}
+
+		mode := strings.ToLower(strings.TrimSpace(cond.Condition))
+		if mode == "or" {
+			if matchedCount > 0 {
+				continue
+			}
+			return fmtConditionalRefError(eventType, cond)
+		}
+		if len(cond.MustHave) > 0 && matchedCount != len(cond.MustHave) {
+			return fmtConditionalRefError(eventType, cond)
 		}
 	}
 
-	switch status {
-	case "done":
-		if hasArtifactRef || hasEventRef {
-			return nil
-		}
-		return fmt.Errorf("event.refs must include artifact:<receipt_id> or event:<decision_event_id> when event.type=\"commitment_status_changed\" and payload.to_status=\"done\"")
-	case "canceled":
-		if hasEventRef {
-			return nil
-		}
-		return fmt.Errorf("event.refs must include event:<decision_event_id> when event.type=\"commitment_status_changed\" and payload.to_status=\"canceled\"")
-	default:
-		return nil
-	}
+	return nil
 }
 
-func commitmentTargetStatus(payload map[string]any) string {
-	if toStatus, ok := payload["to_status"].(string); ok {
-		return strings.TrimSpace(toStatus)
+func getPayloadValue(payload map[string]any, fieldPath string) string {
+	keys := strings.Split(fieldPath, ".")
+	var current any = payload
+
+	for _, key := range keys {
+		if current == nil {
+			return ""
+		}
+		if m, ok := current.(map[string]any); ok {
+			current = m[key]
+		} else {
+			return ""
+		}
 	}
-	if status, ok := payload["status"].(string); ok {
-		return strings.TrimSpace(status)
+
+	if v, ok := current.(string); ok {
+		return v
 	}
 	return ""
+}
+
+func fmtConditionalRefError(eventType string, cond schema.ConditionalRefRule) error {
+	required := make([]string, len(cond.MustHave))
+	for i, req := range cond.MustHave {
+		required[i] = fmt.Sprintf("%s prefix", req.Prefix)
+	}
+
+	conditionText := strings.Join(required, " and ")
+	if cond.Condition == "or" {
+		conditionText = strings.Join(required, " or ")
+	}
+
+	return fmt.Errorf("event.refs must include %s when event.type=%q and payload.%s=%q",
+		conditionText, eventType, cond.When.PayloadField, cond.When.Equals)
 }
 
 func patternRefPrefix(pattern string) string {
@@ -151,4 +180,16 @@ func patternRefPrefix(pattern string) string {
 		return ""
 	}
 	return strings.TrimSpace(pattern[:idx])
+}
+
+func normalizeRequiredPayloadKey(raw string) string {
+	key := strings.TrimSpace(raw)
+	if key == "" {
+		return ""
+	}
+	idx := strings.IndexAny(key, " (\t")
+	if idx <= 0 {
+		return key
+	}
+	return strings.TrimSpace(key[:idx])
 }

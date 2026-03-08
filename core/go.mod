@@ -2,8 +2,6 @@ module organization-autorunner-core
 
 go 1.23.0
 
-toolchain go1.23.4
-
 require (
 	github.com/go-webauthn/webauthn v0.13.4
 	github.com/google/uuid v1.6.0

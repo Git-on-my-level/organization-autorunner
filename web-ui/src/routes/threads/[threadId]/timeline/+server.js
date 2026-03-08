@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 
-import { getMockThreadTimeline } from "$lib/mockCoreData";
+import { getMockThread, listMockTimelineEvents } from "$lib/mockCoreData";
 import { guardMockRoute } from "$lib/server/mockGuard";
 
 export function GET({ params, url }) {
@@ -9,5 +9,14 @@ export function GET({ params, url }) {
     return guardResponse;
   }
 
-  return json(getMockThreadTimeline(params.threadId));
+  const thread = getMockThread(params.threadId);
+  if (!thread) {
+    return json({ error: "Thread not found." }, { status: 404 });
+  }
+
+  return json({
+    events: listMockTimelineEvents(params.threadId),
+    snapshots: [],
+    artifacts: [],
+  });
 }

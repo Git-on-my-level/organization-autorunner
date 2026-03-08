@@ -48,6 +48,9 @@ contract-gen: ## Regenerate OpenAPI-derived contract artifacts
 contract-check: ## Verify generated contract artifacts are committed
 	./scripts/contract-check
 
+docs-ref-audit: ## Audit agent-facing docs for broken local path references
+	./scripts/docs-ref-audit
+
 cli-check: ## Run CLI checks
 	cd $(CLI_DIR) && go test ./...
 
