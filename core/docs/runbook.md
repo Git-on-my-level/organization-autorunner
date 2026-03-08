@@ -20,8 +20,8 @@ This runbook covers reproducible local and production-like operation for `oar-co
 | Full listen address (overrides host+port) | `--listen-addr` | `OAR_LISTEN_ADDR` | unset |
 | Schema path | `--schema-path` | `OAR_SCHEMA_PATH` | `../contracts/oar-schema.yaml` |
 | Allow unauthenticated writes | n/a | `OAR_ALLOW_UNAUTHENTICATED_WRITES` | `false` |
-| WebAuthn RP ID | n/a | `OAR_WEBAUTHN_RPID` | `127.0.0.1` |
-| WebAuthn origin | n/a | `OAR_WEBAUTHN_ORIGIN` | `http://127.0.0.1:5173` |
+| WebAuthn RP ID | n/a | `OAR_WEBAUTHN_RPID` | derived from browser origin host |
+| WebAuthn origin | n/a | `OAR_WEBAUTHN_ORIGIN` | derived from browser request origin |
 | WebAuthn RP display name | n/a | `OAR_WEBAUTHN_RP_DISPLAY_NAME` | `OAR` |
 
 ## Workspace layout
@@ -67,6 +67,11 @@ OAR_WEBAUTHN_RPID=oar.example.com \
 OAR_WEBAUTHN_ORIGIN=https://oar.example.com \
 ./scripts/run-prod
 ```
+
+If `OAR_WEBAUTHN_RPID` and `OAR_WEBAUTHN_ORIGIN` are left unset, `oar-core`
+derives them per request from the browser origin forwarded by the UI proxy.
+If you set either value explicitly, the browser must access the UI on that same
+hostname or WebAuthn ceremonies will be rejected.
 
 `./scripts/dev` defaults `OAR_ALLOW_UNAUTHENTICATED_WRITES=1` so local seed workflows keep working. Production-like runs should leave it unset unless an explicitly open local workflow is required.
 

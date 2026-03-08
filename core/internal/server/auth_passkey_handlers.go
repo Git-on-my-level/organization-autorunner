@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -45,7 +46,13 @@ func handlePasskeyRegisterOptions(w http.ResponseWriter, r *http.Request, opts h
 		displayName: displayName,
 	}
 
-	options, sessionData, err := opts.webAuthn.BeginRegistration(
+	webAuthn, err := buildWebAuthnForRequest(r, opts)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "auth_unavailable", err.Error())
+		return
+	}
+
+	options, sessionData, err := webAuthn.BeginRegistration(
 		user,
 		webauthn.WithResidentKeyRequirement(protocol.ResidentKeyRequirementRequired),
 	)
@@ -104,13 +111,19 @@ func handlePasskeyRegisterVerify(w http.ResponseWriter, r *http.Request, opts ha
 		displayName: displayName,
 	}
 
+	webAuthn, err := buildWebAuthnForRequest(r, opts)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "auth_unavailable", err.Error())
+		return
+	}
+
 	parsed, err := protocol.ParseCredentialCreationResponseBody(bytes.NewReader(req.Credential))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "passkey credential could not be parsed")
 		return
 	}
 
-	credential, err := opts.webAuthn.CreateCredential(user, session.SessionData, parsed)
+	credential, err := webAuthn.CreateCredential(user, session.SessionData, parsed)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request", "passkey attestation could not be verified")
 		return
@@ -155,15 +168,22 @@ func handlePasskeyLoginOptions(w http.ResponseWriter, r *http.Request, opts hand
 		options     *protocol.CredentialAssertion
 		sessionData *webauthn.SessionData
 		session     auth.PasskeySession
-		err         error
 	)
 
 	if username == "" {
-		options, sessionData, err = opts.webAuthn.BeginDiscoverableLogin()
+		webAuthn, err := buildWebAuthnForRequest(r, opts)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "auth_unavailable", err.Error())
+			return
+		}
+
+		discoverableOptions, discoverableSessionData, err := webAuthn.BeginDiscoverableLogin()
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", "failed to begin passkey login")
 			return
 		}
+		options = discoverableOptions
+		sessionData = discoverableSessionData
 		session = auth.PasskeySession{
 			Kind:        auth.PasskeySessionKindLoginDiscoverable,
 			SessionData: *sessionData,
@@ -179,11 +199,19 @@ func handlePasskeyLoginOptions(w http.ResponseWriter, r *http.Request, opts hand
 			return
 		}
 		user := newPasskeyUser(identity)
-		options, sessionData, err = opts.webAuthn.BeginLogin(user)
+		webAuthn, err := buildWebAuthnForRequest(r, opts)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "auth_unavailable", err.Error())
+			return
+		}
+
+		loginOptions, loginSessionData, err := webAuthn.BeginLogin(user)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "internal_error", "failed to begin passkey login")
 			return
 		}
+		options = loginOptions
+		sessionData = loginSessionData
 		session = auth.PasskeySession{
 			Kind:        auth.PasskeySessionKindLoginKnown,
 			DisplayName: identity.DisplayName,
@@ -218,6 +246,12 @@ func handlePasskeyLoginVerify(w http.ResponseWriter, r *http.Request, opts handl
 		return
 	}
 
+	webAuthn, err := buildWebAuthnForRequest(r, opts)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "auth_unavailable", err.Error())
+		return
+	}
+
 	session, ok := opts.passkeySessionStore.Consume(req.SessionID)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "invalid_token", "passkey login session is invalid or expired")
@@ -241,7 +275,7 @@ func handlePasskeyLoginVerify(w http.ResponseWriter, r *http.Request, opts handl
 			handlePasskeyLookupError(w, err)
 			return
 		}
-		credential, err = opts.webAuthn.ValidateLogin(newPasskeyUser(identity), session.SessionData, parsed)
+		credential, err = webAuthn.ValidateLogin(newPasskeyUser(identity), session.SessionData, parsed)
 	case auth.PasskeySessionKindLoginDiscoverable:
 		credentialUserLookup := func(rawID []byte, userHandle []byte) (webauthn.User, error) {
 			loadedIdentity, err := opts.authStore.GetPasskeyIdentityByUserHandle(r.Context(), userHandle)
@@ -251,7 +285,7 @@ func handlePasskeyLoginVerify(w http.ResponseWriter, r *http.Request, opts handl
 			identity = loadedIdentity
 			return newPasskeyUser(loadedIdentity), nil
 		}
-		_, credential, err = opts.webAuthn.ValidatePasskeyLogin(
+		_, credential, err = webAuthn.ValidatePasskeyLogin(
 			credentialUserLookup,
 			session.SessionData,
 			parsed,
@@ -289,11 +323,19 @@ func handlePasskeyLoginVerify(w http.ResponseWriter, r *http.Request, opts handl
 }
 
 func requirePasskeyAuthDeps(w http.ResponseWriter, opts handlerOptions) bool {
-	if opts.authStore == nil || opts.passkeySessionStore == nil || opts.webAuthn == nil {
+	if opts.authStore == nil || opts.passkeySessionStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "auth_unavailable", "passkey auth is not configured")
 		return false
 	}
 	return true
+}
+
+func buildWebAuthnForRequest(r *http.Request, opts handlerOptions) (*webauthn.WebAuthn, error) {
+	webAuthn, err := opts.webAuthnConfig.buildForRequest(r)
+	if err != nil {
+		return nil, fmt.Errorf("passkey auth configuration is invalid for this request: %w", err)
+	}
+	return webAuthn, nil
 }
 
 func handlePasskeyLookupError(w http.ResponseWriter, err error) {

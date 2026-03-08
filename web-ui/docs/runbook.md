@@ -78,6 +78,16 @@ cd ../web-ui
 OAR_CORE_BASE_URL=http://127.0.0.1:8000 ./scripts/dev
 ```
 
+Passkey note:
+
+- In proxy mode, the UI now forwards the browser `Origin` and forwarded host
+  headers to core so WebAuthn can derive the correct RP ID for the hostname
+  you actually opened.
+- If core is started with explicit `OAR_WEBAUTHN_ORIGIN` or
+  `OAR_WEBAUTHN_RPID`, open the UI on that exact hostname. Mixing
+  `localhost`, `127.0.0.1`, or a custom domain will cause browser WebAuthn
+  validation to fail.
+
 If you want actor-selection mode locally, start core with `OAR_ALLOW_UNAUTHENTICATED_WRITES=1` or use the repo-root `make serve` workflow, which sets it automatically for the seeded dev stack.
 
 For end-to-end integration validation:

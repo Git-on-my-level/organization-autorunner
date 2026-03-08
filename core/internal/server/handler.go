@@ -15,8 +15,6 @@ import (
 	"organization-autorunner-core/internal/auth"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
-
-	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
 
 type HealthCheckFunc func(ctx context.Context) error
@@ -63,7 +61,7 @@ type handlerOptions struct {
 	passkeySessionStore        *auth.PasskeySessionStore
 	primitiveStore             PrimitiveStore
 	contract                   *schema.Contract
-	webAuthn                   *webauthnlib.WebAuthn
+	webAuthnConfig             WebAuthnConfig
 	allowUnauthenticatedWrites bool
 	inboxRiskHorizon           time.Duration
 	coreVersion                string
@@ -112,9 +110,9 @@ func WithSchemaContract(contract *schema.Contract) HandlerOption {
 	}
 }
 
-func WithWebAuthn(webAuthn *webauthnlib.WebAuthn) HandlerOption {
+func WithWebAuthnConfig(config WebAuthnConfig) HandlerOption {
 	return func(opts *handlerOptions) {
-		opts.webAuthn = webAuthn
+		opts.webAuthnConfig = config
 	}
 }
 

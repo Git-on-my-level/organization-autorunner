@@ -17,9 +17,6 @@ import (
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/server"
 	"organization-autorunner-core/internal/storage"
-
-	"github.com/go-webauthn/webauthn/protocol"
-	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
 
 const (
@@ -48,8 +45,8 @@ func main() {
 		metaCommandsPath           = envString("OAR_META_COMMANDS_PATH", "")
 		streamPollInterval         = envDuration("OAR_STREAM_POLL_INTERVAL", time.Second)
 		allowUnauthenticatedWrites = envBool("OAR_ALLOW_UNAUTHENTICATED_WRITES", false)
-		webAuthnRPID               = envString("OAR_WEBAUTHN_RPID", "127.0.0.1")
-		webAuthnOrigin             = envString("OAR_WEBAUTHN_ORIGIN", "http://127.0.0.1:5173")
+		webAuthnRPID               = envString("OAR_WEBAUTHN_RPID", "")
+		webAuthnOrigin             = envString("OAR_WEBAUTHN_ORIGIN", "")
 		webAuthnDisplayName        = envString("OAR_WEBAUTHN_RP_DISPLAY_NAME", "OAR")
 	)
 
@@ -112,18 +109,6 @@ func main() {
 	authStore := auth.NewStore(workspace.DB())
 	passkeySessionStore := auth.NewPasskeySessionStore(auth.DefaultPasskeySessionTTL)
 	defer passkeySessionStore.Close()
-	webAuthn, err := webauthnlib.New(&webauthnlib.Config{
-		RPDisplayName: webAuthnDisplayName,
-		RPID:          webAuthnRPID,
-		RPOrigins:     []string{webAuthnOrigin},
-		AuthenticatorSelection: protocol.AuthenticatorSelection{
-			UserVerification: protocol.VerificationPreferred,
-		},
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize WebAuthn: %v\n", err)
-		os.Exit(1)
-	}
 	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
 	handler := server.NewHandler(
 		contract.Version,
@@ -133,7 +118,11 @@ func main() {
 		server.WithPasskeySessionStore(passkeySessionStore),
 		server.WithPrimitiveStore(primitiveStore),
 		server.WithSchemaContract(contract),
-		server.WithWebAuthn(webAuthn),
+		server.WithWebAuthnConfig(server.WebAuthnConfig{
+			RPDisplayName: webAuthnDisplayName,
+			RPID:          webAuthnRPID,
+			RPOrigin:      webAuthnOrigin,
+		}),
 		server.WithAllowUnauthenticatedWrites(allowUnauthenticatedWrites),
 		server.WithCoreVersion(coreVersion),
 		server.WithAPIVersion(apiVersion),

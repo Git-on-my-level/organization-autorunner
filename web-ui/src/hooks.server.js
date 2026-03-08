@@ -1,5 +1,6 @@
 import { env } from "$env/dynamic/private";
 import { isProxyableCommand } from "$lib/coreRouteCatalog";
+import { buildProxyRequestInit } from "$lib/server/coreProxy";
 
 function normalizeBaseUrl(value) {
   return String(value ?? "")
@@ -31,21 +32,7 @@ async function proxyToCore(event, coreBaseUrl) {
     `${event.url.pathname}${event.url.search}`,
     `${coreBaseUrl}/`,
   ).toString();
-
-  const headers = new Headers(event.request.headers);
-  headers.delete("host");
-  headers.delete("origin");
-
-  const method = event.request.method.toUpperCase();
-  const requestInit = {
-    method,
-    headers,
-  };
-
-  if (method !== "GET" && method !== "HEAD") {
-    requestInit.body = event.request.body;
-    requestInit.duplex = "half";
-  }
+  const requestInit = buildProxyRequestInit(event);
 
   let upstreamResponse;
   try {
