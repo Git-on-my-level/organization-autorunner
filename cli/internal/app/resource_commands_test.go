@@ -33,9 +33,11 @@ func TestTypedThreadCommandsGolden(t *testing.T) {
 			}
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"thread":{"id":"thread_1","title":"Alpha","status":"active"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_1":
+			_, _ = w.Write([]byte(`{"thread":{"id":"thread_1","title":"Alpha","status":"active"}}`))
 		case r.Method == http.MethodPatch && r.URL.Path == "/threads/thread_1":
 			body, _ := io.ReadAll(r.Body)
-			if !bytes.Contains(body, []byte(`"status":"resolved"`)) {
+			if !bytes.Contains(body, []byte(`"patch":{"status":"resolved"}`)) {
 				t.Fatalf("unexpected update body: %s", string(body))
 			}
 			_, _ = w.Write([]byte(`{"thread":{"id":"thread_1","title":"Alpha","status":"resolved"}}`))
@@ -56,8 +58,11 @@ func TestTypedThreadCommandsGolden(t *testing.T) {
 	createOut := runCLIForTest(t, home, env, strings.NewReader(`{"thread":{"title":"Alpha"}}`), []string{"--json", "--base-url", server.URL, "threads", "create"})
 	assertGolden(t, "threads_create.golden.json", createOut)
 
-	patchOut := runCLIForTest(t, home, env, strings.NewReader(`{"thread":{"status":"resolved"}}`), []string{"--json", "--base-url", server.URL, "threads", "patch", "--thread-id", "thread_1"})
-	assertGolden(t, "threads_patch.golden.json", patchOut)
+	patchOut := runCLIForTest(t, home, env, strings.NewReader(`{"patch":{"status":"resolved"}}`), []string{"--json", "--base-url", server.URL, "threads", "patch", "--thread-id", "thread_1"})
+	assertGolden(t, "threads_patch.golden.json", normalizeProposalEnvelopeForGolden(t, patchOut))
+	patchPayload := assertEnvelopeOK(t, patchOut)
+	proposalID := proposalIDFromEnvelope(t, patchPayload)
+	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "threads", "apply", "--proposal-id", proposalID}))
 
 	timelineOut := runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "threads", "timeline", "--thread-id", "thread_1"})
 	timelinePayload := assertEnvelopeOK(t, timelineOut)
@@ -74,6 +79,8 @@ func TestTypedWorkflowCommands(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/threads":
 			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"thread":{"id":"thread_flow_1","title":"Flow Thread","status":"active"}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_flow_1":
 			_, _ = w.Write([]byte(`{"thread":{"id":"thread_flow_1","title":"Flow Thread","status":"active"}}`))
 		case r.Method == http.MethodPatch && r.URL.Path == "/threads/thread_flow_1":
 			_, _ = w.Write([]byte(`{"thread":{"id":"thread_flow_1","title":"Flow Thread","status":"resolved"}}`))
@@ -104,7 +111,8 @@ func TestTypedWorkflowCommands(t *testing.T) {
 	env := map[string]string{}
 
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"thread":{"title":"Flow Thread"}}`), []string{"--json", "--base-url", server.URL, "threads", "create"}))
-	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"thread":{"status":"resolved"}}`), []string{"--json", "--base-url", server.URL, "threads", "patch", "thread_flow_1"}))
+	threadPatchPayload := assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"patch":{"status":"resolved"}}`), []string{"--json", "--base-url", server.URL, "threads", "patch", "thread_flow_1"}))
+	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "threads", "apply", proposalIDFromEnvelope(t, threadPatchPayload)}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"commitment":{"thread_id":"thread_flow_1","title":"Do work"}}`), []string{"--json", "--base-url", server.URL, "commitments", "create"}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"work_order":{"thread_id":"thread_flow_1"}}`), []string{"--json", "--base-url", server.URL, "work-orders", "create"}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"receipt":{"thread_id":"thread_flow_1"}}`), []string{"--json", "--base-url", server.URL, "receipts", "create"}))
@@ -674,7 +682,7 @@ func TestDocsCommands(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"document":{"id":"doc_1","head_revision_id":"rev_1"},"revision":{"revision_id":"rev_1","revision_number":1}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/docs/doc_1":
-			_, _ = w.Write([]byte(`{"document":{"id":"doc_1","head_revision_id":"rev_2"},"revision":{"revision_id":"rev_2","revision_number":2}}`))
+			_, _ = w.Write([]byte(`{"document":{"id":"doc_1","head_revision_id":"rev_1"},"revision":{"revision_id":"rev_1","revision_number":1,"content":"initial","content_type":"text"}}`))
 		case r.Method == http.MethodPatch && r.URL.Path == "/docs/doc_1":
 			body, _ := io.ReadAll(r.Body)
 			if !bytes.Contains(body, []byte(`"if_base_revision":"rev_1"`)) {
@@ -696,7 +704,8 @@ func TestDocsCommands(t *testing.T) {
 
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"document":{"id":"doc_1"},"content":"initial","content_type":"text"}`), []string{"--json", "--base-url", server.URL, "docs", "create"}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "get", "--document-id", "doc_1"}))
-	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"actor_id":"actor_test","if_base_revision":"rev_1","content":"next","content_type":"text"}`), []string{"--json", "--base-url", server.URL, "docs", "update", "--document-id", "doc_1"}))
+	docsUpdatePayload := assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"actor_id":"actor_test","if_base_revision":"rev_1","content":"next","content_type":"text"}`), []string{"--json", "--base-url", server.URL, "docs", "update", "--document-id", "doc_1"}))
+	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "apply", "--proposal-id", proposalIDFromEnvelope(t, docsUpdatePayload)}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "history", "--document-id", "doc_1"}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "revision", "get", "--document-id", "doc_1", "--revision-id", "rev_1"}))
 }
@@ -705,6 +714,11 @@ func TestDocsUpdateInjectsActorIDFromProfile(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/docs/doc_1" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"document":{"id":"doc_1","head_revision_id":"rev_1"},"revision":{"revision_id":"rev_1","revision_number":1,"content":"initial","content_type":"text"}}`))
+			return
+		}
 		if r.Method != http.MethodPatch || r.URL.Path != "/docs/doc_1" {
 			http.NotFound(w, r)
 			return
@@ -732,7 +746,14 @@ func TestDocsUpdateInjectsActorIDFromProfile(t *testing.T) {
 		"docs", "update",
 		"--document-id", "doc_1",
 	})
-	assertEnvelopeOK(t, raw)
+	payload := assertEnvelopeOK(t, raw)
+	assertEnvelopeOK(t, runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"--agent", "agent-docs",
+		"docs", "apply",
+		proposalIDFromEnvelope(t, payload),
+	}))
 }
 
 func TestDocsUpdateRequiresActiveActorIdentity(t *testing.T) {
@@ -806,6 +827,9 @@ func TestProductManagerFlowRegisterThenDocsUpdate(t *testing.T) {
 				},
 			})
 			return
+		case r.Method == http.MethodGet && r.URL.Path == "/docs/northwave-pilot-rescue-brief":
+			_, _ = w.Write([]byte(`{"document":{"id":"northwave-pilot-rescue-brief","head_revision_id":"rev_1"},"revision":{"revision_id":"rev_1","revision_number":1,"content":"initial brief","content_type":"text"}}`))
+			return
 		case r.Method == http.MethodPatch && r.URL.Path == "/docs/northwave-pilot-rescue-brief":
 			if gotAuth := strings.TrimSpace(r.Header.Get("Authorization")); gotAuth != "Bearer token-product-manager" {
 				t.Fatalf("expected auth bearer token, got %q", gotAuth)
@@ -840,12 +864,19 @@ func TestProductManagerFlowRegisterThenDocsUpdate(t *testing.T) {
 		"auth", "register",
 		"--username", "pi-dogfood-agent-product-manager",
 	}))
-	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"if_base_revision":"rev_1","content":"updated brief","content_type":"text"}`), []string{
+	docsUpdatePayload := assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"if_base_revision":"rev_1","content":"updated brief","content_type":"text"}`), []string{
 		"--json",
 		"--base-url", server.URL,
 		"--agent", "agent-product-manager",
 		"docs", "update",
 		"--document-id", "northwave-pilot-rescue-brief",
+	}))
+	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"--agent", "agent-product-manager",
+		"docs", "apply",
+		proposalIDFromEnvelope(t, docsUpdatePayload),
 	}))
 
 	mu.Lock()
@@ -998,7 +1029,7 @@ func TestDocsValidateUpdateRejectsNullContent(t *testing.T) {
 	}
 }
 
-func TestDocsUpdateDryRunRejectsNullContentBeforeHTTP(t *testing.T) {
+func TestDocsUpdateRejectsNullContentBeforeHTTP(t *testing.T) {
 	t.Parallel()
 
 	var mu sync.Mutex
@@ -1017,7 +1048,6 @@ func TestDocsUpdateDryRunRejectsNullContentBeforeHTTP(t *testing.T) {
 		"--base-url", server.URL,
 		"docs", "update",
 		"--document-id", "doc_1",
-		"--dry-run",
 	})
 	payload := assertEnvelopeError(t, raw)
 	errObj, _ := payload["error"].(map[string]any)
@@ -1032,20 +1062,30 @@ func TestDocsUpdateDryRunRejectsNullContentBeforeHTTP(t *testing.T) {
 	gotRequests := requestCount
 	mu.Unlock()
 	if gotRequests != 0 {
-		t.Fatalf("expected no HTTP request for invalid dry-run payload, got %d", gotRequests)
+		t.Fatalf("expected no HTTP request for invalid proposal payload, got %d", gotRequests)
 	}
 }
 
-func TestDocsUpdateDryRunWithContentFileSkipsHTTP(t *testing.T) {
+func TestDocsUpdateProposalWithContentFileUsesFetchedDocumentState(t *testing.T) {
 	t.Parallel()
 
 	var mu sync.Mutex
-	requestCount := 0
+	getCount := 0
+	patchCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
-		requestCount++
-		mu.Unlock()
-		http.NotFound(w, r)
+		defer mu.Unlock()
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/docs/doc_1":
+			getCount++
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"document":{"id":"doc_1","head_revision_id":"rev_1"},"revision":{"revision_id":"rev_1","revision_number":1,"content":"old content","content_type":"text"}}`))
+		case r.Method == http.MethodPatch && r.URL.Path == "/docs/doc_1":
+			patchCount++
+			http.NotFound(w, r)
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer server.Close()
 
@@ -1059,34 +1099,208 @@ func TestDocsUpdateDryRunWithContentFileSkipsHTTP(t *testing.T) {
 	if err := os.WriteFile(contentFile, []byte(content), 0o600); err != nil {
 		t.Fatalf("write content file: %v", err)
 	}
+	writeAgentProfile(t, home, "agent-docs-content-file", `{"agent":"agent-docs-content-file","actor_id":"actor-docs-content-file","access_token":"token-docs","access_token_expires_at":"2099-01-01T00:00:00Z"}`)
 
 	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
 		"--json",
 		"--base-url", server.URL,
+		"--agent", "agent-docs-content-file",
 		"docs", "update",
 		"--document-id", "doc_1",
 		"--from-file", updateFile,
 		"--content-file", contentFile,
-		"--dry-run",
 	})
 	payload := assertEnvelopeOK(t, raw)
 	data, _ := payload["data"].(map[string]any)
-	if dryRun, _ := data["dry_run"].(bool); !dryRun {
-		t.Fatalf("expected dry_run=true payload=%#v", payload)
-	}
 	if got := anyStringValue(data["path"]); got != "/docs/doc_1" {
 		t.Fatalf("expected path /docs/doc_1, got %q payload=%#v", got, payload)
 	}
 	body, _ := data["body"].(map[string]any)
 	if got := anyStringValue(body["content"]); got != strings.TrimSpace(content) {
-		t.Fatalf("expected content-file override in dry-run payload, got %q payload=%#v", got, payload)
+		t.Fatalf("expected content-file override in proposal payload, got %q payload=%#v", got, payload)
+	}
+	diff, _ := data["diff"].(map[string]any)
+	if diffText := anyStringValue(diff["text"]); !strings.Contains(diffText, "line 1") {
+		t.Fatalf("expected unified diff text in proposal payload, got %#v", data)
 	}
 
 	mu.Lock()
-	gotRequests := requestCount
+	gotGets := getCount
+	gotPatches := patchCount
 	mu.Unlock()
-	if gotRequests != 0 {
-		t.Fatalf("expected no HTTP request for dry-run, got %d", gotRequests)
+	if gotGets != 1 {
+		t.Fatalf("expected one docs get request during proposal staging, got %d", gotGets)
+	}
+	if gotPatches != 0 {
+		t.Fatalf("expected no docs patch request during proposal staging, got %d", gotPatches)
+	}
+}
+
+func TestDocsUpdateProposalPreservesStructuredContentInDiff(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/docs/doc_structured":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"document":{"id":"doc_structured","head_revision_id":"rev_1"},
+				"revision":{
+					"revision_id":"rev_1",
+					"revision_number":1,
+					"content_type":"structured",
+					"content":{"summary":"Initial brief","status":"draft","items":["alpha"]}
+				}
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	writeAgentProfile(t, home, "agent-docs-structured", `{"agent":"agent-docs-structured","actor_id":"actor-docs-structured","access_token":"token-docs","access_token_expires_at":"2099-01-01T00:00:00Z"}`)
+
+	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{
+		"if_base_revision":"rev_1",
+		"content_type":"structured",
+		"content":{"summary":"Updated brief","status":"approved","items":["alpha","beta"]}
+	}`), []string{
+		"--json",
+		"--base-url", server.URL,
+		"--agent", "agent-docs-structured",
+		"docs", "update",
+		"--document-id", "doc_structured",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	body, _ := data["body"].(map[string]any)
+	content, _ := body["content"].(map[string]any)
+	if got := anyStringValue(content["status"]); got != "approved" {
+		t.Fatalf("expected structured content in staged proposal body, got %#v", body["content"])
+	}
+	diff, _ := data["diff"].(map[string]any)
+	diffText := anyStringValue(diff["text"])
+	if strings.Contains(diffText, "(no changes)") {
+		t.Fatalf("expected structured proposal diff to show changes, got %q", diffText)
+	}
+	if !strings.Contains(diffText, `"status": "draft"`) || !strings.Contains(diffText, `"status": "approved"`) {
+		t.Fatalf("expected structured proposal diff to preserve content changes, got %q", diffText)
+	}
+	if !strings.Contains(diffText, `"items": [`) || !strings.Contains(diffText, `"beta"`) {
+		t.Fatalf("expected structured proposal diff to include nested array changes, got %q", diffText)
+	}
+}
+
+func TestDocsUpdateProposalTextDiffFallsBackWhenRevisionContentEmpty(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/docs/doc_text_fallback":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{
+				"document":{"id":"doc_text_fallback","head_revision_id":"rev_1"},
+				"content":"body fallback content",
+				"revision":{
+					"revision_id":"rev_1",
+					"revision_number":1,
+					"content_type":"text",
+					"content":""
+				}
+			}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	writeAgentProfile(t, home, "agent-docs-text-fallback", `{"agent":"agent-docs-text-fallback","actor_id":"actor-docs-text-fallback","access_token":"token-docs","access_token_expires_at":"2099-01-01T00:00:00Z"}`)
+
+	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{
+		"if_base_revision":"rev_1",
+		"content_type":"text",
+		"content":"updated body content"
+	}`), []string{
+		"--json",
+		"--base-url", server.URL,
+		"--agent", "agent-docs-text-fallback",
+		"docs", "update",
+		"--document-id", "doc_text_fallback",
+	})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	diff, _ := data["diff"].(map[string]any)
+	diffText := anyStringValue(diff["text"])
+	if !strings.Contains(diffText, "-body fallback content") || !strings.Contains(diffText, "+updated body content") {
+		t.Fatalf("expected text proposal diff to fall back to body content when revision content is empty, got %q", diffText)
+	}
+}
+
+func TestCommitmentsUpdateStagesProposalAndApply(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	getCalls := 0
+	patchCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/commitments/commitment_1":
+			mu.Lock()
+			getCalls++
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"commitment":{"id":"commitment_1","thread_id":"thread_1","title":"Publish note","status":"open"}}`))
+		case r.Method == http.MethodPatch && r.URL.Path == "/commitments/commitment_1":
+			mu.Lock()
+			patchCalls++
+			mu.Unlock()
+			body, _ := io.ReadAll(r.Body)
+			if !bytes.Contains(body, []byte(`"patch":{"status":"done"}`)) {
+				t.Fatalf("unexpected commitments patch body: %s", string(body))
+			}
+			_, _ = w.Write([]byte(`{"commitment":{"id":"commitment_1","thread_id":"thread_1","title":"Publish note","status":"done"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	updatePayload := assertEnvelopeOK(t, runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{"patch":{"status":"done"}}`), []string{
+		"--json",
+		"--base-url", server.URL,
+		"commitments", "update",
+		"--commitment-id", "commitment_1",
+	}))
+
+	mu.Lock()
+	gotGetsAfterStage := getCalls
+	gotPatchesAfterStage := patchCalls
+	mu.Unlock()
+	if gotGetsAfterStage != 1 {
+		t.Fatalf("expected one commitments get during proposal staging, got %d", gotGetsAfterStage)
+	}
+	if gotPatchesAfterStage != 0 {
+		t.Fatalf("expected no commitments patch during proposal staging, got %d", gotPatchesAfterStage)
+	}
+
+	applyPayload := assertEnvelopeOK(t, runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"commitments", "apply",
+		proposalIDFromEnvelope(t, updatePayload),
+	}))
+	if got := anyStringValue(applyPayload["command_id"]); got != "commitments.patch.apply" {
+		t.Fatalf("expected commitments.patch.apply command_id, got %#v", applyPayload)
+	}
+
+	mu.Lock()
+	gotPatches := patchCalls
+	mu.Unlock()
+	if gotPatches != 1 {
+		t.Fatalf("expected one commitments patch after apply, got %d", gotPatches)
 	}
 }
 
@@ -2947,6 +3161,45 @@ func assertGolden(t *testing.T, goldenFile string, actual string) {
 	}
 }
 
+func proposalIDFromEnvelope(t *testing.T, payload map[string]any) string {
+	t.Helper()
+	data, _ := payload["data"].(map[string]any)
+	proposalID := anyStringValue(data["proposal_id"])
+	if strings.TrimSpace(proposalID) == "" {
+		t.Fatalf("expected proposal_id in payload=%#v", payload)
+	}
+	return proposalID
+}
+
+func normalizeProposalEnvelopeForGolden(t *testing.T, raw string) string {
+	t.Helper()
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		t.Fatalf("decode proposal envelope json: %v raw=%s", err, raw)
+	}
+	data, _ := payload["data"].(map[string]any)
+	if data == nil {
+		return raw
+	}
+	proposalID := strings.TrimSpace(anyStringValue(data["proposal_id"]))
+	if proposalID == "" {
+		return raw
+	}
+	data["proposal_id"] = "draft-PLACEHOLDER"
+	if path := strings.TrimSpace(anyStringValue(data["proposal_path"])); path != "" {
+		data["proposal_path"] = filepath.Join("/tmp", "draft-PLACEHOLDER.json")
+	}
+	if applyCommand := strings.TrimSpace(anyStringValue(data["apply_command"])); applyCommand != "" {
+		data["apply_command"] = strings.ReplaceAll(applyCommand, proposalID, "draft-PLACEHOLDER")
+	}
+	payload["data"] = data
+	encoded, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		t.Fatalf("encode normalized proposal envelope: %v payload=%#v", err, payload)
+	}
+	return string(encoded) + "\n"
+}
+
 func TestInboxTailReconnect(t *testing.T) {
 	t.Parallel()
 
@@ -3108,6 +3361,32 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 	}
 	if _, ok := threadsInspectBody["inbox"].(map[string]any); !ok {
 		t.Fatalf("expected inbox section in inspect payload, got %#v", threadsInspectBody)
+	}
+
+	threadsWorkspaceOut := runCLIForTest(t, home, env, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "workspace",
+		"--thread-id", "thread_123",
+	})
+	assertGolden(t, "threads_workspace_machine.golden.json", threadsWorkspaceOut)
+	threadsWorkspacePayload := assertEnvelopeOK(t, threadsWorkspaceOut)
+	if got := anyStringValue(threadsWorkspacePayload["command"]); got != "threads workspace" {
+		t.Fatalf("expected threads workspace command label, got %#v", threadsWorkspacePayload)
+	}
+	if got := anyStringValue(threadsWorkspacePayload["command_id"]); got != "threads.workspace" {
+		t.Fatalf("expected threads.workspace command_id, got %#v", threadsWorkspacePayload)
+	}
+	threadsWorkspaceData, _ := threadsWorkspacePayload["data"].(map[string]any)
+	threadsWorkspaceBody, _ := threadsWorkspaceData["body"].(map[string]any)
+	if _, ok := threadsWorkspaceBody["context"].(map[string]any); !ok {
+		t.Fatalf("expected context section in workspace payload, got %#v", threadsWorkspaceBody)
+	}
+	if _, ok := threadsWorkspaceBody["related_threads"].(map[string]any); !ok {
+		t.Fatalf("expected related_threads section in workspace payload, got %#v", threadsWorkspaceBody)
+	}
+	if _, ok := threadsWorkspaceBody["pending_decisions"].(map[string]any); !ok {
+		t.Fatalf("expected pending_decisions section in workspace payload, got %#v", threadsWorkspaceBody)
 	}
 
 	threadsRecommendationsOut := runCLIForTest(t, home, env, nil, []string{

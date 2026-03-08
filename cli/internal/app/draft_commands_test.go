@@ -158,6 +158,30 @@ func TestDraftCreateValidationFailure(t *testing.T) {
 	}
 }
 
+func TestDraftCreateRejectsCommandsWithRequiredPathParams(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{"patch":{"status":"resolved"}}`), []string{
+		"--json",
+		"--agent", "agent-a",
+		"draft", "create",
+		"--command", "threads.patch",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "invalid_request" {
+		t.Fatalf("unexpected error payload: %#v", payload)
+	}
+	message := anyStringValue(errObj["message"])
+	if !strings.Contains(message, "cannot stage threads.patch") || !strings.Contains(message, "requires path parameters") {
+		t.Fatalf("expected path-parameter guidance, got %q payload=%#v", message, payload)
+	}
+	if !strings.Contains(message, "typed proposal command") {
+		t.Fatalf("expected typed proposal guidance, got %q payload=%#v", message, payload)
+	}
+}
+
 func TestDraftCreateAllowsEmptyStringListEntriesForListStringFields(t *testing.T) {
 	t.Parallel()
 

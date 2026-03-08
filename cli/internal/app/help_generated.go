@@ -85,6 +85,29 @@ var localHelperTopics = []localHelperTopic{
 		},
 	},
 	{
+		Path:        "threads workspace",
+		Summary:     "Single holistic thread coordination read: combine context, inbox, recommendation review, and related-thread signals in one command.",
+		JSONShape:   "`thread`, `context`, `collaboration`, `inbox`, `pending_decisions`, `related_threads`, `related_recommendations`, `related_decisions`, `follow_up`",
+		Composition: "Resolves one thread by id or discovery filters, loads `threads context`, adds thread-scoped inbox items from `inbox list`, and follows related thread refs for additional review context.",
+		Examples: []string{
+			"oar threads workspace --thread-id <thread-id> --full-id",
+			"oar threads workspace --status active --type initiative --full-summary",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to inspect."},
+			{Name: "--status <status>", Description: "Discover one thread by status."},
+			{Name: "--priority <priority>", Description: "Discover one thread by priority."},
+			{Name: "--stale <bool>", Description: "Discover one thread by stale state."},
+			{Name: "--tag <tag>", Description: "Repeatable discovery tag filter."},
+			{Name: "--cadence <cadence>", Description: "Repeatable discovery cadence filter."},
+			{Name: "--type <thread-type>", Description: "Local discovery filter after `threads list`."},
+			{Name: "--max-events <n>", Description: "Maximum recent context events to include."},
+			{Name: "--include-artifact-content", Description: "Include artifact content previews from `threads context`."},
+			{Name: "--full-summary", Description: "Show full recommendation/decision summaries in human output."},
+			{Name: "--full-id", Description: "Render full event and inbox ids in human output."},
+		},
+	},
+	{
 		Path:        "threads recommendations",
 		Summary:     "Review one thread's recommendation/decision inputs plus related-thread signals with provenance and follow-up hints.",
 		JSONShape:   "`thread`, `recommendations`, `decision_requests`, `decisions`, `pending_decisions`, `related_threads`, `related_recommendations`, `follow_up`",
@@ -102,8 +125,89 @@ var localHelperTopics = []localHelperTopic{
 			{Name: "--cadence <cadence>", Description: "Repeatable discovery cadence filter."},
 			{Name: "--type <thread-type>", Description: "Local discovery filter after `threads list`."},
 			{Name: "--max-events <n>", Description: "Maximum recent context events to include."},
+			{Name: "--include-artifact-content", Description: "Include artifact content previews from `threads context`."},
 			{Name: "--full-summary", Description: "Show full recommendation/decision summaries in human output."},
 			{Name: "--full-id", Description: "Render full event and inbox ids in human output."},
+		},
+	},
+	{
+		Path:        "threads patch",
+		Summary:     "Stage a thread patch proposal locally and show the diff before applying it.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `path`, `body`, `diff`, `apply_command`",
+		Composition: "Resolves the thread id, fetches current state with `threads get`, computes a local diff, and persists a proposal file instead of sending the patch immediately.",
+		Examples: []string{
+			"oar threads patch --thread-id <thread-id> --from-file patch.json",
+			"cat patch.json | oar threads patch --thread-id <thread-id>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to patch."},
+			{Name: "--from-file <path>", Description: "Load the patch body from a JSON file."},
+		},
+	},
+	{
+		Path:        "threads apply",
+		Summary:     "Apply a previously staged thread patch proposal.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `applied`, `kept`, `result`",
+		Composition: "Loads the local proposal by exact id or unique prefix, validates it again, then sends the underlying `threads.patch` request.",
+		Examples: []string{
+			"oar threads apply --proposal-id <proposal-id>",
+			"oar threads apply <proposal-id-prefix>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--proposal-id <proposal-id>", Description: "Proposal id or unique prefix to apply."},
+		},
+	},
+	{
+		Path:        "commitments update",
+		Summary:     "Stage a commitment update proposal locally and show the diff before applying it.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `path`, `body`, `diff`, `apply_command`",
+		Composition: "Resolves the commitment id, fetches current state with `commitments get`, computes a local diff, and persists a proposal file instead of sending the patch immediately.",
+		Examples: []string{
+			"oar commitments update --commitment-id <commitment-id> --from-file patch.json",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--commitment-id <commitment-id>", Description: "Commitment id to update."},
+			{Name: "--from-file <path>", Description: "Load the patch body from a JSON file."},
+		},
+	},
+	{
+		Path:        "commitments apply",
+		Summary:     "Apply a previously staged commitment update proposal.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `applied`, `kept`, `result`",
+		Composition: "Loads the local proposal by exact id or unique prefix, validates it again, then sends the underlying `commitments.patch` request.",
+		Examples: []string{
+			"oar commitments apply --proposal-id <proposal-id>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--proposal-id <proposal-id>", Description: "Proposal id or unique prefix to apply."},
+		},
+	},
+	{
+		Path:        "docs update",
+		Summary:     "Stage a document update proposal locally and show the content diff before applying it.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `path`, `body`, `diff`, `apply_command`",
+		Composition: "Fetches the current document revision with `docs get`, computes a local diff against the proposed update, and persists a proposal file instead of sending the update immediately.",
+		Examples: []string{
+			"oar docs update --document-id <document-id> --content-file <path>",
+			"cat update.json | oar docs update --document-id <document-id>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--document-id <document-id>", Description: "Document id to update."},
+			{Name: "--content-file <path>", Description: "Load multiline content from a file into the JSON payload."},
+			{Name: "--from-file <path>", Description: "Load the full JSON update body from a file."},
+		},
+	},
+	{
+		Path:        "docs apply",
+		Summary:     "Apply a previously staged document update proposal.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `applied`, `kept`, `result`",
+		Composition: "Loads the local proposal by exact id or unique prefix, validates it again, then sends the underlying `docs.update` request.",
+		Examples: []string{
+			"oar docs apply --proposal-id <proposal-id>",
+			"oar docs apply <proposal-id-prefix>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--proposal-id <proposal-id>", Description: "Proposal id or unique prefix to apply."},
 		},
 	},
 }
@@ -273,9 +377,17 @@ func localGroupHelpSupplement(topic string) string {
 	switch strings.TrimSpace(topic) {
 	case "threads":
 		return strings.TrimSpace(`Canonical coordination read path:
+  threads workspace           Compose one holistic thread workspace from context + inbox + related-thread review.
   threads inspect             Compose one thread coordination view from context + inbox in one command.
   threads recommendations     Focus recommendation/decision review with actor+timestamp provenance.
-  Tip: start with ` + "`oar threads inspect`" + ` for one initiative/thread, use ` + "`--status/--tag/--type initiative`" + ` to discover one thread, use ` + "`oar threads context`" + ` for cross-thread aggregates, and ` + "`oar threads get`" + ` for raw snapshot-only reads. Add ` + "`--full-id`" + ` for copy/paste ids.`)
+  Mutation flow:
+  threads patch               Stage a thread patch proposal and inspect the diff before applying.
+  threads apply               Apply a staged thread patch proposal.
+  Tip: start with ` + "`oar threads workspace`" + ` for one initiative/thread, use ` + "`--status/--tag/--type initiative`" + ` to discover one thread, use ` + "`oar threads context`" + ` for cross-thread aggregates, and ` + "`oar threads get`" + ` for raw snapshot-only reads. Add ` + "`--full-id`" + ` for copy/paste ids.`)
+	case "commitments":
+		return strings.TrimSpace(`Mutation flow:
+  commitments update         Stage a commitment update proposal and inspect the diff before applying.
+  commitments apply          Apply a staged commitment update proposal.`)
 	case "events":
 		return strings.TrimSpace(`Local inspection helpers:
   events list              List timeline events with thread/type/actor filters, id mode, and preview summaries.
@@ -289,6 +401,9 @@ func localGroupHelpSupplement(topic string) string {
 	case "docs":
 		return strings.TrimSpace(`Local inspection helpers:
   docs content             Show current document content with revision metadata.
+  Mutation flow:
+  docs update              Stage an update proposal and inspect its diff before applying it.
+  docs apply               Apply a staged document update proposal.
   docs validate-update     Validate a docs.update payload from stdin/--from-file.
   Tip: add ` + "`--content-file <path>`" + ` to avoid hand-escaping multiline content.`)
 	default:
@@ -570,10 +685,10 @@ func onboardingHelpText() string {
 Work-order loop
 
 1. Inspect inbound work and context: ` + "`oar inbox list`" + ` or ` + "`oar inbox stream --max-events 1`" + `.
-2. Read current state before mutating it: ` + "`oar threads inspect --thread-id <thread-id>`" + `.
+2. Read current state before mutating it: ` + "`oar threads workspace --thread-id <thread-id>`" + `.
    Use ` + "`oar threads context`" + ` for cross-thread aggregates and ` + "`oar threads get`" + ` for raw snapshot-only reads.
-3. Stage a mutation as a draft when you need reviewable intent: ` + "`oar draft create --command <command-id>`" + `.
-4. Commit the draft (or send a direct typed create/patch command) and capture returned IDs.
+3. Stage a mutation proposal when you need reviewable intent: ` + "`oar docs update`" + `, ` + "`oar threads patch`" + `, ` + "`oar commitments update`" + `, or ` + "`oar draft create --command <command-id>`" + `.
+4. Apply the staged proposal (or commit a draft for lower-level commands) and capture returned IDs.
 5. Confirm outcomes in timeline/events and ack inbox items to close the loop.
 
 First 5 commands to run

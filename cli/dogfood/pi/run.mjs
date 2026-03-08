@@ -227,7 +227,8 @@ Auth:
 
 Read workflow state:
 - List threads: \`oar threads list\`
-- Canonical thread coordination read: \`oar threads inspect --thread-id <thread-id>\`
+- Canonical thread coordination read: \`oar threads workspace --thread-id <thread-id>\`
+- Focus recommendation review: \`oar threads recommendations --thread-id <thread-id>\`
 - Cross-thread aggregate context (optional): \`oar threads context --status active --type initiative --full-id\`
 - Raw thread snapshot only (optional): \`oar threads get --thread-id <thread-id>\`
 - List inbox items: \`oar inbox list\`
@@ -236,9 +237,12 @@ Read workflow state:
 - Read artifact content: \`oar artifacts content --artifact-id <artifact-id>\`
 - List commitments for a thread: \`oar commitments list --thread-id <thread-id> --status open\`
 - Read a seeded brief document: \`oar docs get --document-id northwave-pilot-rescue-brief\`
-- Update a document revision: \`oar docs update --document-id northwave-pilot-rescue-brief --from-file doc-update-template.json\`
+- Stage a document revision update: \`oar docs update --document-id northwave-pilot-rescue-brief --from-file doc-update-template.json\`
+- Apply a staged document update: \`oar docs apply --proposal-id <proposal-id>\`
 
 Write workflow state:
+- Stage a thread patch proposal: \`oar threads patch --thread-id <thread-id> --from-file patch.json\`
+- Apply a thread patch proposal: \`oar threads apply --proposal-id <proposal-id>\`
 - Edit \`event-template.json\` in place, then create the event: \`oar events create --from-file event-template.json\`
 
 Working event type for this scenario:
@@ -417,8 +421,9 @@ function targetsGuide(role, targets) {
     `Shared goal title: ${targets.mainThread.title}`,
     `Primary thread for your role: ${targets.primaryThread.id}`,
     `Primary thread title: ${targets.primaryThread.title}`,
-    `Canonical read shared goal thread: oar threads inspect --thread-id ${targets.mainThread.id}`,
-    `Canonical read your primary thread: oar threads inspect --thread-id ${targets.primaryThread.id}`,
+    `Canonical read shared goal thread: oar threads workspace --thread-id ${targets.mainThread.id}`,
+    `Canonical read your primary thread: oar threads workspace --thread-id ${targets.primaryThread.id}`,
+    `Recommendation review shared goal thread: oar threads recommendations --thread-id ${targets.mainThread.id}`,
     `Optional raw snapshot shared goal thread: oar threads get --thread-id ${targets.mainThread.id}`,
     `Optional raw snapshot your primary thread: oar threads get --thread-id ${targets.primaryThread.id}`,
   ];
@@ -458,7 +463,8 @@ function targetsGuide(role, targets) {
     lines.push(
       `Document to update: ${targets.document.id}`,
       `Read it first: oar docs get --document-id ${targets.document.id}`,
-      `Then update it: oar docs update --document-id ${targets.document.id} --from-file doc-update-template.json`,
+      `Stage it: oar docs update --document-id ${targets.document.id} --from-file doc-update-template.json`,
+      `Then apply it: oar docs apply --proposal-id <proposal-id>`,
     );
   }
 
@@ -769,6 +775,8 @@ Rules:
 - Do not use \`curl\` for OAR API calls.
 - Do not edit repository source files.
 - Keep notes and artifacts inside the current working directory.
+- This scenario lane is fixed to \`--provider zai --model glm-5\`. Do not change provider/model when validating the scenario.
+- If you need to debug another provider or model, do it outside this scenario runner and label it separately from scenario results.
 - Register with username \`${agentUsername}\`.
 - Before finishing, write \`result.md\` containing:
   - summary
@@ -804,7 +812,7 @@ Environment:
   writeFile(path.join(workspaceDir, "result-template.md"), resultTemplate());
 
   const prompt = role.requireDocsUpdate
-    ? "Read SCENARIO.md, COMMANDS.md, TARGETS.md, and ROLE_CONTEXT.md. Execute your role with the real oar CLI. Update doc-update-template.json in place and use it to update the seeded rescue brief before posting your final event. Edit event-template.json in place, create the event from that file, write result.md, and then give a short final summary."
+    ? "Read SCENARIO.md, COMMANDS.md, TARGETS.md, and ROLE_CONTEXT.md. Execute your role with the real oar CLI. Update doc-update-template.json in place, stage the rescue-brief update with `oar docs update`, inspect the diff, apply it with `oar docs apply`, then post your final event. Edit event-template.json in place, create the event from that file, write result.md, and then give a short final summary."
     : "Read SCENARIO.md, COMMANDS.md, TARGETS.md, and ROLE_CONTEXT.md. Execute your role with the real oar CLI. Edit event-template.json in place, create the event from that file, write result.md, and then give a short final summary.";
 
   const piArgs = [
@@ -932,6 +940,10 @@ async function main() {
   console.log(`pi dogfood run: ${runId}`);
   console.log(`base url: ${core.baseUrl}`);
   console.log(`agents: ${options.agentCount}`);
+  console.log(`max seconds: ${options.maxSeconds}`);
+  if (options.agentCount > 1 && options.maxSeconds < 600) {
+    console.warn(`warning: --max-seconds ${options.maxSeconds} is below the recommended 600s floor for multi-agent scenario validation`);
+  }
 
   let agentRuns = [];
   try {

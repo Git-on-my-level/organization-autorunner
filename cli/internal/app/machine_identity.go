@@ -16,9 +16,37 @@ var machineCommandIdentityByPath = map[string]machineCommandIdentity{
 	"inbox tail":      {Command: "inbox stream", CommandID: "inbox.stream"},
 	"threads context": {Command: "threads context", CommandID: "threads.context"},
 	"threads inspect": {Command: "threads inspect", CommandID: "threads.inspect"},
+	"threads workspace": {
+		Command:   "threads workspace",
+		CommandID: "threads.workspace",
+	},
+	"threads patch": {
+		Command:   "threads patch",
+		CommandID: "threads.patch.propose",
+	},
+	"threads apply": {
+		Command:   "threads apply",
+		CommandID: "threads.patch.apply",
+	},
 	"threads recommendations": {
 		Command:   "threads recommendations",
 		CommandID: "threads.recommendations",
+	},
+	"commitments update": {
+		Command:   "commitments update",
+		CommandID: "commitments.patch.propose",
+	},
+	"commitments apply": {
+		Command:   "commitments apply",
+		CommandID: "commitments.patch.apply",
+	},
+	"docs update": {
+		Command:   "docs update",
+		CommandID: "docs.update.propose",
+	},
+	"docs apply": {
+		Command:   "docs apply",
+		CommandID: "docs.update.apply",
 	},
 }
 

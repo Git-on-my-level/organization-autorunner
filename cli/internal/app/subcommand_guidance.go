@@ -50,8 +50,8 @@ var provenanceSubcommandSpec = subcommandSpec{
 
 var threadsSubcommandSpec = subcommandSpec{
 	command:  "threads",
-	valid:    []string{"list", "get", "create", "patch", "timeline", "context", "inspect", "recommendations"},
-	examples: []string{"oar threads list --status active", "oar threads inspect --status active --type initiative --full-id", "oar threads recommendations --thread-id <thread-id> --full-id"},
+	valid:    []string{"list", "get", "create", "patch", "apply", "timeline", "context", "inspect", "workspace", "recommendations"},
+	examples: []string{"oar threads list --status active", "oar threads workspace --status active --type initiative --full-id", "oar threads recommendations --thread-id <thread-id> --full-id"},
 	aliases: map[string]string{
 		"ls":     "list",
 		"update": "patch",
@@ -60,7 +60,7 @@ var threadsSubcommandSpec = subcommandSpec{
 
 var commitmentsSubcommandSpec = subcommandSpec{
 	command:  "commitments",
-	valid:    []string{"list", "get", "create", "update"},
+	valid:    []string{"list", "get", "create", "update", "apply"},
 	examples: []string{"oar commitments list --status open", "oar commitments get --commitment-id <commitment-id>"},
 	aliases: map[string]string{
 		"ls":      "list",
@@ -81,8 +81,8 @@ var artifactsSubcommandSpec = subcommandSpec{
 
 var docsSubcommandSpec = subcommandSpec{
 	command:  "docs",
-	valid:    []string{"create", "get", "content", "update", "validate-update", "history", "revision"},
-	examples: []string{"oar docs content --document-id <document-id>", "oar docs revision get --document-id <document-id> --revision-id <revision-id>"},
+	valid:    []string{"create", "get", "content", "update", "apply", "validate-update", "history", "revision"},
+	examples: []string{"oar docs content --document-id <document-id>", "oar docs update --document-id <document-id> --content-file <path>", "oar docs apply --proposal-id <proposal-id>"},
 	aliases: map[string]string{
 		"read": "content",
 		"cat":  "content",
