@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 
-import { getMockThread, commitments } from "$lib/mockCoreData";
+import { getMockCommitment, getMockThread } from "$lib/mockCoreData";
 import { guardMockRoute } from "$lib/server/mockGuard";
 
 export function GET({ params, url }) {
@@ -16,7 +16,7 @@ export function GET({ params, url }) {
     return json({ snapshot: thread });
   }
 
-  const commitment = commitments.find((c) => c.id === snapshotId) ?? null;
+  const commitment = getMockCommitment(snapshotId);
   if (commitment) {
     return json({ snapshot: commitment });
   }
