@@ -15,6 +15,8 @@ import (
 	"organization-autorunner-core/internal/auth"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
+
+	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
 
 type HealthCheckFunc func(ctx context.Context) error
@@ -29,9 +31,15 @@ type PrimitiveStore interface {
 	AppendEvent(ctx context.Context, actorID string, event map[string]any) (map[string]any, error)
 	GetEvent(ctx context.Context, id string) (map[string]any, error)
 	CreateArtifact(ctx context.Context, actorID string, artifact map[string]any, content any, contentType string) (map[string]any, error)
+	CreateArtifactAndEvent(ctx context.Context, actorID string, artifact map[string]any, content any, contentType string, event map[string]any) (map[string]any, map[string]any, error)
 	GetArtifact(ctx context.Context, id string) (map[string]any, error)
 	GetArtifactContent(ctx context.Context, id string) ([]byte, string, error)
 	ListArtifacts(ctx context.Context, filter primitives.ArtifactListFilter) ([]map[string]any, error)
+	CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
+	GetDocument(ctx context.Context, documentID string) (map[string]any, map[string]any, error)
+	UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
+	ListDocumentHistory(ctx context.Context, documentID string) ([]map[string]any, error)
+	GetDocumentRevision(ctx context.Context, documentID string, revisionID string) (map[string]any, error)
 	GetSnapshot(ctx context.Context, id string) (map[string]any, error)
 	CreateThread(ctx context.Context, actorID string, thread map[string]any) (primitives.PatchSnapshotResult, error)
 	GetThread(ctx context.Context, id string) (map[string]any, error)
@@ -42,26 +50,30 @@ type PrimitiveStore interface {
 	PatchCommitment(ctx context.Context, actorID string, id string, patch map[string]any, refs []string, ifUpdatedAt *string) (primitives.PatchSnapshotResult, error)
 	ListCommitments(ctx context.Context, filter primitives.CommitmentListFilter) ([]map[string]any, error)
 	ListEventsByThread(ctx context.Context, threadID string) ([]map[string]any, error)
+	ListRecentEventsByThread(ctx context.Context, threadID string, limit int) ([]map[string]any, error)
 	ListEvents(ctx context.Context, filter primitives.EventListFilter) ([]map[string]any, error)
 }
 
 type HandlerOption func(*handlerOptions)
 
 type handlerOptions struct {
-	healthCheck           HealthCheckFunc
-	actorRegistry         ActorRegistry
-	authStore             *auth.Store
-	primitiveStore        PrimitiveStore
-	contract              *schema.Contract
-	inboxRiskHorizon      time.Duration
-	coreVersion           string
-	apiVersion            string
-	minCLIVersion         string
-	recommendedCLIVersion string
-	cliDownloadURL        string
-	coreInstanceID        string
-	metaCommandsPath      string
-	streamPollInterval    time.Duration
+	healthCheck                HealthCheckFunc
+	actorRegistry              ActorRegistry
+	authStore                  *auth.Store
+	passkeySessionStore        *auth.PasskeySessionStore
+	primitiveStore             PrimitiveStore
+	contract                   *schema.Contract
+	webAuthn                   *webauthnlib.WebAuthn
+	allowUnauthenticatedWrites bool
+	inboxRiskHorizon           time.Duration
+	coreVersion                string
+	apiVersion                 string
+	minCLIVersion              string
+	recommendedCLIVersion      string
+	cliDownloadURL             string
+	coreInstanceID             string
+	metaCommandsPath           string
+	streamPollInterval         time.Duration
 }
 
 func WithHealthCheck(healthCheck HealthCheckFunc) HandlerOption {
@@ -82,6 +94,12 @@ func WithAuthStore(authStore *auth.Store) HandlerOption {
 	}
 }
 
+func WithPasskeySessionStore(store *auth.PasskeySessionStore) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.passkeySessionStore = store
+	}
+}
+
 func WithPrimitiveStore(primitiveStore PrimitiveStore) HandlerOption {
 	return func(opts *handlerOptions) {
 		opts.primitiveStore = primitiveStore
@@ -91,6 +109,18 @@ func WithPrimitiveStore(primitiveStore PrimitiveStore) HandlerOption {
 func WithSchemaContract(contract *schema.Contract) HandlerOption {
 	return func(opts *handlerOptions) {
 		opts.contract = contract
+	}
+}
+
+func WithWebAuthn(webAuthn *webauthnlib.WebAuthn) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.webAuthn = webAuthn
+	}
+}
+
+func WithAllowUnauthenticatedWrites(allow bool) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.allowUnauthenticatedWrites = allow
 	}
 }
 
@@ -152,12 +182,13 @@ func WithStreamPollInterval(interval time.Duration) HandlerOption {
 
 func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 	opts := handlerOptions{
-		coreVersion:           strings.TrimSpace(schemaVersion),
-		apiVersion:            "v0",
-		minCLIVersion:         "0.1.0",
-		recommendedCLIVersion: "0.1.0",
-		coreInstanceID:        "core-local",
-		streamPollInterval:    time.Second,
+		coreVersion:                strings.TrimSpace(schemaVersion),
+		apiVersion:                 "v0",
+		minCLIVersion:              "0.1.0",
+		recommendedCLIVersion:      "0.1.0",
+		coreInstanceID:             "core-local",
+		streamPollInterval:         time.Second,
+		allowUnauthenticatedWrites: false,
 	}
 	for _, option := range options {
 		option(&opts)
@@ -289,6 +320,38 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		handleIssueAuthToken(w, r, opts)
 	})
 
+	mux.HandleFunc("/auth/passkey/register/options", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+			return
+		}
+		handlePasskeyRegisterOptions(w, r, opts)
+	})
+
+	mux.HandleFunc("/auth/passkey/register/verify", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+			return
+		}
+		handlePasskeyRegisterVerify(w, r, opts)
+	})
+
+	mux.HandleFunc("/auth/passkey/login/options", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+			return
+		}
+		handlePasskeyLoginOptions(w, r, opts)
+	})
+
+	mux.HandleFunc("/auth/passkey/login/verify", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+			return
+		}
+		handlePasskeyLoginVerify(w, r, opts)
+	})
+
 	mux.HandleFunc("/agents/me", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -350,6 +413,22 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return
 		}
 
+		if strings.HasSuffix(remainder, "/context") {
+			if r.Method != http.MethodGet {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+				return
+			}
+
+			threadID := strings.TrimSuffix(remainder, "/context")
+			threadID = strings.TrimSuffix(threadID, "/")
+			if threadID == "" || strings.Contains(threadID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleThreadContext(w, r, opts, threadID)
+			return
+		}
+
 		if strings.Contains(remainder, "/") {
 			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 			return
@@ -388,6 +467,68 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			handleGetCommitment(w, r, opts, commitmentID)
 		case http.MethodPatch:
 			handlePatchCommitment(w, r, opts, commitmentID)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and PATCH are supported")
+		}
+	})
+
+	mux.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			handleCreateDocument(w, r, opts)
+		default:
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+		}
+	})
+
+	mux.HandleFunc("/docs/", func(w http.ResponseWriter, r *http.Request) {
+		remainder := strings.TrimPrefix(r.URL.Path, "/docs/")
+		if remainder == "" {
+			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+			return
+		}
+
+		if strings.HasSuffix(remainder, "/history") {
+			if r.Method != http.MethodGet {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+				return
+			}
+			documentID := strings.TrimSuffix(remainder, "/history")
+			documentID = strings.TrimSuffix(documentID, "/")
+			if documentID == "" || strings.Contains(documentID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleListDocumentHistory(w, r, opts, documentID)
+			return
+		}
+
+		revisionSuffix := "/revisions/"
+		if idx := strings.Index(remainder, revisionSuffix); idx > 0 {
+			if r.Method != http.MethodGet {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+				return
+			}
+			documentID := strings.TrimSpace(remainder[:idx])
+			revisionID := strings.TrimSpace(remainder[idx+len(revisionSuffix):])
+			if documentID == "" || revisionID == "" || strings.Contains(documentID, "/") || strings.Contains(revisionID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleGetDocumentRevision(w, r, opts, documentID, revisionID)
+			return
+		}
+
+		if strings.Contains(remainder, "/") {
+			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			handleGetDocument(w, r, opts, remainder)
+		case http.MethodPatch:
+			handleUpdateDocument(w, r, opts, remainder)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and PATCH are supported")
 		}
@@ -497,6 +638,19 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return
 		}
 		handleGetInbox(w, r, opts)
+	})
+
+	mux.HandleFunc("/inbox/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		inboxItemID := strings.TrimPrefix(r.URL.Path, "/inbox/")
+		if inboxItemID == "" || strings.Contains(inboxItemID, "/") {
+			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+			return
+		}
+		handleGetInboxItem(w, r, opts, inboxItemID)
 	})
 
 	mux.HandleFunc("/inbox/stream", func(w http.ResponseWriter, r *http.Request) {
@@ -681,6 +835,9 @@ func shouldEnforceCLIVersion(path string) bool {
 	}
 	switch path {
 	case "/health", "/version", "/meta/handshake", "/auth/token", "/auth/agents/register":
+		return false
+	}
+	if strings.HasPrefix(path, "/auth/passkey/") {
 		return false
 	}
 	return true

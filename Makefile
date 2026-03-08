@@ -13,13 +13,15 @@ FORCE_SEED ?= 0
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install check serve lint test format contract-gen contract-check e2e-smoke cli-check cli-test cli-build core-% web-ui-%
+.PHONY: help setup check serve lint test format contract-gen contract-check e2e-smoke cli-check cli-test cli-build cli-integration-test core-% web-ui-%
 
 help: ## Show available targets
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-install: ## Install workspace dependencies
+setup: ## Install dependencies for web-ui, core, and cli
 	pnpm install
+	cd $(CORE_DIR) && go mod download
+	cd $(CLI_DIR) && go mod download
 
 check: ## Run checks in both core and web-ui
 	$(MAKE) contract-check
@@ -58,13 +60,16 @@ cli-test: ## Run CLI tests
 cli-build: ## Build CLI binary
 	cd $(CLI_DIR) && go build ./cmd/oar
 
+cli-integration-test: ## Run CLI real-binary integration tests (non-default)
+	cd $(CLI_DIR) && go test -tags=integration ./integration/...
+
 e2e-smoke: ## Run end-to-end core + CLI + web-ui smoke flow
 	./scripts/e2e-smoke
 
 serve: ## Start core, seed mock dataset into core, then start web-ui
 	@set -euo pipefail; \
 	trap 'for pid in $$(jobs -p); do kill "$$pid" 2>/dev/null || true; done' EXIT INT TERM; \
-	$(MAKE) -C $(CORE_DIR) serve HOST="$(CORE_HOST)" PORT="$(CORE_PORT)" & \
+	OAR_ALLOW_UNAUTHENTICATED_WRITES=1 $(MAKE) -C $(CORE_DIR) serve HOST="$(CORE_HOST)" PORT="$(CORE_PORT)" & \
 	core_pid=$$!; \
 	if [ "$(SEED_CORE)" = "1" ]; then \
 		OAR_CORE_BASE_URL="$(CORE_BASE_URL)" OAR_FORCE_SEED="$(FORCE_SEED)" node "$(WEB_UI_DIR)/scripts/seed-core-from-mock.mjs"; \

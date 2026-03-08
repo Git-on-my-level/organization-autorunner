@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"organization-autorunner-cli/internal/config"
 	"organization-autorunner-cli/internal/errnorm"
@@ -50,7 +51,7 @@ func New() *App {
 func (a *App) Run(args []string) int {
 	overrides, remaining, helpRequested, parseErr := parseGlobalFlags(args)
 	if parseErr != nil {
-		return a.renderError("root", overrides.JSON != nil && *overrides.JSON, parseErr)
+		return a.renderError(resolveMachineCommandIdentity("root"), overrides.JSON != nil && *overrides.JSON, parseErr)
 	}
 	if helpRequested {
 		a.printRootUsage()
@@ -67,22 +68,23 @@ func (a *App) Run(args []string) int {
 		ReadFile:    a.ReadFile,
 	})
 	if err != nil {
-		return a.renderError("root", overrides.JSON != nil && *overrides.JSON, errnorm.Wrap(errnorm.KindLocal, "config_resolution_failed", "failed to resolve cli config", err))
+		return a.renderError(resolveMachineCommandIdentity("root"), overrides.JSON != nil && *overrides.JSON, errnorm.Wrap(errnorm.KindLocal, "config_resolution_failed", "failed to resolve cli config", err))
 	}
 
 	commandName, result, runErr := a.runCommand(context.Background(), remaining, resolved)
+	identity := resolveMachineCommandIdentity(commandName)
 	if runErr != nil {
 		if result != nil && strings.TrimSpace(result.Text) != "" && !resolved.JSON {
 			_, _ = io.WriteString(a.Stderr, result.Text+"\n")
 		}
-		return a.renderError(commandName, resolved.JSON, runErr)
+		return a.renderError(identity, resolved.JSON, runErr)
 	}
 
 	if result != nil && result.RawWritten {
 		return 0
 	}
 	if resolved.JSON {
-		envelope := output.Envelope{OK: true, Command: commandName, Data: nil}
+		envelope := output.Envelope{OK: true, Command: identity.Command, CommandID: identity.CommandID, Data: nil}
 		if result != nil {
 			envelope.Data = result.Data
 		}
@@ -105,12 +107,13 @@ type commandResult struct {
 	RawWritten bool
 }
 
-func (a *App) renderError(command string, jsonMode bool, err error) int {
+func (a *App) renderError(identity machineCommandIdentity, jsonMode bool, err error) int {
 	normalized := errnorm.Normalize(err)
 	if jsonMode {
 		envelope := output.Envelope{
-			OK:      false,
-			Command: command,
+			OK:        false,
+			Command:   identity.Command,
+			CommandID: identity.CommandID,
 			Error: &output.ErrorPayload{
 				Code:        normalized.Code,
 				Message:     normalized.Message,
@@ -133,12 +136,16 @@ func parseGlobalFlags(args []string) (config.Overrides, []string, bool, error) {
 		baseURLFlag trackedString
 		agentFlag   trackedString
 		noColorFlag trackedBool
+		verboseFlag trackedBool
+		headersFlag trackedBool
 		timeoutFlag trackedDuration
 	)
 	fs.Var(&jsonFlag, "json", "Emit JSON envelope output")
 	fs.Var(&baseURLFlag, "base-url", "Core base URL")
 	fs.Var(&agentFlag, "agent", "Agent profile name")
 	fs.Var(&noColorFlag, "no-color", "Disable colorized output")
+	fs.Var(&verboseFlag, "verbose", "Show the full response payload for human-readable commands")
+	fs.Var(&headersFlag, "headers", "Include response status and headers in human-readable output")
 	fs.Var(&timeoutFlag, "timeout", "HTTP timeout duration")
 
 	if err := fs.Parse(args); err != nil {
@@ -160,8 +167,149 @@ func parseGlobalFlags(args []string) (config.Overrides, []string, bool, error) {
 	if noColorFlag.set {
 		overrides.NoColor = &noColorFlag.value
 	}
+	if verboseFlag.set {
+		overrides.Verbose = &verboseFlag.value
+	}
+	if headersFlag.set {
+		overrides.Headers = &headersFlag.value
+	}
 	if timeoutFlag.set {
 		overrides.Timeout = &timeoutFlag.value
 	}
-	return overrides, fs.Args(), false, nil
+	captureTrailingJSONOverride(fs.Args(), &overrides)
+	remaining, err := normalizeTrailingGlobalFlags(fs.Args(), &overrides)
+	if err != nil {
+		return overrides, nil, false, err
+	}
+	return overrides, remaining, false, nil
+}
+
+func captureTrailingJSONOverride(args []string, overrides *config.Overrides) {
+	for _, token := range args {
+		if strings.TrimSpace(token) == "--" {
+			break
+		}
+		name, value, hasValue, isFlag := parseLongOptionToken(token)
+		if !isFlag || name != "json" {
+			continue
+		}
+		jsonValue := true
+		if hasValue {
+			parsed, err := strconvParseBool(value)
+			if err != nil {
+				continue
+			}
+			jsonValue = parsed
+		}
+		overrides.JSON = &jsonValue
+	}
+}
+
+func normalizeTrailingGlobalFlags(args []string, overrides *config.Overrides) ([]string, error) {
+	filtered := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		token := args[i]
+		if strings.TrimSpace(token) == "--" {
+			filtered = append(filtered, args[i:]...)
+			break
+		}
+		name, value, hasValue, isFlag := parseLongOptionToken(token)
+		if !isFlag {
+			filtered = append(filtered, token)
+			continue
+		}
+
+		readValue := func(flagName string) (string, error) {
+			if hasValue {
+				return value, nil
+			}
+			if i+1 >= len(args) {
+				return "", errnorm.Usage("invalid_flags", fmt.Sprintf("--%s requires a value", flagName))
+			}
+			next := strings.TrimSpace(args[i+1])
+			if next == "" || next == "--" || strings.HasPrefix(next, "-") {
+				return "", errnorm.Usage("invalid_flags", fmt.Sprintf("--%s requires a value", flagName))
+			}
+			i++
+			return next, nil
+		}
+
+		switch name {
+		case "json":
+			jsonValue := true
+			if hasValue {
+				parsed, err := strconvParseBool(value)
+				if err != nil {
+					return nil, errnorm.Usage("invalid_flags", fmt.Sprintf("invalid value for --json: %s", err.Error()))
+				}
+				jsonValue = parsed
+			}
+			overrides.JSON = &jsonValue
+		case "base-url":
+			rawValue, err := readValue(name)
+			if err != nil {
+				return nil, err
+			}
+			parsed := strings.TrimSpace(rawValue)
+			overrides.BaseURL = &parsed
+		case "agent":
+			rawValue, err := readValue(name)
+			if err != nil {
+				return nil, err
+			}
+			parsed := strings.TrimSpace(rawValue)
+			overrides.Agent = &parsed
+		case "timeout":
+			rawValue, err := readValue(name)
+			if err != nil {
+				return nil, err
+			}
+			parsed, err := time.ParseDuration(strings.TrimSpace(rawValue))
+			if err != nil {
+				return nil, errnorm.Usage("invalid_flags", fmt.Sprintf("invalid value for --timeout: %s", err.Error()))
+			}
+			overrides.Timeout = &parsed
+		case "no-color", "verbose", "headers":
+			flagValue := true
+			if hasValue {
+				parsed, err := strconvParseBool(value)
+				if err != nil {
+					return nil, errnorm.Usage("invalid_flags", fmt.Sprintf("invalid value for --%s: %s", name, err.Error()))
+				}
+				flagValue = parsed
+			}
+			switch name {
+			case "no-color":
+				overrides.NoColor = &flagValue
+			case "verbose":
+				overrides.Verbose = &flagValue
+			case "headers":
+				overrides.Headers = &flagValue
+			}
+		default:
+			filtered = append(filtered, token)
+		}
+	}
+	return filtered, nil
+}
+
+func parseLongOptionToken(token string) (name string, value string, hasValue bool, isFlag bool) {
+	token = strings.TrimSpace(token)
+	if token == "" || token == "-" || token == "--" {
+		return "", "", false, false
+	}
+	if strings.HasPrefix(token, "--") {
+		token = token[2:]
+	} else if strings.HasPrefix(token, "-") {
+		token = token[1:]
+	} else {
+		return "", "", false, false
+	}
+	if token == "" {
+		return "", "", false, false
+	}
+	if idx := strings.IndexRune(token, '='); idx >= 0 {
+		return strings.TrimSpace(token[:idx]), token[idx+1:], true, true
+	}
+	return strings.TrimSpace(token), "", false, true
 }

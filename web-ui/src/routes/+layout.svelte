@@ -8,38 +8,79 @@
     actorSessionReady,
     buildActorCreatePayload,
     chooseActor,
+    clearSelectedActor,
     initializeActorSession,
     lookupActorDisplayName,
     selectedActorId,
     shouldShowActorGate,
   } from "$lib/actorSession";
+  import {
+    authenticatedAgent,
+    authSessionReady,
+    clearAuthSession,
+    initializeAuthSession,
+  } from "$lib/authSession";
   import { coreClient } from "$lib/coreClient";
-  import { navigationItems } from "$lib/navigation";
+  import { getShellContentConfig, navigationItems } from "$lib/navigation";
+
+  let { children } = $props();
+
+  const navIconPathByType = {
+    home: "M3 11.5L12 4l9 7.5M5.5 10.5V20h13v-9.5M9.25 20v-5.5h5.5V20",
+    inbox:
+      "M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4",
+    threads:
+      "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    artifacts:
+      "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+  };
 
   let actorError = $state("");
   let loadingActors = $state(false);
   let creatingActor = $state(false);
   let newActorName = $state("");
+  let mobileNavOpen = $state(false);
 
+  let identityReady = $derived($actorSessionReady && $authSessionReady);
+  let principalActorId = $derived($authenticatedAgent?.actor_id ?? "");
+  let activeActorId = $derived(principalActorId || $selectedActorId);
+  let onLoginRoute = $derived($page.url.pathname === "/login");
   let gateVisible = $derived(
-    shouldShowActorGate($actorSessionReady, $selectedActorId),
+    identityReady &&
+      !$authenticatedAgent &&
+      !onLoginRoute &&
+      shouldShowActorGate($actorSessionReady, $selectedActorId),
+  );
+  let renderLoginOnly = $derived(
+    identityReady && !$authenticatedAgent && onLoginRoute,
   );
   let selectedActorName = $derived(
-    lookupActorDisplayName($selectedActorId, $actorRegistry),
+    lookupActorDisplayName(activeActorId, $actorRegistry) ||
+      $authenticatedAgent?.username ||
+      "Unknown actor",
   );
   let initials = $derived(
     selectedActorName
       ? selectedActorName
           .split(/\s+/)
-          .map((w) => w[0])
+          .map((word) => word[0])
           .join("")
           .slice(0, 2)
           .toUpperCase()
       : "?",
   );
+  let shellContentConfig = $derived(getShellContentConfig($page.url.pathname));
+
+  $effect(() => {
+    $page.url.pathname;
+    mobileNavOpen = false;
+  });
 
   onMount(async () => {
     initializeActorSession();
+    await initializeAuthSession({
+      fetchFn: globalThis.fetch.bind(globalThis),
+    });
     await refreshActors();
   });
 
@@ -60,11 +101,20 @@
   }
 
   function selectActor(actorId) {
+    if ($authenticatedAgent) {
+      return;
+    }
     chooseActor(actorId);
   }
 
   function switchIdentity() {
-    chooseActor("");
+    if ($authenticatedAgent) {
+      clearAuthSession();
+      window.location.assign("/login");
+      return;
+    }
+    clearSelectedActor();
+    closeMobileNav();
   }
 
   function buildActorId(displayName) {
@@ -106,152 +156,320 @@
       creatingActor = false;
     }
   }
+
+  function isActive(href) {
+    return (
+      $page.url.pathname === href || $page.url.pathname.startsWith(`${href}/`)
+    );
+  }
+
+  function iconPath(iconType) {
+    return navIconPathByType[iconType] || navIconPathByType.inbox;
+  }
+
+  function closeMobileNav() {
+    mobileNavOpen = false;
+  }
+
+  function toggleMobileNav() {
+    mobileNavOpen = !mobileNavOpen;
+  }
+
+  function handleWindowKeydown(event) {
+    if (event.key === "Escape" && mobileNavOpen) {
+      closeMobileNav();
+    }
+  }
 </script>
 
-<div class="flex min-h-screen bg-gray-50 text-gray-900">
-  {#if !$actorSessionReady}
-    <main class="flex flex-1 items-center justify-center">
-      <p class="text-sm text-gray-500">Loading...</p>
+<svelte:window onkeydown={handleWindowKeydown} />
+
+<div class="shell-root">
+  {#if !identityReady}
+    <main class="shell-loading" aria-live="polite">
+      <div class="shell-loading-card">
+        <svg
+          class="shell-spinner"
+          fill="none"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        <p>Loading Organization Autorunner UI...</p>
+      </div>
     </main>
+  {:else if renderLoginOnly}
+    {@render children()}
   {:else if gateVisible}
-    <main class="flex flex-1 items-center justify-center p-8">
-      <section
-        class="w-full max-w-md rounded-lg border border-gray-200 bg-white p-6"
-      >
-        <h1 class="text-lg font-semibold text-gray-900">
-          Choose your identity
-        </h1>
-        <p class="mt-1 text-sm text-gray-500">
-          Select an actor or create a new one to continue.
-        </p>
+    <main class="actor-gate-wrap">
+      <section class="actor-gate-card">
+        <div class="actor-gate-header">
+          <p class="actor-gate-eyebrow">Identity Required</p>
+          <h1>Select Actor Identity</h1>
+          <p>
+            Choose an existing actor or register a new one to begin making
+            changes.
+          </p>
+        </div>
 
         {#if actorError}
-          <p class="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
-            {actorError}
-          </p>
+          <div class="actor-gate-error" role="alert">{actorError}</div>
         {/if}
 
-        <div class="mt-5">
+        <div class="actor-gate-list" aria-live="polite">
           {#if loadingActors}
-            <p class="text-sm text-gray-400">Loading...</p>
+            <p class="actor-gate-empty">Loading actors...</p>
           {:else if $actorRegistry.length === 0}
-            <p class="text-sm text-gray-400">
-              No actors yet. Create one below.
-            </p>
+            <p class="actor-gate-empty">No actors found. Create one below.</p>
           {:else}
-            <ul class="space-y-1">
-              {#each $actorRegistry as actor}
-                <li>
-                  <button
-                    class="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-gray-50"
-                    onclick={() => selectActor(actor.id)}
-                    type="button"
-                  >
-                    <span
-                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
-                    >
-                      {(actor.display_name || "?").slice(0, 1).toUpperCase()}
-                    </span>
-                    <span class="font-medium text-gray-900"
-                      >{actor.display_name}</span
-                    >
-                  </button>
-                </li>
-              {/each}
-            </ul>
+            {#each $actorRegistry as actor}
+              <button
+                class="actor-gate-item"
+                onclick={() => selectActor(actor.id)}
+                type="button"
+              >
+                <span class="actor-gate-avatar" aria-hidden="true"
+                  >{(actor.display_name || "?").slice(0, 1).toUpperCase()}</span
+                >
+                <span class="actor-gate-meta">
+                  <span class="actor-gate-name">{actor.display_name}</span>
+                  <span class="actor-gate-id">{actor.id}</span>
+                </span>
+              </button>
+            {/each}
           {/if}
         </div>
 
         <form
-          class="mt-5 border-t border-gray-100 pt-5"
+          class="actor-gate-create"
           onsubmit={(event) => {
             event.preventDefault();
             createActor();
           }}
         >
-          <label
-            class="block text-sm font-medium text-gray-700"
-            for="actor-display-name"
-          >
-            New actor name
-          </label>
-          <div class="mt-1.5 flex gap-2">
+          <label for="actor-display-name">Display name</label>
+          <div class="actor-gate-input-row">
             <input
               bind:value={newActorName}
-              class="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
               id="actor-display-name"
               name="actor-display-name"
-              placeholder="Jane Doe"
+              placeholder="Type a name"
               type="text"
             />
-            <button
-              class="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-              disabled={creatingActor}
-              type="submit"
-            >
-              {creatingActor ? "Creating..." : "Create"}
+            <button disabled={creatingActor} type="submit">
+              {creatingActor ? "Creating..." : "Create and continue"}
             </button>
           </div>
         </form>
+
+        <p class="actor-gate-empty">
+          Prefer authenticated access? <a href="/login"
+            >Sign in with a passkey.</a
+          >
+        </p>
       </section>
     </main>
   {:else}
-    <aside
-      class="flex w-52 shrink-0 flex-col border-r border-gray-200 bg-white"
-    >
-      <div class="px-4 pb-2 pt-5">
-        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">
-          OAR
-        </p>
-      </div>
-
-      <nav class="flex-1 px-2 py-1" aria-label="Primary">
-        <ul class="space-y-0.5">
-          {#each navigationItems as item}
-            <li>
-              <a
-                class={`flex items-center rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
-                  $page.url.pathname === item.href ||
-                  $page.url.pathname.startsWith(item.href + "/")
-                    ? "bg-indigo-50 text-indigo-700"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-                href={item.href}
-              >
-                {item.label}
-              </a>
-            </li>
-          {/each}
-        </ul>
-      </nav>
-
-      <div class="border-t border-gray-100 px-3 py-3">
-        <div class="flex items-center gap-2">
-          <span
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
-          >
-            {initials}
-          </span>
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-[13px] font-medium text-gray-900">
-              {selectedActorName}
-            </p>
+    <div class="shell-frame">
+      <aside class="shell-sidebar" aria-label="Primary">
+        <div class="shell-brand">
+          <div class="shell-brand-mark" aria-hidden="true">
+            <svg
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 10V3L4 14h7v7l9-11h-7z"
+              />
+            </svg>
+          </div>
+          <div class="shell-brand-copy">
+            <p class="shell-brand-kicker">Control Surface</p>
+            <h1>Organization Autorunner UI</h1>
           </div>
         </div>
-        <button
-          class="mt-2 w-full rounded-md px-2 py-1 text-left text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-          onclick={switchIdentity}
-          type="button"
-        >
-          Switch identity
-        </button>
-      </div>
-    </aside>
 
-    <main class="flex-1 overflow-y-auto px-8 py-6">
-      <div class="mx-auto max-w-4xl">
-        <slot />
+        <nav class="shell-nav" aria-label="Primary">
+          {#each navigationItems as item}
+            {@const active = isActive(item.href)}
+            <a
+              class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}
+              href={item.href}
+              aria-label={item.label}
+            >
+              <svg
+                class="shell-nav-icon"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.75"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d={iconPath(item.icon)}
+                />
+              </svg>
+              <span class="shell-nav-copy">
+                <span>{item.label}</span>
+                {#if item.hint}
+                  <span class="shell-nav-hint">{item.hint}</span>
+                {/if}
+              </span>
+            </a>
+          {/each}
+        </nav>
+
+        <div class="shell-actor-panel">
+          <p class="shell-actor-label">
+            {$authenticatedAgent ? "Authenticated principal" : "Signed in as"}
+          </p>
+          <div class="shell-actor-row">
+            <span class="shell-actor-avatar" aria-hidden="true">{initials}</span
+            >
+            <div class="shell-actor-copy">
+              <p>{selectedActorName}</p>
+              <span>{activeActorId.slice(0, 24)}</span>
+            </div>
+          </div>
+          <button onclick={switchIdentity} type="button">
+            {$authenticatedAgent ? "Sign out" : "Switch identity"}
+          </button>
+        </div>
+      </aside>
+
+      <div class="shell-main">
+        <header class="shell-mobile-header">
+          <button
+            aria-label="Open navigation menu"
+            class="shell-mobile-menu"
+            onclick={toggleMobileNav}
+            type="button"
+          >
+            <svg
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M4 7h16M4 12h16M4 17h16"
+              />
+            </svg>
+          </button>
+          <p>Organization Autorunner UI</p>
+          <button
+            class="shell-mobile-identity"
+            onclick={switchIdentity}
+            type="button"
+          >
+            <span aria-hidden="true">{initials}</span>
+            {$authenticatedAgent ? "Sign out" : "Switch"}
+          </button>
+        </header>
+
+        {#if mobileNavOpen}
+          <div
+            class="shell-mobile-drawer"
+            aria-label="Navigation menu"
+            aria-modal="true"
+            role="dialog"
+          >
+            <button
+              aria-label="Close navigation menu"
+              class="shell-mobile-backdrop"
+              onclick={closeMobileNav}
+              type="button"
+            ></button>
+            <aside class="shell-mobile-panel">
+              <div class="shell-mobile-panel-top">
+                <p>Navigate</p>
+                <button
+                  aria-label="Close navigation menu"
+                  onclick={closeMobileNav}
+                  type="button"
+                >
+                  <svg
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <nav class="shell-mobile-nav" aria-label="Primary mobile">
+                {#each navigationItems as item}
+                  {@const active = isActive(item.href)}
+                  <a
+                    class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}
+                    href={item.href}
+                    onclick={closeMobileNav}
+                    aria-label={item.label}
+                  >
+                    <svg
+                      class="shell-nav-icon"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      aria-hidden="true"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d={iconPath(item.icon)}
+                      />
+                    </svg>
+                    <span>{item.label}</span>
+                  </a>
+                {/each}
+              </nav>
+              <button
+                class="shell-mobile-switch"
+                onclick={switchIdentity}
+                type="button"
+              >
+                Switch identity
+              </button>
+            </aside>
+          </div>
+        {/if}
+
+        <main class="shell-main-scroll">
+          <div
+            class={`shell-content shell-content--${shellContentConfig.mode}`}
+            style={`--shell-content-max: ${shellContentConfig.maxWidth}`}
+          >
+            {@render children?.()}
+          </div>
+        </main>
       </div>
-    </main>
+    </div>
   {/if}
 </div>

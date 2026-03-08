@@ -130,6 +130,25 @@ describe("eventRefRules", () => {
       );
       expect(result.valid).toBe(true);
     });
+
+    it("requires repeated prefixes to satisfy all required refs", () => {
+      const result = validateEventRefRule(
+        "review_completed",
+        ["artifact:review-1", "artifact:receipt-1"],
+        { thread_id: "thread-1" },
+      );
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain("at least 3 refs with prefix");
+    });
+
+    it("allows required repeated prefixes when count is met", () => {
+      const result = validateEventRefRule(
+        "review_completed",
+        ["artifact:review-1", "artifact:receipt-1", "artifact:work-order-1"],
+        { thread_id: "thread-1" },
+      );
+      expect(result.valid).toBe(true);
+    });
   });
 
   describe("validateCommitmentStatusRef", () => {

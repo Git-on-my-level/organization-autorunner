@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.2`
-- Commands: `39`
+- Commands: `50`
 
 ## `actors.list`
 
@@ -160,6 +160,54 @@ Generated from `contracts/oar-openapi.yaml`.
 - Examples:
   - Register agent: `oar auth agents register --username agent.one --public-key <base64-ed25519-pubkey> --json`
 
+## `auth.passkey.login.options`
+
+- CLI path: `auth passkey login options`
+- HTTP: `POST /auth/passkey/login/options`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Create a WebAuthn assertion challenge for passkey authentication.
+- Concepts: `auth`, `passkey`
+- Error codes: `invalid_json`, `not_found`
+- Output: Returns `{ session_id, options }` where `options` is a WebAuthn assertion payload.
+- Agent notes: Provide `username` to scope login to one principal, or omit it for discoverable login.
+
+## `auth.passkey.login.verify`
+
+- CLI path: `auth passkey login verify`
+- HTTP: `POST /auth/passkey/login/verify`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Verify a WebAuthn assertion and issue a fresh token bundle.
+- Concepts: `auth`, `passkey`
+- Error codes: `invalid_json`, `invalid_request`, `invalid_token`, `agent_revoked`
+- Output: Returns `{ agent, tokens }` when passkey verification succeeds.
+- Agent notes: Session ids are one-time use and expire quickly.
+
+## `auth.passkey.register.options`
+
+- CLI path: `auth passkey register options`
+- HTTP: `POST /auth/passkey/register/options`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Create a WebAuthn registration challenge for a new human principal.
+- Concepts: `auth`, `passkey`
+- Error codes: `invalid_json`, `invalid_request`
+- Output: Returns `{ session_id, options }` where `options` is a WebAuthn registration payload.
+- Agent notes: Intended for browser-based WebAuthn clients.
+
+## `auth.passkey.register.verify`
+
+- CLI path: `auth passkey register verify`
+- HTTP: `POST /auth/passkey/register/verify`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Verify a WebAuthn attestation, create a principal, and issue the initial token bundle.
+- Concepts: `auth`, `passkey`
+- Error codes: `invalid_json`, `invalid_request`, `invalid_token`
+- Output: Returns `{ agent, tokens }` for the newly registered passkey principal.
+- Agent notes: Session ids are one-time use and expire quickly.
+
 ## `auth.token`
 
 - CLI path: `auth token`
@@ -245,6 +293,76 @@ Generated from `contracts/oar-openapi.yaml`.
 - Examples:
   - Rebuild derived: `oar derived rebuild --actor-id system --json`
 
+## `docs.create`
+
+- CLI path: `docs create`
+- HTTP: `POST /docs`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Bootstrap a first-class document identity and initial revision without manual head-pointer management.
+- Concepts: `docs`, `revisions`
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`
+- Output: Returns `{ document, revision }` where `revision` is the new head.
+- Agent notes: Non-idempotent unless caller provides a deterministic document id and dedupes retries.
+- Examples:
+  - Create document: `oar docs create --from-file doc-create.json --json`
+
+## `docs.get`
+
+- CLI path: `docs get`
+- HTTP: `GET /docs/{document_id}`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Resolve the current authoritative document head without client-side lineage traversal.
+- Concepts: `docs`, `revisions`
+- Error codes: `invalid_request`, `not_found`
+- Output: Returns `{ document, revision }` where `revision` is the current head.
+- Agent notes: Safe and idempotent.
+- Examples:
+  - Get document head: `oar docs get --document-id product-constitution --json`
+
+## `docs.history`
+
+- CLI path: `docs history`
+- HTTP: `GET /docs/{document_id}/history`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Traverse full document lineage in canonical revision-number order.
+- Concepts: `docs`, `revisions`, `lineage`
+- Error codes: `invalid_request`, `not_found`
+- Output: Returns `{ document_id, revisions }` ordered by ascending `revision_number`.
+- Agent notes: Safe and idempotent.
+- Examples:
+  - List document history: `oar docs history --document-id product-constitution --json`
+
+## `docs.revision.get`
+
+- CLI path: `docs revision get`
+- HTTP: `GET /docs/{document_id}/revisions/{revision_id}`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Read a specific historical revision payload without mutating document head.
+- Concepts: `docs`, `revisions`
+- Error codes: `invalid_request`, `not_found`
+- Output: Returns `{ revision }` including metadata and revision content.
+- Agent notes: Safe and idempotent.
+- Examples:
+  - Get revision: `oar docs revision get --document-id product-constitution --revision-id 019f... --json`
+
+## `docs.update`
+
+- CLI path: `docs update`
+- HTTP: `PATCH /docs/{document_id}`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Append a revision and atomically advance document head with optimistic concurrency.
+- Concepts: `docs`, `revisions`, `concurrency`
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
+- Output: Returns `{ document, revision }` for the newly-created head revision.
+- Agent notes: Set `if_base_revision` from `docs.get` to prevent lost updates.
+- Examples:
+  - Update document: `oar docs update --document-id product-constitution --from-file doc-update.json --json`
+
 ## `events.create`
 
 - CLI path: `events create`
@@ -301,6 +419,22 @@ Generated from `contracts/oar-openapi.yaml`.
 - Agent notes: Idempotent at semantic level; repeated acks should not duplicate active inbox items.
 - Examples:
   - Ack inbox item: `oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json`
+  - Ack inbox item by id: `oar inbox ack inbox:decision_needed:thread_123:none:event_1 --json`
+
+## `inbox.get`
+
+- CLI path: `inbox get`
+- HTTP: `GET /inbox/{inbox_item_id}`
+- Stability: `stable`
+- Input mode: `none`
+- Why: Inspect one inbox item in detail before acting on it.
+- Concepts: `inbox`, `derived-views`
+- Error codes: `not_found`
+- Output: Returns `{ item, generated_at }` for the requested inbox item.
+- Agent notes: CLI supports canonical ids, aliases, and unique prefixes.
+- Examples:
+  - Get inbox item by canonical id: `oar inbox get --id inbox:decision_needed:thread_123:none:event_123 --json`
+  - Get inbox item by alias: `oar inbox get --id ibx_abcd1234ef56 --json`
 
 ## `inbox.list`
 
@@ -482,6 +616,21 @@ Generated from `contracts/oar-openapi.yaml`.
 - Examples:
   - Get snapshot: `oar snapshots get --snapshot-id snapshot_123 --json`
 
+## `threads.context`
+
+- CLI path: `threads context`
+- HTTP: `GET /threads/{thread_id}/context`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Load one thread's state, recent events, key artifacts, and open commitments in a single round-trip; CLI `oar threads context` can aggregate across threads by composing multiple calls.
+- Concepts: `threads`, `events`, `artifacts`, `commitments`
+- Error codes: `invalid_request`, `not_found`
+- Output: Returns `{ thread, recent_events, key_artifacts, open_commitments }`.
+- Agent notes: Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.
+- Examples:
+  - Context with defaults: `oar threads context --thread-id thread_123 --json`
+  - Context with artifact previews: `oar threads context --thread-id thread_123 --include-artifact-content --max-events 50 --json`
+
 ## `threads.create`
 
 - CLI path: `threads create`
@@ -502,11 +651,11 @@ Generated from `contracts/oar-openapi.yaml`.
 - HTTP: `GET /threads/{thread_id}`
 - Stability: `stable`
 - Input mode: `none`
-- Why: Resolve authoritative thread state before patching or composing packets.
+- Why: Resolve a raw authoritative thread snapshot for low-level reads before patching or composing packets.
 - Concepts: `threads`
 - Error codes: `not_found`
 - Output: Returns `{ thread }`.
-- Agent notes: Safe and idempotent.
+- Agent notes: Safe and idempotent. Prefer `oar threads inspect` for operator coordination reads.
 - Examples:
   - Read thread: `oar threads get --thread-id thread_123 --json`
 

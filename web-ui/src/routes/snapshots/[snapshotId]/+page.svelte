@@ -38,24 +38,54 @@
 </script>
 
 <h1 class="text-lg font-semibold text-gray-900">
-  Snapshot Detail: {snapshotId}
+  Snapshot: <span class="font-mono text-gray-500">{snapshotId}</span>
 </h1>
 
 {#if loading}
-  <p class="mt-3 text-sm text-gray-500">Loading snapshot...</p>
+  <div class="mt-6 flex items-center gap-2 text-sm text-gray-400">
+    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle
+        class="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        stroke-width="4"
+      ></circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+    Loading snapshot...
+  </div>
 {:else if loadError}
-  <p class="mt-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+  <div
+    class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+  >
+    <svg
+      class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+      />
+    </svg>
     {loadError}
-  </p>
+  </div>
 {:else if snapshot}
-  <div class="mt-3 rounded-lg border border-gray-200 bg-white">
-    <div class="border-b border-gray-100 px-4 py-2.5">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">
-        Raw Snapshot JSON
-      </h2>
+  <div class="mt-4 rounded-xl border border-gray-200/80 bg-white shadow-sm">
+    <div class="border-b border-gray-100 px-5 py-3">
+      <h2 class="text-sm font-medium text-gray-900">Raw Snapshot JSON</h2>
     </div>
     <pre
-      class="overflow-auto px-4 py-3 text-[11px] text-gray-700">{JSON.stringify(
+      class="overflow-auto px-5 py-4 text-[11px] text-gray-600">{JSON.stringify(
         snapshot,
         null,
         2,

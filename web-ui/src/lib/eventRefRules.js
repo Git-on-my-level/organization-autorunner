@@ -91,26 +91,29 @@ export function validateEventRefRule(eventType, refs, payload = {}) {
       }
     }
 
+    const requiredByPrefix = new Map();
     for (const pattern of rule.refs_must_include) {
       const colonIndex = pattern.indexOf(":");
       if (colonIndex > 0) {
         const prefix = pattern.slice(0, colonIndex);
-        const requiredCount = pattern
-          .split(",")
-          .filter((p) => p.trim().startsWith(prefix + ":")).length;
-        const actualCount = refsByPrefix.get(prefix) ?? 0;
-        if (actualCount < requiredCount && requiredCount === 1) {
-          return {
-            valid: false,
-            error: `event.refs must include a "${prefix}:<id>" typed ref for event.type="${eventType}"`,
-          };
-        }
-        if (actualCount < requiredCount) {
-          return {
-            valid: false,
-            error: `event.refs must include at least ${requiredCount} refs with prefix "${prefix}" for event.type="${eventType}"`,
-          };
-        }
+        const requiredCount = requiredByPrefix.get(prefix) ?? 0;
+        requiredByPrefix.set(prefix, requiredCount + 1);
+      }
+    }
+
+    for (const [prefix, requiredCount] of requiredByPrefix.entries()) {
+      const actualCount = refsByPrefix.get(prefix) ?? 0;
+      if (actualCount < requiredCount && requiredCount === 1) {
+        return {
+          valid: false,
+          error: `event.refs must include a "${prefix}:<id>" typed ref for event.type="${eventType}"`,
+        };
+      }
+      if (actualCount < requiredCount) {
+        return {
+          valid: false,
+          error: `event.refs must include at least ${requiredCount} refs with prefix "${prefix}" for event.type="${eventType}"`,
+        };
       }
     }
   }

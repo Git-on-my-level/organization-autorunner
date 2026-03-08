@@ -7,10 +7,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -276,6 +279,224 @@ func TestAgentAuthLifecycleAndActorCompatibility(t *testing.T) {
 	revokedMeResp := getJSONExpectStatusWithAuth(t, server.URL+"/agents/me", newAssertionPayload.Tokens.AccessToken, http.StatusForbidden)
 	defer revokedMeResp.Body.Close()
 	assertErrorCode(t, revokedMeResp, "agent_revoked")
+}
+
+func TestWriteAuthToggleRejectsUnauthenticatedWritesWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	registry := actors.NewStore(workspace.DB())
+	if _, err := registry.EnsureSystemActor(context.Background(), time.Now().UTC()); err != nil {
+		t.Fatalf("ensure system actor: %v", err)
+	}
+	authStore := auth.NewStore(workspace.DB())
+	contractPath := filepath.Join("..", "..", "..", "contracts", "oar-schema.yaml")
+	contract, err := schema.Load(contractPath)
+	if err != nil {
+		t.Fatalf("load schema contract: %v", err)
+	}
+	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	handler := NewHandler(
+		"0.2.2",
+		WithActorRegistry(registry),
+		WithAuthStore(authStore),
+		WithHealthCheck(workspace.Ping),
+		WithPrimitiveStore(primitiveStore),
+		WithSchemaContract(contract),
+		WithAllowUnauthenticatedWrites(false),
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	createActorResp := postJSON(t, server.URL+"/actors", `{"actor":{"id":"human-actor","display_name":"Human Actor","created_at":"2026-03-05T10:00:00Z"}}`, http.StatusCreated)
+	createActorResp.Body.Close()
+
+	listActorsResp := getJSONExpectStatusWithAuth(t, server.URL+"/actors", "", http.StatusOK)
+	listActorsResp.Body.Close()
+
+	noAuthResp := postJSONExpectStatusWithAuth(t, server.URL+"/threads", map[string]any{
+		"actor_id": "human-actor",
+		"thread": map[string]any{
+			"title":            "Strict auth thread",
+			"type":             "incident",
+			"status":           "active",
+			"priority":         "p1",
+			"tags":             []string{"auth"},
+			"cadence":          "daily",
+			"next_check_in_at": "2030-01-01T00:00:00Z",
+			"current_summary":  "summary",
+			"next_actions":     []string{"action"},
+			"key_artifacts":    []string{},
+			"provenance":       map[string]any{"sources": []string{"inferred"}},
+		},
+	}, "", http.StatusUnauthorized)
+	defer noAuthResp.Body.Close()
+	assertErrorCode(t, noAuthResp, "auth_required")
+
+	publicKey, _ := generateKeyPair(t)
+	registerResp := postJSONExpectStatusWithAuth(t, server.URL+"/auth/agents/register", map[string]any{
+		"username":   "strict.auth",
+		"public_key": publicKey,
+	}, "", http.StatusCreated)
+	defer registerResp.Body.Close()
+
+	var registerPayload struct {
+		Agent struct {
+			ActorID string `json:"actor_id"`
+		} `json:"agent"`
+		Tokens struct {
+			AccessToken string `json:"access_token"`
+		} `json:"tokens"`
+	}
+	if err := json.NewDecoder(registerResp.Body).Decode(&registerPayload); err != nil {
+		t.Fatalf("decode register response: %v", err)
+	}
+
+	authenticatedResp := postJSONExpectStatusWithAuth(t, server.URL+"/threads", map[string]any{
+		"thread": map[string]any{
+			"title":            "Authorized thread",
+			"type":             "incident",
+			"status":           "active",
+			"priority":         "p1",
+			"tags":             []string{"auth"},
+			"cadence":          "daily",
+			"next_check_in_at": "2030-01-01T00:00:00Z",
+			"current_summary":  "summary",
+			"next_actions":     []string{"action"},
+			"key_artifacts":    []string{},
+			"provenance":       map[string]any{"sources": []string{"inferred"}},
+		},
+	}, registerPayload.Tokens.AccessToken, http.StatusCreated)
+	defer authenticatedResp.Body.Close()
+
+	var threadPayload struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(authenticatedResp.Body).Decode(&threadPayload); err != nil {
+		t.Fatalf("decode thread response: %v", err)
+	}
+	if asString(threadPayload.Thread["updated_by"]) != registerPayload.Agent.ActorID {
+		t.Fatalf("expected updated_by to match authenticated actor, got %#v", threadPayload.Thread["updated_by"])
+	}
+}
+
+func TestConcurrentFreshAuthRegistrationsSucceed(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	registry := actors.NewStore(workspace.DB())
+	if _, err := registry.EnsureSystemActor(context.Background(), time.Now().UTC()); err != nil {
+		t.Fatalf("ensure system actor: %v", err)
+	}
+	authStore := auth.NewStore(workspace.DB())
+	contractPath := filepath.Join("..", "..", "..", "contracts", "oar-schema.yaml")
+	contract, err := schema.Load(contractPath)
+	if err != nil {
+		t.Fatalf("load schema contract: %v", err)
+	}
+	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	handler := NewHandler(
+		"0.2.2",
+		WithActorRegistry(registry),
+		WithAuthStore(authStore),
+		WithHealthCheck(workspace.Ping),
+		WithPrimitiveStore(primitiveStore),
+		WithSchemaContract(contract),
+	)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	const concurrentRegistrations = 8
+	type input struct {
+		username  string
+		publicKey string
+	}
+	inputs := make([]input, 0, concurrentRegistrations)
+	for i := 0; i < concurrentRegistrations; i++ {
+		publicKey, _ := generateKeyPair(t)
+		inputs = append(inputs, input{
+			username:  fmt.Sprintf("user-%d", i+1),
+			publicKey: publicKey,
+		})
+	}
+
+	type result struct {
+		index  int
+		status int
+		body   string
+		err    error
+	}
+	results := make(chan result, concurrentRegistrations)
+	client := &http.Client{Timeout: 10 * time.Second}
+	var wg sync.WaitGroup
+	for i, in := range inputs {
+		wg.Add(1)
+		go func(index int, in input) {
+			defer wg.Done()
+			payload, err := json.Marshal(map[string]any{
+				"username":   in.username,
+				"public_key": in.publicKey,
+			})
+			if err != nil {
+				results <- result{index: index, err: err}
+				return
+			}
+
+			req, err := http.NewRequest(http.MethodPost, server.URL+"/auth/agents/register", bytes.NewReader(payload))
+			if err != nil {
+				results <- result{index: index, err: err}
+				return
+			}
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := client.Do(req)
+			if err != nil {
+				results <- result{index: index, err: err}
+				return
+			}
+			defer resp.Body.Close()
+
+			rawBody, readErr := io.ReadAll(resp.Body)
+			if readErr != nil {
+				results <- result{index: index, err: readErr}
+				return
+			}
+			results <- result{
+				index:  index,
+				status: resp.StatusCode,
+				body:   string(rawBody),
+			}
+		}(i, in)
+	}
+	wg.Wait()
+	close(results)
+
+	failures := make([]string, 0)
+	for result := range results {
+		if result.err != nil {
+			failures = append(failures, fmt.Sprintf("request %d failed: %v", result.index+1, result.err))
+			continue
+		}
+		if result.status != http.StatusCreated {
+			failures = append(
+				failures,
+				fmt.Sprintf("request %d: status=%d body=%s", result.index+1, result.status, result.body),
+			)
+		}
+	}
+	if len(failures) > 0 {
+		t.Fatalf("expected all concurrent registrations to succeed:\n%s", strings.Join(failures, "\n"))
+	}
 }
 
 func generateKeyPair(t *testing.T) (string, ed25519.PrivateKey) {

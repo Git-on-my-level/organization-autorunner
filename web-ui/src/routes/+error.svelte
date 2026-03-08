@@ -4,28 +4,45 @@
 
 <div class="flex min-h-[60vh] items-center justify-center">
   <div class="max-w-md text-center">
+    <div
+      class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10"
+    >
+      <svg
+        class="h-6 w-6 text-red-400"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="1.5"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+        />
+      </svg>
+    </div>
     <h1 class="text-lg font-semibold text-gray-900">Unable to start</h1>
     <p class="mt-2 text-sm text-gray-500">
       {$page.error?.message ?? "An unexpected error occurred."}
     </p>
     <div
-      class="mt-4 rounded-lg border border-gray-200 bg-white p-4 text-left text-sm text-gray-600"
+      class="mt-6 rounded-md border border-gray-200 bg-gray-100 p-4 text-left"
     >
-      <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">
-        Troubleshooting
-      </p>
-      <ol class="mt-2 list-decimal space-y-1 pl-5 text-sm">
+      <p class="text-[12px] font-medium text-gray-500">Troubleshooting</p>
+      <ol class="mt-2 list-decimal space-y-1.5 pl-5 text-[13px] text-gray-600">
         <li>
           Start the backend: <code
-            class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">make serve</code
+            class="rounded-md bg-gray-200 px-1.5 py-0.5 text-xs font-medium"
+            >make serve</code
           >
           in
-          <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs"
+          <code class="rounded-md bg-gray-200 px-1.5 py-0.5 text-xs font-medium"
             >organization-autorunner-core</code
           >
         </li>
         <li>
-          Set <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs"
+          Set <code
+            class="rounded-md bg-gray-200 px-1.5 py-0.5 text-xs font-medium"
             >OAR_CORE_BASE_URL=http://127.0.0.1:8000</code
           >
         </li>

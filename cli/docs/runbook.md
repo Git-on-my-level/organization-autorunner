@@ -10,6 +10,7 @@ Build and test:
 cd cli
 go build ./cmd/oar
 go test ./...
+go test -tags=integration ./integration/...
 ```
 
 Run against local core:
@@ -65,7 +66,45 @@ Profile material paths:
 
 Permissions are enforced by CLI runtime (`0700` dirs, `0600` files).
 
-## Typed command smoke
+## Integration Scenarios
+
+Deterministic multi-step CLI regression coverage lives under `cli/integration/` and is intentionally excluded from cheap default test runs.
+
+Run the suite against live `oar-core` processes spun up by the tests:
+
+```bash
+cd cli
+go test -tags=integration ./integration/...
+```
+
+These tests:
+- build the real `oar` and `oar-core` binaries
+- copy the repo's workspace snapshot into a temp directory
+- run multi-step thread/event and docs/conflict flows through the real CLI
+
+## Pi Dogfood
+
+The supported manual dogfood path is the Pi-based runner under `cli/dogfood/pi/`.
+
+Install and run Pi dogfood:
+
+```bash
+pnpm install --filter @organization-autorunner/pi-dogfood...
+
+pnpm --dir cli/dogfood/pi run pilot-rescue -- \
+  --api-key-file ../../.secrets/zai_api_key \
+  --provider zai \
+  --model glm-5
+```
+
+The runner:
+- builds `oar` and `oar-core`
+- starts a managed temporary core on a random local port
+- seeds that core from CLI-owned dogfood data under `cli/dogfood/pi/seed/`
+- runs Pi against the isolated seeded environment
+- writes artifacts under `cli/.tmp/pi-dogfood/`
+
+## Typed Command Smoke
 
 ```bash
 printf '{"thread":{"title":"Incident #42"}}\n' | oar --agent agent-a threads create
@@ -74,6 +113,14 @@ oar --agent agent-a threads list --status active
 oar --agent agent-a events stream --max-events 1
 oar --agent agent-a inbox stream --max-events 1
 oar --agent agent-a events stream --follow
+oar --agent agent-a events list --thread-id thread_123 --thread-id thread_456 --type actor_statement --mine --full-id --max-events 20
+oar --json --agent agent-a provenance walk --from event:event_123 --depth 2
+oar --agent agent-a threads inspect --thread-id thread_123 --max-events 50 --full-id
+oar --agent agent-a threads context --status active --tag pilot-rescue --type initiative --full-id
+oar --agent agent-a threads recommendations --thread-id thread_123 --full-id --full-summary
+oar --agent agent-a docs content --document-id product-constitution
+oar --agent agent-a commitments inspect --commitment-id commitment_123
+oar --agent agent-a artifacts inspect --artifact-id artifact_123
 ```
 
 Draft/commit flow:
@@ -90,6 +137,16 @@ The raw fallback remains available:
 ```bash
 oar --json --base-url http://127.0.0.1:8000 --agent agent-a api call --path /meta/handshake
 ```
+
+Machine-facing notes for the targeted automation commands:
+
+- `events list`, `events get`, `events stream`, `inbox stream`, `threads inspect`, `threads context`, and `threads recommendations` include a stable `command_id` alongside `command`.
+- `events tail` and `inbox tail` resolve to canonical machine command identity (`events stream` / `inbox stream`) in JSON success/error envelopes.
+- Stream frames expose a normalized payload contract:
+  - `id`, `type`
+  - `payload_key` (`event` or `item`)
+  - `payload` (the normalized event/item object)
+  - explicit `event` or `item` key plus legacy `data` passthrough
 
 ## Release process
 

@@ -63,6 +63,14 @@ export const commandRegistry = [
                 "command": "oar actors register --id bot-1 --display-name \"Bot 1\" --created-at 2026-03-04T10:00:00Z --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "actor",
+                    "type": "object"
+                }
+            ]
+        },
         "adjacent_commands": [
             "actors.list"
         ],
@@ -140,6 +148,14 @@ export const commandRegistry = [
                 "command": "oar agents me keys rotate --public-key \u003cbase64-ed25519-pubkey\u003e --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "public_key",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "agents.me.get",
             "agents.me.patch",
@@ -181,6 +197,14 @@ export const commandRegistry = [
                 "command": "oar agents me patch --username renamed_agent --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "username",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "agents.me.get",
             "agents.me.keys.rotate",
@@ -299,6 +323,28 @@ export const commandRegistry = [
                 "command": "oar artifacts create --from-file artifact-create.json --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "artifact",
+                    "type": "object"
+                },
+                {
+                    "name": "content",
+                    "type": "object|string"
+                },
+                {
+                    "name": "content_type",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "artifacts.content.get",
             "artifacts.get",
@@ -414,11 +460,206 @@ export const commandRegistry = [
                 "command": "oar auth agents register --username agent.one --public-key \u003cbase64-ed25519-pubkey\u003e --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "public_key",
+                    "type": "string"
+                },
+                {
+                    "name": "username",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
+            "auth.passkey.login.options",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.options",
+            "auth.passkey.register.verify",
             "auth.token"
         ],
         "go_method": "AuthAgentsRegister",
         "ts_method": "authAgentsRegister"
+    },
+    {
+        "command_id": "auth.passkey.login.options",
+        "cli_path": "auth passkey login options",
+        "group": "auth",
+        "method": "POST",
+        "path": "/auth/passkey/login/options",
+        "operation_id": "passkeyLoginOptions",
+        "summary": "Begin passkey login ceremony",
+        "why": "Create a WebAuthn assertion challenge for passkey authentication.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ session_id, options }` where `options` is a WebAuthn assertion payload.",
+        "error_codes": [
+            "invalid_json",
+            "not_found"
+        ],
+        "concepts": [
+            "auth",
+            "passkey"
+        ],
+        "stability": "beta",
+        "agent_notes": "Provide `username` to scope login to one principal, or omit it for discoverable login.",
+        "body_schema": {
+            "optional": [
+                {
+                    "name": "username",
+                    "type": "string"
+                }
+            ]
+        },
+        "adjacent_commands": [
+            "auth.agents.register",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.options",
+            "auth.passkey.register.verify",
+            "auth.token"
+        ],
+        "go_method": "AuthPasskeyLoginOptions",
+        "ts_method": "authPasskeyLoginOptions"
+    },
+    {
+        "command_id": "auth.passkey.login.verify",
+        "cli_path": "auth passkey login verify",
+        "group": "auth",
+        "method": "POST",
+        "path": "/auth/passkey/login/verify",
+        "operation_id": "passkeyLoginVerify",
+        "summary": "Verify passkey login and issue tokens",
+        "why": "Verify a WebAuthn assertion and issue a fresh token bundle.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ agent, tokens }` when passkey verification succeeds.",
+        "error_codes": [
+            "invalid_json",
+            "invalid_request",
+            "invalid_token",
+            "agent_revoked"
+        ],
+        "concepts": [
+            "auth",
+            "passkey"
+        ],
+        "stability": "beta",
+        "agent_notes": "Session ids are one-time use and expire quickly.",
+        "body_schema": {
+            "required": [
+                {
+                    "name": "credential",
+                    "type": "object"
+                },
+                {
+                    "name": "session_id",
+                    "type": "string"
+                }
+            ]
+        },
+        "adjacent_commands": [
+            "auth.agents.register",
+            "auth.passkey.login.options",
+            "auth.passkey.register.options",
+            "auth.passkey.register.verify",
+            "auth.token"
+        ],
+        "go_method": "AuthPasskeyLoginVerify",
+        "ts_method": "authPasskeyLoginVerify"
+    },
+    {
+        "command_id": "auth.passkey.register.options",
+        "cli_path": "auth passkey register options",
+        "group": "auth",
+        "method": "POST",
+        "path": "/auth/passkey/register/options",
+        "operation_id": "passkeyRegisterOptions",
+        "summary": "Begin passkey registration ceremony",
+        "why": "Create a WebAuthn registration challenge for a new human principal.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ session_id, options }` where `options` is a WebAuthn registration payload.",
+        "error_codes": [
+            "invalid_json",
+            "invalid_request"
+        ],
+        "concepts": [
+            "auth",
+            "passkey"
+        ],
+        "stability": "beta",
+        "agent_notes": "Intended for browser-based WebAuthn clients.",
+        "body_schema": {
+            "required": [
+                {
+                    "name": "display_name",
+                    "type": "string"
+                }
+            ]
+        },
+        "adjacent_commands": [
+            "auth.agents.register",
+            "auth.passkey.login.options",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.verify",
+            "auth.token"
+        ],
+        "go_method": "AuthPasskeyRegisterOptions",
+        "ts_method": "authPasskeyRegisterOptions"
+    },
+    {
+        "command_id": "auth.passkey.register.verify",
+        "cli_path": "auth passkey register verify",
+        "group": "auth",
+        "method": "POST",
+        "path": "/auth/passkey/register/verify",
+        "operation_id": "passkeyRegisterVerify",
+        "summary": "Verify passkey registration and issue tokens",
+        "why": "Verify a WebAuthn attestation, create a principal, and issue the initial token bundle.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ agent, tokens }` for the newly registered passkey principal.",
+        "error_codes": [
+            "invalid_json",
+            "invalid_request",
+            "invalid_token"
+        ],
+        "concepts": [
+            "auth",
+            "passkey"
+        ],
+        "stability": "beta",
+        "agent_notes": "Session ids are one-time use and expire quickly.",
+        "body_schema": {
+            "required": [
+                {
+                    "name": "credential",
+                    "type": "object"
+                },
+                {
+                    "name": "session_id",
+                    "type": "string"
+                }
+            ]
+        },
+        "adjacent_commands": [
+            "auth.agents.register",
+            "auth.passkey.login.options",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.options",
+            "auth.token"
+        ],
+        "go_method": "AuthPasskeyRegisterVerify",
+        "ts_method": "authPasskeyRegisterVerify"
     },
     {
         "command_id": "auth.token",
@@ -457,8 +698,42 @@ export const commandRegistry = [
                 "command": "oar auth token --grant-type assertion --agent-id \u003cid\u003e --key-id \u003cid\u003e --signed-at \u003crfc3339\u003e --signature \u003cbase64\u003e --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "grant_type",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "agent_id",
+                    "type": "string"
+                },
+                {
+                    "name": "key_id",
+                    "type": "string"
+                },
+                {
+                    "name": "refresh_token",
+                    "type": "string"
+                },
+                {
+                    "name": "signature",
+                    "type": "string"
+                },
+                {
+                    "name": "signed_at",
+                    "type": "datetime"
+                }
+            ]
+        },
         "adjacent_commands": [
-            "auth.agents.register"
+            "auth.agents.register",
+            "auth.passkey.login.options",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.options",
+            "auth.passkey.register.verify"
         ],
         "go_method": "AuthToken",
         "ts_method": "authToken"
@@ -493,6 +768,63 @@ export const commandRegistry = [
                 "command": "oar commitments create --from-file commitment.json --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "commitment.definition_of_done",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "commitment.due_at",
+                    "type": "datetime"
+                },
+                {
+                    "name": "commitment.links",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "commitment.owner",
+                    "type": "string"
+                },
+                {
+                    "name": "commitment.provenance.sources",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "commitment.status",
+                    "type": "string",
+                    "enum_values": [
+                        "blocked",
+                        "canceled",
+                        "done",
+                        "open"
+                    ],
+                    "enum_policy": "strict"
+                },
+                {
+                    "name": "commitment.thread_id",
+                    "type": "string"
+                },
+                {
+                    "name": "commitment.title",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "commitment.provenance.by_field",
+                    "type": "map\u003cstring, list\u003cstring\u003e\u003e"
+                },
+                {
+                    "name": "commitment.provenance.notes",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "commitments.get",
             "commitments.list",
@@ -611,6 +943,65 @@ export const commandRegistry = [
                 "command": "oar commitments patch --commitment-id commitment_123 --from-file commitment-patch.json --json"
             }
         ],
+        "body_schema": {
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "if_updated_at",
+                    "type": "datetime"
+                },
+                {
+                    "name": "patch.definition_of_done",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "patch.due_at",
+                    "type": "datetime"
+                },
+                {
+                    "name": "patch.links",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "patch.owner",
+                    "type": "string"
+                },
+                {
+                    "name": "patch.provenance.by_field",
+                    "type": "map\u003cstring, list\u003cstring\u003e\u003e"
+                },
+                {
+                    "name": "patch.provenance.notes",
+                    "type": "string"
+                },
+                {
+                    "name": "patch.provenance.sources",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "patch.status",
+                    "type": "string",
+                    "enum_values": [
+                        "blocked",
+                        "canceled",
+                        "done",
+                        "open"
+                    ],
+                    "enum_policy": "strict"
+                },
+                {
+                    "name": "patch.title",
+                    "type": "string"
+                },
+                {
+                    "name": "refs",
+                    "type": "list\u003cstring\u003e"
+                }
+            ]
+        },
         "path_params": [
             "commitment_id"
         ],
@@ -653,8 +1044,297 @@ export const commandRegistry = [
                 "command": "oar derived rebuild --actor-id system --json"
             }
         ],
+        "body_schema": {
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                }
+            ]
+        },
         "go_method": "DerivedRebuild",
         "ts_method": "derivedRebuild"
+    },
+    {
+        "command_id": "docs.create",
+        "cli_path": "docs create",
+        "group": "docs",
+        "method": "POST",
+        "path": "/docs",
+        "operation_id": "createDocument",
+        "summary": "Create document with initial immutable revision",
+        "why": "Bootstrap a first-class document identity and initial revision without manual head-pointer management.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ document, revision }` where `revision` is the new head.",
+        "error_codes": [
+            "invalid_json",
+            "invalid_request",
+            "unknown_actor_id",
+            "conflict"
+        ],
+        "concepts": [
+            "docs",
+            "revisions"
+        ],
+        "stability": "beta",
+        "agent_notes": "Non-idempotent unless caller provides a deterministic document id and dedupes retries.",
+        "examples": [
+            {
+                "title": "Create document",
+                "command": "oar docs create --from-file doc-create.json --json"
+            }
+        ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "content",
+                    "type": "object|string"
+                },
+                {
+                    "name": "content_type",
+                    "type": "string",
+                    "enum_values": [
+                        "binary",
+                        "structured",
+                        "text"
+                    ]
+                },
+                {
+                    "name": "document",
+                    "type": "object"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "refs",
+                    "type": "list\u003cstring\u003e"
+                }
+            ]
+        },
+        "adjacent_commands": [
+            "docs.get",
+            "docs.history",
+            "docs.revision.get",
+            "docs.update"
+        ],
+        "go_method": "DocsCreate",
+        "ts_method": "docsCreate"
+    },
+    {
+        "command_id": "docs.get",
+        "cli_path": "docs get",
+        "group": "docs",
+        "method": "GET",
+        "path": "/docs/{document_id}",
+        "operation_id": "getDocument",
+        "summary": "Get document and authoritative head revision",
+        "why": "Resolve the current authoritative document head without client-side lineage traversal.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ document, revision }` where `revision` is the current head.",
+        "error_codes": [
+            "invalid_request",
+            "not_found"
+        ],
+        "concepts": [
+            "docs",
+            "revisions"
+        ],
+        "stability": "beta",
+        "agent_notes": "Safe and idempotent.",
+        "examples": [
+            {
+                "title": "Get document head",
+                "command": "oar docs get --document-id product-constitution --json"
+            }
+        ],
+        "path_params": [
+            "document_id"
+        ],
+        "adjacent_commands": [
+            "docs.create",
+            "docs.history",
+            "docs.revision.get",
+            "docs.update"
+        ],
+        "go_method": "DocsGet",
+        "ts_method": "docsGet"
+    },
+    {
+        "command_id": "docs.history",
+        "cli_path": "docs history",
+        "group": "docs",
+        "method": "GET",
+        "path": "/docs/{document_id}/history",
+        "operation_id": "listDocumentHistory",
+        "summary": "List ordered immutable revisions for a document",
+        "why": "Traverse full document lineage in canonical revision-number order.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ document_id, revisions }` ordered by ascending `revision_number`.",
+        "error_codes": [
+            "invalid_request",
+            "not_found"
+        ],
+        "concepts": [
+            "docs",
+            "revisions",
+            "lineage"
+        ],
+        "stability": "beta",
+        "agent_notes": "Safe and idempotent.",
+        "examples": [
+            {
+                "title": "List document history",
+                "command": "oar docs history --document-id product-constitution --json"
+            }
+        ],
+        "path_params": [
+            "document_id"
+        ],
+        "adjacent_commands": [
+            "docs.create",
+            "docs.get",
+            "docs.revision.get",
+            "docs.update"
+        ],
+        "go_method": "DocsHistory",
+        "ts_method": "docsHistory"
+    },
+    {
+        "command_id": "docs.revision.get",
+        "cli_path": "docs revision get",
+        "group": "docs",
+        "method": "GET",
+        "path": "/docs/{document_id}/revisions/{revision_id}",
+        "operation_id": "getDocumentRevision",
+        "summary": "Get one immutable document revision",
+        "why": "Read a specific historical revision payload without mutating document head.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ revision }` including metadata and revision content.",
+        "error_codes": [
+            "invalid_request",
+            "not_found"
+        ],
+        "concepts": [
+            "docs",
+            "revisions"
+        ],
+        "stability": "beta",
+        "agent_notes": "Safe and idempotent.",
+        "examples": [
+            {
+                "title": "Get revision",
+                "command": "oar docs revision get --document-id product-constitution --revision-id 019f... --json"
+            }
+        ],
+        "path_params": [
+            "document_id",
+            "revision_id"
+        ],
+        "adjacent_commands": [
+            "docs.create",
+            "docs.get",
+            "docs.history",
+            "docs.update"
+        ],
+        "go_method": "DocsRevisionGet",
+        "ts_method": "docsRevisionGet"
+    },
+    {
+        "command_id": "docs.update",
+        "cli_path": "docs update",
+        "group": "docs",
+        "method": "PATCH",
+        "path": "/docs/{document_id}",
+        "operation_id": "updateDocument",
+        "summary": "Create a new immutable revision for an existing document",
+        "why": "Append a revision and atomically advance document head with optimistic concurrency.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ document, revision }` for the newly-created head revision.",
+        "error_codes": [
+            "invalid_json",
+            "invalid_request",
+            "unknown_actor_id",
+            "conflict",
+            "not_found"
+        ],
+        "concepts": [
+            "docs",
+            "revisions",
+            "concurrency"
+        ],
+        "stability": "beta",
+        "agent_notes": "Set `if_base_revision` from `docs.get` to prevent lost updates.",
+        "examples": [
+            {
+                "title": "Update document",
+                "command": "oar docs update --document-id product-constitution --from-file doc-update.json --json"
+            }
+        ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "content",
+                    "type": "object|string"
+                },
+                {
+                    "name": "content_type",
+                    "type": "string",
+                    "enum_values": [
+                        "binary",
+                        "structured",
+                        "text"
+                    ]
+                },
+                {
+                    "name": "if_base_revision",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "document",
+                    "type": "object"
+                },
+                {
+                    "name": "refs",
+                    "type": "list\u003cstring\u003e"
+                }
+            ]
+        },
+        "path_params": [
+            "document_id"
+        ],
+        "adjacent_commands": [
+            "docs.create",
+            "docs.get",
+            "docs.history",
+            "docs.revision.get"
+        ],
+        "go_method": "DocsUpdate",
+        "ts_method": "docsUpdate"
     },
     {
         "command_id": "events.create",
@@ -687,6 +1367,67 @@ export const commandRegistry = [
                 "command": "oar events create --from-file event.json --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "event.provenance.sources",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "event.refs",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "event.summary",
+                    "type": "string"
+                },
+                {
+                    "name": "event.type",
+                    "type": "string",
+                    "enum_values": [
+                        "commitment_created",
+                        "commitment_status_changed",
+                        "decision_made",
+                        "decision_needed",
+                        "exception_raised",
+                        "inbox_item_acknowledged",
+                        "message_posted",
+                        "receipt_added",
+                        "review_completed",
+                        "snapshot_updated",
+                        "work_order_claimed",
+                        "work_order_created"
+                    ],
+                    "enum_policy": "open"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "event.actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "event.payload",
+                    "type": "object"
+                },
+                {
+                    "name": "event.provenance.by_field",
+                    "type": "map\u003cstring, list\u003cstring\u003e\u003e"
+                },
+                {
+                    "name": "event.provenance.notes",
+                    "type": "string"
+                },
+                {
+                    "name": "event.thread_id",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "events.get",
             "events.stream"
@@ -804,14 +1545,81 @@ export const commandRegistry = [
             {
                 "title": "Ack inbox item",
                 "command": "oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json"
+            },
+            {
+                "title": "Ack inbox item by id",
+                "command": "oar inbox ack inbox:decision_needed:thread_123:none:event_1 --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "inbox_item_id",
+                    "type": "string"
+                },
+                {
+                    "name": "thread_id",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
+            "inbox.get",
             "inbox.list",
             "inbox.stream"
         ],
         "go_method": "InboxAck",
         "ts_method": "inboxAck"
+    },
+    {
+        "command_id": "inbox.get",
+        "cli_path": "inbox get",
+        "group": "inbox",
+        "method": "GET",
+        "path": "/inbox/{inbox_item_id}",
+        "operation_id": "getInboxItem",
+        "summary": "Get derived inbox item detail",
+        "why": "Inspect one inbox item in detail before acting on it.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ item, generated_at }` for the requested inbox item.",
+        "error_codes": [
+            "not_found"
+        ],
+        "concepts": [
+            "inbox",
+            "derived-views"
+        ],
+        "stability": "stable",
+        "agent_notes": "CLI supports canonical ids, aliases, and unique prefixes.",
+        "examples": [
+            {
+                "title": "Get inbox item by canonical id",
+                "command": "oar inbox get --id inbox:decision_needed:thread_123:none:event_123 --json"
+            },
+            {
+                "title": "Get inbox item by alias",
+                "command": "oar inbox get --id ibx_abcd1234ef56 --json"
+            }
+        ],
+        "path_params": [
+            "inbox_item_id"
+        ],
+        "adjacent_commands": [
+            "inbox.ack",
+            "inbox.list",
+            "inbox.stream"
+        ],
+        "go_method": "InboxGet",
+        "ts_method": "inboxGet"
     },
     {
         "command_id": "inbox.list",
@@ -841,6 +1649,7 @@ export const commandRegistry = [
         ],
         "adjacent_commands": [
             "inbox.ack",
+            "inbox.get",
             "inbox.stream"
         ],
         "go_method": "InboxList",
@@ -885,6 +1694,7 @@ export const commandRegistry = [
         ],
         "adjacent_commands": [
             "inbox.ack",
+            "inbox.get",
             "inbox.list"
         ],
         "go_method": "InboxStream",
@@ -1207,6 +2017,48 @@ export const commandRegistry = [
                 "command": "oar packets receipts create --from-file receipt.json --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "artifact",
+                    "type": "object"
+                },
+                {
+                    "name": "packet.changes_summary",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.known_gaps",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "packet.outputs",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "packet.receipt_id",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.thread_id",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.verification_evidence",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "packet.work_order_id",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "packets.reviews.create",
             "packets.work-orders.create"
@@ -1245,6 +2097,50 @@ export const commandRegistry = [
                 "command": "oar packets reviews create --from-file review.json --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "artifact",
+                    "type": "object"
+                },
+                {
+                    "name": "packet.evidence_refs",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "packet.notes",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.outcome",
+                    "type": "string",
+                    "enum_values": [
+                        "accept",
+                        "escalate",
+                        "revise"
+                    ],
+                    "enum_policy": "strict"
+                },
+                {
+                    "name": "packet.receipt_id",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.review_id",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.work_order_id",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "packets.receipts.create",
             "packets.work-orders.create"
@@ -1283,6 +2179,48 @@ export const commandRegistry = [
                 "command": "oar packets work-orders create --from-file work-order.json --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "artifact",
+                    "type": "object"
+                },
+                {
+                    "name": "packet.acceptance_criteria",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "packet.constraints",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "packet.context_refs",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "packet.definition_of_done",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "packet.objective",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.thread_id",
+                    "type": "string"
+                },
+                {
+                    "name": "packet.work_order_id",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
             "packets.receipts.create",
             "packets.reviews.create"
@@ -1325,6 +2263,55 @@ export const commandRegistry = [
         "ts_method": "snapshotsGet"
     },
     {
+        "command_id": "threads.context",
+        "cli_path": "threads context",
+        "group": "threads",
+        "method": "GET",
+        "path": "/threads/{thread_id}/context",
+        "operation_id": "getThreadContext",
+        "summary": "Get bundled thread context for agent callers",
+        "why": "Load one thread's state, recent events, key artifacts, and open commitments in a single round-trip; CLI `oar threads context` can aggregate across threads by composing multiple calls.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ thread, recent_events, key_artifacts, open_commitments }`.",
+        "error_codes": [
+            "invalid_request",
+            "not_found"
+        ],
+        "concepts": [
+            "threads",
+            "events",
+            "artifacts",
+            "commitments"
+        ],
+        "stability": "beta",
+        "agent_notes": "Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.",
+        "examples": [
+            {
+                "title": "Context with defaults",
+                "command": "oar threads context --thread-id thread_123 --json"
+            },
+            {
+                "title": "Context with artifact previews",
+                "command": "oar threads context --thread-id thread_123 --include-artifact-content --max-events 50 --json"
+            }
+        ],
+        "path_params": [
+            "thread_id"
+        ],
+        "adjacent_commands": [
+            "threads.create",
+            "threads.get",
+            "threads.list",
+            "threads.patch",
+            "threads.timeline"
+        ],
+        "go_method": "ThreadsContext",
+        "ts_method": "threadsContext"
+    },
+    {
         "command_id": "threads.create",
         "cli_path": "threads create",
         "group": "threads",
@@ -1355,7 +2342,92 @@ export const commandRegistry = [
                 "command": "oar threads create --from-file thread.json --json"
             }
         ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "thread.cadence",
+                    "type": "string"
+                },
+                {
+                    "name": "thread.current_summary",
+                    "type": "string"
+                },
+                {
+                    "name": "thread.key_artifacts",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "thread.next_actions",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "thread.priority",
+                    "type": "string",
+                    "enum_values": [
+                        "p0",
+                        "p1",
+                        "p2",
+                        "p3"
+                    ],
+                    "enum_policy": "strict"
+                },
+                {
+                    "name": "thread.provenance.sources",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "thread.status",
+                    "type": "string",
+                    "enum_values": [
+                        "active",
+                        "closed",
+                        "paused"
+                    ],
+                    "enum_policy": "strict"
+                },
+                {
+                    "name": "thread.tags",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "thread.title",
+                    "type": "string"
+                },
+                {
+                    "name": "thread.type",
+                    "type": "string",
+                    "enum_values": [
+                        "case",
+                        "incident",
+                        "initiative",
+                        "other",
+                        "process",
+                        "relationship"
+                    ],
+                    "enum_policy": "strict"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "thread.next_check_in_at",
+                    "type": "datetime"
+                },
+                {
+                    "name": "thread.provenance.by_field",
+                    "type": "map\u003cstring, list\u003cstring\u003e\u003e"
+                },
+                {
+                    "name": "thread.provenance.notes",
+                    "type": "string"
+                }
+            ]
+        },
         "adjacent_commands": [
+            "threads.context",
             "threads.get",
             "threads.list",
             "threads.patch",
@@ -1372,7 +2444,7 @@ export const commandRegistry = [
         "path": "/threads/{thread_id}",
         "operation_id": "getThread",
         "summary": "Get thread snapshot by id",
-        "why": "Resolve authoritative thread state before patching or composing packets.",
+        "why": "Resolve a raw authoritative thread snapshot for low-level reads before patching or composing packets.",
         "input_mode": "none",
         "streaming": {
             "mode": "none"
@@ -1385,7 +2457,7 @@ export const commandRegistry = [
             "threads"
         ],
         "stability": "stable",
-        "agent_notes": "Safe and idempotent.",
+        "agent_notes": "Safe and idempotent. Prefer `oar threads inspect` for operator coordination reads.",
         "examples": [
             {
                 "title": "Read thread",
@@ -1396,6 +2468,7 @@ export const commandRegistry = [
             "thread_id"
         ],
         "adjacent_commands": [
+            "threads.context",
             "threads.create",
             "threads.list",
             "threads.patch",
@@ -1434,6 +2507,7 @@ export const commandRegistry = [
             }
         ],
         "adjacent_commands": [
+            "threads.context",
             "threads.create",
             "threads.get",
             "threads.patch",
@@ -1475,10 +2549,97 @@ export const commandRegistry = [
                 "command": "oar threads patch --thread-id thread_123 --from-file patch.json --json"
             }
         ],
+        "body_schema": {
+            "optional": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                },
+                {
+                    "name": "if_updated_at",
+                    "type": "datetime"
+                },
+                {
+                    "name": "patch.cadence",
+                    "type": "string"
+                },
+                {
+                    "name": "patch.current_summary",
+                    "type": "string"
+                },
+                {
+                    "name": "patch.key_artifacts",
+                    "type": "list\u003ctyped_ref\u003e"
+                },
+                {
+                    "name": "patch.next_actions",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "patch.next_check_in_at",
+                    "type": "datetime"
+                },
+                {
+                    "name": "patch.priority",
+                    "type": "string",
+                    "enum_values": [
+                        "p0",
+                        "p1",
+                        "p2",
+                        "p3"
+                    ],
+                    "enum_policy": "strict"
+                },
+                {
+                    "name": "patch.provenance.by_field",
+                    "type": "map\u003cstring, list\u003cstring\u003e\u003e"
+                },
+                {
+                    "name": "patch.provenance.notes",
+                    "type": "string"
+                },
+                {
+                    "name": "patch.provenance.sources",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "patch.status",
+                    "type": "string",
+                    "enum_values": [
+                        "active",
+                        "closed",
+                        "paused"
+                    ],
+                    "enum_policy": "strict"
+                },
+                {
+                    "name": "patch.tags",
+                    "type": "list\u003cstring\u003e"
+                },
+                {
+                    "name": "patch.title",
+                    "type": "string"
+                },
+                {
+                    "name": "patch.type",
+                    "type": "string",
+                    "enum_values": [
+                        "case",
+                        "incident",
+                        "initiative",
+                        "other",
+                        "process",
+                        "relationship"
+                    ],
+                    "enum_policy": "strict"
+                }
+            ]
+        },
         "path_params": [
             "thread_id"
         ],
         "adjacent_commands": [
+            "threads.context",
             "threads.create",
             "threads.get",
             "threads.list",
@@ -1521,6 +2682,7 @@ export const commandRegistry = [
             "thread_id"
         ],
         "adjacent_commands": [
+            "threads.context",
             "threads.create",
             "threads.get",
             "threads.list",
@@ -1625,6 +2787,18 @@ export class OarClient {
     authAgentsRegister(options = {}) {
         return this.invoke("auth.agents.register", {}, options);
     }
+    authPasskeyLoginOptions(options = {}) {
+        return this.invoke("auth.passkey.login.options", {}, options);
+    }
+    authPasskeyLoginVerify(options = {}) {
+        return this.invoke("auth.passkey.login.verify", {}, options);
+    }
+    authPasskeyRegisterOptions(options = {}) {
+        return this.invoke("auth.passkey.register.options", {}, options);
+    }
+    authPasskeyRegisterVerify(options = {}) {
+        return this.invoke("auth.passkey.register.verify", {}, options);
+    }
     authToken(options = {}) {
         return this.invoke("auth.token", {}, options);
     }
@@ -1643,6 +2817,21 @@ export class OarClient {
     derivedRebuild(options = {}) {
         return this.invoke("derived.rebuild", {}, options);
     }
+    docsCreate(options = {}) {
+        return this.invoke("docs.create", {}, options);
+    }
+    docsGet(pathParams, options = {}) {
+        return this.invoke("docs.get", pathParams, options);
+    }
+    docsHistory(pathParams, options = {}) {
+        return this.invoke("docs.history", pathParams, options);
+    }
+    docsRevisionGet(pathParams, options = {}) {
+        return this.invoke("docs.revision.get", pathParams, options);
+    }
+    docsUpdate(pathParams, options = {}) {
+        return this.invoke("docs.update", pathParams, options);
+    }
     eventsCreate(options = {}) {
         return this.invoke("events.create", {}, options);
     }
@@ -1654,6 +2843,9 @@ export class OarClient {
     }
     inboxAck(options = {}) {
         return this.invoke("inbox.ack", {}, options);
+    }
+    inboxGet(pathParams, options = {}) {
+        return this.invoke("inbox.get", pathParams, options);
     }
     inboxList(options = {}) {
         return this.invoke("inbox.list", {}, options);
@@ -1693,6 +2885,9 @@ export class OarClient {
     }
     snapshotsGet(pathParams, options = {}) {
         return this.invoke("snapshots.get", pathParams, options);
+    }
+    threadsContext(pathParams, options = {}) {
+        return this.invoke("threads.context", pathParams, options);
     }
     threadsCreate(options = {}) {
         return this.invoke("threads.create", {}, options);

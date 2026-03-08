@@ -213,13 +213,57 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "identity"},
-		Adjacent:  []string{"auth.token"},
+		Adjacent:  []string{"auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "Register agent",
 				Command: "oar auth agents register --username agent.one --public-key <base64-ed25519-pubkey> --json",
 			},
 		},
+	},
+	{
+		CommandID: "auth.passkey.login.options",
+		CLIPath:   "auth passkey login options",
+		Group:     "auth",
+		Method:    "POST",
+		Path:      "/auth/passkey/login/options",
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"auth", "passkey"},
+		Adjacent:  []string{"auth.agents.register", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.token"},
+	},
+	{
+		CommandID: "auth.passkey.login.verify",
+		CLIPath:   "auth passkey login verify",
+		Group:     "auth",
+		Method:    "POST",
+		Path:      "/auth/passkey/login/verify",
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"auth", "passkey"},
+		Adjacent:  []string{"auth.agents.register", "auth.passkey.login.options", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.token"},
+	},
+	{
+		CommandID: "auth.passkey.register.options",
+		CLIPath:   "auth passkey register options",
+		Group:     "auth",
+		Method:    "POST",
+		Path:      "/auth/passkey/register/options",
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"auth", "passkey"},
+		Adjacent:  []string{"auth.agents.register", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.verify", "auth.token"},
+	},
+	{
+		CommandID: "auth.passkey.register.verify",
+		CLIPath:   "auth passkey register verify",
+		Group:     "auth",
+		Method:    "POST",
+		Path:      "/auth/passkey/register/verify",
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"auth", "passkey"},
+		Adjacent:  []string{"auth.agents.register", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.token"},
 	},
 	{
 		CommandID: "auth.token",
@@ -230,7 +274,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "token-lifecycle"},
-		Adjacent:  []string{"auth.agents.register"},
+		Adjacent:  []string{"auth.agents.register", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify"},
 		Examples: []Example{
 			{
 				Title:   "Refresh token grant",
@@ -329,6 +373,95 @@ var CommandRegistry = []CommandSpec{
 		},
 	},
 	{
+		CommandID: "docs.create",
+		CLIPath:   "docs create",
+		Group:     "docs",
+		Method:    "POST",
+		Path:      "/docs",
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"docs", "revisions"},
+		Adjacent:  []string{"docs.get", "docs.history", "docs.revision.get", "docs.update"},
+		Examples: []Example{
+			{
+				Title:   "Create document",
+				Command: "oar docs create --from-file doc-create.json --json",
+			},
+		},
+	},
+	{
+		CommandID:  "docs.get",
+		CLIPath:    "docs get",
+		Group:      "docs",
+		Method:     "GET",
+		Path:       "/docs/{document_id}",
+		PathParams: []string{"document_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"docs", "revisions"},
+		Adjacent:   []string{"docs.create", "docs.history", "docs.revision.get", "docs.update"},
+		Examples: []Example{
+			{
+				Title:   "Get document head",
+				Command: "oar docs get --document-id product-constitution --json",
+			},
+		},
+	},
+	{
+		CommandID:  "docs.history",
+		CLIPath:    "docs history",
+		Group:      "docs",
+		Method:     "GET",
+		Path:       "/docs/{document_id}/history",
+		PathParams: []string{"document_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"docs", "revisions", "lineage"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.revision.get", "docs.update"},
+		Examples: []Example{
+			{
+				Title:   "List document history",
+				Command: "oar docs history --document-id product-constitution --json",
+			},
+		},
+	},
+	{
+		CommandID:  "docs.revision.get",
+		CLIPath:    "docs revision get",
+		Group:      "docs",
+		Method:     "GET",
+		Path:       "/docs/{document_id}/revisions/{revision_id}",
+		PathParams: []string{"document_id", "revision_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"docs", "revisions"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.update"},
+		Examples: []Example{
+			{
+				Title:   "Get revision",
+				Command: "oar docs revision get --document-id product-constitution --revision-id 019f... --json",
+			},
+		},
+	},
+	{
+		CommandID:  "docs.update",
+		CLIPath:    "docs update",
+		Group:      "docs",
+		Method:     "PATCH",
+		Path:       "/docs/{document_id}",
+		PathParams: []string{"document_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"docs", "revisions", "concurrency"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.revision.get"},
+		Examples: []Example{
+			{
+				Title:   "Update document",
+				Command: "oar docs update --document-id product-constitution --from-file doc-update.json --json",
+			},
+		},
+	},
+	{
 		CommandID: "events.create",
 		CLIPath:   "events create",
 		Group:     "events",
@@ -393,11 +526,37 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "stable",
 		Concepts:  []string{"inbox", "events"},
-		Adjacent:  []string{"inbox.list", "inbox.stream"},
+		Adjacent:  []string{"inbox.get", "inbox.list", "inbox.stream"},
 		Examples: []Example{
 			{
 				Title:   "Ack inbox item",
 				Command: "oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json",
+			},
+			{
+				Title:   "Ack inbox item by id",
+				Command: "oar inbox ack inbox:decision_needed:thread_123:none:event_1 --json",
+			},
+		},
+	},
+	{
+		CommandID:  "inbox.get",
+		CLIPath:    "inbox get",
+		Group:      "inbox",
+		Method:     "GET",
+		Path:       "/inbox/{inbox_item_id}",
+		PathParams: []string{"inbox_item_id"},
+		InputMode:  "none",
+		Stability:  "stable",
+		Concepts:   []string{"inbox", "derived-views"},
+		Adjacent:   []string{"inbox.ack", "inbox.list", "inbox.stream"},
+		Examples: []Example{
+			{
+				Title:   "Get inbox item by canonical id",
+				Command: "oar inbox get --id inbox:decision_needed:thread_123:none:event_123 --json",
+			},
+			{
+				Title:   "Get inbox item by alias",
+				Command: "oar inbox get --id ibx_abcd1234ef56 --json",
 			},
 		},
 	},
@@ -410,7 +569,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "stable",
 		Concepts:  []string{"inbox", "derived-views"},
-		Adjacent:  []string{"inbox.ack", "inbox.stream"},
+		Adjacent:  []string{"inbox.ack", "inbox.get", "inbox.stream"},
 		Examples: []Example{
 			{
 				Title:   "List inbox",
@@ -427,7 +586,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"inbox", "derived-views", "streaming"},
-		Adjacent:  []string{"inbox.ack", "inbox.list"},
+		Adjacent:  []string{"inbox.ack", "inbox.get", "inbox.list"},
 		Examples: []Example{
 			{
 				Title:   "Stream inbox updates",
@@ -629,6 +788,28 @@ var CommandRegistry = []CommandSpec{
 		},
 	},
 	{
+		CommandID:  "threads.context",
+		CLIPath:    "threads context",
+		Group:      "threads",
+		Method:     "GET",
+		Path:       "/threads/{thread_id}/context",
+		PathParams: []string{"thread_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"threads", "events", "artifacts", "commitments"},
+		Adjacent:   []string{"threads.create", "threads.get", "threads.list", "threads.patch", "threads.timeline"},
+		Examples: []Example{
+			{
+				Title:   "Context with defaults",
+				Command: "oar threads context --thread-id thread_123 --json",
+			},
+			{
+				Title:   "Context with artifact previews",
+				Command: "oar threads context --thread-id thread_123 --include-artifact-content --max-events 50 --json",
+			},
+		},
+	},
+	{
 		CommandID: "threads.create",
 		CLIPath:   "threads create",
 		Group:     "threads",
@@ -637,7 +818,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "stable",
 		Concepts:  []string{"threads", "snapshots"},
-		Adjacent:  []string{"threads.get", "threads.list", "threads.patch", "threads.timeline"},
+		Adjacent:  []string{"threads.context", "threads.get", "threads.list", "threads.patch", "threads.timeline"},
 		Examples: []Example{
 			{
 				Title:   "Create thread",
@@ -655,7 +836,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "stable",
 		Concepts:   []string{"threads"},
-		Adjacent:   []string{"threads.create", "threads.list", "threads.patch", "threads.timeline"},
+		Adjacent:   []string{"threads.context", "threads.create", "threads.list", "threads.patch", "threads.timeline"},
 		Examples: []Example{
 			{
 				Title:   "Read thread",
@@ -672,7 +853,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "stable",
 		Concepts:  []string{"threads", "filtering"},
-		Adjacent:  []string{"threads.create", "threads.get", "threads.patch", "threads.timeline"},
+		Adjacent:  []string{"threads.context", "threads.create", "threads.get", "threads.patch", "threads.timeline"},
 		Examples: []Example{
 			{
 				Title:   "List active p1 threads",
@@ -690,7 +871,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "stable",
 		Concepts:   []string{"threads", "patch"},
-		Adjacent:   []string{"threads.create", "threads.get", "threads.list", "threads.timeline"},
+		Adjacent:   []string{"threads.context", "threads.create", "threads.get", "threads.list", "threads.timeline"},
 		Examples: []Example{
 			{
 				Title:   "Patch thread",
@@ -708,7 +889,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "stable",
 		Concepts:   []string{"threads", "events", "provenance"},
-		Adjacent:   []string{"threads.create", "threads.get", "threads.list", "threads.patch"},
+		Adjacent:   []string{"threads.context", "threads.create", "threads.get", "threads.list", "threads.patch"},
 		Examples: []Example{
 			{
 				Title:   "Timeline",
@@ -878,6 +1059,22 @@ func (c *Client) AuthAgentsRegister(ctx context.Context, opts RequestOptions) (*
 	return c.Invoke(ctx, "auth.agents.register", nil, opts)
 }
 
+func (c *Client) AuthPasskeyLoginOptions(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "auth.passkey.login.options", nil, opts)
+}
+
+func (c *Client) AuthPasskeyLoginVerify(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "auth.passkey.login.verify", nil, opts)
+}
+
+func (c *Client) AuthPasskeyRegisterOptions(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "auth.passkey.register.options", nil, opts)
+}
+
+func (c *Client) AuthPasskeyRegisterVerify(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "auth.passkey.register.verify", nil, opts)
+}
+
 func (c *Client) AuthToken(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "auth.token", nil, opts)
 }
@@ -902,6 +1099,26 @@ func (c *Client) DerivedRebuild(ctx context.Context, opts RequestOptions) (*http
 	return c.Invoke(ctx, "derived.rebuild", nil, opts)
 }
 
+func (c *Client) DocsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.create", nil, opts)
+}
+
+func (c *Client) DocsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.get", pathParams, opts)
+}
+
+func (c *Client) DocsHistory(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.history", pathParams, opts)
+}
+
+func (c *Client) DocsRevisionGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.revision.get", pathParams, opts)
+}
+
+func (c *Client) DocsUpdate(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.update", pathParams, opts)
+}
+
 func (c *Client) EventsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "events.create", nil, opts)
 }
@@ -916,6 +1133,10 @@ func (c *Client) EventsStream(ctx context.Context, opts RequestOptions) (*http.R
 
 func (c *Client) InboxAck(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "inbox.ack", nil, opts)
+}
+
+func (c *Client) InboxGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "inbox.get", pathParams, opts)
 }
 
 func (c *Client) InboxList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
@@ -968,6 +1189,10 @@ func (c *Client) PacketsWorkOrdersCreate(ctx context.Context, opts RequestOption
 
 func (c *Client) SnapshotsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "snapshots.get", pathParams, opts)
+}
+
+func (c *Client) ThreadsContext(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "threads.context", pathParams, opts)
 }
 
 func (c *Client) ThreadsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {

@@ -131,6 +131,63 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_auth_used_assertions_used_at ON auth_used_assertions (used_at);`,
 		},
 	},
+	{
+		Version: 5,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS documents (
+				id TEXT PRIMARY KEY,
+				thread_id TEXT,
+				title TEXT,
+				slug TEXT,
+				status TEXT,
+				labels_json TEXT NOT NULL DEFAULT '[]',
+				supersedes_json TEXT NOT NULL DEFAULT '[]',
+				head_revision_id TEXT NOT NULL,
+				head_revision_number INTEGER NOT NULL,
+				created_at TEXT NOT NULL,
+				created_by TEXT NOT NULL,
+				updated_at TEXT NOT NULL,
+				updated_by TEXT NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS document_revisions (
+				revision_id TEXT PRIMARY KEY,
+				document_id TEXT NOT NULL,
+				revision_number INTEGER NOT NULL,
+				prev_revision_id TEXT,
+				artifact_id TEXT NOT NULL,
+				thread_id TEXT,
+				refs_json TEXT NOT NULL DEFAULT '[]',
+				created_at TEXT NOT NULL,
+				created_by TEXT NOT NULL,
+				UNIQUE(document_id, revision_number)
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_documents_head_revision_id ON documents (head_revision_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_document_revisions_document_id_revision_number ON document_revisions (document_id, revision_number);`,
+			`CREATE INDEX IF NOT EXISTS idx_document_revisions_document_id_revision_id ON document_revisions (document_id, revision_id);`,
+		},
+	},
+	{
+		Version: 6,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS passkey_credentials (
+				credential_id TEXT PRIMARY KEY,
+				agent_id TEXT NOT NULL,
+				user_handle BLOB NOT NULL,
+				public_key BLOB NOT NULL,
+				attestation_type TEXT NOT NULL,
+				transport TEXT NOT NULL DEFAULT '',
+				sign_count INTEGER NOT NULL DEFAULT 0,
+				backup_eligible INTEGER NOT NULL DEFAULT 0,
+				backup_state INTEGER NOT NULL DEFAULT 0,
+				aaguid BLOB NOT NULL DEFAULT X'',
+				attachment TEXT NOT NULL DEFAULT '',
+				created_at TEXT NOT NULL,
+				FOREIGN KEY(agent_id) REFERENCES agents(id)
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_passkey_credentials_agent_id ON passkey_credentials (agent_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_passkey_credentials_user_handle ON passkey_credentials (user_handle);`,
+		},
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

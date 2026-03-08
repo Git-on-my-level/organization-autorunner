@@ -2,10 +2,8 @@
   import { page } from "$app/stores";
   import { threadDetailStore } from "$lib/threadDetailStore";
   import { parseListInput } from "$lib/threadPatch";
-  import {
-    validateWorkOrderDraft,
-    validateReceiptDraft,
-  } from "$lib/workOrderUtils";
+  import { validateWorkOrderDraft } from "$lib/workOrderUtils";
+  import { validateReceiptDraft } from "$lib/receiptUtils";
 
   let { threadId, onWorkOrderSubmit, onReceiptSubmit } = $props();
 

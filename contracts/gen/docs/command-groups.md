@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.2`
-- Groups: `12`
+- Groups: `13`
 
 ## `actors`
 
@@ -33,9 +33,13 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `auth`
 
-- Commands: `2`
+- Commands: `6`
 - Command IDs:
   - `auth.agents.register` (`auth agents register`)
+  - `auth.passkey.login.options` (`auth passkey login options`)
+  - `auth.passkey.login.verify` (`auth passkey login verify`)
+  - `auth.passkey.register.options` (`auth passkey register options`)
+  - `auth.passkey.register.verify` (`auth passkey register verify`)
   - `auth.token` (`auth token`)
 
 ## `commitments`
@@ -53,6 +57,16 @@ Generated from `contracts/oar-openapi.yaml`.
 - Command IDs:
   - `derived.rebuild` (`derived rebuild`)
 
+## `docs`
+
+- Commands: `5`
+- Command IDs:
+  - `docs.create` (`docs create`)
+  - `docs.get` (`docs get`)
+  - `docs.history` (`docs history`)
+  - `docs.revision.get` (`docs revision get`)
+  - `docs.update` (`docs update`)
+
 ## `events`
 
 - Commands: `3`
@@ -63,9 +77,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `inbox`
 
-- Commands: `3`
+- Commands: `4`
 - Command IDs:
   - `inbox.ack` (`inbox ack`)
+  - `inbox.get` (`inbox get`)
   - `inbox.list` (`inbox list`)
   - `inbox.stream` (`inbox stream`)
 
@@ -97,8 +112,9 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `threads`
 
-- Commands: `5`
+- Commands: `6`
 - Command IDs:
+  - `threads.context` (`threads context`)
   - `threads.create` (`threads create`)
   - `threads.get` (`threads get`)
   - `threads.list` (`threads list`)

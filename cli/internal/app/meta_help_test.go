@@ -108,6 +108,280 @@ func TestRunGeneratedHelpTopic(t *testing.T) {
 	if !strings.Contains(output, "threads create") {
 		t.Fatalf("expected generated command listing output=%s", output)
 	}
+	if !strings.Contains(output, "threads patch") {
+		t.Fatalf("expected patch subcommand in generated help output=%s", output)
+	}
+	if !strings.Contains(output, "threads timeline") {
+		t.Fatalf("expected timeline subcommand in generated help output=%s", output)
+	}
+	if !strings.Contains(output, "threads inspect") {
+		t.Fatalf("expected local threads inspect helper in generated help output=%s", output)
+	}
+	if !strings.Contains(output, "Canonical coordination read path:") {
+		t.Fatalf("expected canonical coordination guidance in threads group help output=%s", output)
+	}
+	if !strings.Contains(output, "oar threads workspace") {
+		t.Fatalf("expected canonical threads workspace command hint in threads group help output=%s", output)
+	}
+	if !strings.Contains(output, "threads recommendations") {
+		t.Fatalf("expected local threads recommendations helper in generated help output=%s", output)
+	}
+	if !strings.Contains(output, "threads workspace") {
+		t.Fatalf("expected local threads workspace helper in generated help output=%s", output)
+	}
+	if !strings.Contains(output, "threads apply") {
+		t.Fatalf("expected threads apply workflow guidance in generated help output=%s", output)
+	}
+	if strings.Contains(output, "threads update") {
+		t.Fatalf("unexpected legacy update subcommand in generated help output=%s", output)
+	}
+	if !strings.Contains(output, "Global flags can appear before or after the command path.") {
+		t.Fatalf("expected global flag placement guidance output=%s", output)
+	}
+	if !strings.Contains(output, "oar --json threads ...") {
+		t.Fatalf("expected global --json example in generated group help output=%s", output)
+	}
+}
+
+func TestRunGeneratedHelpTopicSupportsCompatibilityAliasPath(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help", "packets", "receipts", "create"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "Generated Help: receipts create") {
+		t.Fatalf("expected compatibility alias help to resolve to canonical topic output=%s", output)
+	}
+	if !strings.Contains(output, "- CLI path: `receipts create`") {
+		t.Fatalf("expected canonical CLI path in help output=%s", output)
+	}
+}
+
+func TestRunEventsHelpMentionsLocalExplainAcrossEntryPoints(t *testing.T) {
+	t.Parallel()
+
+	run := func(args []string) string {
+		t.Helper()
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		cli := New()
+		cli.Stdout = stdout
+		cli.Stderr = stderr
+		cli.Stdin = strings.NewReader("")
+		cli.StdinIsTTY = func() bool { return true }
+		cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+		cli.ReadFile = func(path string) ([]byte, error) {
+			return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+		}
+
+		exitCode := cli.Run(args)
+		if exitCode != 0 {
+			t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+		}
+		return stdout.String()
+	}
+
+	fromTopic := run([]string{"help", "events"})
+	fromFlag := run([]string{"events", "--help"})
+
+	for _, output := range []string{fromTopic, fromFlag} {
+		if !strings.Contains(output, "Generated Help: events") {
+			t.Fatalf("expected generated events help header output=%s", output)
+		}
+		if !strings.Contains(output, "events explain") {
+			t.Fatalf("expected local events explain helper output=%s", output)
+		}
+		if !strings.Contains(output, "events validate") {
+			t.Fatalf("expected local events validate helper output=%s", output)
+		}
+		if !strings.Contains(output, "events list") {
+			t.Fatalf("expected local events list helper output=%s", output)
+		}
+		if !strings.Contains(output, "oar events explain <event-type>") {
+			t.Fatalf("expected events explain usage hint output=%s", output)
+		}
+	}
+
+	if fromTopic != fromFlag {
+		t.Fatalf("expected same formatter output for help events and events --help\nhelp output:\n%s\nflag output:\n%s", fromTopic, fromFlag)
+	}
+}
+
+func TestRunLocalHelperHelpTopicsResolveAcrossEntryPoints(t *testing.T) {
+	t.Parallel()
+
+	run := func(args []string) string {
+		t.Helper()
+		stdout := &bytes.Buffer{}
+		stderr := &bytes.Buffer{}
+		cli := New()
+		cli.Stdout = stdout
+		cli.Stderr = stderr
+		cli.Stdin = strings.NewReader("")
+		cli.StdinIsTTY = func() bool { return true }
+		cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+		cli.ReadFile = func(path string) ([]byte, error) {
+			return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+		}
+
+		exitCode := cli.Run(args)
+		if exitCode != 0 {
+			t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+		}
+		return stdout.String()
+	}
+
+	eventsFromTopic := run([]string{"help", "events", "list"})
+	eventsFromFlag := run([]string{"events", "list", "--help"})
+	threadsFromTopic := run([]string{"help", "threads", "inspect"})
+	threadsFromFlag := run([]string{"threads", "inspect", "--help"})
+	threadsWorkspaceFromTopic := run([]string{"help", "threads", "workspace"})
+	threadsWorkspaceFromFlag := run([]string{"threads", "workspace", "--help"})
+	threadsRecommendationsFromTopic := run([]string{"help", "threads", "recommendations"})
+	threadsRecommendationsFromFlag := run([]string{"threads", "recommendations", "--help"})
+
+	for _, output := range []string{eventsFromTopic, eventsFromFlag} {
+		if !strings.Contains(output, "Local Help: events list") {
+			t.Fatalf("expected local events list help header output=%s", output)
+		}
+		if !strings.Contains(output, "threads timeline") || !strings.Contains(output, "--full-id") {
+			t.Fatalf("expected events list local helper details output=%s", output)
+		}
+	}
+	for _, output := range []string{threadsFromTopic, threadsFromFlag} {
+		if !strings.Contains(output, "Local Help: threads inspect") {
+			t.Fatalf("expected local threads inspect help header output=%s", output)
+		}
+		if !strings.Contains(output, "threads context") || !strings.Contains(output, "inbox list") {
+			t.Fatalf("expected composed-helper details output=%s", output)
+		}
+	}
+	for _, output := range []string{threadsWorkspaceFromTopic, threadsWorkspaceFromFlag} {
+		if !strings.Contains(output, "Local Help: threads workspace") {
+			t.Fatalf("expected local threads workspace help header output=%s", output)
+		}
+		if !strings.Contains(output, "related-thread") || !strings.Contains(output, "inbox list") || !strings.Contains(output, "--include-related-event-content") {
+			t.Fatalf("expected workspace helper details output=%s", output)
+		}
+	}
+	for _, output := range []string{threadsRecommendationsFromTopic, threadsRecommendationsFromFlag} {
+		if !strings.Contains(output, "Local Help: threads recommendations") {
+			t.Fatalf("expected local threads recommendations help header output=%s", output)
+		}
+		if !strings.Contains(output, "--full-summary") || !strings.Contains(output, "inbox list") || !strings.Contains(output, "--include-related-event-content") {
+			t.Fatalf("expected recommendations helper details output=%s", output)
+		}
+	}
+	if eventsFromTopic != eventsFromFlag {
+		t.Fatalf("expected same events list help via topic and --help\nhelp output:\n%s\nflag output:\n%s", eventsFromTopic, eventsFromFlag)
+	}
+	if threadsFromTopic != threadsFromFlag {
+		t.Fatalf("expected same threads inspect help via topic and --help\nhelp output:\n%s\nflag output:\n%s", threadsFromTopic, threadsFromFlag)
+	}
+	if threadsWorkspaceFromTopic != threadsWorkspaceFromFlag {
+		t.Fatalf("expected same threads workspace help via topic and --help\nhelp output:\n%s\nflag output:\n%s", threadsWorkspaceFromTopic, threadsWorkspaceFromFlag)
+	}
+	if threadsRecommendationsFromTopic != threadsRecommendationsFromFlag {
+		t.Fatalf("expected same threads recommendations help via topic and --help\nhelp output:\n%s\nflag output:\n%s", threadsRecommendationsFromTopic, threadsRecommendationsFromFlag)
+	}
+}
+
+func TestRunDocsHelpMentionsLocalValidateUpdate(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help", "docs"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "docs validate-update") {
+		t.Fatalf("expected local docs validate-update helper output=%s", output)
+	}
+	if !strings.Contains(output, "docs content") {
+		t.Fatalf("expected docs content helper output=%s", output)
+	}
+	if !strings.Contains(output, "docs update") || !strings.Contains(output, "docs apply") {
+		t.Fatalf("expected docs proposal/apply helpers output=%s", output)
+	}
+	if !strings.Contains(output, "--content-file <path>") {
+		t.Fatalf("expected content-file hint output=%s", output)
+	}
+}
+
+func TestRunCommitmentsHelpMentionsApplyWorkflow(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help", "commitments"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "commitments update") || !strings.Contains(output, "commitments apply") {
+		t.Fatalf("expected commitments proposal/apply workflow output=%s", output)
+	}
+}
+
+func TestRunProvenanceHelpTopic(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help", "provenance"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "oar provenance walk") || !strings.Contains(output, "--from <typed-ref>") {
+		t.Fatalf("expected provenance help text, got: %s", output)
+	}
 }
 
 func TestRunSubcommandHelpToken(t *testing.T) {
@@ -131,5 +405,112 @@ func TestRunSubcommandHelpToken(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "Generated Help: threads") {
 		t.Fatalf("expected generated threads help output=%s", stdout.String())
+	}
+}
+
+func TestRunRootHelpMentionsOnboardingTopic(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "`oar help onboarding`") {
+		t.Fatalf("expected onboarding hint output=%s", stdout.String())
+	}
+}
+
+func TestRunOnboardingHelpTopic(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help", "onboarding"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "Onboarding: mental model") {
+		t.Fatalf("expected onboarding header output=%s", output)
+	}
+	if !strings.Contains(output, "Work-order loop") {
+		t.Fatalf("expected work-order section output=%s", output)
+	}
+	if !strings.Contains(output, "First 5 commands to run") {
+		t.Fatalf("expected first-commands section output=%s", output)
+	}
+	if !strings.Contains(output, "cli/docs/runbook.md") {
+		t.Fatalf("expected offline runbook link output=%s", output)
+	}
+	if !strings.Contains(output, "1. `oar` is a non-interactive CLI") {
+		t.Fatalf("expected mental model sentence output=%s", output)
+	}
+	if !strings.Contains(output, "5. The fastest way to stay aligned") {
+		t.Fatalf("expected fifth mental model sentence output=%s", output)
+	}
+	if !strings.Contains(output, "oar threads workspace --thread-id <thread-id>") {
+		t.Fatalf("expected canonical thread workspace workflow guidance output=%s", output)
+	}
+}
+
+func TestGeneratedCommandHelpIncludesBodySchemaAndEnums(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"help", "events", "create"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	output := stdout.String()
+	if !strings.Contains(output, "Body schema:") {
+		t.Fatalf("expected body schema block output=%s", output)
+	}
+	if !strings.Contains(output, "event.type (string)") {
+		t.Fatalf("expected event.type body field output=%s", output)
+	}
+	if !strings.Contains(output, "work_order_claimed") {
+		t.Fatalf("expected enum discoverability for work_order_claimed output=%s", output)
+	}
+	if !strings.Contains(output, "`actor_statement`") {
+		t.Fatalf("expected actor_statement discoverability note output=%s", output)
+	}
+	if !strings.Contains(output, "`--dry-run`") {
+		t.Fatalf("expected dry-run discoverability note output=%s", output)
+	}
+	if !strings.Contains(output, "oar --json events create ...") {
+		t.Fatalf("expected global --json example in generated command help output=%s", output)
 	}
 }

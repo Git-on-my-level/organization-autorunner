@@ -23,6 +23,9 @@ func (a *App) runCommand(ctx context.Context, args []string, cfg config.Resolved
 	if len(args) == 0 {
 		return "root", nil, errnorm.Usage("command_required", "a command is required")
 	}
+	if rewritten, ok := applyCommandShapeCompatibilityAlias(args); ok {
+		args = rewritten
+	}
 	if len(args) >= 2 && isHelpToken(args[1]) {
 		if a.printHelpTopic(args[0]) {
 			return "help", &commandResult{}, nil
@@ -49,15 +52,18 @@ func (a *App) runCommand(ctx context.Context, args []string, cfg config.Resolved
 	case "draft":
 		result, name, err := a.runDraft(ctx, args[1:], cfg)
 		return name, result, err
-	case "threads", "commitments", "artifacts", "events", "inbox", "work-orders", "receipts", "reviews", "derived":
+	case "provenance":
+		result, name, err := a.runProvenanceCommand(ctx, args[1:], cfg)
+		return name, result, err
+	case "threads", "commitments", "artifacts", "docs", "events", "inbox", "work-orders", "receipts", "reviews", "derived":
 		result, name, err := a.runTypedResource(ctx, args[0], args[1:], cfg)
 		return name, result, err
 	case "api":
 		if len(args) < 2 {
-			return "api", nil, errnorm.Usage("subcommand_required", "expected `oar api call`")
+			return "api", nil, apiSubcommandSpec.requiredError()
 		}
-		if args[1] != "call" {
-			return "api", nil, errnorm.Usage("unknown_subcommand", "expected `oar api call`")
+		if apiSubcommandSpec.normalize(args[1]) != "call" {
+			return "api", nil, apiSubcommandSpec.unknownError(args[1])
 		}
 		result, err := a.runAPICall(ctx, args[2:], cfg)
 		return "api call", result, err

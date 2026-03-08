@@ -14,17 +14,206 @@ type runtimeHelpTopic struct {
 	Description string
 }
 
+type localHelperFlag struct {
+	Name        string
+	Description string
+}
+
+type localHelperTopic struct {
+	Path        string
+	Summary     string
+	JSONShape   string
+	Composition string
+	Examples    []string
+	Flags       []localHelperFlag
+}
+
 var runtimeGeneratedTopics = []runtimeHelpTopic{
 	{Path: "threads", Description: "Manage thread resources"},
 	{Path: "commitments", Description: "Manage commitment resources"},
 	{Path: "artifacts", Description: "Manage artifact resources and content"},
+	{Path: "docs", Description: "Manage long-lived docs and revisions"},
 	{Path: "events", Description: "Manage events and event streams"},
-	{Path: "inbox", Description: "List/ack/stream inbox items"},
+	{Path: "inbox", Description: "List/get/ack/stream inbox items"},
 	{Path: "work-orders", Description: "Create work-order packets"},
 	{Path: "receipts", Description: "Create receipt packets"},
 	{Path: "reviews", Description: "Create review packets"},
 	{Path: "derived", Description: "Run derived-view maintenance actions"},
 	{Path: "meta", Description: "Inspect generated command/concept metadata"},
+}
+
+var localHelperTopics = []localHelperTopic{
+	{
+		Path:        "events list",
+		Summary:     "Compose `threads timeline` responses with client-side thread/type/actor filters and preview summaries.",
+		JSONShape:   "`thread_id`, `thread_ids`, `events`, `total_events`, `returned_events`",
+		Composition: "Fetches one or more thread timelines locally, then filters and summarizes the events without changing contracts or core behavior.",
+		Examples: []string{
+			"oar events list --thread-id <thread-id> --type actor_statement --mine --full-id",
+			"oar events list --thread-id <thread-id> --max-events 10",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to inspect (repeatable)."},
+			{Name: "--type <event-type>", Description: "Repeatable event type filter."},
+			{Name: "--types <csv>", Description: "Comma-separated event types."},
+			{Name: "--actor-id <actor-id>", Description: "Filter to one actor id."},
+			{Name: "--mine", Description: "Resolve to the active profile actor_id."},
+			{Name: "--max-events <n>", Description: "Keep the most recent matching events."},
+			{Name: "--full-id", Description: "Render full event ids in human output."},
+		},
+	},
+	{
+		Path:        "threads inspect",
+		Summary:     "Canonical thread coordination read path: compose one view from `threads context` and related `inbox list` items.",
+		JSONShape:   "`thread`, `context`, `collaboration`, `inbox`",
+		Composition: "Resolves one thread by id or discovery filters, loads `threads context`, then filters inbox items client-side by `thread_id` for one operator-focused coordination view.",
+		Examples: []string{
+			"oar threads inspect --thread-id <thread-id>",
+			"oar threads inspect --status active --type initiative --full-id",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to inspect."},
+			{Name: "--status <status>", Description: "Discover one thread by status."},
+			{Name: "--priority <priority>", Description: "Discover one thread by priority."},
+			{Name: "--stale <bool>", Description: "Discover one thread by stale state."},
+			{Name: "--tag <tag>", Description: "Repeatable discovery tag filter."},
+			{Name: "--cadence <cadence>", Description: "Repeatable discovery cadence filter."},
+			{Name: "--type <thread-type>", Description: "Local discovery filter after `threads list`."},
+			{Name: "--max-events <n>", Description: "Maximum recent context events to include."},
+			{Name: "--include-artifact-content", Description: "Include artifact content previews from `threads context`."},
+			{Name: "--full-id", Description: "Render full event and inbox ids in human output."},
+		},
+	},
+	{
+		Path:        "threads workspace",
+		Summary:     "Single holistic thread coordination read: combine context, inbox, recommendation review, and related-thread signals in one command.",
+		JSONShape:   "`thread`, `context`, `collaboration`, `inbox`, `pending_decisions`, `related_threads`, `related_recommendations`, `related_decisions`, `follow_up`",
+		Composition: "Resolves one thread by id or discovery filters, loads `threads context`, adds thread-scoped inbox items from `inbox list`, and follows related thread refs for additional review context.",
+		Examples: []string{
+			"oar threads workspace --thread-id <thread-id> --full-id",
+			"oar threads workspace --thread-id <thread-id> --include-related-event-content --verbose",
+			"oar threads workspace --status active --type initiative --full-summary",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to inspect."},
+			{Name: "--status <status>", Description: "Discover one thread by status."},
+			{Name: "--priority <priority>", Description: "Discover one thread by priority."},
+			{Name: "--stale <bool>", Description: "Discover one thread by stale state."},
+			{Name: "--tag <tag>", Description: "Repeatable discovery tag filter."},
+			{Name: "--cadence <cadence>", Description: "Repeatable discovery cadence filter."},
+			{Name: "--type <thread-type>", Description: "Local discovery filter after `threads list`."},
+			{Name: "--max-events <n>", Description: "Maximum recent context events to include."},
+			{Name: "--include-artifact-content", Description: "Include artifact content previews from `threads context`."},
+			{Name: "--include-related-event-content", Description: "Hydrate related review items with full `events get` content in one command."},
+			{Name: "--full-summary", Description: "Show full recommendation/decision summaries in human output."},
+			{Name: "--full-id", Description: "Render full event and inbox ids in human output."},
+		},
+	},
+	{
+		Path:        "threads recommendations",
+		Summary:     "Review one thread's recommendation/decision inputs plus related-thread signals with provenance and follow-up hints.",
+		JSONShape:   "`thread`, `recommendations`, `decision_requests`, `decisions`, `pending_decisions`, `related_threads`, `related_recommendations`, `follow_up`",
+		Composition: "Resolves one thread by id or discovery filters, loads `threads context`, adds thread-scoped pending decision inbox items from `inbox list`, and follows related thread refs for additional review context.",
+		Examples: []string{
+			"oar threads recommendations --thread-id <thread-id> --full-id",
+			"oar threads recommendations --thread-id <thread-id> --include-related-event-content --verbose",
+			"oar threads recommendations --status active --type initiative --full-summary",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to review."},
+			{Name: "--status <status>", Description: "Discover one thread by status."},
+			{Name: "--priority <priority>", Description: "Discover one thread by priority."},
+			{Name: "--stale <bool>", Description: "Discover one thread by stale state."},
+			{Name: "--tag <tag>", Description: "Repeatable discovery tag filter."},
+			{Name: "--cadence <cadence>", Description: "Repeatable discovery cadence filter."},
+			{Name: "--type <thread-type>", Description: "Local discovery filter after `threads list`."},
+			{Name: "--max-events <n>", Description: "Maximum recent context events to include."},
+			{Name: "--include-artifact-content", Description: "Include artifact content previews from `threads context`."},
+			{Name: "--include-related-event-content", Description: "Hydrate related review items with full `events get` content in one command."},
+			{Name: "--full-summary", Description: "Show full recommendation/decision summaries in human output."},
+			{Name: "--full-id", Description: "Render full event and inbox ids in human output."},
+		},
+	},
+	{
+		Path:        "threads patch",
+		Summary:     "Stage a thread patch proposal locally and show the diff before applying it.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `path`, `body`, `diff`, `apply_command`",
+		Composition: "Resolves the thread id, fetches current state with `threads get`, computes a local diff, and persists a proposal file instead of sending the patch immediately.",
+		Examples: []string{
+			"oar threads patch --thread-id <thread-id> --from-file patch.json",
+			"cat patch.json | oar threads patch --thread-id <thread-id>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to patch."},
+			{Name: "--from-file <path>", Description: "Load the patch body from a JSON file."},
+		},
+	},
+	{
+		Path:        "threads apply",
+		Summary:     "Apply a previously staged thread patch proposal.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `applied`, `kept`, `result`",
+		Composition: "Loads the local proposal by exact id or unique prefix, validates it again, then sends the underlying `threads.patch` request.",
+		Examples: []string{
+			"oar threads apply --proposal-id <proposal-id>",
+			"oar threads apply <proposal-id-prefix>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--proposal-id <proposal-id>", Description: "Proposal id or unique prefix to apply."},
+		},
+	},
+	{
+		Path:        "commitments update",
+		Summary:     "Stage a commitment update proposal locally and show the diff before applying it.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `path`, `body`, `diff`, `apply_command`",
+		Composition: "Resolves the commitment id, fetches current state with `commitments get`, computes a local diff, and persists a proposal file instead of sending the patch immediately.",
+		Examples: []string{
+			"oar commitments update --commitment-id <commitment-id> --from-file patch.json",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--commitment-id <commitment-id>", Description: "Commitment id to update."},
+			{Name: "--from-file <path>", Description: "Load the patch body from a JSON file."},
+		},
+	},
+	{
+		Path:        "commitments apply",
+		Summary:     "Apply a previously staged commitment update proposal.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `applied`, `kept`, `result`",
+		Composition: "Loads the local proposal by exact id or unique prefix, validates it again, then sends the underlying `commitments.patch` request.",
+		Examples: []string{
+			"oar commitments apply --proposal-id <proposal-id>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--proposal-id <proposal-id>", Description: "Proposal id or unique prefix to apply."},
+		},
+	},
+	{
+		Path:        "docs update",
+		Summary:     "Stage a document update proposal locally and show the content diff before applying it.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `path`, `body`, `diff`, `apply_command`",
+		Composition: "Fetches the current document revision with `docs get`, computes a local diff against the proposed update, and persists a proposal file instead of sending the update immediately.",
+		Examples: []string{
+			"oar docs update --document-id <document-id> --content-file <path>",
+			"cat update.json | oar docs update --document-id <document-id>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--document-id <document-id>", Description: "Document id to update."},
+			{Name: "--content-file <path>", Description: "Load multiline content from a file into the JSON payload."},
+			{Name: "--from-file <path>", Description: "Load the full JSON update body from a file."},
+		},
+	},
+	{
+		Path:        "docs apply",
+		Summary:     "Apply a previously staged document update proposal.",
+		JSONShape:   "`proposal_id`, `target_command_id`, `applied`, `kept`, `result`",
+		Composition: "Loads the local proposal by exact id or unique prefix, validates it again, then sends the underlying `docs.update` request.",
+		Examples: []string{
+			"oar docs apply --proposal-id <proposal-id>",
+			"oar docs apply <proposal-id-prefix>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--proposal-id <proposal-id>", Description: "Proposal id or unique prefix to apply."},
+		},
+	},
 }
 
 func isHelpToken(value string) bool {
@@ -48,8 +237,9 @@ Core Commands:
   doctor        Validate local and network preconditions
   auth          Manage agent registration, profile auth, and token lifecycle
   draft         Stage write requests locally and commit them later
+  provenance    Walk refs/provenance links as a deterministic graph
   api call      Perform an arbitrary HTTP API request
-  help [topic]  Show generated help for a command group or command path
+  help [topic]  Show onboarding help or generated command help
 `)+"\n")
 
 	meta, err := registry.LoadEmbedded()
@@ -66,11 +256,16 @@ Core Commands:
 
 	_, _ = io.WriteString(a.Stdout, strings.TrimSpace(`
 
+Onboarding:
+  `+"`oar help onboarding`"+` for the offline quick-start topic.
+
 Global Flags:
   --json
   --base-url <url>
   --agent <name>
   --no-color
+  --verbose
+  --headers
   --timeout <duration>
 `)+"\n")
 }
@@ -79,6 +274,14 @@ func (a *App) printHelpTopic(topic string) bool {
 	topic = strings.TrimSpace(topic)
 	if topic == "draft" {
 		_, _ = io.WriteString(a.Stdout, draftUsageText())
+		return true
+	}
+	if topic == "onboarding" {
+		_, _ = io.WriteString(a.Stdout, onboardingHelpText())
+		return true
+	}
+	if topic == "provenance" || topic == "provenance walk" {
+		_, _ = io.WriteString(a.Stdout, provenanceUsageText()+"\n")
 		return true
 	}
 	text, ok := generatedHelpText(topic)
@@ -93,6 +296,12 @@ func generatedHelpText(topic string) (string, bool) {
 	topic = strings.TrimSpace(topic)
 	if topic == "" {
 		return "", false
+	}
+	if rewritten, ok := applyCommandShapeCompatibilityAlias(strings.Fields(topic)); ok {
+		topic = strings.Join(rewritten, " ")
+	}
+	if helper, ok := localHelperTopicByPath(topic); ok {
+		return formatLocalHelperHelp(helper), true
 	}
 	meta, err := registry.LoadEmbedded()
 	if err != nil {
@@ -156,7 +365,91 @@ func formatGeneratedGroupHelp(topic string, commands []registry.Command) string 
 		}
 		b.WriteString(fmt.Sprintf("  %-24s %s\n", cliPath, summary))
 	}
+	if supplement := localGroupHelpSupplement(topic); supplement != "" {
+		b.WriteString("\n")
+		b.WriteString(supplement)
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
+	b.WriteString(formatGlobalFlagUsage(topic))
+	b.WriteString("\n")
 	b.WriteString("\nTip: `oar help <command path>` for full command-level generated details.\n")
+	return strings.TrimSpace(b.String())
+}
+
+func localGroupHelpSupplement(topic string) string {
+	switch strings.TrimSpace(topic) {
+	case "threads":
+		return strings.TrimSpace(`Canonical coordination read path:
+  threads workspace           Compose one holistic thread workspace from context + inbox + related-thread review.
+  threads inspect             Compose one thread coordination view from context + inbox in one command.
+  threads recommendations     Focus recommendation/decision review with actor+timestamp provenance.
+  Mutation flow:
+  threads patch               Stage a thread patch proposal and inspect the diff before applying.
+  threads apply               Apply a staged thread patch proposal.
+  Tip: start with ` + "`oar threads workspace`" + ` for one initiative/thread, use ` + "`--status/--tag/--type initiative`" + ` to discover one thread, use ` + "`oar threads context`" + ` for cross-thread aggregates, and ` + "`oar threads get`" + ` for raw snapshot-only reads. Add ` + "`--full-id`" + ` for copy/paste ids.`)
+	case "commitments":
+		return strings.TrimSpace(`Mutation flow:
+  commitments update         Stage a commitment update proposal and inspect the diff before applying.
+  commitments apply          Apply a staged commitment update proposal.`)
+	case "events":
+		return strings.TrimSpace(`Local inspection helpers:
+  events list              List timeline events with thread/type/actor filters, id mode, and preview summaries.
+  events explain           Explain known event-type conventions and local validation constraints.
+  events validate          Validate an events.create payload from stdin/--from-file without sending a request.
+  Tip: use ` + "`--mine`" + ` or ` + "`--actor-id <id>`" + ` to audit one actor; add ` + "`--full-id`" + ` for copy/paste IDs.
+  For details: ` + "`oar events explain <event-type>`")
+	case "artifacts":
+		return strings.TrimSpace(`Local inspection helper:
+  artifacts inspect        Fetch artifact metadata and content in one call.`)
+	case "docs":
+		return strings.TrimSpace(`Local inspection helpers:
+  docs content             Show current document content with revision metadata.
+  Mutation flow:
+  docs update              Stage an update proposal and inspect its diff before applying it.
+  docs apply               Apply a staged document update proposal.
+  docs validate-update     Validate a docs.update payload from stdin/--from-file.
+  Tip: add ` + "`--content-file <path>`" + ` to avoid hand-escaping multiline content.`)
+	default:
+		return ""
+	}
+}
+
+func localHelperTopicByPath(path string) (localHelperTopic, bool) {
+	path = strings.Join(strings.Fields(strings.TrimSpace(path)), " ")
+	for _, topic := range localHelperTopics {
+		if strings.Join(strings.Fields(strings.TrimSpace(topic.Path)), " ") == path {
+			return topic, true
+		}
+	}
+	return localHelperTopic{}, false
+}
+
+func formatLocalHelperHelp(topic localHelperTopic) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("Local Help: %s\n\n", strings.TrimSpace(topic.Path)))
+	b.WriteString("- Kind: `local helper`\n")
+	b.WriteString(fmt.Sprintf("- Summary: %s\n", strings.TrimSpace(topic.Summary)))
+	if strings.TrimSpace(topic.Composition) != "" {
+		b.WriteString(fmt.Sprintf("- Composition: %s\n", strings.TrimSpace(topic.Composition)))
+	}
+	if strings.TrimSpace(topic.JSONShape) != "" {
+		b.WriteString(fmt.Sprintf("- JSON body: %s\n", strings.TrimSpace(topic.JSONShape)))
+	}
+	if len(topic.Examples) > 0 {
+		b.WriteString("- Examples:\n")
+		for _, example := range topic.Examples {
+			b.WriteString(fmt.Sprintf("  - `%s`\n", strings.TrimSpace(example)))
+		}
+	}
+	if len(topic.Flags) > 0 {
+		b.WriteString("\nFlags:\n")
+		for _, flag := range topic.Flags {
+			b.WriteString(fmt.Sprintf("  %-28s %s\n", strings.TrimSpace(flag.Name), strings.TrimSpace(flag.Description)))
+		}
+	}
+	b.WriteString("\n\n")
+	b.WriteString(formatGlobalFlagUsage(topic.Path))
 	return strings.TrimSpace(b.String())
 }
 
@@ -204,7 +497,117 @@ func formatGeneratedCommandHelp(topic string, cmd registry.Command) string {
 			b.WriteString(fmt.Sprintf("  - %s: `%s`\n", title, runtimeCommandFromRegistryCommand(example.Command)))
 		}
 	}
+	if schemaBlock := formatBodySchemaBlock(cmd.BodySchema); strings.TrimSpace(schemaBlock) != "" {
+		b.WriteString("\n")
+		b.WriteString(schemaBlock)
+	}
+	if extra := formatCommandSpecificHelpBlock(cmd); strings.TrimSpace(extra) != "" {
+		b.WriteString("\n\n")
+		b.WriteString(extra)
+	}
+	b.WriteString("\n\n")
+	b.WriteString(formatGlobalFlagUsage(topic))
 	return strings.TrimSpace(b.String())
+}
+
+func formatGlobalFlagUsage(topic string) string {
+	path := strings.Join(strings.Fields(strings.TrimSpace(topic)), " ")
+	if path == "" {
+		path = "<command>"
+	}
+	return strings.TrimSpace(fmt.Sprintf(`Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json %s ... ; oar %s ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>`, path, path))
+}
+
+func formatBodySchemaBlock(schema *registry.BodySchema) string {
+	if schema == nil {
+		return ""
+	}
+	required := formatBodyFieldList(schema.Required)
+	optional := formatBodyFieldList(schema.Optional)
+	if required == "" && optional == "" {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Body schema:\n")
+	if required == "" {
+		b.WriteString("  Required: none\n")
+	} else {
+		b.WriteString("  Required: " + required + "\n")
+	}
+	if optional == "" {
+		b.WriteString("  Optional: none\n")
+	} else {
+		b.WriteString("  Optional: " + optional + "\n")
+	}
+	if enumLine := formatEnumFieldList(schema.Required, schema.Optional); enumLine != "" {
+		b.WriteString("  Enum values: " + enumLine + "\n")
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func formatCommandSpecificHelpBlock(cmd registry.Command) string {
+	switch strings.TrimSpace(cmd.CommandID) {
+	case "events.create":
+		return strings.TrimSpace(`Local CLI notes:
+  - Common open ` + "`event.type`" + ` values include ` + "`actor_statement`" + `; the enum list above is illustrative, not exhaustive.
+  - Use ` + "`--dry-run`" + ` with ` + "`--from-file`" + ` to validate and preview the request without sending the mutation.`)
+	default:
+		return ""
+	}
+}
+
+func formatBodyFieldList(fields []registry.BodyField) string {
+	if len(fields) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(fields))
+	for _, field := range fields {
+		name := strings.TrimSpace(field.Name)
+		fieldType := strings.TrimSpace(field.Type)
+		if name == "" {
+			continue
+		}
+		if fieldType == "" {
+			fieldType = "any"
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", name, fieldType))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, ", ")
+}
+
+func formatEnumFieldList(required []registry.BodyField, optional []registry.BodyField) string {
+	joined := append([]registry.BodyField{}, required...)
+	joined = append(joined, optional...)
+	parts := make([]string, 0, len(joined))
+	seen := map[string]struct{}{}
+	for _, field := range joined {
+		name := strings.TrimSpace(field.Name)
+		if name == "" || len(field.EnumValues) == 0 {
+			continue
+		}
+		if _, exists := seen[name]; exists {
+			continue
+		}
+		seen[name] = struct{}{}
+		enumValues := strings.Join(field.EnumValues, ", ")
+		policy := strings.TrimSpace(field.EnumPolicy)
+		if policy != "" {
+			parts = append(parts, fmt.Sprintf("%s (%s): %s", name, policy, enumValues))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", name, enumValues))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, "; ")
 }
 
 func commandByCLIPath(commands []registry.Command, path string) (registry.Command, bool) {
@@ -241,6 +644,7 @@ func runtimeSupportedCommandIDs() map[string]struct{} {
 		"threads.get":                {},
 		"threads.create":             {},
 		"threads.patch":              {},
+		"threads.timeline":           {},
 		"commitments.list":           {},
 		"commitments.get":            {},
 		"commitments.create":         {},
@@ -249,21 +653,59 @@ func runtimeSupportedCommandIDs() map[string]struct{} {
 		"artifacts.get":              {},
 		"artifacts.create":           {},
 		"artifacts.content.get":      {},
+		"docs.create":                {},
+		"docs.get":                   {},
+		"docs.update":                {},
+		"docs.history":               {},
+		"docs.revision.get":          {},
 		"events.get":                 {},
 		"events.create":              {},
 		"events.stream":              {},
 		"inbox.list":                 {},
+		"inbox.get":                  {},
 		"inbox.ack":                  {},
 		"inbox.stream":               {},
 		"packets.work-orders.create": {},
 		"packets.receipts.create":    {},
 		"packets.reviews.create":     {},
+		"threads.context":            {},
 		"derived.rebuild":            {},
 		"meta.commands.list":         {},
 		"meta.commands.get":          {},
 		"meta.concepts.list":         {},
 		"meta.concepts.get":          {},
 	}
+}
+
+func onboardingHelpText() string {
+	return strings.TrimSpace(`Onboarding: mental model
+
+1. ` + "`oar`" + ` is a non-interactive CLI that maps stable command paths to core HTTP endpoints and emits plain text or a single JSON envelope.
+2. Each command should be safe for automation, so defaults, errors, and output shapes are designed for scripts first.
+3. Profiles (` + "`--agent`" + `) hold reusable auth and base URL settings so repeated commands stay short and consistent.
+4. Typed commands (` + "`threads`" + `, ` + "`events`" + `, ` + "`inbox`" + `, and packet creators) are the primary surface, while ` + "`api call`" + ` is the escape hatch.
+5. The fastest way to stay aligned is to run health/auth checks first, then execute the work-order loop one step at a time.
+
+Work-order loop
+
+1. Inspect inbound work and context: ` + "`oar inbox list`" + ` or ` + "`oar inbox stream --max-events 1`" + `.
+2. Read current state before mutating it: ` + "`oar threads workspace --thread-id <thread-id>`" + `.
+   Use ` + "`oar threads context`" + ` for cross-thread aggregates and ` + "`oar threads get`" + ` for raw snapshot-only reads.
+3. Stage a mutation proposal when you need reviewable intent: ` + "`oar docs update`" + `, ` + "`oar threads patch`" + `, ` + "`oar commitments update`" + `, or ` + "`oar draft create --command <command-id>`" + `.
+4. Apply the staged proposal (or commit a draft for lower-level commands) and capture returned IDs.
+5. Confirm outcomes in timeline/events and ack inbox items to close the loop.
+
+First 5 commands to run
+
+  oar --base-url http://127.0.0.1:8000 --agent <agent> doctor
+  oar --base-url http://127.0.0.1:8000 --agent <agent> auth register --username <username>
+  oar --agent <agent> auth whoami
+  oar --agent <agent> threads list
+  oar --agent <agent> inbox stream --max-events 1
+
+Optional full runbook (local, offline)
+
+  cli/docs/runbook.md`)
 }
 
 func mapRuntimePathToRegistryPath(path string) string {
@@ -312,7 +754,6 @@ func runtimePathFromRegistryPath(path string) string {
 	}
 	path = strings.Join(parts, " ")
 	rewrites := map[string]string{
-		"threads patch":      "threads update",
 		"commitments patch":  "commitments update",
 		"meta commands list": "meta commands",
 		"meta commands get":  "meta command",
@@ -326,15 +767,19 @@ func runtimePathFromRegistryPath(path string) string {
 }
 
 func commandIDToCLIPath(commandID string) string {
-	meta, err := registry.LoadEmbedded()
-	if err != nil {
-		return strings.TrimSpace(commandID)
-	}
-	cmd, ok := meta.CommandByID(commandID)
+	cmd, ok := generatedCommandByID(commandID)
 	if !ok {
 		return strings.TrimSpace(commandID)
 	}
 	return strings.TrimSpace(cmd.CLIPath)
+}
+
+func generatedCommandByID(commandID string) (registry.Command, bool) {
+	meta, err := registry.LoadEmbedded()
+	if err != nil {
+		return registry.Command{}, false
+	}
+	return meta.CommandByID(commandID)
 }
 
 func runtimeCommandFromRegistryCommand(command string) string {

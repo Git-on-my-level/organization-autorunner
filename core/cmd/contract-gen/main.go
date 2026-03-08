@@ -16,13 +16,18 @@ import (
 )
 
 type openAPIDocument struct {
-	OpenAPI string              `yaml:"openapi"`
-	Info    openAPIInfo         `yaml:"info"`
-	Paths   map[string]pathItem `yaml:"paths"`
+	OpenAPI    string              `yaml:"openapi"`
+	Info       openAPIInfo         `yaml:"info"`
+	Paths      map[string]pathItem `yaml:"paths"`
+	Components openAPIComponents   `yaml:"components"`
 }
 
 type openAPIInfo struct {
 	Version string `yaml:"version"`
+}
+
+type openAPIComponents struct {
+	Schemas map[string]openAPISchema `yaml:"schemas"`
 }
 
 type pathItem struct {
@@ -48,6 +53,73 @@ type operation struct {
 	Concepts    []string     `yaml:"x-oar-concepts"`
 	Stability   string       `yaml:"x-oar-stability"`
 	AgentNotes  string       `yaml:"x-oar-agent-notes"`
+	RequestBody *requestBody `yaml:"requestBody"`
+}
+
+type requestBody struct {
+	Required bool                 `yaml:"required"`
+	Content  map[string]mediaType `yaml:"content"`
+}
+
+type mediaType struct {
+	Schema *openAPISchema `yaml:"schema"`
+}
+
+type openAPISchema struct {
+	Ref                  string                   `yaml:"$ref"`
+	Type                 string                   `yaml:"type"`
+	Format               string                   `yaml:"format"`
+	Description          string                   `yaml:"description"`
+	Enum                 []any                    `yaml:"enum"`
+	Required             []string                 `yaml:"required"`
+	Properties           map[string]openAPISchema `yaml:"properties"`
+	Items                *openAPISchema           `yaml:"items"`
+	OneOf                []openAPISchema          `yaml:"oneOf"`
+	AnyOf                []openAPISchema          `yaml:"anyOf"`
+	AllOf                []openAPISchema          `yaml:"allOf"`
+	AdditionalProperties any                      `yaml:"additionalProperties"`
+}
+
+type oarSchemaDocument struct {
+	Enums      map[string]oarEnumDef             `yaml:"enums"`
+	Provenance oarFieldContainer                 `yaml:"provenance"`
+	Primitives map[string]oarMaybeFieldContainer `yaml:"primitives"`
+	Snapshots  map[string]oarMaybeFieldContainer `yaml:"snapshots"`
+	Packets    map[string]oarMaybeFieldContainer `yaml:"packets"`
+}
+
+type oarEnumDef struct {
+	EnumPolicy string   `yaml:"enum_policy"`
+	Values     []string `yaml:"values"`
+}
+
+type oarFieldContainer struct {
+	Fields map[string]oarFieldDef `yaml:"fields"`
+}
+
+type oarFieldDef struct {
+	Type        string `yaml:"type"`
+	Required    bool   `yaml:"required"`
+	Ref         string `yaml:"ref"`
+	Description string `yaml:"description"`
+}
+
+type oarMaybeFieldContainer struct {
+	Fields map[string]oarFieldDef `yaml:"fields"`
+}
+
+func (c *oarMaybeFieldContainer) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil || value.Kind != yaml.MappingNode {
+		c.Fields = nil
+		return nil
+	}
+	type alias oarMaybeFieldContainer
+	var decoded alias
+	if err := value.Decode(&decoded); err != nil {
+		return err
+	}
+	c.Fields = decoded.Fields
+	return nil
 }
 
 type oarExample struct {
@@ -74,10 +146,23 @@ type command struct {
 	Stability   string       `json:"stability,omitempty"`
 	AgentNotes  string       `json:"agent_notes,omitempty"`
 	Examples    []oarExample `json:"examples,omitempty"`
+	BodySchema  *bodySchema  `json:"body_schema,omitempty"`
 	PathParams  []string     `json:"path_params,omitempty"`
 	Adjacent    []string     `json:"adjacent_commands,omitempty"`
 	GoMethod    string       `json:"go_method"`
 	TSMethod    string       `json:"ts_method"`
+}
+
+type bodySchema struct {
+	Required []bodyField `json:"required,omitempty"`
+	Optional []bodyField `json:"optional,omitempty"`
+}
+
+type bodyField struct {
+	Name       string   `json:"name"`
+	Type       string   `json:"type"`
+	EnumValues []string `json:"enum_values,omitempty"`
+	EnumPolicy string   `json:"enum_policy,omitempty"`
 }
 
 type conceptMeta struct {
@@ -120,61 +205,6 @@ type metaOutput struct {
 	Commands        []command `json:"commands"`
 }
 
-type eventRefRuleOutput struct {
-	OpenAPIVersion  string                      `json:"openapi_version"`
-	ContractVersion string                      `json:"contract_version"`
-	GeneratedBy     string                      `json:"generated_by"`
-	RuleCount       int                         `json:"rule_count"`
-	Rules           map[string]eventRefRuleJSON `json:"rules"`
-}
-
-type eventRefRuleJSON struct {
-	ThreadID           string               `json:"thread_id,omitempty"`
-	RefsMustInclude    []string             `json:"refs_must_include,omitempty"`
-	RefsConditional    string               `json:"refs_conditional,omitempty"`
-	PayloadMustInclude []string             `json:"payload_must_include,omitempty"`
-	ConditionalRefs    []conditionalRefJSON `json:"conditional_refs,omitempty"`
-}
-
-type conditionalRefJSON struct {
-	When      whenConditionJSON `json:"when"`
-	MustHave  []refPrefixJSON   `json:"must_have"`
-	Condition string            `json:"condition,omitempty"`
-}
-
-type whenConditionJSON struct {
-	PayloadField string `json:"payload_field"`
-	Equals       string `json:"equals"`
-}
-
-type refPrefixJSON struct {
-	Prefix string `json:"prefix"`
-}
-
-type schemaDocument struct {
-	Version              string               `yaml:"version"`
-	ReferenceConventions schemaRefConventions `yaml:"reference_conventions"`
-}
-
-type schemaRefConventions struct {
-	EventRefs map[string]yaml.Node `yaml:"event_refs"`
-}
-
-type schemaConditionalRef struct {
-	When      schemaWhenCondition `yaml:"when"`
-	MustHave  []schemaRefPrefix   `yaml:"must_have"`
-	Condition string              `yaml:"condition"`
-}
-
-type schemaWhenCondition struct {
-	PayloadField string `yaml:"payload_field"`
-	Equals       string `yaml:"equals"`
-}
-
-type schemaRefPrefix struct {
-	Prefix string `yaml:"prefix"`
-}
-
 var pathParamPattern = regexp.MustCompile(`\{([^{}]+)\}`)
 
 func main() {
@@ -203,23 +233,22 @@ func main() {
 	if err != nil {
 		exitf("read schema contract: %v", err)
 	}
-
-	var schemaDoc schemaDocument
+	var schemaDoc oarSchemaDocument
 	if err := yaml.Unmarshal(schemaRaw, &schemaDoc); err != nil {
 		exitf("decode schema yaml: %v", err)
 	}
 
-	commands := collectCommands(doc)
+	commands := collectCommands(doc, schemaDoc)
 	if len(commands) == 0 {
 		exitf("no x-oar commands found in openapi document")
 	}
 
-	if err := generateAll(*outDir, doc, commands, schemaDoc); err != nil {
+	if err := generateAll(*outDir, doc, commands); err != nil {
 		exitf("generate artifacts: %v", err)
 	}
 }
 
-func collectCommands(doc openAPIDocument) []command {
+func collectCommands(doc openAPIDocument, schemaDoc oarSchemaDocument) []command {
 	paths := make([]string, 0, len(doc.Paths))
 	for path := range doc.Paths {
 		paths = append(paths, path)
@@ -265,6 +294,7 @@ func collectCommands(doc openAPIDocument) []command {
 				Stability:   strings.TrimSpace(pair.op.Stability),
 				AgentNotes:  strings.TrimSpace(pair.op.AgentNotes),
 				Examples:    compactExamples(pair.op.Examples),
+				BodySchema:  deriveBodySchema(doc, schemaDoc, commandID, pair.op),
 				PathParams:  extractPathParams(path),
 				GoMethod:    toPascalCase(commandID),
 				TSMethod:    toCamelCase(commandID),
@@ -327,7 +357,422 @@ func collectCommands(doc openAPIDocument) []command {
 	return commands
 }
 
-func generateAll(outDir string, doc openAPIDocument, commands []command, schemaDoc schemaDocument) error {
+type bodyFieldState struct {
+	field    bodyField
+	required bool
+}
+
+type oarExpansionOptions struct {
+	exclude          map[string]struct{}
+	forceOptional    map[string]struct{}
+	forceOptionalAll bool
+}
+
+func deriveBodySchema(doc openAPIDocument, schemaDoc oarSchemaDocument, commandID string, op *operation) *bodySchema {
+	if op == nil || op.RequestBody == nil {
+		return nil
+	}
+	requestSchema := requestBodyJSONSchema(op.RequestBody)
+	if requestSchema == nil {
+		return nil
+	}
+	acc := map[string]bodyFieldState{}
+	collectOpenAPISchemaFields(doc, *requestSchema, "", true, acc, map[string]struct{}{})
+	applyOARSchemaOverlays(acc, schemaDoc, strings.TrimSpace(commandID))
+	schema := bodySchemaFromAccumulator(acc)
+	if len(schema.Required) == 0 && len(schema.Optional) == 0 {
+		return nil
+	}
+	return &schema
+}
+
+func requestBodyJSONSchema(body *requestBody) *openAPISchema {
+	if body == nil {
+		return nil
+	}
+	if media, ok := body.Content["application/json"]; ok && media.Schema != nil {
+		return media.Schema
+	}
+	contentTypes := make([]string, 0, len(body.Content))
+	for contentType := range body.Content {
+		contentTypes = append(contentTypes, contentType)
+	}
+	sort.Strings(contentTypes)
+	for _, contentType := range contentTypes {
+		if !strings.Contains(strings.ToLower(contentType), "json") {
+			continue
+		}
+		media := body.Content[contentType]
+		if media.Schema != nil {
+			return media.Schema
+		}
+	}
+	return nil
+}
+
+func collectOpenAPISchemaFields(
+	doc openAPIDocument,
+	schema openAPISchema,
+	prefix string,
+	ancestorRequired bool,
+	acc map[string]bodyFieldState,
+	seenRefs map[string]struct{},
+) {
+	schema = resolveOpenAPISchema(doc, schema, seenRefs)
+	if len(schema.AllOf) > 0 {
+		for _, candidate := range schema.AllOf {
+			collectOpenAPISchemaFields(doc, candidate, prefix, ancestorRequired, acc, seenRefs)
+		}
+		return
+	}
+
+	if len(schema.Properties) > 0 || strings.TrimSpace(schema.Type) == "object" {
+		if len(schema.Properties) == 0 {
+			if strings.TrimSpace(prefix) != "" {
+				upsertBodyField(acc, bodyField{
+					Name: prefix,
+					Type: openAPISchemaTypeLabel(schema),
+				}, ancestorRequired)
+			}
+			return
+		}
+		requiredSet := make(map[string]struct{}, len(schema.Required))
+		for _, requiredField := range schema.Required {
+			requiredSet[strings.TrimSpace(requiredField)] = struct{}{}
+		}
+		names := make([]string, 0, len(schema.Properties))
+		for name := range schema.Properties {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			child := schema.Properties[name]
+			childName := strings.TrimSpace(name)
+			if childName == "" {
+				continue
+			}
+			childPrefix := childName
+			if strings.TrimSpace(prefix) != "" {
+				childPrefix = prefix + "." + childName
+			}
+			_, childRequiredBySchema := requiredSet[childName]
+			childRequired := ancestorRequired && childRequiredBySchema
+			resolvedChild := resolveOpenAPISchema(doc, child, seenRefs)
+			if len(resolvedChild.Properties) > 0 {
+				collectOpenAPISchemaFields(doc, child, childPrefix, childRequired, acc, seenRefs)
+				continue
+			}
+			upsertBodyField(acc, bodyField{
+				Name:       childPrefix,
+				Type:       openAPISchemaTypeLabel(resolvedChild),
+				EnumValues: openAPISchemaEnumValues(resolvedChild),
+			}, childRequired)
+		}
+		return
+	}
+
+	if strings.TrimSpace(prefix) == "" {
+		return
+	}
+	upsertBodyField(acc, bodyField{
+		Name:       prefix,
+		Type:       openAPISchemaTypeLabel(schema),
+		EnumValues: openAPISchemaEnumValues(schema),
+	}, ancestorRequired)
+}
+
+func resolveOpenAPISchema(doc openAPIDocument, schema openAPISchema, seenRefs map[string]struct{}) openAPISchema {
+	ref := strings.TrimSpace(schema.Ref)
+	if ref == "" {
+		return schema
+	}
+	if _, seen := seenRefs[ref]; seen {
+		return schema
+	}
+	name := strings.TrimPrefix(ref, "#/components/schemas/")
+	if name == ref {
+		return schema
+	}
+	resolved, ok := doc.Components.Schemas[name]
+	if !ok {
+		return schema
+	}
+	seenRefs[ref] = struct{}{}
+	defer delete(seenRefs, ref)
+	return resolveOpenAPISchema(doc, resolved, seenRefs)
+}
+
+func openAPISchemaTypeLabel(schema openAPISchema) string {
+	if len(schema.OneOf) > 0 {
+		parts := make([]string, 0, len(schema.OneOf))
+		for _, candidate := range schema.OneOf {
+			parts = append(parts, openAPISchemaTypeLabel(candidate))
+		}
+		return strings.Join(sortedUniqueStrings(parts), "|")
+	}
+	if len(schema.AnyOf) > 0 {
+		parts := make([]string, 0, len(schema.AnyOf))
+		for _, candidate := range schema.AnyOf {
+			parts = append(parts, openAPISchemaTypeLabel(candidate))
+		}
+		return strings.Join(sortedUniqueStrings(parts), "|")
+	}
+	switch strings.TrimSpace(schema.Type) {
+	case "array":
+		itemType := "any"
+		if schema.Items != nil {
+			itemType = openAPISchemaTypeLabel(*schema.Items)
+		}
+		return "list<" + strings.TrimSpace(itemType) + ">"
+	case "string":
+		if strings.EqualFold(strings.TrimSpace(schema.Format), "date-time") {
+			return "datetime"
+		}
+		return "string"
+	case "number", "integer", "boolean", "object":
+		return strings.TrimSpace(schema.Type)
+	}
+	if len(schema.Properties) > 0 || schema.AdditionalProperties != nil {
+		return "object"
+	}
+	if len(schema.Enum) > 0 {
+		return "string"
+	}
+	return "any"
+}
+
+func openAPISchemaEnumValues(schema openAPISchema) []string {
+	if len(schema.Enum) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(schema.Enum))
+	for _, value := range schema.Enum {
+		text := strings.TrimSpace(fmt.Sprintf("%v", value))
+		if text == "" {
+			continue
+		}
+		out = append(out, text)
+	}
+	return sortedUniqueStrings(out)
+}
+
+func upsertBodyField(acc map[string]bodyFieldState, field bodyField, required bool) {
+	field.Name = strings.TrimSpace(field.Name)
+	field.Type = strings.TrimSpace(field.Type)
+	if field.Name == "" {
+		return
+	}
+	if field.Type == "" {
+		field.Type = "any"
+	}
+	field.EnumValues = sortedUniqueStrings(field.EnumValues)
+	current, exists := acc[field.Name]
+	if !exists {
+		acc[field.Name] = bodyFieldState{field: field, required: required}
+		return
+	}
+	if current.field.Type == "any" && field.Type != "any" {
+		current.field.Type = field.Type
+	}
+	if len(current.field.EnumValues) == 0 && len(field.EnumValues) > 0 {
+		current.field.EnumValues = append([]string(nil), field.EnumValues...)
+	}
+	if strings.TrimSpace(current.field.EnumPolicy) == "" && strings.TrimSpace(field.EnumPolicy) != "" {
+		current.field.EnumPolicy = strings.TrimSpace(field.EnumPolicy)
+	}
+	current.required = current.required || required
+	acc[field.Name] = current
+}
+
+func applyOARSchemaOverlays(acc map[string]bodyFieldState, schemaDoc oarSchemaDocument, commandID string) {
+	switch commandID {
+	case "events.create":
+		if source, ok := schemaDoc.Primitives["event"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "event", source, oarExpansionOptions{
+				exclude:       map[string]struct{}{"id": {}, "ts": {}},
+				forceOptional: map[string]struct{}{"actor_id": {}},
+			})
+		}
+	case "threads.create":
+		if source, ok := schemaDoc.Snapshots["thread"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "thread", source, oarExpansionOptions{
+				exclude: map[string]struct{}{"open_commitments": {}},
+			})
+		}
+	case "threads.patch":
+		if source, ok := schemaDoc.Snapshots["thread"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "patch", source, oarExpansionOptions{
+				exclude:          map[string]struct{}{"open_commitments": {}},
+				forceOptionalAll: true,
+			})
+		}
+	case "commitments.create":
+		if source, ok := schemaDoc.Snapshots["commitment"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "commitment", source, oarExpansionOptions{})
+		}
+	case "commitments.patch":
+		if source, ok := schemaDoc.Snapshots["commitment"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "patch", source, oarExpansionOptions{
+				exclude:          map[string]struct{}{"thread_id": {}},
+				forceOptionalAll: true,
+			})
+		}
+	case "packets.work-orders.create":
+		if source, ok := schemaDoc.Packets["work_order"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "packet", source, oarExpansionOptions{})
+		}
+	case "packets.receipts.create":
+		if source, ok := schemaDoc.Packets["receipt"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "packet", source, oarExpansionOptions{})
+		}
+	case "packets.reviews.create":
+		if source, ok := schemaDoc.Packets["review"]; ok {
+			expandContainerFromOAR(acc, schemaDoc, "packet", source, oarExpansionOptions{})
+		}
+	}
+}
+
+func expandContainerFromOAR(
+	acc map[string]bodyFieldState,
+	schemaDoc oarSchemaDocument,
+	container string,
+	source oarMaybeFieldContainer,
+	options oarExpansionOptions,
+) {
+	container = strings.TrimSpace(container)
+	if container == "" || len(source.Fields) == 0 {
+		return
+	}
+	containerRequired := false
+	if current, ok := acc[container]; ok {
+		containerRequired = current.required
+		delete(acc, container)
+	}
+	keys := make([]string, 0, len(source.Fields))
+	for key := range source.Fields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if _, skip := options.exclude[key]; skip {
+			continue
+		}
+		field := source.Fields[key]
+		required := containerRequired && field.Required
+		if options.forceOptionalAll {
+			required = false
+		}
+		if _, forceOptional := options.forceOptional[key]; forceOptional {
+			required = false
+		}
+		path := container + "." + key
+		if strings.TrimSpace(field.Ref) == "provenance" && len(schemaDoc.Provenance.Fields) > 0 {
+			expandProvenanceField(acc, schemaDoc, path, required, options.forceOptionalAll)
+			continue
+		}
+		values, policy := enumFromOARRef(schemaDoc, field.Ref)
+		upsertBodyField(acc, bodyField{
+			Name:       path,
+			Type:       normalizeOARFieldType(field.Type),
+			EnumValues: values,
+			EnumPolicy: policy,
+		}, required)
+	}
+}
+
+func expandProvenanceField(
+	acc map[string]bodyFieldState,
+	schemaDoc oarSchemaDocument,
+	prefix string,
+	parentRequired bool,
+	forceOptionalAll bool,
+) {
+	keys := make([]string, 0, len(schemaDoc.Provenance.Fields))
+	for key := range schemaDoc.Provenance.Fields {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		field := schemaDoc.Provenance.Fields[key]
+		required := parentRequired && field.Required
+		if forceOptionalAll {
+			required = false
+		}
+		values, policy := enumFromOARRef(schemaDoc, field.Ref)
+		upsertBodyField(acc, bodyField{
+			Name:       prefix + "." + key,
+			Type:       normalizeOARFieldType(field.Type),
+			EnumValues: values,
+			EnumPolicy: policy,
+		}, required)
+	}
+}
+
+func enumFromOARRef(schemaDoc oarSchemaDocument, ref string) ([]string, string) {
+	ref = strings.TrimSpace(ref)
+	if !strings.HasPrefix(ref, "enums.") {
+		return nil, ""
+	}
+	enumName := strings.TrimSpace(strings.TrimPrefix(ref, "enums."))
+	if enumName == "" {
+		return nil, ""
+	}
+	enumDef, ok := schemaDoc.Enums[enumName]
+	if !ok {
+		return nil, ""
+	}
+	return sortedUniqueStrings(enumDef.Values), strings.TrimSpace(enumDef.EnumPolicy)
+}
+
+func normalizeOARFieldType(raw string) string {
+	raw = strings.TrimSpace(raw)
+	raw = strings.Trim(raw, "\"")
+	if raw == "" {
+		return "object"
+	}
+	return raw
+}
+
+func bodySchemaFromAccumulator(acc map[string]bodyFieldState) bodySchema {
+	required := make([]bodyField, 0)
+	optional := make([]bodyField, 0)
+	for _, state := range acc {
+		if state.required {
+			required = append(required, state.field)
+			continue
+		}
+		optional = append(optional, state.field)
+	}
+	sort.Slice(required, func(i, j int) bool { return required[i].Name < required[j].Name })
+	sort.Slice(optional, func(i, j int) bool { return optional[i].Name < optional[j].Name })
+	return bodySchema{Required: required, Optional: optional}
+}
+
+func sortedUniqueStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func generateAll(outDir string, doc openAPIDocument, commands []command) error {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
@@ -339,9 +784,6 @@ func generateAll(outDir string, doc openAPIDocument, commands []command, schemaD
 		return err
 	}
 	if err := writeHelpMeta(filepath.Join(outDir, "meta", "help.json"), doc, commands); err != nil {
-		return err
-	}
-	if err := writeEventRefRules(filepath.Join(outDir, "meta", "event_ref_rules.json"), doc, schemaDoc); err != nil {
 		return err
 	}
 	if err := writeMarkdown(filepath.Join(outDir, "docs", "commands.md"), doc, commands); err != nil {
@@ -428,71 +870,6 @@ func writeHelpMeta(path string, doc openAPIDocument, commands []command) error {
 	}
 	b = append(b, '\n')
 	return os.WriteFile(path, b, 0o644)
-}
-
-func writeEventRefRules(path string, doc openAPIDocument, schemaDoc schemaDocument) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-
-	rules := make(map[string]eventRefRuleJSON)
-	for eventType, node := range schemaDoc.ReferenceConventions.EventRefs {
-		if eventType == "_rule" {
-			continue
-		}
-
-		var rule schemaEventRefRuleParsed
-		if err := node.Decode(&rule); err != nil {
-			return fmt.Errorf("decode event ref rule %q: %w", eventType, err)
-		}
-
-		conditionalRefs := make([]conditionalRefJSON, 0, len(rule.ConditionalRefs))
-		for _, cr := range rule.ConditionalRefs {
-			mustHave := make([]refPrefixJSON, len(cr.MustHave))
-			for i, m := range cr.MustHave {
-				mustHave[i] = refPrefixJSON{Prefix: m.Prefix}
-			}
-			conditionalRefs = append(conditionalRefs, conditionalRefJSON{
-				When: whenConditionJSON{
-					PayloadField: cr.When.PayloadField,
-					Equals:       cr.When.Equals,
-				},
-				MustHave:  mustHave,
-				Condition: cr.Condition,
-			})
-		}
-
-		rules[eventType] = eventRefRuleJSON{
-			ThreadID:           rule.ThreadID,
-			RefsMustInclude:    rule.RefsMustInclude,
-			RefsConditional:    rule.RefsConditional,
-			PayloadMustInclude: rule.PayloadMustInclude,
-			ConditionalRefs:    conditionalRefs,
-		}
-	}
-
-	payload := eventRefRuleOutput{
-		OpenAPIVersion:  doc.OpenAPI,
-		ContractVersion: strings.TrimSpace(doc.Info.Version),
-		GeneratedBy:     "core/cmd/contract-gen",
-		RuleCount:       len(rules),
-		Rules:           rules,
-	}
-
-	b, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return err
-	}
-	b = append(b, '\n')
-	return os.WriteFile(path, b, 0o644)
-}
-
-type schemaEventRefRuleParsed struct {
-	ThreadID           string                 `yaml:"thread_id"`
-	RefsMustInclude    []string               `yaml:"refs_must_include"`
-	RefsConditional    string                 `yaml:"refs_conditional"`
-	PayloadMustInclude []string               `yaml:"payload_must_include"`
-	ConditionalRefs    []schemaConditionalRef `yaml:"conditional_refs"`
 }
 
 func writeMarkdown(path string, doc openAPIDocument, commands []command) error {

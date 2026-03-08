@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.2`
-- Concepts: `32`
+- Concepts: `37`
 
 ## `append-only`
 
@@ -14,32 +14,38 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `artifacts`
 
-- Commands: `4`
+- Commands: `5`
 - Command IDs:
   - `artifacts.content.get`
   - `artifacts.create`
   - `artifacts.get`
   - `artifacts.list`
+  - `threads.context`
 
 ## `auth`
 
-- Commands: `6`
+- Commands: `10`
 - Command IDs:
   - `agents.me.get`
   - `agents.me.keys.rotate`
   - `agents.me.patch`
   - `agents.me.revoke`
   - `auth.agents.register`
+  - `auth.passkey.login.options`
+  - `auth.passkey.login.verify`
+  - `auth.passkey.register.options`
+  - `auth.passkey.register.verify`
   - `auth.token`
 
 ## `commitments`
 
-- Commands: `4`
+- Commands: `5`
 - Command IDs:
   - `commitments.create`
   - `commitments.get`
   - `commitments.list`
   - `commitments.patch`
+  - `threads.context`
 
 ## `compatibility`
 
@@ -55,6 +61,12 @@ Generated from `contracts/oar-openapi.yaml`.
   - `meta.concepts.get`
   - `meta.concepts.list`
 
+## `concurrency`
+
+- Commands: `1`
+- Command IDs:
+  - `docs.update`
+
 ## `content`
 
 - Commands: `1`
@@ -63,20 +75,32 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `derived-views`
 
-- Commands: `3`
+- Commands: `4`
 - Command IDs:
   - `derived.rebuild`
+  - `inbox.get`
   - `inbox.list`
   - `inbox.stream`
 
-## `events`
+## `docs`
 
 - Commands: `5`
+- Command IDs:
+  - `docs.create`
+  - `docs.get`
+  - `docs.history`
+  - `docs.revision.get`
+  - `docs.update`
+
+## `events`
+
+- Commands: `6`
 - Command IDs:
   - `events.create`
   - `events.get`
   - `events.stream`
   - `inbox.ack`
+  - `threads.context`
   - `threads.timeline`
 
 ## `evidence`
@@ -117,9 +141,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `inbox`
 
-- Commands: `3`
+- Commands: `4`
 - Command IDs:
   - `inbox.ack`
+  - `inbox.get`
   - `inbox.list`
   - `inbox.stream`
 
@@ -135,6 +160,12 @@ Generated from `contracts/oar-openapi.yaml`.
 - Commands: `1`
 - Command IDs:
   - `agents.me.keys.rotate`
+
+## `lineage`
+
+- Commands: `1`
+- Command IDs:
+  - `docs.history`
 
 ## `maintenance`
 
@@ -158,6 +189,15 @@ Generated from `contracts/oar-openapi.yaml`.
   - `packets.receipts.create`
   - `packets.reviews.create`
   - `packets.work-orders.create`
+
+## `passkey`
+
+- Commands: `4`
+- Command IDs:
+  - `auth.passkey.login.options`
+  - `auth.passkey.login.verify`
+  - `auth.passkey.register.options`
+  - `auth.passkey.register.verify`
 
 ## `patch`
 
@@ -191,6 +231,16 @@ Generated from `contracts/oar-openapi.yaml`.
 - Command IDs:
   - `packets.reviews.create`
 
+## `revisions`
+
+- Commands: `5`
+- Command IDs:
+  - `docs.create`
+  - `docs.get`
+  - `docs.history`
+  - `docs.revision.get`
+  - `docs.update`
+
 ## `revocation`
 
 - Commands: `1`
@@ -219,8 +269,9 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `threads`
 
-- Commands: `5`
+- Commands: `6`
 - Command IDs:
+  - `threads.context`
   - `threads.create`
   - `threads.get`
   - `threads.list`
