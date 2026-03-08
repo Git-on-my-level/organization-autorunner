@@ -176,11 +176,33 @@ func parseGlobalFlags(args []string) (config.Overrides, []string, bool, error) {
 	if timeoutFlag.set {
 		overrides.Timeout = &timeoutFlag.value
 	}
+	captureTrailingJSONOverride(fs.Args(), &overrides)
 	remaining, err := normalizeTrailingGlobalFlags(fs.Args(), &overrides)
 	if err != nil {
 		return overrides, nil, false, err
 	}
 	return overrides, remaining, false, nil
+}
+
+func captureTrailingJSONOverride(args []string, overrides *config.Overrides) {
+	for _, token := range args {
+		if strings.TrimSpace(token) == "--" {
+			break
+		}
+		name, value, hasValue, isFlag := parseLongOptionToken(token)
+		if !isFlag || name != "json" {
+			continue
+		}
+		jsonValue := true
+		if hasValue {
+			parsed, err := strconvParseBool(value)
+			if err != nil {
+				continue
+			}
+			jsonValue = parsed
+		}
+		overrides.JSON = &jsonValue
+	}
 }
 
 func normalizeTrailingGlobalFlags(args []string, overrides *config.Overrides) ([]string, error) {

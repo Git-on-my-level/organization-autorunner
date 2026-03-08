@@ -186,6 +186,45 @@ func TestRunTrailingGlobalBaseURLPreservesJSONMode(t *testing.T) {
 	}
 }
 
+func TestRunTrailingFlagParseErrorsPreserveJSONMode(t *testing.T) {
+	t.Parallel()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return "/home/tester", nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run([]string{"doctor", "--timeout", "bad", "--json"})
+	if exitCode != 2 {
+		t.Fatalf("expected usage exit code 2, got %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	if strings.TrimSpace(stderr.String()) != "" {
+		t.Fatalf("expected stderr to stay empty in trailing json mode, got %q", stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("decode stdout json: %v raw=%s", err, stdout.String())
+	}
+	if payload["ok"] != false {
+		t.Fatalf("expected ok=false payload=%#v", payload)
+	}
+	errorObj, _ := payload["error"].(map[string]any)
+	if anyStringValue(errorObj["code"]) != "invalid_flags" {
+		t.Fatalf("expected invalid_flags payload=%#v", payload)
+	}
+	if !strings.Contains(anyStringValue(errorObj["message"]), "invalid value for --timeout") {
+		t.Fatalf("expected timeout parse failure in JSON payload=%#v", payload)
+	}
+}
+
 func TestParseGlobalFlagsSupportsTrailingValueAndBoolFlags(t *testing.T) {
 	t.Parallel()
 
