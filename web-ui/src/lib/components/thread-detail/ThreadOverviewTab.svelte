@@ -10,6 +10,7 @@
   import RefLink from "$lib/components/RefLink.svelte";
   import {
     buildThreadPatch,
+    describeCron,
     parseListInput,
     serializeListInput,
   } from "$lib/threadPatch";
@@ -328,8 +329,11 @@
               class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
               placeholder="0 9 * * *"
               type="text"
-            /><span class="mt-1 block text-[11px] text-gray-400"
-              >Use five cron fields in server timezone.</span
+            />{#if describeCron(editDraft.cadenceCron)}<span
+                class="mt-1 block text-[11px] text-gray-500"
+                >{describeCron(editDraft.cadenceCron)}</span
+              >{/if}<span class="mt-0.5 block text-[11px] text-gray-400"
+              >Five cron fields, server timezone.</span
             ></label
           >
         {/if}

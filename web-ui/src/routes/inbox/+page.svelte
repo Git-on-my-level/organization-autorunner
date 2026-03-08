@@ -15,6 +15,7 @@
   let error = $state("");
   let items = $state([]);
   let ackInFlightById = $state({});
+  let pendingAckById = $state({});
   let decisionInFlightById = $state({});
   let decisionFormsById = $state({});
   let decisionFormErrorsById = $state({});
@@ -76,16 +77,12 @@
 
   function toggleDecisionForm(item, open) {
     const existing = getDecisionForm(item.id);
-    const suggestedSummary = existing.summary.trim()
-      ? existing.summary
-      : `Decision: ${String(item.title ?? "").trim()}`;
 
     decisionFormsById = {
       ...decisionFormsById,
       [item.id]: {
         ...existing,
         open,
-        summary: open ? suggestedSummary : existing.summary,
       },
     };
   }
@@ -111,26 +108,45 @@
     }
   }
 
-  async function acknowledgeItem(item) {
-    const previousItems = items;
+  function acknowledgeItem(item) {
     error = "";
-    ackInFlightById = { ...ackInFlightById, [item.id]: true };
 
     items = items.filter((candidate) => candidate.id !== item.id);
 
-    try {
-      await coreClient.ackInboxItem({
-        thread_id: item.thread_id,
-        inbox_item_id: item.id,
-      });
-    } catch (ackError) {
-      const reason =
-        ackError instanceof Error ? ackError.message : String(ackError);
-      error = `Failed to acknowledge item: ${reason}`;
-      items = previousItems;
-    } finally {
-      ackInFlightById = { ...ackInFlightById, [item.id]: false };
-    }
+    const timeoutId = setTimeout(async () => {
+      pendingAckById = Object.fromEntries(
+        Object.entries(pendingAckById).filter(([k]) => k !== item.id),
+      );
+
+      ackInFlightById = { ...ackInFlightById, [item.id]: true };
+      try {
+        await coreClient.ackInboxItem({
+          thread_id: item.thread_id,
+          inbox_item_id: item.id,
+        });
+      } catch (ackError) {
+        const reason =
+          ackError instanceof Error ? ackError.message : String(ackError);
+        error = `Failed to dismiss item: ${reason}`;
+        items = [...items, item];
+      } finally {
+        ackInFlightById = { ...ackInFlightById, [item.id]: false };
+      }
+    }, 5000);
+
+    pendingAckById = { ...pendingAckById, [item.id]: { item, timeoutId } };
+  }
+
+  function undoAcknowledge(itemId) {
+    const pending = pendingAckById[itemId];
+    if (!pending) return;
+
+    clearTimeout(pending.timeoutId);
+    pendingAckById = Object.fromEntries(
+      Object.entries(pendingAckById).filter(([k]) => k !== itemId),
+    );
+
+    items = [...items, pending.item];
   }
 
   async function recordDecision(item) {
@@ -216,8 +232,7 @@
   <div>
     <h1 class="text-lg font-semibold text-gray-900">Inbox</h1>
     <p class="text-[13px] text-gray-500">
-      Prioritized for human triage. Urgency is inferred from category and source
-      event age.
+      Items sorted by urgency. Older items surface first.
     </p>
   </div>
   <span
@@ -267,9 +282,33 @@
   {/each}
 </div>
 
+{#if Object.keys(pendingAckById).length > 0}
+  <div class="mb-4 space-y-1.5">
+    {#each Object.values(pendingAckById) as pending}
+      <div
+        class="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-[12px] text-gray-600"
+      >
+        <span class="truncate"
+          >Dismissed: <span class="font-medium text-gray-800"
+            >{pending.item.title ?? pending.item.summary ?? "item"}</span
+          ></span
+        >
+        <button
+          class="shrink-0 font-medium text-indigo-600 hover:text-indigo-500"
+          onclick={() => undoAcknowledge(pending.item.id)}
+          type="button"
+        >
+          Undo
+        </button>
+      </div>
+    {/each}
+  </div>
+{/if}
+
 {#if error}
   <div
     class="mb-4 rounded-md bg-red-500/10 px-3 py-2.5 text-[13px] text-red-400"
+    role="alert"
   >
     {error}
   </div>
@@ -300,8 +339,7 @@
   <div class="mt-8 text-center py-8" data-testid="inbox-empty-state">
     <h2 class="text-[13px] font-semibold text-gray-900">Inbox is clear</h2>
     <p class="mt-1 text-[13px] text-gray-500">
-      No triage items are pending. New exceptions, risks, or decisions will
-      appear here.
+      Nothing needs attention right now.
     </p>
   </div>
 {:else if !hasFilteredItems}
@@ -403,7 +441,7 @@
 
               <div class="mt-3 flex items-center gap-2">
                 <button
-                  aria-label="Acknowledge"
+                  aria-label="Dismiss"
                   class="rounded-md border border-gray-200 bg-gray-100 px-3 py-1.5 text-[12px] font-medium text-gray-600 transition-colors hover:bg-gray-200 disabled:opacity-50"
                   disabled={Boolean(ackInFlightById[item.id])}
                   onclick={() => acknowledgeItem(item)}
@@ -412,24 +450,45 @@
                   {ackInFlightById[item.id] ? "Dismissing..." : "Dismiss"}
                 </button>
                 <button
-                  class="rounded-md bg-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-900 transition-colors hover:bg-gray-300"
+                  class="rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors {getDecisionForm(
+                    item.id,
+                  ).open
+                    ? 'border border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-indigo-600 text-white hover:bg-indigo-500'}"
                   onclick={() =>
                     toggleDecisionForm(item, !getDecisionForm(item.id).open)}
                   type="button"
                 >
-                  {getDecisionForm(item.id).open ? "Close form" : "Decide"}
+                  {getDecisionForm(item.id).open ? "Cancel" : "Decide"}
                 </button>
               </div>
 
               {#if postedDecisionByInboxItem[item.id]}
-                <div class="mt-2 text-[12px] text-emerald-400">
-                  Decision recorded.
-                  <a
-                    class="font-medium underline"
-                    href={`/threads/${item.thread_id}#event-${postedDecisionByInboxItem[item.id].id}`}
+                <div
+                  class="mt-2 flex items-center gap-2 rounded-md bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400"
+                >
+                  <svg
+                    class="h-3.5 w-3.5 shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2.5"
                   >
-                    View in timeline
-                  </a>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <span>
+                    Decision recorded &mdash;
+                    <a
+                      class="font-medium underline hover:text-emerald-300"
+                      href={`/threads/${item.thread_id}#event-${postedDecisionByInboxItem[item.id].id}`}
+                    >
+                      view in timeline
+                    </a>
+                  </span>
                 </div>
               {/if}
 
@@ -442,15 +501,11 @@
                     void recordDecision(item);
                   }}
                 >
-                  <p class="text-[12px] text-gray-500 mb-2">
-                    Record a decision for this item. Creates a `decision_made`
-                    event on the linked thread.
-                  </p>
                   <label
                     class="block text-[12px] font-medium text-gray-600"
                     for={`decision-summary-${item.id}`}
                   >
-                    Decision summary
+                    Your decision
                   </label>
                   <input
                     class="mt-1 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-[13px] transition-colors"
@@ -461,7 +516,7 @@
                         "summary",
                         event.currentTarget.value,
                       )}
-                    placeholder="What was decided?"
+                    placeholder="e.g., Approved emergency reorder of 500 units"
                     value={getDecisionForm(item.id).summary}
                   />
                   {#if getDecisionFormError(item.id)}
@@ -473,7 +528,8 @@
                     class="mt-2 block text-[12px] font-medium text-gray-600"
                     for={`decision-notes-${item.id}`}
                   >
-                    Notes <span class="font-normal text-gray-400">optional</span
+                    Rationale <span class="font-normal text-gray-400"
+                      >optional</span
                     >
                   </label>
                   <textarea
@@ -485,12 +541,12 @@
                         "notes",
                         event.currentTarget.value,
                       )}
-                    placeholder="Additional context..."
+                    placeholder="Why this choice? Any constraints, trade-offs, or follow-ups..."
                     rows="2">{getDecisionForm(item.id).notes}</textarea
                   >
                   <div class="mt-2 flex justify-end">
                     <button
-                      class="rounded-md bg-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-900 hover:bg-gray-300 disabled:opacity-50"
+                      class="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
                       disabled={Boolean(decisionInFlightById[item.id])}
                       type="submit"
                     >

@@ -1,5 +1,19 @@
 import { resolveRefLink } from "./refLinkModel.js";
 
+const SNAPSHOT_FIELD_LABELS = {
+  current_summary: "Summary",
+  next_actions: "Next actions",
+  cadence: "Schedule",
+  open_commitments: "Commitments",
+  key_artifacts: "Key artifacts",
+  title: "Title",
+  status: "Status",
+  priority: "Priority",
+  tags: "Tags",
+  next_check_in_at: "Next check-in",
+  type: "Type",
+};
+
 const EVENT_TYPE_LABELS = {
   message_posted: "Message posted",
   work_order_created: "Work order created",
@@ -79,7 +93,7 @@ export function toTimelineViewEvent(event, options = {}) {
     changedFields:
       type === "snapshot_updated" &&
       Array.isArray(event?.payload?.changed_fields)
-        ? event.payload.changed_fields
+        ? event.payload.changed_fields.map((f) => SNAPSHOT_FIELD_LABELS[f] ?? f)
         : [],
     resolvedRefs: refs.map((refValue) => {
       const ref = String(refValue ?? "");

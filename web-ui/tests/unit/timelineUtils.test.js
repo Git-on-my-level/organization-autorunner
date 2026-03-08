@@ -41,7 +41,7 @@ describe("timeline utils", () => {
     );
 
     expect(view.isKnownType).toBe(true);
-    expect(view.changedFields).toEqual(["status", "current_summary"]);
+    expect(view.changedFields).toEqual(["Status", "Summary"]);
     expect(view.resolvedRefs[0]).toMatchObject({
       kind: "event",
       href: "/threads/thread-1#event-evt-z",

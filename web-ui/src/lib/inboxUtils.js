@@ -71,7 +71,7 @@ function readNowTimestamp(options = {}) {
 
 function formatAgeLabel(ageHours) {
   if (!Number.isFinite(ageHours)) {
-    return "No source time";
+    return "";
   }
 
   if (ageHours < 1) {

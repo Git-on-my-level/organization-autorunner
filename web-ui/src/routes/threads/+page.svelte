@@ -17,6 +17,7 @@
     parseTagFilterInput,
     validateCadenceSelection,
   } from "$lib/threadFilters";
+  import { describeCron } from "$lib/threadPatch";
 
   const defaultFilters = {
     status: "",
@@ -219,7 +220,10 @@
 </div>
 
 {#if error}
-  <div class="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
+  <div
+    class="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400"
+    role="alert"
+  >
     {error}
   </div>
 {/if}
@@ -367,6 +371,11 @@
             placeholder="0 9 * * *"
             type="text"
           />
+          {#if describeCron(threadDraft.cadenceCron)}
+            <span class="mt-1 block text-[11px] text-gray-500">
+              {describeCron(threadDraft.cadenceCron)}
+            </span>
+          {/if}
         </label>
       {/if}
       <label class="text-[12px]">
