@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"organization-autorunner-cli/internal/config"
 )
 
 func TestTypedThreadCommandsGolden(t *testing.T) {
@@ -1588,6 +1591,77 @@ func TestEventsCreateNormalizesThreadIDAndSupportedTypedRefs(t *testing.T) {
 	}
 	if refs[0] != "thread:thread_1234567890" || refs[1] != "artifact:artifact_1234567890" || refs[2] != "event:event_short" {
 		t.Fatalf("expected supported typed refs canonicalized and unsupported refs preserved, got %#v", refs)
+	}
+}
+
+func TestNormalizeMutationBodyIDsSkipsNestedStructuredDocContent(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/artifacts":
+			_, _ = w.Write([]byte(`{"artifacts":[{"id":"artifact_1234567890"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	body := map[string]any{
+		"document":     map[string]any{"id": "doc_1"},
+		"content_type": "structured",
+		"refs":         []any{"artifact:artifact_123"},
+		"content": map[string]any{
+			"thread_id": "9a61af8e-d2c",
+			"nested": map[string]any{
+				"refs": []any{"thread:9a61af8e-d2c"},
+			},
+		},
+	}
+
+	normalizedAny, err := app.normalizeMutationBodyIDs(context.Background(), config.Resolved{BaseURL: server.URL}, "docs.update", body)
+	if err != nil {
+		t.Fatalf("normalize docs.update body: %v", err)
+	}
+	normalized, _ := normalizedAny.(map[string]any)
+	refs := asSlice(normalized["refs"])
+	if len(refs) != 1 || anyStringValue(refs[0]) != "artifact:artifact_1234567890" {
+		t.Fatalf("expected top-level docs refs to be normalized, got %#v", normalized)
+	}
+	content := asMap(normalized["content"])
+	if got := anyStringValue(content["thread_id"]); got != "9a61af8e-d2c" {
+		t.Fatalf("expected structured content.thread_id to remain untouched, got %#v", normalized)
+	}
+	nested := asMap(content["nested"])
+	nestedRefs := asSlice(nested["refs"])
+	if len(nestedRefs) != 1 || anyStringValue(nestedRefs[0]) != "thread:9a61af8e-d2c" {
+		t.Fatalf("expected nested structured refs to remain untouched, got %#v", normalized)
+	}
+}
+
+func TestNormalizeMutationBodyIDsPreservesUnsupportedTypedRefsVerbatim(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+	body := map[string]any{
+		"event": map[string]any{
+			"type":      "actor_statement",
+			"thread_id": "thread_1",
+			"refs":      []any{"CuStOmType:ABC123"},
+		},
+	}
+
+	normalizedAny, err := app.normalizeMutationBodyIDs(context.Background(), config.Resolved{}, "events.create", body)
+	if err != nil {
+		t.Fatalf("normalize events.create body: %v", err)
+	}
+	normalized, _ := normalizedAny.(map[string]any)
+	event := asMap(normalized["event"])
+	refs := asSlice(event["refs"])
+	if len(refs) != 1 || anyStringValue(refs[0]) != "CuStOmType:ABC123" {
+		t.Fatalf("expected unsupported typed ref to remain verbatim, got %#v", normalized)
 	}
 }
 
