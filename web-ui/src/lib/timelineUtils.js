@@ -30,6 +30,24 @@ const EVENT_TYPE_LABELS = {
 
 const KNOWN_EVENT_TYPES = new Set(Object.keys(EVENT_TYPE_LABELS));
 
+const EVENT_TYPE_DOT_CLASSES = {
+  message_posted: "bg-indigo-400",
+  work_order_created: "bg-blue-400",
+  receipt_added: "bg-emerald-400",
+  review_completed: "bg-amber-400",
+  decision_needed: "bg-red-400",
+  decision_made: "bg-emerald-400",
+  snapshot_updated: "bg-gray-400",
+  commitment_created: "bg-purple-400",
+  commitment_status_changed: "bg-purple-400",
+  exception_raised: "bg-red-400",
+  inbox_item_acknowledged: "bg-teal-400",
+};
+
+export function eventTypeDotClass(type) {
+  return EVENT_TYPE_DOT_CLASSES[type] ?? "bg-gray-500";
+}
+
 function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value

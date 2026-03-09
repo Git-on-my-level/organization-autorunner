@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { page } from "$app/stores";
 
   import { actorRegistry } from "$lib/actorSession";
@@ -23,9 +23,20 @@
   let conflictWarning = $state("");
   let editNotice = $state("");
 
+  const POLL_INTERVAL_MS = 30_000;
+  let pollTimer;
+
   onMount(async () => {
     await ensureActorRegistry();
     await threadDetailStore.fullRefresh(threadId);
+    pollTimer = setInterval(
+      () => threadDetailStore.refreshThreadDetail(threadId, { snapshot: true, timeline: true }),
+      POLL_INTERVAL_MS,
+    );
+  });
+
+  onDestroy(() => {
+    clearInterval(pollTimer);
   });
 
   async function ensureActorRegistry() {
@@ -112,16 +123,16 @@
   });
 </script>
 
-<ThreadDetailHeader {threadId} onEditClick={() => {}} />
+<ThreadDetailHeader {threadId} />
 
 {#if snapshotLoading}
-  <p class="text-sm text-[var(--ui-text-muted)]">Loading...</p>
+  <p class="text-[13px] text-[var(--ui-text-muted)]">Loading...</p>
 {:else if snapshotError}
-  <p class="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400">
+  <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
     {snapshotError}
   </p>
 {:else if !snapshot}
-  <p class="text-sm text-[var(--ui-text-muted)]">Thread not found.</p>
+  <p class="text-[13px] text-[var(--ui-text-muted)]">Thread not found.</p>
 {:else}
   <nav
     class="mt-3 flex gap-0 border-b border-[var(--ui-border)]"
@@ -129,7 +140,7 @@
   >
     {#each [["overview", "Overview"], ["work", "Work"], ["timeline", "Timeline"]] as [tabId, tabLabel]}
       <button
-        class={`relative cursor-pointer px-3 py-2 text-sm font-medium transition-colors ${activeTab === tabId ? "text-[var(--ui-text)]" : "text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"}`}
+        class={`relative cursor-pointer px-3 py-2 text-[13px] font-medium transition-colors ${activeTab === tabId ? "text-[var(--ui-text)]" : "text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"}`}
         onclick={() => (activeTab = tabId)}
         type="button"
       >

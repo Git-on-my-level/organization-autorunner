@@ -151,6 +151,14 @@
     }
   }
 
+  let hasActiveFilters = $derived(
+    filters.status !== "" ||
+    filters.priority !== "" ||
+    filters.cadence !== "" ||
+    filters.staleness !== "all" ||
+    filters.tagInput.trim() !== "",
+  );
+
   function priorityDot(priority) {
     const colors = {
       p0: "bg-red-500/100",
@@ -435,6 +443,15 @@
     <p class="text-[13px] text-[var(--ui-text-muted)]">
       No threads match the current filters.
     </p>
+    {#if hasActiveFilters}
+      <button
+        class="mt-3 cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
+        onclick={resetFilters}
+        type="button"
+      >
+        Clear filters
+      </button>
+    {/if}
   </div>
 {:else}
   <div

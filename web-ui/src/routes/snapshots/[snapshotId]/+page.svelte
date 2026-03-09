@@ -42,7 +42,7 @@
 </h1>
 
 {#if loading}
-  <div class="mt-6 flex items-center gap-2 text-sm text-[var(--ui-text-muted)]">
+  <div class="mt-6 flex items-center gap-2 text-[13px] text-[var(--ui-text-muted)]">
     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle
         class="opacity-25"
@@ -62,7 +62,7 @@
   </div>
 {:else if loadError}
   <div
-    class="mt-3 flex items-start gap-2 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400"
+    class="mt-3 flex items-start gap-2 rounded-md bg-red-500/10 px-4 py-3 text-[13px] text-red-400"
   >
     <svg
       class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
@@ -82,7 +82,7 @@
 {:else if snapshot}
   <div class="mt-4 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-panel)]">
     <div class="border-b border-[var(--ui-border-subtle)] px-5 py-3">
-      <h2 class="text-sm font-medium text-[var(--ui-text)]">Raw Snapshot JSON</h2>
+      <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Raw Snapshot JSON</h2>
     </div>
     <pre
       class="overflow-auto px-5 py-4 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(

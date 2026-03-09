@@ -21,7 +21,7 @@ export function getProvenancePresentation(provenance) {
       unknown: true,
       inferred: false,
       title: "No provenance",
-      toneClass: "border-slate-300 bg-slate-50 text-slate-700",
+      toneClass: "border-slate-500/20 bg-slate-500/10 text-slate-400",
     };
   }
 
@@ -32,7 +32,7 @@ export function getProvenancePresentation(provenance) {
     inferred,
     title: inferred ? "Inferred provenance" : "Evidence-backed provenance",
     toneClass: inferred
-      ? "border-amber-300 bg-amber-50 text-amber-900"
-      : "border-emerald-300 bg-emerald-50 text-emerald-900",
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-400"
+      : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
   };
 }

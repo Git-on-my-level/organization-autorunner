@@ -131,7 +131,7 @@
     <input
       aria-label={addInputLabel}
       bind:value={candidateRef}
-      class="min-w-[14rem] flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-sm text-[var(--ui-text)]"
+      class="min-w-[14rem] flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
       onkeydown={(event) => {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -191,7 +191,7 @@
       <textarea
         aria-label={textareaAriaLabel}
         bind:value
-        class="mt-1.5 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-sm text-[var(--ui-text)]"
+        class="mt-1.5 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
         rows={advancedRows}
       ></textarea></label
     >

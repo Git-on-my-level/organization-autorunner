@@ -23,8 +23,27 @@
 
   let commitments = $derived($threadDetailStore.commitments);
   let commitmentsLoading = $derived($threadDetailStore.commitmentsLoading);
+  let timeline = $derived($threadDetailStore.timeline);
 
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+
+  let evidenceRefSuggestions = $derived(buildEvidenceRefSuggestions(timeline));
+
+  function buildEvidenceRefSuggestions(events) {
+    const suggestions = [];
+    for (const event of events ?? []) {
+      if (event.type === "receipt_added") {
+        const artifactRef = (event.refs ?? []).find((r) => String(r).startsWith("artifact:"));
+        if (artifactRef) {
+          suggestions.push({ ref: artifactRef, label: event.summary || "Receipt" });
+        }
+      }
+      if (event.type === "decision_made") {
+        suggestions.push({ ref: `event:${event.id}`, label: event.summary || "Decision" });
+      }
+    }
+    return suggestions;
+  }
 
   let commitmentFormOpen = $state(false);
   let createCommitmentDraft = $state(null);
@@ -210,27 +229,27 @@
   });
 </script>
 
-<div class="mt-4 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-panel)]">
+<div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]">
   <div
     class="flex items-center justify-between border-b border-[var(--ui-border-subtle)] px-4 py-2.5"
   >
-    <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
+    <h2 class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
       Commitments
     </h2>
     <button
-      class="cursor-pointer rounded px-2 py-1 text-xs font-medium text-indigo-400 hover:bg-[var(--ui-bg-soft)] hover:text-indigo-300"
+      class="cursor-pointer rounded px-2 py-1 text-[12px] font-medium text-indigo-400 hover:bg-[var(--ui-bg-soft)] hover:text-indigo-300"
       onclick={() => (commitmentFormOpen = !commitmentFormOpen)}
       type="button">{commitmentFormOpen ? "Cancel" : "New"}</button
     >
   </div>
 
   {#if commitmentConflictWarning}<p
-      class="border-b border-[var(--ui-border-subtle)] bg-amber-500/10 px-4 py-2 text-xs text-amber-400"
+      class="border-b border-[var(--ui-border-subtle)] bg-amber-500/10 px-4 py-2 text-[12px] text-amber-400"
     >
       {commitmentConflictWarning}
     </p>{/if}
   {#if createCommitmentNotice}<p
-      class="border-b border-[var(--ui-border-subtle)] bg-emerald-500/10 px-4 py-2 text-xs text-emerald-400"
+      class="border-b border-[var(--ui-border-subtle)] bg-emerald-500/10 px-4 py-2 text-[12px] text-emerald-400"
     >
       {createCommitmentNotice}
     </p>{/if}
@@ -244,23 +263,23 @@
       }}
     >
       {#if createCommitmentError}<p
-          class="mb-2 rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
+          class="mb-2 rounded bg-red-500/10 px-3 py-1.5 text-[12px] text-red-400"
         >
           {createCommitmentError}
         </p>{/if}
       <div class="grid gap-2 sm:grid-cols-2">
-        <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Title <input
             bind:value={createCommitmentDraft.title}
-            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
             required
             type="text"
           /></label
         >
-        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
+        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"
           >Owner <select
             bind:value={createCommitmentDraft.owner}
-            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
             required
             ><option disabled value="">Select</option
             >{#each $actorRegistry as actor}<option value={actor.id}
@@ -268,24 +287,24 @@
               >{/each}</select
           ></label
         >
-        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
+        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"
           >Due date <input
             bind:value={createCommitmentDraft.due_at}
-            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
             required
             type="datetime-local"
           /></label
         >
-        <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Completion criteria (one per line) <textarea
             bind:value={createCommitmentDraft.definitionOfDoneInput}
-            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
       </div>
       <button
-        class="mt-2 cursor-pointer rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+        class="mt-2 cursor-pointer rounded bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
         disabled={creatingCommitment}
         type="submit">{creatingCommitment ? "Creating..." : "Create"}</button
       >
@@ -293,9 +312,9 @@
   {/if}
 
   {#if commitmentsLoading}
-    <p class="px-4 py-3 text-xs text-[var(--ui-text-muted)]">Loading...</p>
+    <p class="px-4 py-3 text-[12px] text-[var(--ui-text-muted)]">Loading...</p>
   {:else if commitments.length === 0}
-    <p class="px-4 py-3 text-sm text-[var(--ui-text-muted)]">No open commitments.</p>
+    <p class="px-4 py-3 text-[13px] text-[var(--ui-text-muted)]">No open commitments.</p>
   {:else}
     {#each commitments as commitment, i}
       <div
@@ -306,10 +325,10 @@
       >
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-[var(--ui-text)]">
+            <p class="text-[13px] font-medium text-[var(--ui-text)]">
               {commitment.title || commitment.id}
             </p>
-            <p class="mt-0.5 text-xs text-[var(--ui-text-muted)]">
+            <p class="mt-0.5 text-[12px] text-[var(--ui-text-muted)]">
               {actorName(commitment.owner)} · Due {commitment.due_at
                 ? formatTimestamp(commitment.due_at)
                 : "—"}
@@ -317,11 +336,11 @@
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <span
-              class={`rounded px-2 py-0.5 text-xs font-medium ${statusBadgeClass(commitment.status)}`}
+              class={`rounded px-2 py-0.5 text-[12px] font-medium ${statusBadgeClass(commitment.status)}`}
               >{commitment.status}</span
             >
             <button
-              class="cursor-pointer rounded px-2 py-1 text-xs text-[var(--ui-text-muted)] hover:bg-[var(--ui-bg-soft)] hover:text-[var(--ui-text)]"
+              class="cursor-pointer rounded px-2 py-1 text-[12px] text-[var(--ui-text-muted)] hover:bg-[var(--ui-bg-soft)] hover:text-[var(--ui-text)]"
               onclick={() =>
                 editingCommitmentId === commitment.id
                   ? cancelCommitmentEdit()
@@ -334,19 +353,19 @@
         </div>
 
         {#if (commitment.definition_of_done ?? []).length > 0}
-          <ul class="mt-1.5 list-inside list-disc text-xs text-[var(--ui-text-muted)]">
+          <ul class="mt-1.5 list-inside list-disc text-[12px] text-[var(--ui-text-muted)]">
             {#each commitment.definition_of_done ?? [] as item}<li>
                 <MarkdownRenderer
                   source={item}
                   inline
-                  class="text-xs text-[var(--ui-text-muted)]"
+                  class="text-[12px] text-[var(--ui-text-muted)]"
                 />
               </li>{/each}
           </ul>
         {/if}
 
         {#if (commitment.links ?? []).length > 0}
-          <div class="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+          <div class="mt-1.5 flex flex-wrap gap-1.5 text-[12px]">
             {#each commitment.links ?? [] as refValue}<RefLink
                 {refValue}
                 {threadId}
@@ -363,28 +382,28 @@
             }}
           >
             {#if editCommitmentError}<p
-                class="mb-2 rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
+                class="mb-2 rounded bg-red-500/10 px-3 py-1.5 text-[12px] text-red-400"
               >
                 {editCommitmentError}
               </p>{/if}
             {#if editCommitmentNotice}<p
-                class="mb-2 rounded bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"
+                class="mb-2 rounded bg-emerald-500/10 px-3 py-1.5 text-[12px] text-emerald-400"
               >
                 {editCommitmentNotice}
               </p>{/if}
             <div class="grid gap-2 sm:grid-cols-2">
-              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+              <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Title <input
                   bind:value={editCommitmentDraft.title}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
                   required
                   type="text"
                 /></label
               >
-              <label class="text-xs font-medium text-[var(--ui-text-muted)]"
+              <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"
                 >Owner <select
                   bind:value={editCommitmentDraft.owner}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
                   required
                   ><option disabled value="">Select</option
                   >{#each $actorRegistry as actor}<option value={actor.id}
@@ -392,18 +411,18 @@
                     >{/each}</select
                 ></label
               >
-              <label class="text-xs font-medium text-[var(--ui-text-muted)]"
+              <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"
                 >Due date <input
                   bind:value={editCommitmentDraft.due_at}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
                   required
                   type="datetime-local"
                 /></label
               >
-              <label class="text-xs font-medium text-[var(--ui-text-muted)]"
+              <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"
                 >Status <select
                   bind:value={editCommitmentDraft.status}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
                   ><option value="open">open</option><option value="blocked"
                     >blocked</option
                   ><option value="done">done</option><option value="canceled"
@@ -411,45 +430,57 @@
                   ></select
                 ></label
               >
-              <div class="self-end text-xs text-[var(--ui-text-muted)]">
+              <div class="self-end text-[12px] text-[var(--ui-text-muted)]">
                 {#if statusRequirementText(editCommitmentDraft.status)}<p
                     class="text-amber-400"
                   >
                     {statusRequirementText(editCommitmentDraft.status)}
                   </p>{/if}
               </div>
-              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
-                >Evidence link <input
+              <div class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2">
+                <label>Evidence link <input
                   bind:value={editCommitmentDraft.statusRefInput}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
                   placeholder="artifact:receipt-123 or event:decision-456"
                   type="text"
-                /></label
-              >
-              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+                /></label>
+                {#if evidenceRefSuggestions.length > 0 && (editCommitmentDraft.status === "done" || editCommitmentDraft.status === "canceled")}
+                  <div class="mt-1.5 flex flex-wrap gap-1">
+                    {#each evidenceRefSuggestions as suggestion}
+                      <button
+                        class="cursor-pointer truncate rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-0.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text)]"
+                        onclick={() => { editCommitmentDraft.statusRefInput = suggestion.ref; }}
+                        title={suggestion.ref}
+                        type="button"
+                      >{suggestion.label}</button>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+              <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Completion criteria (one per line) <textarea
                   bind:value={editCommitmentDraft.definitionOfDoneInput}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
                   rows="2"
                 ></textarea></label
               >
-              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+              <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Links (one per line) <textarea
                   bind:value={editCommitmentDraft.linksInput}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
                   rows="2"
                 ></textarea></label
               >
             </div>
             <div class="mt-2 flex gap-2">
               <button
-                class="cursor-pointer rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                class="cursor-pointer rounded bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
                 disabled={savingCommitmentEdit}
                 type="submit"
                 >{savingCommitmentEdit ? "Saving..." : "Save"}</button
               >
               <button
-                class="cursor-pointer rounded px-3 py-1.5 text-xs text-[var(--ui-text-muted)] hover:bg-[var(--ui-bg-soft)]"
+                class="cursor-pointer rounded px-3 py-1.5 text-[12px] text-[var(--ui-text-muted)] hover:bg-[var(--ui-bg-soft)]"
                 onclick={cancelCommitmentEdit}
                 type="button">Cancel</button
               >

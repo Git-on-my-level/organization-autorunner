@@ -22,7 +22,7 @@
       </svg>
     </div>
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">Unable to start</h1>
-    <p class="mt-2 text-sm text-[var(--ui-text-muted)]">
+    <p class="mt-2 text-[13px] text-[var(--ui-text-muted)]">
       {$page.error?.message ?? "An unexpected error occurred."}
     </p>
     <div

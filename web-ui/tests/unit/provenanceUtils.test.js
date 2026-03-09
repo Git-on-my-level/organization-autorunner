@@ -32,14 +32,14 @@ describe("provenance utils", () => {
       unknown: true,
       inferred: false,
       title: "No provenance",
-      toneClass: "border-slate-300 bg-slate-50 text-slate-700",
+      toneClass: "border-slate-500/20 bg-slate-500/10 text-slate-400",
     });
 
     expect(getProvenancePresentation({ sources: ["inferred"] })).toEqual({
       unknown: false,
       inferred: true,
       title: "Inferred provenance",
-      toneClass: "border-amber-300 bg-amber-50 text-amber-900",
+      toneClass: "border-amber-500/20 bg-amber-500/10 text-amber-400",
     });
 
     expect(
@@ -48,7 +48,7 @@ describe("provenance utils", () => {
       unknown: false,
       inferred: false,
       title: "Evidence-backed provenance",
-      toneClass: "border-emerald-300 bg-emerald-50 text-emerald-900",
+      toneClass: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400",
     });
   });
 });

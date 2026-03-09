@@ -7,7 +7,7 @@
 </script>
 
 <nav
-  class="mb-3 flex items-center gap-1.5 text-sm text-[var(--ui-text-muted)]"
+  class="mb-3 flex items-center gap-1.5 text-[13px] text-[var(--ui-text-muted)]"
   aria-label="Breadcrumb"
 >
   <a class="hover:text-[var(--ui-text)]" href="/threads">Threads</a>
@@ -18,7 +18,7 @@
 {#if snapshot}
   <div class="flex items-start justify-between gap-4">
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">{snapshot.title}</h1>
-    <div class="flex shrink-0 items-center gap-2 text-xs">
+    <div class="flex shrink-0 items-center gap-2 text-[12px]">
       {#if staleness}
         <span
           class="rounded px-2 py-0.5 {staleness.stale

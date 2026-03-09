@@ -83,6 +83,7 @@
   let hasTextContent = $derived(
     typeof textContent === "string" && textContent.length > 0,
   );
+  let isPlainText = $derived(artifactContentType === "text/plain" || artifactContentType.startsWith("text/plain;"));
   let artifactRefHints = $derived(buildArtifactRefHints());
   let reviewEvidenceSuggestions = $derived(
     buildRefSuggestions([
@@ -428,7 +429,7 @@
     </div>
   {/if}
 
-  {#if !isKnownPacketArtifactKind && artifact.kind !== "doc"}
+  {#if !isKnownPacketArtifactKind && artifact.kind !== "doc" && !hasTextContent}
     <div
       class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
     >
@@ -785,10 +786,14 @@
         <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Text Content</h2>
         <span class="text-[11px] text-[var(--ui-text-muted)]">{artifactContentType}</span>
       </div>
-      <MarkdownRenderer
-        source={textContent}
-        class="max-h-[30rem] overflow-auto px-4 py-3 text-[13px] text-[var(--ui-text)]"
-      />
+      {#if isPlainText}
+        <pre class="max-h-[30rem] overflow-auto whitespace-pre-wrap break-words px-4 py-3 font-mono text-[12px] leading-relaxed text-[var(--ui-text)]">{textContent}</pre>
+      {:else}
+        <MarkdownRenderer
+          source={textContent}
+          class="max-h-[30rem] overflow-auto px-4 py-3 text-[13px] text-[var(--ui-text)]"
+        />
+      {/if}
     </div>
   {/if}
 
