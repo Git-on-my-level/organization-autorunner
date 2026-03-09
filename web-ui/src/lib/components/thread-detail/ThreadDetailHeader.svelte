@@ -7,31 +7,31 @@
 </script>
 
 <nav
-  class="mb-3 flex items-center gap-1.5 text-sm text-gray-400"
+  class="mb-3 flex items-center gap-1.5 text-sm text-[var(--ui-text-muted)]"
   aria-label="Breadcrumb"
 >
-  <a class="hover:text-gray-600" href="/threads">Threads</a>
-  <span class="text-gray-300">/</span>
-  <span class="truncate text-gray-700">{snapshot?.title || ""}</span>
+  <a class="hover:text-[var(--ui-text)]" href="/threads">Threads</a>
+  <span class="text-[var(--ui-text-subtle)]">/</span>
+  <span class="truncate text-[var(--ui-text)]">{snapshot?.title || ""}</span>
 </nav>
 
 {#if snapshot}
   <div class="flex items-start justify-between gap-4">
-    <h1 class="text-lg font-semibold text-gray-900">{snapshot.title}</h1>
+    <h1 class="text-lg font-semibold text-[var(--ui-text)]">{snapshot.title}</h1>
     <div class="flex shrink-0 items-center gap-2 text-xs">
       {#if staleness}
         <span
           class="rounded px-2 py-0.5 {staleness.stale
-            ? 'bg-rose-100 text-rose-700'
-            : 'bg-emerald-100 text-emerald-700'}"
+            ? 'bg-rose-500/10 text-rose-400'
+            : 'bg-emerald-500/10 text-emerald-400'}"
         >
           {staleness.label}
         </span>
       {/if}
-      <span class="rounded bg-gray-100 px-2 py-0.5 capitalize text-gray-600"
+      <span class="rounded bg-[var(--ui-border)] px-2 py-0.5 capitalize text-[var(--ui-text-muted)]"
         >{snapshot.status}</span
       >
-      <span class="rounded bg-gray-100 px-2 py-0.5 text-gray-600"
+      <span class="rounded bg-[var(--ui-border)] px-2 py-0.5 text-[var(--ui-text-muted)]"
         >{getPriorityLabel(snapshot.priority)}</span
       >
     </div>

@@ -37,12 +37,12 @@
   }
 </script>
 
-<h1 class="text-lg font-semibold text-gray-900">
-  Snapshot: <span class="font-mono text-gray-500">{snapshotId}</span>
+<h1 class="text-lg font-semibold text-[var(--ui-text)]">
+  Snapshot: <span class="font-mono text-[var(--ui-text-muted)]">{snapshotId}</span>
 </h1>
 
 {#if loading}
-  <div class="mt-6 flex items-center gap-2 text-sm text-gray-400">
+  <div class="mt-6 flex items-center gap-2 text-sm text-[var(--ui-text-muted)]">
     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle
         class="opacity-25"
@@ -62,7 +62,7 @@
   </div>
 {:else if loadError}
   <div
-    class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700"
+    class="mt-3 flex items-start gap-2 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-400"
   >
     <svg
       class="mt-0.5 h-4 w-4 shrink-0 text-red-400"
@@ -80,12 +80,12 @@
     {loadError}
   </div>
 {:else if snapshot}
-  <div class="mt-4 rounded-xl border border-gray-200/80 bg-white shadow-sm">
-    <div class="border-b border-gray-100 px-5 py-3">
-      <h2 class="text-sm font-medium text-gray-900">Raw Snapshot JSON</h2>
+  <div class="mt-4 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-panel)]">
+    <div class="border-b border-[var(--ui-border-subtle)] px-5 py-3">
+      <h2 class="text-sm font-medium text-[var(--ui-text)]">Raw Snapshot JSON</h2>
     </div>
     <pre
-      class="overflow-auto px-5 py-4 text-[11px] text-gray-600">{JSON.stringify(
+      class="overflow-auto px-5 py-4 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(
         snapshot,
         null,
         2,

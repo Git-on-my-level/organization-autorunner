@@ -331,24 +331,24 @@
       review: "text-purple-400 bg-purple-500/10",
       doc: "text-amber-400 bg-amber-500/10",
     };
-    return styles[kind] ?? "text-gray-600 bg-gray-200";
+    return styles[kind] ?? "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
   }
 </script>
 
 <nav
-  class="mb-3 flex items-center gap-1.5 text-[12px] text-gray-400"
+  class="mb-3 flex items-center gap-1.5 text-[12px] text-[var(--ui-text-muted)]"
   aria-label="Breadcrumb"
 >
-  <a class="transition-colors hover:text-gray-600" href="/artifacts"
+  <a class="transition-colors hover:text-[var(--ui-text)]" href="/artifacts"
     >Artifacts</a
   >
-  <span class="text-gray-300">/</span>
-  <span class="truncate text-gray-600">{artifact?.summary || artifactId}</span>
+  <span class="text-[var(--ui-text-subtle)]">/</span>
+  <span class="truncate text-[var(--ui-text-muted)]">{artifact?.summary || artifactId}</span>
 </nav>
 
 {#if loading}
   <div
-    class="mt-8 flex items-center justify-center gap-2 text-[13px] text-gray-400"
+    class="mt-8 flex items-center justify-center gap-2 text-[13px] text-[var(--ui-text-muted)]"
   >
     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle
@@ -372,9 +372,9 @@
     {loadError}
   </div>
 {:else if artifact}
-  <section class="rounded-md border border-gray-200 bg-gray-100 p-4">
-    <h1 class="text-lg font-semibold text-gray-900">{artifactHeaderTitle}</h1>
-    <p class="mt-0.5 text-[13px] text-gray-500">
+  <section class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-4">
+    <h1 class="text-lg font-semibold text-[var(--ui-text)]">{artifactHeaderTitle}</h1>
+    <p class="mt-0.5 text-[13px] text-[var(--ui-text-muted)]">
       {kindDescription(artifact.kind)}
     </p>
 
@@ -382,10 +382,10 @@
       <span class="rounded px-1.5 py-0.5 font-medium {kindColor(artifact.kind)}"
         >{kindLabel(artifact.kind)}</span
       >
-      <span class="text-gray-400"
+      <span class="text-[var(--ui-text-muted)]"
         >{formatTimestamp(artifact.created_at) || "—"}</span
       >
-      <span class="text-gray-400">by {actorName(artifact.created_by)}</span>
+      <span class="text-[var(--ui-text-muted)]">by {actorName(artifact.created_by)}</span>
       {#if artifact.thread_id}
         <RefLink
           humanize
@@ -396,15 +396,15 @@
         />
       {/if}
     </div>
-    <p class="mt-1 text-[11px] text-gray-400">ID: {artifact.id}</p>
+    <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">ID: {artifact.id}</p>
     <div class="mt-1.5">
       <ProvenanceBadge provenance={artifact.provenance} />
     </div>
   </section>
 
   {#if (artifact.refs ?? []).length > 0}
-    <div class="mt-3 rounded-md border border-gray-200 bg-gray-100 p-3">
-      <h2 class="text-[13px] font-medium text-gray-900">Linked references</h2>
+    <div class="mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3">
+      <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Linked references</h2>
       <div class="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
         {#each artifact.refs ?? [] as refValue}
           <RefLink
@@ -437,15 +437,15 @@
   {/if}
 
   {#if workOrderPacket}
-    <div class="mt-4 rounded-md border border-gray-200 bg-gray-100">
-      <div class="border-b border-gray-200 px-4 py-2.5">
-        <h2 class="text-[13px] font-medium text-gray-900">Work Order</h2>
+    <div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)]">
+      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
+        <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Work Order</h2>
       </div>
-      <div class="px-4 py-3 text-[13px] text-gray-800">
+      <div class="px-4 py-3 text-[13px] text-[var(--ui-text)]">
         <p class="font-medium">{workOrderPacket.objective || "No objective"}</p>
         {#if (workOrderPacket.constraints ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">Constraints</p>
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Constraints</p>
             <ul class="mt-1 space-y-0.5">
               {#each workOrderPacket.constraints as c}
                 <li class="flex items-start gap-2">
@@ -458,7 +458,7 @@
         {/if}
         {#if (workOrderPacket.context_refs ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">Context</p>
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Context</p>
             <div class="mt-1 flex flex-wrap gap-1.5 text-[11px]">
               {#each workOrderPacket.context_refs as r}<RefLink
                   humanize
@@ -472,7 +472,7 @@
         {/if}
         {#if (workOrderPacket.acceptance_criteria ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
               Acceptance criteria
             </p>
             <ul class="mt-1 space-y-0.5">
@@ -487,7 +487,7 @@
         {/if}
         {#if (workOrderPacket.definition_of_done ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
               Definition of done
             </p>
             <ul class="mt-1 space-y-0.5">
@@ -505,12 +505,12 @@
   {/if}
 
   {#if receiptPacket}
-    <div class="mt-4 rounded-md border border-gray-200 bg-gray-100">
-      <div class="border-b border-gray-200 px-4 py-2.5">
-        <h2 class="text-[13px] font-medium text-gray-900">Receipt</h2>
+    <div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)]">
+      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
+        <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Receipt</h2>
       </div>
       <div class="px-4 py-3 text-[13px]">
-        <div class="flex flex-wrap gap-3 text-[12px] text-gray-500">
+        <div class="flex flex-wrap gap-3 text-[12px] text-[var(--ui-text-muted)]">
           <span class="flex items-center gap-1"
             >Work order: <RefLink
               humanize
@@ -530,7 +530,7 @@
         </div>
         {#if (receiptPacket.outputs ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">Outputs</p>
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Outputs</p>
             <div class="mt-1 flex flex-wrap gap-1.5 text-[11px]">
               {#each receiptPacket.outputs as r}<RefLink
                   humanize
@@ -544,7 +544,7 @@
         {/if}
         {#if (receiptPacket.verification_evidence ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
               Verification evidence
             </p>
             <div class="mt-1 flex flex-wrap gap-1.5 text-[11px]">
@@ -559,20 +559,20 @@
           </div>
         {/if}
         <div class="mt-3">
-          <p class="text-[11px] font-medium text-gray-400">Changes summary</p>
+          <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Changes summary</p>
           {#if receiptPacket.changes_summary}
             <MarkdownRenderer
               source={receiptPacket.changes_summary}
-              class="mt-1 leading-relaxed text-gray-800"
+              class="mt-1 leading-relaxed text-[var(--ui-text)]"
             />
           {:else}
-            <p class="mt-1 leading-relaxed text-gray-800">—</p>
+            <p class="mt-1 leading-relaxed text-[var(--ui-text)]">—</p>
           {/if}
         </div>
         {#if (receiptPacket.known_gaps ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">Known gaps</p>
-            <ul class="mt-1 space-y-0.5 text-gray-600">
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Known gaps</p>
+            <ul class="mt-1 space-y-0.5 text-[var(--ui-text-muted)]">
               {#each receiptPacket.known_gaps as g}
                 <li class="flex items-start gap-2">
                   <span
@@ -585,8 +585,8 @@
         {/if}
       </div>
 
-      <div class="border-t border-gray-200 px-4 py-3">
-        <h3 class="text-[13px] font-medium text-gray-900">Submit Review</h3>
+      <div class="border-t border-[var(--ui-border)] px-4 py-3">
+        <h3 class="text-[13px] font-medium text-[var(--ui-text)]">Submit Review</h3>
         {#if reviewErrors.length > 0}
           <ul
             class="mt-2 list-inside list-disc rounded-md bg-red-500/10 px-3 py-2 text-[12px] text-red-400"
@@ -613,12 +613,12 @@
         {/if}
         {#if reviewDraft}
           <form class="mt-2 grid gap-3" onsubmit={submitReview}>
-            <label class="text-[12px] font-medium text-gray-600"
+            <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"
               >Outcome
               <select
                 aria-label="Review outcome"
                 bind:value={reviewDraft.outcome}
-                class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] focus:bg-gray-100"
+                class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] focus:bg-[var(--ui-panel)]"
               >
                 <option value="accept">Accept</option><option value="revise"
                   >Revise</option
@@ -632,17 +632,17 @@
               </p>{/if}
             {#if reviewOutcomeGuidance}
               <p
-                class="-mt-1 rounded-md bg-gray-50 px-3 py-1.5 text-[12px] text-gray-500"
+                class="-mt-1 rounded-md bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] text-[var(--ui-text-muted)]"
               >
                 {reviewOutcomeGuidance}
               </p>
             {/if}
-            <label class="text-[12px] font-medium text-gray-600"
+            <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"
               >Notes
               <textarea
                 aria-label="Review notes"
                 bind:value={reviewDraft.notes}
-                class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-[13px] focus:bg-gray-100"
+                class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[13px] focus:bg-[var(--ui-panel)]"
                 placeholder="Review notes..."
                 rows="2"
               ></textarea>
@@ -652,7 +652,7 @@
               >
                 {firstFieldError(reviewFieldErrors, "notes")}
               </p>{/if}
-            <div class="text-[12px] font-medium text-gray-600">
+            <div class="text-[12px] font-medium text-[var(--ui-text-muted)]">
               Evidence refs
               <GuidedTypedRefsInput
                 addButtonLabel="Add review evidence ref"
@@ -671,7 +671,7 @@
             </div>
             <div class="flex justify-end">
               <button
-                class="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                class="cursor-pointer rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
                 disabled={submittingReview}
                 type="submit"
                 >{submittingReview ? "Submitting..." : "Submit review"}</button
@@ -680,7 +680,7 @@
           </form>
         {/if}
         {#if createdReview}
-          <div class="mt-2 text-[12px] text-gray-500">
+          <div class="mt-2 text-[12px] text-[var(--ui-text-muted)]">
             Review submitted: <a
               class="font-medium text-indigo-400 hover:text-indigo-400"
               href={`/artifacts/${createdReview.id}`}
@@ -691,21 +691,21 @@
       </div>
 
       {#if threadTimeline.length > 0 || timelineLoading}
-        <div class="border-t border-gray-200 px-4 py-3">
-          <h3 class="text-[13px] font-medium text-gray-900">Thread Timeline</h3>
+        <div class="border-t border-[var(--ui-border)] px-4 py-3">
+          <h3 class="text-[13px] font-medium text-[var(--ui-text)]">Thread Timeline</h3>
           {#if timelineLoading}
-            <div class="mt-2 text-[12px] text-gray-400">Loading...</div>
+            <div class="mt-2 text-[12px] text-[var(--ui-text-muted)]">Loading...</div>
           {:else if timelineError}
             <p class="mt-2 text-[12px] text-red-400">{timelineError}</p>
           {:else}
             <div class="mt-2 space-y-1">
               {#each timelineView.slice(0, 10) as event}
-                <div class="rounded-md bg-gray-50 px-3 py-2 text-[12px]">
+                <div class="rounded-md bg-[var(--ui-bg-soft)] px-3 py-2 text-[12px]">
                   <MarkdownRenderer
                     source={event.summary}
-                    class="font-medium text-gray-800"
+                    class="font-medium text-[var(--ui-text)]"
                   />
-                  <p class="text-[11px] text-gray-400">
+                  <p class="text-[11px] text-[var(--ui-text-muted)]">
                     {actorName(event.actor_id)} · {event.typeLabel} · {formatTimestamp(
                       event.ts,
                     ) || "—"}
@@ -720,9 +720,9 @@
   {/if}
 
   {#if reviewPacket}
-    <div class="mt-4 rounded-md border border-gray-200 bg-gray-100">
-      <div class="border-b border-gray-200 px-4 py-2.5">
-        <h2 class="text-[13px] font-medium text-gray-900">Review</h2>
+    <div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)]">
+      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
+        <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Review</h2>
       </div>
       <div class="px-4 py-3 text-[13px]">
         <div class="flex items-center gap-3">
@@ -734,7 +734,7 @@
                 ? 'bg-amber-500/10 text-amber-400'
                 : 'bg-red-500/10 text-red-400'}">{reviewPacket.outcome}</span
           >
-          <span class="text-[12px] text-gray-500"
+          <span class="text-[12px] text-[var(--ui-text-muted)]"
             >Receipt: <RefLink
               humanize
               labelHints={artifactRefHints}
@@ -743,7 +743,7 @@
               threadId={artifact.thread_id}
             /></span
           >
-          <span class="text-[12px] text-gray-500"
+          <span class="text-[12px] text-[var(--ui-text-muted)]"
             >Work order: <RefLink
               humanize
               labelHints={artifactRefHints}
@@ -756,12 +756,12 @@
         {#if reviewPacket.notes}
           <MarkdownRenderer
             source={reviewPacket.notes}
-            class="mt-2 leading-relaxed text-gray-700"
+            class="mt-2 leading-relaxed text-[var(--ui-text)]"
           />
         {/if}
         {#if (reviewPacket.evidence_refs ?? []).length > 0}
           <div class="mt-3">
-            <p class="text-[11px] font-medium text-gray-400">Evidence</p>
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Evidence</p>
             <div class="mt-1 flex flex-wrap gap-1.5 text-[11px]">
               {#each reviewPacket.evidence_refs as r}<RefLink
                   humanize
@@ -778,27 +778,27 @@
   {/if}
 
   {#if hasTextContent}
-    <div class="mt-4 rounded-md border border-gray-200 bg-gray-100">
+    <div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)]">
       <div
-        class="flex items-center justify-between border-b border-gray-200 px-4 py-2.5"
+        class="flex items-center justify-between border-b border-[var(--ui-border)] px-4 py-2.5"
       >
-        <h2 class="text-[13px] font-medium text-gray-900">Text Content</h2>
-        <span class="text-[11px] text-gray-400">{artifactContentType}</span>
+        <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Text Content</h2>
+        <span class="text-[11px] text-[var(--ui-text-muted)]">{artifactContentType}</span>
       </div>
       <MarkdownRenderer
         source={textContent}
-        class="max-h-[30rem] overflow-auto px-4 py-3 text-[13px] text-gray-800"
+        class="max-h-[30rem] overflow-auto px-4 py-3 text-[13px] text-[var(--ui-text)]"
       />
     </div>
   {/if}
 
-  <details class="mt-4 rounded-md border border-gray-200 bg-gray-100">
+  <details class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)]">
     <summary
-      class="cursor-pointer px-4 py-2.5 text-[11px] text-gray-400 hover:text-gray-600"
+      class="cursor-pointer px-4 py-2.5 text-[11px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"
       >Raw metadata JSON</summary
     >
     <pre
-      class="overflow-auto px-4 pb-3 text-[11px] text-gray-500">{JSON.stringify(
+      class="overflow-auto px-4 pb-3 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(
         artifact,
         null,
         2,
@@ -806,13 +806,13 @@
   </details>
 
   {#if artifactContent && !textContent}
-    <details class="mt-2 rounded-md border border-gray-200 bg-gray-100">
+    <details class="mt-2 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)]">
       <summary
-        class="cursor-pointer px-4 py-2.5 text-[11px] text-gray-400 hover:text-gray-600"
+        class="cursor-pointer px-4 py-2.5 text-[11px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"
         >Raw content JSON</summary
       >
       <pre
-        class="overflow-auto px-4 pb-3 text-[11px] text-gray-500">{JSON.stringify(
+        class="overflow-auto px-4 pb-3 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(
           artifactContent,
           null,
           2,
@@ -820,7 +820,7 @@
     </details>
   {/if}
 {:else}
-  <div class="mt-8 text-center text-[13px] text-gray-400">
+  <div class="mt-8 text-center text-[13px] text-[var(--ui-text-muted)]">
     Artifact not found.
   </div>
 {/if}

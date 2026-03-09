@@ -115,27 +115,27 @@
 <ThreadDetailHeader {threadId} onEditClick={() => {}} />
 
 {#if snapshotLoading}
-  <p class="text-sm text-gray-400">Loading...</p>
+  <p class="text-sm text-[var(--ui-text-muted)]">Loading...</p>
 {:else if snapshotError}
-  <p class="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+  <p class="rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-400">
     {snapshotError}
   </p>
 {:else if !snapshot}
-  <p class="text-sm text-gray-400">Thread not found.</p>
+  <p class="text-sm text-[var(--ui-text-muted)]">Thread not found.</p>
 {:else}
   <nav
-    class="mt-3 flex gap-0 border-b border-gray-200"
+    class="mt-3 flex gap-0 border-b border-[var(--ui-border)]"
     aria-label="Thread sections"
   >
     {#each [["overview", "Overview"], ["work", "Work"], ["timeline", "Timeline"]] as [tabId, tabLabel]}
       <button
-        class={`relative px-3 py-2 text-sm font-medium transition-colors ${activeTab === tabId ? "text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+        class={`relative cursor-pointer px-3 py-2 text-sm font-medium transition-colors ${activeTab === tabId ? "text-[var(--ui-text)]" : "text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"}`}
         onclick={() => (activeTab = tabId)}
         type="button"
       >
         {tabLabel}
         {#if activeTab === tabId}
-          <span class="absolute inset-x-0 -bottom-px h-0.5 bg-indigo-600"
+          <span class="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-indigo-500"
           ></span>
         {/if}
       </button>

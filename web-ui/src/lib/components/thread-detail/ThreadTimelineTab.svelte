@@ -60,32 +60,32 @@
   }
 </script>
 
-<div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+<div class="mt-4 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
   {#if postMessageError}<p
-      class="mb-3 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+      class="mb-3 rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
     >
       {postMessageError}
     </p>{/if}
   <textarea
     bind:value={messageText}
-    class="w-full rounded border border-gray-200 px-3 py-2 text-sm"
+    class="w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-sm text-[var(--ui-text)]"
     id="message-text"
     placeholder="Write a message..."
     rows="2"
   ></textarea>
   <div class="mt-2 flex items-center justify-between gap-2">
-    <div class="flex items-center gap-2 text-xs text-gray-400">
+    <div class="flex items-center gap-2 text-xs text-[var(--ui-text-muted)]">
       {#if replyToEventId}
         <span>Replying to event</span>
         <button
-          class="text-indigo-600 hover:text-indigo-800"
+          class="cursor-pointer text-indigo-400 hover:text-indigo-300"
           onclick={clearReplyTarget}
           type="button">Clear</button
         >
       {/if}
     </div>
     <button
-      class="rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+      class="cursor-pointer rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
       disabled={!canPost}
       onclick={handlePostMessage}
       type="button"
@@ -96,38 +96,38 @@
 </div>
 
 <div class="mt-4">
-  <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+  <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
     Timeline
   </h2>
   {#if timelineLoading}
-    <p class="text-sm text-gray-400">Loading timeline...</p>
+    <p class="text-sm text-[var(--ui-text-muted)]">Loading timeline...</p>
   {:else if timelineError}
-    <p class="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
+    <p class="rounded bg-red-500/10 px-3 py-2 text-sm text-red-400">
       {timelineError}
     </p>
   {:else if timelineView.length === 0}
-    <p class="text-sm text-gray-400">No events yet.</p>
+    <p class="text-sm text-[var(--ui-text-muted)]">No events yet.</p>
   {:else}
     <div class="space-y-1">
       {#each timelineView as event}
         <div
-          class="group rounded-md border border-gray-200 bg-white px-4 py-2.5"
+          class="group rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-4 py-2.5"
           id={`event-${event.id}`}
         >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <MarkdownRenderer
                 source={event.summary}
-                class="text-sm text-gray-900"
+                class="text-sm text-[var(--ui-text)]"
               />
-              <p class="mt-0.5 text-xs text-gray-400">
+              <p class="mt-0.5 text-xs text-[var(--ui-text-muted)]">
                 {actorName(event.actor_id)} · {event.typeLabel} · {formatTimestamp(
                   event.ts,
                 ) || "—"}
               </p>
             </div>
             <button
-              class="shrink-0 rounded px-2 py-0.5 text-xs text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100"
+              class="shrink-0 cursor-pointer rounded px-2 py-0.5 text-xs text-[var(--ui-text-muted)] opacity-0 transition-opacity hover:bg-[var(--ui-bg-soft)] hover:text-[var(--ui-text)] group-hover:opacity-100"
               onclick={() => setReplyTarget(event.id)}
               type="button">Reply</button
             >
@@ -136,7 +136,7 @@
           {#if event.changedFields.length > 0}
             <div class="mt-1.5 flex flex-wrap gap-1 text-xs">
               {#each event.changedFields as field}
-                <span class="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500"
+                <span class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[var(--ui-text-muted)]"
                   >{field}</span
                 >
               {/each}
@@ -154,11 +154,11 @@
 
           {#if !event.isKnownType}
             <details class="mt-1.5">
-              <summary class="cursor-pointer text-xs text-gray-400"
+              <summary class="cursor-pointer text-xs text-[var(--ui-text-muted)]"
                 >Details</summary
               >
               <pre
-                class="mt-1 overflow-auto rounded bg-gray-50 p-2 text-[11px] text-gray-600">{JSON.stringify(
+                class="mt-1 overflow-auto rounded bg-[var(--ui-bg-soft)] p-2 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(
                   event.payload ?? {},
                   null,
                   2,

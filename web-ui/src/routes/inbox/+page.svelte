@@ -223,21 +223,21 @@
   function filterButtonClass(filterName) {
     const active = urgencyFilter === filterName;
     if (active) {
-      return "bg-gray-300 text-gray-900";
+      return "bg-[var(--ui-border-strong)] text-[var(--ui-text)]";
     }
-    return "bg-gray-100 text-gray-600 hover:bg-gray-200";
+    return "bg-[var(--ui-bg-soft)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]";
   }
 </script>
 
 <div class="flex items-baseline justify-between gap-4 mb-4">
   <div>
-    <h1 class="text-lg font-semibold text-gray-900">Inbox</h1>
-    <p class="text-[13px] text-gray-500">
+    <h1 class="text-lg font-semibold text-[var(--ui-text)]">Inbox</h1>
+    <p class="text-[13px] text-[var(--ui-text-muted)]">
       Items sorted by urgency. Older items surface first.
     </p>
   </div>
   <span
-    class="inline-flex items-center gap-1.5 rounded-md bg-gray-200 px-2.5 py-1.5 text-[13px] font-semibold text-gray-700"
+    class="inline-flex items-center gap-1.5 rounded-md bg-[var(--ui-panel)] px-2.5 py-1.5 text-[13px] font-semibold text-[var(--ui-text)]"
     data-testid="inbox-triage-header"
   >
     {totalItems} open
@@ -245,32 +245,32 @@
 </div>
 
 <div class="flex gap-2 mb-4" data-testid="urgency-summary-immediate">
-  <div class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2">
+  <div class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2">
     <p class="text-[11px] font-medium text-red-400">Immediate</p>
-    <p class="text-lg font-semibold text-gray-900">
+    <p class="text-lg font-semibold text-[var(--ui-text)]">
       {urgencySummary.immediate}
     </p>
   </div>
   <div
-    class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2"
+    class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
     data-testid="urgency-summary-high"
   >
     <p class="text-[11px] font-medium text-amber-400">High</p>
-    <p class="text-lg font-semibold text-gray-900">{urgencySummary.high}</p>
+    <p class="text-lg font-semibold text-[var(--ui-text)]">{urgencySummary.high}</p>
   </div>
   <div
-    class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2"
+    class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
     data-testid="urgency-summary-normal"
   >
-    <p class="text-[11px] font-medium text-gray-400">Normal</p>
-    <p class="text-lg font-semibold text-gray-900">{urgencySummary.normal}</p>
+    <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Normal</p>
+    <p class="text-lg font-semibold text-[var(--ui-text)]">{urgencySummary.normal}</p>
   </div>
 </div>
 
 <div class="flex flex-wrap gap-1.5 mb-5" data-testid="inbox-filter-bar">
   {#each [["all", `All (${totalItems})`], ["immediate", `Immediate (${urgencySummary.immediate})`], ["high", `High (${urgencySummary.high})`], ["aging", "Aging 24h+"]] as [value, label]}
     <button
-      class="rounded-md border border-gray-200 px-2.5 py-1.5 text-[12px] font-medium transition-colors {filterButtonClass(
+      class="cursor-pointer rounded-md border border-[var(--ui-border)] px-2.5 py-1.5 text-[12px] font-medium transition-colors {filterButtonClass(
         value,
       )}"
       onclick={() => {
@@ -287,15 +287,15 @@
   <div class="mb-4 space-y-1.5">
     {#each Object.values(pendingAckById) as pending}
       <div
-        class="flex items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-[12px] text-gray-600"
+        class="flex items-center justify-between gap-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[12px] text-[var(--ui-text-muted)]"
       >
         <span class="truncate"
-          >Dismissed: <span class="font-medium text-gray-800"
+          >Dismissed: <span class="font-medium text-[var(--ui-text)]"
             >{pending.item.title ?? pending.item.summary ?? "item"}</span
           ></span
         >
         <button
-          class="shrink-0 font-medium text-indigo-600 hover:text-indigo-500"
+          class="cursor-pointer shrink-0 font-medium text-indigo-600 hover:text-indigo-500"
           onclick={() => undoAcknowledge(pending.item.id)}
           type="button"
         >
@@ -317,7 +317,7 @@
 
 {#if loading}
   <div
-    class="mt-12 flex items-center justify-center gap-2 text-[13px] text-gray-400"
+    class="mt-12 flex items-center justify-center gap-2 text-[13px] text-[var(--ui-text-muted)]"
   >
     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle
@@ -338,22 +338,22 @@
   </div>
 {:else if totalItems === 0}
   <div class="mt-8 text-center py-8" data-testid="inbox-empty-state">
-    <h2 class="text-[13px] font-semibold text-gray-900">Inbox is clear</h2>
-    <p class="mt-1 text-[13px] text-gray-500">
+    <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">Inbox is clear</h2>
+    <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
       Nothing needs attention right now.
     </p>
   </div>
 {:else if !hasFilteredItems}
   <div class="mt-8 text-center py-8" data-testid="inbox-filter-empty-state">
-    <h2 class="text-[13px] font-semibold text-gray-900">
+    <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">
       No items match this view
     </h2>
-    <p class="mt-1 text-[13px] text-gray-500">
+    <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
       Try switching back to <span class="font-semibold">All</span> to see the full
       queue.
     </p>
     <button
-      class="mt-3 rounded-md border border-gray-200 bg-gray-100 px-3 py-1.5 text-[13px] font-medium text-gray-600 hover:bg-gray-200"
+      class="cursor-pointer mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[13px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
       onclick={() => {
         urgencyFilter = "all";
       }}
@@ -368,17 +368,17 @@
       <section data-testid={`inbox-group-${group.category}`}>
         <div class="mb-2 flex items-center gap-2">
           <h2
-            class="text-[12px] font-semibold uppercase tracking-wide text-gray-400"
+            class="text-[12px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
           >
             {getInboxCategoryLabel(group.category)}
           </h2>
-          <span class="text-[11px] text-gray-300">{group.items.length}</span>
+          <span class="text-[11px] text-[var(--ui-text-subtle)]">{group.items.length}</span>
         </div>
 
         <div class="space-y-2">
           {#each group.items as item}
             <article
-              class="rounded-md border border-gray-200 border-l-[3px] bg-gray-100 px-4 py-3 {urgencyBorderClass(
+              class="rounded-md border border-[var(--ui-border)] border-l-[3px] bg-[var(--ui-bg-soft)] px-4 py-3 {urgencyBorderClass(
                 item.urgency_level,
               )}"
               data-testid={`inbox-card-${item.id}`}
@@ -389,33 +389,33 @@
                     item.urgency_level,
                   )}"
                 ></span>
-                <span class="font-medium text-gray-500"
+                <span class="font-medium text-[var(--ui-text-muted)]"
                   >{item.urgency_label}</span
                 >
-                <span class="text-gray-300">{item.age_label}</span>
+                <span class="text-[var(--ui-text-subtle)]">{item.age_label}</span>
                 {#if item.has_source_event_time}
-                  <span class="text-gray-300">
+                  <span class="text-[var(--ui-text-subtle)]">
                     {formatTimestamp(item.source_event_time)}
                   </span>
                 {/if}
               </div>
 
               <h3
-                class="mt-1.5 text-[13px] font-semibold text-gray-900 leading-snug"
+                class="mt-1.5 text-[13px] font-semibold text-[var(--ui-text)] leading-snug"
               >
                 {item.title}
               </h3>
 
               {#if item.recommended_action}
-                <div class="mt-2 rounded bg-gray-50 px-3 py-2">
+                <div class="mt-2 rounded bg-[var(--ui-bg-soft)] px-3 py-2">
                   <p
-                    class="text-[11px] font-medium text-gray-400 uppercase tracking-wide"
+                    class="text-[11px] font-medium text-[var(--ui-text-muted)] uppercase tracking-wide"
                   >
                     Recommended
                   </p>
                   <MarkdownRenderer
                     source={item.recommended_action}
-                    class="mt-0.5 text-[13px] text-gray-700"
+                    class="mt-0.5 text-[13px] text-[var(--ui-text)]"
                   />
                 </div>
               {/if}
@@ -423,13 +423,13 @@
               <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
                 {#if item.thread_id}
                   <a
-                    class="font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                    class="font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
                     href={`/threads/${item.thread_id}`}>Thread</a
                   >
                 {/if}
                 {#if item.commitment_id}
                   <a
-                    class="font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                    class="font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
                     href={item.thread_id
                       ? `/threads/${item.thread_id}#commitment-card-${item.commitment_id}`
                       : `/threads#commitment-card-${item.commitment_id}`}
@@ -444,7 +444,7 @@
               <div class="mt-3 flex items-center gap-2">
                 <button
                   aria-label="Dismiss"
-                  class="rounded-md border border-gray-200 bg-gray-100 px-3 py-1.5 text-[12px] font-medium text-gray-600 transition-colors hover:bg-gray-200 disabled:opacity-50"
+                  class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] disabled:opacity-50"
                   disabled={Boolean(ackInFlightById[item.id])}
                   onclick={() => acknowledgeItem(item)}
                   type="button"
@@ -452,10 +452,10 @@
                   {ackInFlightById[item.id] ? "Dismissing..." : "Dismiss"}
                 </button>
                 <button
-                  class="rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors {getDecisionForm(
+                  class="cursor-pointer rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors {getDecisionForm(
                     item.id,
                   ).open
-                    ? 'border border-gray-200 bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    ? 'border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]'
                     : 'bg-indigo-600 text-white hover:bg-indigo-500'}"
                   onclick={() =>
                     toggleDecisionForm(item, !getDecisionForm(item.id).open)}
@@ -496,7 +496,7 @@
 
               {#if getDecisionForm(item.id).open}
                 <form
-                  class="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+                  class="mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
                   data-testid={`decision-form-${item.id}`}
                   onsubmit={(event) => {
                     event.preventDefault();
@@ -504,13 +504,13 @@
                   }}
                 >
                   <label
-                    class="block text-[12px] font-medium text-gray-600"
+                    class="block text-[12px] font-medium text-[var(--ui-text-muted)]"
                     for={`decision-summary-${item.id}`}
                   >
                     Your decision
                   </label>
                   <input
-                    class="mt-1 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-[13px] transition-colors"
+                    class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors"
                     id={`decision-summary-${item.id}`}
                     oninput={(event) =>
                       updateDecisionField(
@@ -527,15 +527,15 @@
                     </p>
                   {/if}
                   <label
-                    class="mt-2 block text-[12px] font-medium text-gray-600"
+                    class="mt-2 block text-[12px] font-medium text-[var(--ui-text-muted)]"
                     for={`decision-notes-${item.id}`}
                   >
-                    Rationale <span class="font-normal text-gray-400"
+                    Rationale <span class="font-normal text-[var(--ui-text-muted)]"
                       >optional</span
                     >
                   </label>
                   <textarea
-                    class="mt-1 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-[13px] transition-colors"
+                    class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors"
                     id={`decision-notes-${item.id}`}
                     oninput={(event) =>
                       updateDecisionField(
@@ -548,7 +548,7 @@
                   >
                   <div class="mt-2 flex justify-end">
                     <button
-                      class="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                      class="cursor-pointer rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
                       disabled={Boolean(decisionInFlightById[item.id])}
                       type="submit"
                     >

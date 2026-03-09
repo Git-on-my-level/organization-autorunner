@@ -93,10 +93,10 @@
       receipt: "text-emerald-400 bg-emerald-500/10",
       review: "text-amber-400 bg-amber-500/10",
       doc: "text-fuchsia-400 bg-fuchsia-500/10",
-      evidence: "text-gray-600 bg-gray-200",
+      evidence: "text-[var(--ui-text-muted)] bg-[var(--ui-border)]",
       log: "text-teal-400 bg-teal-500/10",
     };
-    return styles[kind] ?? "text-gray-600 bg-gray-200";
+    return styles[kind] ?? "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
   }
 
   function rowHeading(artifact) {
@@ -112,9 +112,9 @@
 </script>
 
 <div class="flex items-center justify-between mb-4">
-  <h1 class="text-lg font-semibold text-gray-900">Artifacts</h1>
+  <h1 class="text-lg font-semibold text-[var(--ui-text)]">Artifacts</h1>
   <button
-    class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-[12px] font-medium text-gray-600 transition-colors hover:bg-gray-200"
+    class="cursor-pointer inline-flex items-center gap-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)]"
     onclick={() => (filtersOpen = !filtersOpen)}
     type="button"
   >
@@ -137,53 +137,53 @@
 
 {#if filtersOpen}
   <form
-    class="mb-4 rounded-md border border-gray-200 bg-gray-100 p-3"
+    class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
     onsubmit={(event) => {
       event.preventDefault();
       void applyFilters();
     }}
   >
     <div class="grid gap-3 sm:grid-cols-2">
-      <label class="text-[12px] font-medium text-gray-500">
+      <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Kind
         <input
           bind:value={filters.kind}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="work_order, receipt, review..."
         />
       </label>
-      <label class="text-[12px] font-medium text-gray-500">
+      <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Thread ID
         <input
           bind:value={filters.thread_id}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="thread-onboarding"
         />
       </label>
-      <label class="text-[12px] font-medium text-gray-500">
+      <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Created after
         <input
           bind:value={filters.created_after}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           type="datetime-local"
         />
       </label>
-      <label class="text-[12px] font-medium text-gray-500">
+      <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Created before
         <input
           bind:value={filters.created_before}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           type="datetime-local"
         />
       </label>
     </div>
     <div class="mt-3 flex gap-1.5">
       <button
-        class="rounded-md bg-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-900 hover:bg-gray-300"
+        class="cursor-pointer rounded-md bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text)] hover:bg-[var(--ui-border)]"
         type="submit">Apply</button
       >
       <button
-        class="rounded-md border border-gray-200 bg-gray-100 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-200"
+        class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
         onclick={clearFilters}
         type="button">Clear</button
       >
@@ -197,8 +197,8 @@
   </div>
 {:else if !loading && artifacts.length === 0}
   <div class="mt-8 text-center">
-    <p class="text-[13px] font-medium text-gray-500">No matching artifacts</p>
-    <p class="mt-1 text-[13px] text-gray-400">
+    <p class="text-[13px] font-medium text-[var(--ui-text-muted)]">No matching artifacts</p>
+    <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
       Try adjusting filters or clearing the current view.
     </p>
   </div>
@@ -206,12 +206,12 @@
 
 {#if artifacts.length > 0}
   <div
-    class="space-y-px rounded-md border border-gray-200 bg-gray-100 overflow-hidden"
+    class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
   >
     {#each artifacts as artifact, i}
       <a
-        class="block px-4 py-3 transition-colors hover:bg-gray-200 {i > 0
-          ? 'border-t border-gray-200'
+        class="block px-4 py-3 transition-colors hover:bg-[var(--ui-border-subtle)] {i > 0
+          ? 'border-t border-[var(--ui-border)]'
           : ''}"
         href={`/artifacts/${artifact.id}`}
       >
@@ -225,19 +225,19 @@
               >
                 {kindLabel(artifact.kind)}
               </span>
-              <span class="text-[11px] text-gray-400"
+              <span class="text-[11px] text-[var(--ui-text-muted)]"
                 >{kindDescription(artifact.kind)}</span
               >
             </div>
-            <p class="mt-1 truncate text-[13px] font-medium text-gray-900">
+            <p class="mt-1 truncate text-[13px] font-medium text-[var(--ui-text)]">
               {rowHeading(artifact)}
             </p>
-            <p class="text-[11px] text-gray-400">
+            <p class="text-[11px] text-[var(--ui-text-muted)]">
               Created {formatTimestamp(artifact.created_at) || "—"} by {artifact.created_by ||
                 "unknown"}
             </p>
           </div>
-          <span class="shrink-0 text-[11px] text-gray-300">
+          <span class="shrink-0 text-[11px] text-[var(--ui-text-subtle)]">
             {(artifact.refs ?? []).length} ref{(artifact.refs ?? []).length ===
             1
               ? ""
@@ -267,7 +267,7 @@
               />
             {/each}
             {#if (artifact.refs ?? []).length > 3}
-              <span class="text-[11px] text-gray-300"
+              <span class="text-[11px] text-[var(--ui-text-subtle)]"
                 >+{artifact.refs.length - 3} more</span
               >
             {/if}

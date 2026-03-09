@@ -67,10 +67,10 @@
   }
 
   function statusBadgeClass(status) {
-    if (status === "done") return "bg-emerald-100 text-emerald-700";
-    if (status === "blocked") return "bg-amber-100 text-amber-700";
-    if (status === "canceled") return "bg-gray-100 text-gray-500";
-    return "bg-blue-50 text-blue-700";
+    if (status === "done") return "bg-emerald-500/10 text-emerald-400";
+    if (status === "blocked") return "bg-amber-500/10 text-amber-400";
+    if (status === "canceled") return "bg-[var(--ui-border)] text-[var(--ui-text-muted)]";
+    return "bg-blue-500/10 text-blue-400";
   }
 
   function statusRequirementText(status) {
@@ -210,57 +210,57 @@
   });
 </script>
 
-<div class="mt-4 rounded-lg border border-gray-200 bg-white">
+<div class="mt-4 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-panel)]">
   <div
-    class="flex items-center justify-between border-b border-gray-100 px-4 py-2.5"
+    class="flex items-center justify-between border-b border-[var(--ui-border-subtle)] px-4 py-2.5"
   >
-    <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
       Commitments
     </h2>
     <button
-      class="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+      class="cursor-pointer rounded px-2 py-1 text-xs font-medium text-indigo-400 hover:bg-[var(--ui-bg-soft)] hover:text-indigo-300"
       onclick={() => (commitmentFormOpen = !commitmentFormOpen)}
       type="button">{commitmentFormOpen ? "Cancel" : "New"}</button
     >
   </div>
 
   {#if commitmentConflictWarning}<p
-      class="border-b border-gray-100 bg-amber-50 px-4 py-2 text-xs text-amber-700"
+      class="border-b border-[var(--ui-border-subtle)] bg-amber-500/10 px-4 py-2 text-xs text-amber-400"
     >
       {commitmentConflictWarning}
     </p>{/if}
   {#if createCommitmentNotice}<p
-      class="border-b border-gray-100 bg-emerald-50 px-4 py-2 text-xs text-emerald-700"
+      class="border-b border-[var(--ui-border-subtle)] bg-emerald-500/10 px-4 py-2 text-xs text-emerald-400"
     >
       {createCommitmentNotice}
     </p>{/if}
 
   {#if commitmentFormOpen}
     <form
-      class="border-b border-gray-100 px-4 py-3"
+      class="border-b border-[var(--ui-border-subtle)] px-4 py-3"
       onsubmit={(event) => {
         event.preventDefault();
         void handleCreateCommitment();
       }}
     >
       {#if createCommitmentError}<p
-          class="mb-2 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+          class="mb-2 rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
         >
           {createCommitmentError}
         </p>{/if}
       <div class="grid gap-2 sm:grid-cols-2">
-        <label class="text-xs font-medium text-gray-600 sm:col-span-2"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Title <input
             bind:value={createCommitmentDraft.title}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             required
             type="text"
           /></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Owner <select
             bind:value={createCommitmentDraft.owner}
-            class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
             required
             ><option disabled value="">Select</option
             >{#each $actorRegistry as actor}<option value={actor.id}
@@ -268,24 +268,24 @@
               >{/each}</select
           ></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Due date <input
             bind:value={createCommitmentDraft.due_at}
-            class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
             required
             type="datetime-local"
           /></label
         >
-        <label class="text-xs font-medium text-gray-600 sm:col-span-2"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Completion criteria (one per line) <textarea
             bind:value={createCommitmentDraft.definitionOfDoneInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
       </div>
       <button
-        class="mt-2 rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+        class="mt-2 cursor-pointer rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
         disabled={creatingCommitment}
         type="submit">{creatingCommitment ? "Creating..." : "Create"}</button
       >
@@ -293,23 +293,23 @@
   {/if}
 
   {#if commitmentsLoading}
-    <p class="px-4 py-3 text-xs text-gray-400">Loading...</p>
+    <p class="px-4 py-3 text-xs text-[var(--ui-text-muted)]">Loading...</p>
   {:else if commitments.length === 0}
-    <p class="px-4 py-3 text-sm text-gray-400">No open commitments.</p>
+    <p class="px-4 py-3 text-sm text-[var(--ui-text-muted)]">No open commitments.</p>
   {:else}
     {#each commitments as commitment, i}
       <div
-        class="border-b border-gray-100 px-4 py-3 {i === commitments.length - 1
+        class="border-b border-[var(--ui-border-subtle)] px-4 py-3 {i === commitments.length - 1
           ? 'border-b-0'
           : ''}"
         id={`commitment-card-${commitment.id}`}
       >
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0 flex-1">
-            <p class="text-sm font-medium text-gray-900">
+            <p class="text-sm font-medium text-[var(--ui-text)]">
               {commitment.title || commitment.id}
             </p>
-            <p class="mt-0.5 text-xs text-gray-500">
+            <p class="mt-0.5 text-xs text-[var(--ui-text-muted)]">
               {actorName(commitment.owner)} · Due {commitment.due_at
                 ? formatTimestamp(commitment.due_at)
                 : "—"}
@@ -321,7 +321,7 @@
               >{commitment.status}</span
             >
             <button
-              class="text-xs text-gray-400 hover:text-gray-600"
+              class="cursor-pointer rounded px-2 py-1 text-xs text-[var(--ui-text-muted)] hover:bg-[var(--ui-bg-soft)] hover:text-[var(--ui-text)]"
               onclick={() =>
                 editingCommitmentId === commitment.id
                   ? cancelCommitmentEdit()
@@ -334,12 +334,12 @@
         </div>
 
         {#if (commitment.definition_of_done ?? []).length > 0}
-          <ul class="mt-1.5 list-inside list-disc text-xs text-gray-600">
+          <ul class="mt-1.5 list-inside list-disc text-xs text-[var(--ui-text-muted)]">
             {#each commitment.definition_of_done ?? [] as item}<li>
                 <MarkdownRenderer
                   source={item}
                   inline
-                  class="text-xs text-gray-600"
+                  class="text-xs text-[var(--ui-text-muted)]"
                 />
               </li>{/each}
           </ul>
@@ -356,35 +356,35 @@
 
         {#if editingCommitmentId === commitment.id && editCommitmentDraft}
           <form
-            class="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+            class="mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
             onsubmit={(event) => {
               event.preventDefault();
               void handleSaveCommitmentEdit(commitment.id);
             }}
           >
             {#if editCommitmentError}<p
-                class="mb-2 rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+                class="mb-2 rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
               >
                 {editCommitmentError}
               </p>{/if}
             {#if editCommitmentNotice}<p
-                class="mb-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+                class="mb-2 rounded bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"
               >
                 {editCommitmentNotice}
               </p>{/if}
             <div class="grid gap-2 sm:grid-cols-2">
-              <label class="text-xs font-medium text-gray-600 sm:col-span-2"
+              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Title <input
                   bind:value={editCommitmentDraft.title}
-                  class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
                   required
                   type="text"
                 /></label
               >
-              <label class="text-xs font-medium text-gray-600"
+              <label class="text-xs font-medium text-[var(--ui-text-muted)]"
                 >Owner <select
                   bind:value={editCommitmentDraft.owner}
-                  class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
                   required
                   ><option disabled value="">Select</option
                   >{#each $actorRegistry as actor}<option value={actor.id}
@@ -392,18 +392,18 @@
                     >{/each}</select
                 ></label
               >
-              <label class="text-xs font-medium text-gray-600"
+              <label class="text-xs font-medium text-[var(--ui-text-muted)]"
                 >Due date <input
                   bind:value={editCommitmentDraft.due_at}
-                  class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
                   required
                   type="datetime-local"
                 /></label
               >
-              <label class="text-xs font-medium text-gray-600"
+              <label class="text-xs font-medium text-[var(--ui-text-muted)]"
                 >Status <select
                   bind:value={editCommitmentDraft.status}
-                  class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
                   ><option value="open">open</option><option value="blocked"
                     >blocked</option
                   ><option value="done">done</option><option value="canceled"
@@ -411,45 +411,45 @@
                   ></select
                 ></label
               >
-              <div class="self-end text-xs text-gray-500">
+              <div class="self-end text-xs text-[var(--ui-text-muted)]">
                 {#if statusRequirementText(editCommitmentDraft.status)}<p
-                    class="text-amber-600"
+                    class="text-amber-400"
                   >
                     {statusRequirementText(editCommitmentDraft.status)}
                   </p>{/if}
               </div>
-              <label class="text-xs font-medium text-gray-600 sm:col-span-2"
+              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Evidence link <input
                   bind:value={editCommitmentDraft.statusRefInput}
-                  class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
                   placeholder="artifact:receipt-123 or event:decision-456"
                   type="text"
                 /></label
               >
-              <label class="text-xs font-medium text-gray-600 sm:col-span-2"
+              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Completion criteria (one per line) <textarea
                   bind:value={editCommitmentDraft.definitionOfDoneInput}
-                  class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
                   rows="2"
                 ></textarea></label
               >
-              <label class="text-xs font-medium text-gray-600 sm:col-span-2"
+              <label class="text-xs font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Links (one per line) <textarea
                   bind:value={editCommitmentDraft.linksInput}
-                  class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
                   rows="2"
                 ></textarea></label
               >
             </div>
             <div class="mt-2 flex gap-2">
               <button
-                class="rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                class="cursor-pointer rounded bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
                 disabled={savingCommitmentEdit}
                 type="submit"
                 >{savingCommitmentEdit ? "Saving..." : "Save"}</button
               >
               <button
-                class="rounded px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
+                class="cursor-pointer rounded px-3 py-1.5 text-xs text-[var(--ui-text-muted)] hover:bg-[var(--ui-bg-soft)]"
                 onclick={cancelCommitmentEdit}
                 type="button">Cancel</button
               >

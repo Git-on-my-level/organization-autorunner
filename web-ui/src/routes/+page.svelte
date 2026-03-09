@@ -97,7 +97,7 @@
     const styles = {
       p0: "text-red-400",
       p1: "text-amber-400",
-      p2: "text-blue-600",
+      p2: "text-blue-400",
       p3: "text-gray-400",
     };
     return styles[priority] ?? "text-gray-400";
@@ -107,8 +107,8 @@
 <div class="space-y-6">
   <div class="flex items-baseline justify-between gap-4">
     <div>
-      <h1 class="text-lg font-semibold text-gray-900">Dashboard</h1>
-      <p class="mt-0.5 text-[13px] text-gray-500">
+      <h1 class="text-lg font-semibold text-[var(--ui-text)]">Dashboard</h1>
+      <p class="mt-0.5 text-[13px] text-[var(--ui-text-muted)]">
         {#if refreshedAt}
           Updated {formatTimestamp(refreshedAt)}
         {:else if loading}
@@ -118,14 +118,14 @@
     </div>
     <div class="flex items-center gap-2">
       <button
-        class="rounded-md border border-gray-200 px-2.5 py-1.5 text-[13px] font-medium text-gray-600 transition-colors hover:bg-gray-200"
+        class="cursor-pointer rounded-md border border-[var(--ui-border)] px-2.5 py-1.5 text-[13px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)]"
         onclick={loadDashboard}
         type="button"
       >
         Refresh
       </button>
       <a
-        class="rounded-md bg-gray-200 px-3 py-1.5 text-[13px] font-medium text-gray-900 transition-colors hover:bg-gray-300"
+        class="rounded-md bg-[var(--ui-panel)] px-3 py-1.5 text-[13px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border)]"
         href="/inbox"
       >
         Review inbox
@@ -136,9 +136,9 @@
   <div class="grid gap-5 lg:grid-cols-[1fr_1.5fr]">
     <section>
       <div class="flex items-center justify-between gap-2 mb-2">
-        <h2 class="text-[13px] font-semibold text-gray-900">Inbox</h2>
+        <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">Inbox</h2>
         <a
-          class="text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
           href="/inbox">View all</a
         >
       </div>
@@ -148,40 +148,40 @@
           {inboxState.error}
         </p>
       {:else if inboxState.items.length === 0}
-        <p class="text-[13px] text-gray-400 py-3">
+        <p class="text-[13px] text-[var(--ui-text-muted)] py-3">
           Inbox clear. Check threads for follow-ups.
         </p>
       {:else}
         <div class="flex gap-2 mb-3">
           {#each inboxSummary as summary}
             <a
-              class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-center transition-colors hover:bg-gray-200"
+              class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
               href="/inbox"
             >
-              <p class="text-[11px] font-medium text-gray-400">
+              <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
                 {summary.label}
               </p>
-              <p class="text-lg font-semibold text-gray-900">{summary.count}</p>
+              <p class="text-lg font-semibold text-[var(--ui-text)]">{summary.count}</p>
             </a>
           {/each}
         </div>
 
         <div
-          class="space-y-px rounded-md border border-gray-200 bg-gray-100 overflow-hidden"
+          class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
         >
           {#each topInboxItems as item, i}
             <a
-              class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-gray-200 {i >
+              class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
               0
-                ? 'border-t border-gray-200'
+                ? 'border-t border-[var(--ui-border)]'
                 : ''}"
               href={inboxItemTarget(item)}
             >
               <div class="min-w-0 flex-1">
-                <p class="truncate text-[13px] font-medium text-gray-900">
+                <p class="truncate text-[13px] font-medium text-[var(--ui-text)]">
                   {item.title}
                 </p>
-                <p class="text-[11px] text-gray-400">
+                <p class="text-[11px] text-[var(--ui-text-muted)]">
                   {getInboxCategoryLabel(item.category)}
                 </p>
               </div>
@@ -193,9 +193,9 @@
 
     <section>
       <div class="flex items-center justify-between gap-2 mb-2">
-        <h2 class="text-[13px] font-semibold text-gray-900">Thread health</h2>
+        <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">Thread health</h2>
         <a
-          class="text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
           href="/threads">View all</a
         >
       </div>
@@ -205,83 +205,83 @@
           {threadsState.error}
         </p>
       {:else if threadsState.items.length === 0}
-        <p class="text-[13px] text-gray-400 py-3">No threads yet.</p>
+        <p class="text-[13px] text-[var(--ui-text-muted)] py-3">No threads yet.</p>
       {:else}
         <div class="flex gap-2 mb-3">
           <a
-            class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-center transition-colors hover:bg-gray-200"
+            class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
             href="/threads"
           >
-            <p class="text-[11px] font-medium text-gray-400">Open</p>
-            <p class="text-lg font-semibold text-gray-900">
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Open</p>
+            <p class="text-lg font-semibold text-[var(--ui-text)]">
               {threadHealth.openCount}
             </p>
           </a>
           <a
-            class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-center transition-colors hover:bg-gray-200"
+            class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
             href="/threads"
           >
             <p
               class="text-[11px] font-medium {threadHealth.staleCount > 0
                 ? 'text-amber-400'
-                : 'text-gray-400'}"
+                : 'text-[var(--ui-text-muted)]'}"
             >
               Stale
             </p>
             <p
               class="text-lg font-semibold {threadHealth.staleCount > 0
                 ? 'text-amber-400'
-                : 'text-gray-900'}"
+                : 'text-[var(--ui-text)]'}"
             >
               {threadHealth.staleCount}
             </p>
           </a>
           <a
-            class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-center transition-colors hover:bg-gray-200"
+            class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
             href="/threads"
           >
             <p
               class="text-[11px] font-medium {threadHealth.highPriorityCount > 0
                 ? 'text-red-400'
-                : 'text-gray-400'}"
+                : 'text-[var(--ui-text-muted)]'}"
             >
               High priority
             </p>
             <p
               class="text-lg font-semibold {threadHealth.highPriorityCount > 0
                 ? 'text-red-400'
-                : 'text-gray-900'}"
+                : 'text-[var(--ui-text)]'}"
             >
               {threadHealth.highPriorityCount}
             </p>
           </a>
           <a
-            class="flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-center transition-colors hover:bg-gray-200"
+            class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
             href="/threads"
           >
-            <p class="text-[11px] font-medium text-gray-400">Total</p>
-            <p class="text-lg font-semibold text-gray-900">
+            <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Total</p>
+            <p class="text-lg font-semibold text-[var(--ui-text)]">
               {threadHealth.totalCount}
             </p>
           </a>
         </div>
 
         <div
-          class="space-y-px rounded-md border border-gray-200 bg-gray-100 overflow-hidden"
+          class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
         >
           {#each recentThreads as thread, i}
             <a
-              class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-gray-200 {i >
+              class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
               0
-                ? 'border-t border-gray-200'
+                ? 'border-t border-[var(--ui-border)]'
                 : ''}"
               href={`/threads/${thread.id}`}
             >
               <div class="min-w-0 flex-1">
-                <p class="truncate text-[13px] font-medium text-gray-900">
+                <p class="truncate text-[13px] font-medium text-[var(--ui-text)]">
                   {thread.title}
                 </p>
-                <p class="text-[11px] text-gray-400">
+                <p class="text-[11px] text-[var(--ui-text-muted)]">
                   Updated {formatTimestamp(thread.updated_at)}
                 </p>
               </div>
@@ -298,9 +298,9 @@
 
   <section>
     <div class="flex items-center justify-between gap-2 mb-2">
-      <h2 class="text-[13px] font-semibold text-gray-900">Recent artifacts</h2>
+      <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">Recent artifacts</h2>
       <a
-        class="text-[12px] font-medium text-gray-400 hover:text-gray-600 transition-colors"
+        class="text-[12px] font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
         href="/artifacts">View all</a
       >
     </div>
@@ -310,29 +310,29 @@
         {artifactsState.error}
       </p>
     {:else if artifactsState.items.length === 0}
-      <p class="text-[13px] text-gray-400 py-3">No artifacts yet.</p>
+      <p class="text-[13px] text-[var(--ui-text-muted)] py-3">No artifacts yet.</p>
     {:else}
       <div
-        class="space-y-px rounded-md border border-gray-200 bg-gray-100 overflow-hidden"
+        class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
       >
         {#each recentArtifacts as artifact, i}
           <a
-            class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-gray-200 {i >
+            class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
             0
-              ? 'border-t border-gray-200'
+              ? 'border-t border-[var(--ui-border)]'
               : ''}"
             href={`/artifacts/${artifact.id}`}
           >
             <span
-              class="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-[11px] font-medium text-gray-600"
+              class="shrink-0 rounded bg-[var(--ui-panel)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ui-text-muted)]"
               >{artifact.kind}</span
             >
             <div class="min-w-0 flex-1">
-              <p class="truncate text-[13px] font-medium text-gray-900">
+              <p class="truncate text-[13px] font-medium text-[var(--ui-text)]">
                 {artifact.summary || artifact.id}
               </p>
             </div>
-            <span class="text-[11px] text-gray-400"
+            <span class="text-[11px] text-[var(--ui-text-muted)]"
               >{formatTimestamp(artifact.created_at)}</span
             >
           </a>

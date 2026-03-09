@@ -21,28 +21,28 @@
         />
       </svg>
     </div>
-    <h1 class="text-lg font-semibold text-gray-900">Unable to start</h1>
-    <p class="mt-2 text-sm text-gray-500">
+    <h1 class="text-lg font-semibold text-[var(--ui-text)]">Unable to start</h1>
+    <p class="mt-2 text-sm text-[var(--ui-text-muted)]">
       {$page.error?.message ?? "An unexpected error occurred."}
     </p>
     <div
-      class="mt-6 rounded-md border border-gray-200 bg-gray-100 p-4 text-left"
+      class="mt-6 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-4 text-left"
     >
-      <p class="text-[12px] font-medium text-gray-500">Troubleshooting</p>
-      <ol class="mt-2 list-decimal space-y-1.5 pl-5 text-[13px] text-gray-600">
+      <p class="text-[12px] font-medium text-[var(--ui-text-muted)]">Troubleshooting</p>
+      <ol class="mt-2 list-decimal space-y-1.5 pl-5 text-[13px] text-[var(--ui-text-muted)]">
         <li>
           Start the backend: <code
-            class="rounded-md bg-gray-200 px-1.5 py-0.5 text-xs font-medium"
+            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
             >make serve</code
           >
           in
-          <code class="rounded-md bg-gray-200 px-1.5 py-0.5 text-xs font-medium"
+          <code class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
             >organization-autorunner-core</code
           >
         </li>
         <li>
           Set <code
-            class="rounded-md bg-gray-200 px-1.5 py-0.5 text-xs font-medium"
+            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
             >OAR_CORE_BASE_URL=http://127.0.0.1:8000</code
           >
         </li>

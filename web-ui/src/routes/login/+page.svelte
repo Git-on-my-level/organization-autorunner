@@ -78,29 +78,29 @@
 </script>
 
 {#if $authenticatedAgent}
-  <main class="min-h-screen bg-gray-50 px-4 py-10 text-gray-700">
+  <main class="min-h-screen bg-[var(--ui-bg)] px-4 py-10 text-[var(--ui-text)]">
     <div
-      class="mx-auto flex max-w-xl items-center justify-center rounded-md border border-gray-200 bg-gray-100 px-4 py-10 text-[13px]"
+      class="mx-auto flex max-w-xl items-center justify-center rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-4 py-10 text-[13px]"
     >
       Redirecting to the workspace...
     </div>
   </main>
 {:else}
-  <main class="min-h-screen bg-gray-50 px-4 py-10 text-gray-700">
+  <main class="min-h-screen bg-[var(--ui-bg)] px-4 py-10 text-[var(--ui-text)]">
     <div class="mx-auto flex max-w-5xl flex-col gap-4 lg:flex-row">
       <section
-        class="rounded-md border border-gray-200 bg-gray-100 lg:w-[22rem]"
+        class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] lg:w-[22rem]"
       >
-        <div class="border-b border-gray-200 px-4 py-3">
+        <div class="border-b border-[var(--ui-border)] px-4 py-3">
           <p
-            class="text-[11px] font-medium uppercase tracking-wide text-gray-400"
+            class="text-[11px] font-medium uppercase tracking-wide text-[var(--ui-text-muted)]"
           >
             Auth-first
           </p>
-          <h1 class="mt-1 text-lg font-semibold text-gray-900">
+          <h1 class="mt-1 text-lg font-semibold text-[var(--ui-text)]">
             Sign in with a passkey
           </h1>
-          <p class="mt-2 text-[13px] text-gray-500">
+          <p class="mt-2 text-[13px] text-[var(--ui-text-muted)]">
             Browser passkeys are now the primary web identity path. Once
             authenticated, all writes are locked to your principal actor.
           </p>
@@ -108,7 +108,7 @@
 
         <div class="space-y-3 px-4 py-3">
           <button
-            class="w-full rounded-md bg-indigo-600 px-3 py-2 text-[12px] font-medium text-white hover:bg-indigo-500"
+            class="cursor-pointer w-full rounded-md bg-indigo-600 px-3 py-2 text-[12px] font-medium text-white hover:bg-indigo-500"
             disabled={loadingLogin}
             onclick={handleLogin}
             type="button"
@@ -126,20 +126,20 @@
             </div>
           {/if}
 
-          <p class="text-[12px] text-gray-500">
+          <p class="text-[12px] text-[var(--ui-text-muted)]">
             This uses discoverable WebAuthn login. No username step is required.
           </p>
         </div>
       </section>
 
-      <section class="rounded-md border border-gray-200 bg-gray-100 lg:flex-1">
-        <div class="border-b border-gray-200 px-4 py-3">
+      <section class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] lg:flex-1">
+        <div class="border-b border-[var(--ui-border)] px-4 py-3">
           <p
-            class="text-[11px] font-medium uppercase tracking-wide text-gray-400"
+            class="text-[11px] font-medium uppercase tracking-wide text-[var(--ui-text-muted)]"
           >
             First-time setup
           </p>
-          <h2 class="mt-1 text-[13px] font-semibold text-gray-900">
+          <h2 class="mt-1 text-[13px] font-semibold text-[var(--ui-text)]">
             Create a new passkey-backed principal
           </h2>
         </div>
@@ -152,14 +152,14 @@
           }}
         >
           <label
-            class="block text-[12px] font-medium text-gray-600"
+            class="block text-[12px] font-medium text-[var(--ui-text-muted)]"
             for="display-name"
           >
             Display name
           </label>
           <input
             bind:value={registrationName}
-            class="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[13px] text-gray-800"
+            class="w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
             id="display-name"
             maxlength="120"
             placeholder="Alex Chen"
@@ -183,7 +183,7 @@
 
           <div class="flex flex-wrap gap-2">
             <button
-              class="rounded-md bg-indigo-600 px-3 py-2 text-[12px] font-medium text-white hover:bg-indigo-500"
+              class="cursor-pointer rounded-md bg-indigo-600 px-3 py-2 text-[12px] font-medium text-white hover:bg-indigo-500"
               disabled={loadingRegistration}
               type="submit"
             >
@@ -192,7 +192,7 @@
                 : "Create passkey and continue"}
             </button>
             <a
-              class="rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-[12px] font-medium text-gray-600 hover:bg-gray-200"
+              class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
               href="/"
             >
               Back to actor mode

@@ -101,12 +101,12 @@
 </script>
 
 {#if helperText}
-  <p class="mt-1 text-[11px] text-gray-500">{helperText}</p>
+  <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">{helperText}</p>
 {/if}
 
-<div class="mt-1.5 rounded-md border border-gray-200 bg-gray-50 p-2.5">
+<div class="mt-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-2.5">
   {#if refs.length === 0}
-    <p class="text-xs text-gray-500">{emptyText}</p>
+    <p class="text-xs text-[var(--ui-text-muted)]">{emptyText}</p>
   {:else}
     <div class="flex flex-wrap gap-1.5">
       {#each refs as refValue}
@@ -116,7 +116,7 @@
           <span>{refValue}</span>
           <button
             aria-label={`Remove ${refValue}`}
-            class="rounded px-1 text-[11px] text-indigo-400 transition-colors hover:bg-indigo-500/20 hover:text-indigo-300"
+            class="cursor-pointer rounded px-1 text-[11px] text-indigo-400 transition-colors hover:bg-indigo-500/20 hover:text-indigo-300"
             onclick={() => removeRef(refValue)}
             type="button"
           >
@@ -131,7 +131,7 @@
     <input
       aria-label={addInputLabel}
       bind:value={candidateRef}
-      class="min-w-[14rem] flex-1 rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-sm"
+      class="min-w-[14rem] flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-sm text-[var(--ui-text)]"
       onkeydown={(event) => {
         if (event.key === "Enter") {
           event.preventDefault();
@@ -142,7 +142,7 @@
       type="text"
     />
     <button
-      class="rounded-md border border-gray-300 bg-gray-100 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200"
+      class="cursor-pointer rounded-md border border-[var(--ui-border-strong)] bg-[var(--ui-bg-soft)] px-3 py-2 text-xs font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border-subtle)]"
       onclick={addCandidate}
       type="button"
     >
@@ -157,14 +157,14 @@
   {#if normalizedSuggestions.length > 0}
     <div class="mt-2.5">
       <p
-        class="text-[11px] font-medium uppercase tracking-[0.06em] text-gray-400"
+        class="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--ui-text-muted)]"
       >
         Quick picks
       </p>
       <div class="mt-1.5 flex flex-wrap gap-1.5">
         {#each normalizedSuggestions as suggestion}
           <button
-            class="rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs text-gray-600 transition-colors hover:border-indigo-500/30 hover:text-indigo-300"
+            class="cursor-pointer rounded-full border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1 text-xs text-[var(--ui-text-muted)] transition-colors hover:border-indigo-500/30 hover:text-indigo-300"
             onclick={() => addSuggestion(suggestion.value)}
             type="button"
           >
@@ -176,7 +176,7 @@
   {/if}
 
   <button
-    class="mt-2 rounded-md px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700"
+    class="mt-2 cursor-pointer rounded-md px-2 py-1 text-xs text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
     onclick={() => {
       showAdvanced = !showAdvanced;
     }}
@@ -186,16 +186,16 @@
   </button>
 
   {#if showAdvanced}
-    <label class="mt-2 block text-xs font-medium text-gray-600"
+    <label class="mt-2 block text-xs font-medium text-[var(--ui-text-muted)]"
       >{advancedLabel}
       <textarea
         aria-label={textareaAriaLabel}
         bind:value
-        class="mt-1.5 w-full rounded-md border border-gray-200 bg-gray-100 px-3 py-2 text-sm"
+        class="mt-1.5 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-sm text-[var(--ui-text)]"
         rows={advancedRows}
       ></textarea></label
     >
-    <p class="mt-1 text-[11px] text-gray-500">{advancedHint}</p>
+    <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">{advancedHint}</p>
   {/if}
 </div>
 

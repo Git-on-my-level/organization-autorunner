@@ -164,7 +164,7 @@
   function statusColor(status) {
     const styles = {
       active: "text-emerald-400",
-      paused: "text-amber-600",
+      paused: "text-amber-400",
       closed: "text-gray-400",
     };
     return styles[status] ?? "text-gray-400";
@@ -172,10 +172,10 @@
 </script>
 
 <div class="flex items-center justify-between mb-4">
-  <h1 class="text-lg font-semibold text-gray-900">Threads</h1>
+  <h1 class="text-lg font-semibold text-[var(--ui-text)]">Threads</h1>
   <div class="flex items-center gap-1.5">
     <button
-      class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1.5 text-[12px] font-medium text-gray-600 transition-colors hover:bg-gray-200"
+      class="cursor-pointer inline-flex items-center gap-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)]"
       onclick={() => (filtersOpen = !filtersOpen)}
       type="button"
     >
@@ -195,7 +195,7 @@
       Filters
     </button>
     <button
-      class="inline-flex items-center gap-1.5 rounded-md bg-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-900 transition-colors hover:bg-gray-300"
+      class="cursor-pointer inline-flex items-center gap-1.5 rounded-md bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border)]"
       onclick={() => (createOpen = !createOpen)}
       type="button"
     >
@@ -229,13 +229,13 @@
 {/if}
 
 {#if filtersOpen}
-  <div class="mb-4 rounded-md border border-gray-200 bg-gray-100 p-3">
+  <div class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3">
     <div class="grid gap-3 sm:grid-cols-5">
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Status</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Status</span>
         <select
           bind:value={filters.status}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           <option value="">All</option>
           {#each THREAD_STATUSES as status}<option value={status}
@@ -244,10 +244,10 @@
         </select>
       </label>
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Priority</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Priority</span>
         <select
           bind:value={filters.priority}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           <option value="">All</option>
           {#each THREAD_PRIORITIES as priority}<option value={priority}
@@ -256,10 +256,10 @@
         </select>
       </label>
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Cadence</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Cadence</span>
         <select
           bind:value={filters.cadence}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           <option value="">All</option>
           {#each THREAD_SCHEDULE_PRESETS as cadence}<option value={cadence}
@@ -268,10 +268,10 @@
         </select>
       </label>
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Staleness</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Staleness</span>
         <select
           bind:value={filters.staleness}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           <option value="all">All</option>
           <option value="stale">Stale</option>
@@ -279,10 +279,10 @@
         </select>
       </label>
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Tags</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Tags</span>
         <input
           bind:value={filters.tagInput}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="ops, customer"
           type="text"
         />
@@ -290,12 +290,12 @@
     </div>
     <div class="mt-3 flex gap-1.5">
       <button
-        class="rounded-md bg-gray-200 px-3 py-1.5 text-[12px] font-medium text-gray-900 hover:bg-gray-300"
+        class="cursor-pointer rounded-md bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text)] hover:bg-[var(--ui-border)]"
         onclick={applyFilters}
         type="button">Apply</button
       >
       <button
-        class="rounded-md border border-gray-200 bg-gray-100 px-3 py-1.5 text-[12px] font-medium text-gray-600 hover:bg-gray-200"
+        class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
         onclick={resetFilters}
         type="button">Reset</button
       >
@@ -305,7 +305,7 @@
 
 {#if createOpen}
   <form
-    class="mb-4 rounded-md border border-gray-200 bg-gray-100 p-4"
+    class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-4"
     onsubmit={(event) => {
       event.preventDefault();
       createThread();
@@ -320,20 +320,20 @@
     {/if}
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="text-[12px] sm:col-span-2">
-        <span class="font-medium text-gray-600">Title</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Title</span>
         <input
           bind:value={threadDraft.title}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="Thread title..."
           required
           type="text"
         />
       </label>
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Status</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Status</span>
         <select
           bind:value={threadDraft.status}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           {#each THREAD_STATUSES as status}<option value={status}
               >{status}</option
@@ -341,10 +341,10 @@
         </select>
       </label>
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Priority</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Priority</span>
         <select
           bind:value={threadDraft.priority}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           {#each THREAD_PRIORITIES as priority}<option value={priority}
               >{THREAD_PRIORITY_LABELS[priority]}</option
@@ -352,10 +352,10 @@
         </select>
       </label>
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Schedule</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Schedule</span>
         <select
           bind:value={threadDraft.cadencePreset}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-2.5 py-2 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           {#each THREAD_SCHEDULE_PRESETS as cadence}<option value={cadence}
               >{THREAD_SCHEDULE_PRESET_LABELS[cadence]}</option
@@ -364,34 +364,34 @@
       </label>
       {#if threadDraft.cadencePreset === "custom"}
         <label class="text-[12px]">
-          <span class="font-medium text-gray-600">Cron expression</span>
+          <span class="font-medium text-[var(--ui-text-muted)]">Cron expression</span>
           <input
             bind:value={threadDraft.cadenceCron}
-            class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[13px] transition-colors focus:bg-gray-100"
+            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
             placeholder="0 9 * * *"
             type="text"
           />
           {#if describeCron(threadDraft.cadenceCron)}
-            <span class="mt-1 block text-[11px] text-gray-500">
+            <span class="mt-1 block text-[11px] text-[var(--ui-text-muted)]">
               {describeCron(threadDraft.cadenceCron)}
             </span>
           {/if}
         </label>
       {/if}
       <label class="text-[12px]">
-        <span class="font-medium text-gray-600">Tags</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Tags</span>
         <input
           bind:value={threadDraft.tagsInput}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="ops, customer"
           type="text"
         />
       </label>
       <label class="text-[12px] sm:col-span-2">
-        <span class="font-medium text-gray-600">Summary</span>
+        <span class="font-medium text-[var(--ui-text-muted)]">Summary</span>
         <textarea
           bind:value={threadDraft.summary}
-          class="mt-1 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-[13px] transition-colors focus:bg-gray-100"
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="Brief description..."
           rows="2"
         ></textarea>
@@ -399,7 +399,7 @@
     </div>
     <div class="mt-3 flex justify-end">
       <button
-        class="rounded-md bg-gray-200 px-4 py-2 text-[12px] font-medium text-gray-900 hover:bg-gray-300 disabled:opacity-50"
+        class="cursor-pointer rounded-md bg-[var(--ui-panel)] px-4 py-2 text-[12px] font-medium text-[var(--ui-text)] hover:bg-[var(--ui-border)] disabled:opacity-50"
         disabled={creatingThread}
         type="submit"
       >
@@ -411,7 +411,7 @@
 
 {#if loading}
   <div
-    class="mt-12 flex items-center justify-center gap-2 text-[13px] text-gray-400"
+    class="mt-12 flex items-center justify-center gap-2 text-[13px] text-[var(--ui-text-muted)]"
   >
     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle
@@ -432,20 +432,20 @@
   </div>
 {:else if threads.length === 0}
   <div class="mt-8 text-center">
-    <p class="text-[13px] text-gray-400">
+    <p class="text-[13px] text-[var(--ui-text-muted)]">
       No threads match the current filters.
     </p>
   </div>
 {:else}
   <div
-    class="space-y-px rounded-md border border-gray-200 bg-gray-100 overflow-hidden"
+    class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
   >
     {#each threads as thread, i}
       {@const staleness = computeStaleness(thread)}
       <a
-        class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-gray-200 {i >
+        class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
         0
-          ? 'border-t border-gray-200'
+          ? 'border-t border-[var(--ui-border)]'
           : ''}"
         href={`/threads/${thread.id}`}
       >
@@ -456,10 +456,10 @@
           title={getPriorityLabel(thread.priority)}
         ></span>
         <div class="min-w-0 flex-1">
-          <p class="truncate text-[13px] font-medium text-gray-900">
+          <p class="truncate text-[13px] font-medium text-[var(--ui-text)]">
             {thread.title}
           </p>
-          <p class="truncate text-[12px] text-gray-400">
+          <p class="truncate text-[12px] text-[var(--ui-text-muted)]">
             {thread.current_summary}
           </p>
         </div>
@@ -467,14 +467,14 @@
           <span class="font-medium capitalize {statusColor(thread.status)}"
             >{thread.status}</span
           >
-          <span class="hidden text-gray-400 sm:inline"
+          <span class="hidden text-[var(--ui-text-muted)] sm:inline"
             >{formatCadenceLabel(thread.cadence, {
               includeExpression: false,
             })}</span
           >
           {#if (thread.tags ?? []).length > 0}
             <span
-              class="hidden rounded bg-gray-200 px-1.5 py-0.5 text-gray-500 sm:inline"
+              class="hidden rounded bg-[var(--ui-panel)] px-1.5 py-0.5 text-[var(--ui-text-muted)] sm:inline"
               >{thread.tags[0]}{thread.tags.length > 1
                 ? ` +${thread.tags.length - 1}`
                 : ""}</span
@@ -486,7 +486,7 @@
               >Stale</span
             >
           {/if}
-          <span class="w-14 text-right text-gray-300"
+          <span class="w-14 text-right text-[var(--ui-text-subtle)]"
             >{formatTimestamp(thread.updated_at) || "—"}</span
           >
         </div>

@@ -30,13 +30,13 @@
 {#if hasDetails}
   <details class="group inline-block">
     <summary
-      class="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-gray-400 select-none hover:text-gray-600"
+      class="inline-flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-[var(--ui-text-muted)] select-none hover:text-[var(--ui-text)]"
     >
       <span class={`h-1.5 w-1.5 rounded-full ${dotClass}`}></span>
       {label}
     </summary>
     <div
-      class="mt-1 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600"
+      class="mt-1 rounded border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-xs text-[var(--ui-text-muted)]"
     >
       {#if sources.length > 0}
         <p>Based on: {sources.join(", ")}</p>
@@ -46,11 +46,11 @@
       {/if}
       {#if provenance?.by_field}
         <details class="mt-1">
-          <summary class="cursor-pointer text-[11px] text-gray-400"
+          <summary class="cursor-pointer text-[11px] text-[var(--ui-text-muted)]"
             >Field details</summary
           >
           <pre
-            class="mt-1 overflow-auto rounded bg-gray-100 p-2 text-[11px]">{JSON.stringify(
+            class="mt-1 overflow-auto rounded bg-[var(--ui-panel-muted)] p-2 text-[11px]">{JSON.stringify(
               provenance.by_field,
               null,
               2,
@@ -60,7 +60,7 @@
     </div>
   </details>
 {:else}
-  <span class="inline-flex items-center gap-1.5 text-[11px] text-gray-400">
+  <span class="inline-flex items-center gap-1.5 text-[11px] text-[var(--ui-text-muted)]">
     <span class={`h-1.5 w-1.5 rounded-full ${dotClass}`}></span>
     {label}
   </span>

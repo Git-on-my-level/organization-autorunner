@@ -184,25 +184,25 @@
 </script>
 
 {#if workOrderShouldPrefill}
-  <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
-    <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">
+  <div class="mt-4 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
       New Work Order
     </h2>
-    <p class="mt-0.5 text-xs text-gray-500">
+    <p class="mt-0.5 text-xs text-[var(--ui-text-muted)]">
       Create a new work order for this thread.
     </p>
     {#if workOrderPrefillNotice}<p
-        class="mt-2 rounded bg-indigo-50 px-3 py-1.5 text-xs text-indigo-700"
+        class="mt-2 rounded bg-indigo-500/10 px-3 py-1.5 text-xs text-indigo-400"
       >
         {workOrderPrefillNotice}
       </p>{/if}
     {#if workOrderErrors.length > 0}<ul
-        class="mt-2 list-inside list-disc rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+        class="mt-2 list-inside list-disc rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
       >
         {#each workOrderErrors as e}<li>{e}</li>{/each}
       </ul>{/if}
     {#if workOrderNotice}<p
-        class="mt-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+        class="mt-2 rounded bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"
       >
         {workOrderNotice}
       </p>{/if}
@@ -214,43 +214,43 @@
           void handleSubmitWorkOrder();
         }}
       >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Work order objective <textarea
             bind:value={workOrderDraft.objective}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Constraints (one per line) <textarea
             bind:value={workOrderDraft.constraintsInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Context references (one per line) <textarea
             bind:value={workOrderDraft.contextRefsInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Acceptance criteria (one per line) <textarea
             bind:value={workOrderDraft.acceptanceCriteriaInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Definition of done (one per line) <textarea
             bind:value={workOrderDraft.definitionOfDoneInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
         <button
-          class="w-fit rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          class="w-fit cursor-pointer rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
           disabled={creatingWorkOrder}
           type="submit"
           >{creatingWorkOrder ? "Creating..." : "Create work order"}</button
@@ -258,10 +258,10 @@
       </form>
     {/if}
     {#if createdWorkOrder}
-      <div class="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3">
-        <p class="text-xs text-gray-500">
+      <div class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3">
+        <p class="text-xs text-[var(--ui-text-muted)]">
           Created: <a
-            class="text-indigo-600 underline"
+            class="text-indigo-400 underline"
             href={`/artifacts/${createdWorkOrder.id}`}
             >{createdWorkOrder.summary || createdWorkOrder.id}</a
           >
@@ -270,20 +270,20 @@
     {/if}
   </div>
 {:else}
-  <div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
-    <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">
+  <div class="mt-4 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
+    <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
       New Work Order
     </h2>
-    <p class="mt-0.5 text-xs text-gray-500">
+    <p class="mt-0.5 text-xs text-[var(--ui-text-muted)]">
       Create a new work order for this thread.
     </p>
     {#if workOrderErrors.length > 0}<ul
-        class="mt-2 list-inside list-disc rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+        class="mt-2 list-inside list-disc rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
       >
         {#each workOrderErrors as e}<li>{e}</li>{/each}
       </ul>{/if}
     {#if workOrderNotice}<p
-        class="mt-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+        class="mt-2 rounded bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"
       >
         {workOrderNotice}
       </p>{/if}
@@ -295,43 +295,43 @@
           void handleSubmitWorkOrder();
         }}
       >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Work order objective <textarea
             bind:value={workOrderDraft.objective}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Constraints (one per line) <textarea
             bind:value={workOrderDraft.constraintsInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Context references (one per line) <textarea
             bind:value={workOrderDraft.contextRefsInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Acceptance criteria (one per line) <textarea
             bind:value={workOrderDraft.acceptanceCriteriaInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-xs font-medium text-gray-600"
+        <label class="text-xs font-medium text-[var(--ui-text-muted)]"
           >Definition of done (one per line) <textarea
             bind:value={workOrderDraft.definitionOfDoneInput}
-            class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
         <button
-          class="w-fit rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          class="w-fit cursor-pointer rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
           disabled={creatingWorkOrder}
           type="submit"
           >{creatingWorkOrder ? "Creating..." : "Create work order"}</button
@@ -339,10 +339,10 @@
       </form>
     {/if}
     {#if createdWorkOrder}
-      <div class="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3">
-        <p class="text-xs text-gray-500">
+      <div class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3">
+        <p class="text-xs text-[var(--ui-text-muted)]">
           Created: <a
-            class="text-indigo-600 underline"
+            class="text-indigo-400 underline"
             href={`/artifacts/${createdWorkOrder.id}`}
             >{createdWorkOrder.summary || createdWorkOrder.id}</a
           >
@@ -352,30 +352,30 @@
   </div>
 {/if}
 
-<div class="mt-4 rounded-lg border border-gray-200 bg-white p-4">
-  <h2 class="text-xs font-semibold uppercase tracking-wider text-gray-400">
+<div class="mt-4 rounded-lg border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
+  <h2 class="text-xs font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
     Add Receipt
   </h2>
-  <p class="mt-0.5 text-xs text-gray-500">
+  <p class="mt-0.5 text-xs text-[var(--ui-text-muted)]">
     Submit a receipt tied to an existing work order.
   </p>
   {#if workOrdersError}<p
-      class="mt-2 rounded bg-amber-50 px-3 py-1.5 text-xs text-amber-700"
+      class="mt-2 rounded bg-amber-500/10 px-3 py-1.5 text-xs text-amber-400"
     >
       {workOrdersError}
     </p>{/if}
   {#if receiptErrors.length > 0}<ul
-      class="mt-2 list-inside list-disc rounded bg-red-50 px-3 py-1.5 text-xs text-red-700"
+      class="mt-2 list-inside list-disc rounded bg-red-500/10 px-3 py-1.5 text-xs text-red-400"
     >
       {#each receiptErrors as e}<li>{e}</li>{/each}
     </ul>{/if}
   {#if receiptNotice}<p
-      class="mt-2 rounded bg-emerald-50 px-3 py-1.5 text-xs text-emerald-700"
+      class="mt-2 rounded bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-400"
     >
       {receiptNotice}
     </p>{/if}
   {#if workOrdersLoading}
-    <p class="mt-2 text-xs text-gray-400">Loading work orders...</p>
+    <p class="mt-2 text-xs text-[var(--ui-text-muted)]">Loading work orders...</p>
   {:else if receiptDraft}
     <form
       class="mt-3 grid gap-3"
@@ -384,10 +384,10 @@
         void handleSubmitReceipt();
       }}
     >
-      <label class="text-xs font-medium text-gray-600"
+      <label class="text-xs font-medium text-[var(--ui-text-muted)]"
         >Work order <select
           bind:value={receiptDraft.workOrderId}
-          class="mt-1 w-full rounded border border-gray-200 px-2 py-1.5 text-sm"
+          class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-sm text-[var(--ui-text)]"
           required
           ><option value="">Select work order</option
           >{#each workOrders as wo}<option value={wo.id}
@@ -395,36 +395,36 @@
             >{/each}</select
         ></label
       >
-      <label class="text-xs font-medium text-gray-600"
+      <label class="text-xs font-medium text-[var(--ui-text-muted)]"
         >Outputs (one per line) <textarea
           bind:value={receiptDraft.outputsInput}
-          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
           rows="2"
         ></textarea></label
       >
-      <label class="text-xs font-medium text-gray-600"
+      <label class="text-xs font-medium text-[var(--ui-text-muted)]"
         >Verification evidence (one per line) <textarea
           bind:value={receiptDraft.verificationEvidenceInput}
-          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
           rows="2"
         ></textarea></label
       >
-      <label class="text-xs font-medium text-gray-600"
+      <label class="text-xs font-medium text-[var(--ui-text-muted)]"
         >Changes summary <textarea
           bind:value={receiptDraft.changesSummary}
-          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
           rows="2"
         ></textarea></label
       >
-      <label class="text-xs font-medium text-gray-600"
+      <label class="text-xs font-medium text-[var(--ui-text-muted)]"
         >Known gaps (one per line) <textarea
           bind:value={receiptDraft.knownGapsInput}
-          class="mt-1 w-full rounded border border-gray-200 px-2.5 py-1.5 text-sm"
+          class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-sm text-[var(--ui-text)]"
           rows="2"
         ></textarea></label
       >
       <button
-        class="w-fit rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+        class="w-fit cursor-pointer rounded bg-indigo-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
         disabled={creatingReceipt || workOrders.length === 0}
         type="submit"
         >{creatingReceipt ? "Submitting..." : "Submit receipt"}</button
@@ -432,10 +432,10 @@
     </form>
   {/if}
   {#if createdReceipt}
-    <div class="mt-3 rounded-md border border-gray-100 bg-gray-50 p-3">
-      <p class="text-xs text-gray-500">
+    <div class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3">
+      <p class="text-xs text-[var(--ui-text-muted)]">
         Submitted: <a
-          class="text-indigo-600 underline"
+          class="text-indigo-400 underline"
           href={`/artifacts/${createdReceipt.id}`}
           >{createdReceipt.summary || createdReceipt.id}</a
         >
