@@ -33,13 +33,21 @@
     const suggestions = [];
     for (const event of events ?? []) {
       if (event.type === "receipt_added") {
-        const artifactRef = (event.refs ?? []).find((r) => String(r).startsWith("artifact:"));
+        const artifactRef = (event.refs ?? []).find((r) =>
+          String(r).startsWith("artifact:"),
+        );
         if (artifactRef) {
-          suggestions.push({ ref: artifactRef, label: event.summary || "Receipt" });
+          suggestions.push({
+            ref: artifactRef,
+            label: event.summary || "Receipt",
+          });
         }
       }
       if (event.type === "decision_made") {
-        suggestions.push({ ref: `event:${event.id}`, label: event.summary || "Decision" });
+        suggestions.push({
+          ref: `event:${event.id}`,
+          label: event.summary || "Decision",
+        });
       }
     }
     return suggestions;
@@ -88,7 +96,8 @@
   function statusBadgeClass(status) {
     if (status === "done") return "bg-emerald-500/10 text-emerald-400";
     if (status === "blocked") return "bg-amber-500/10 text-amber-400";
-    if (status === "canceled") return "bg-[var(--ui-border)] text-[var(--ui-text-muted)]";
+    if (status === "canceled")
+      return "bg-[var(--ui-border)] text-[var(--ui-text-muted)]";
     return "bg-blue-500/10 text-blue-400";
   }
 
@@ -229,11 +238,15 @@
   });
 </script>
 
-<div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]">
+<div
+  class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+>
   <div
     class="flex items-center justify-between border-b border-[var(--ui-border-subtle)] px-4 py-2.5"
   >
-    <h2 class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
+    <h2
+      class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]"
+    >
       Commitments
     </h2>
     <button
@@ -268,7 +281,8 @@
           {createCommitmentError}
         </p>{/if}
       <div class="grid gap-2 sm:grid-cols-2">
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Title <input
             bind:value={createCommitmentDraft.title}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
@@ -295,7 +309,8 @@
             type="datetime-local"
           /></label
         >
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Completion criteria (one per line) <textarea
             bind:value={createCommitmentDraft.definitionOfDoneInput}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
@@ -314,11 +329,14 @@
   {#if commitmentsLoading}
     <p class="px-4 py-3 text-[12px] text-[var(--ui-text-muted)]">Loading...</p>
   {:else if commitments.length === 0}
-    <p class="px-4 py-3 text-[13px] text-[var(--ui-text-muted)]">No open commitments.</p>
+    <p class="px-4 py-3 text-[13px] text-[var(--ui-text-muted)]">
+      No open commitments.
+    </p>
   {:else}
     {#each commitments as commitment, i}
       <div
-        class="border-b border-[var(--ui-border-subtle)] px-4 py-3 {i === commitments.length - 1
+        class="border-b border-[var(--ui-border-subtle)] px-4 py-3 {i ===
+        commitments.length - 1
           ? 'border-b-0'
           : ''}"
         id={`commitment-card-${commitment.id}`}
@@ -353,7 +371,9 @@
         </div>
 
         {#if (commitment.definition_of_done ?? []).length > 0}
-          <ul class="mt-1.5 list-inside list-disc text-[12px] text-[var(--ui-text-muted)]">
+          <ul
+            class="mt-1.5 list-inside list-disc text-[12px] text-[var(--ui-text-muted)]"
+          >
             {#each commitment.definition_of_done ?? [] as item}<li>
                 <MarkdownRenderer
                   source={item}
@@ -392,7 +412,8 @@
                 {editCommitmentNotice}
               </p>{/if}
             <div class="grid gap-2 sm:grid-cols-2">
-              <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+              <label
+                class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Title <input
                   bind:value={editCommitmentDraft.title}
                   class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
@@ -437,34 +458,42 @@
                     {statusRequirementText(editCommitmentDraft.status)}
                   </p>{/if}
               </div>
-              <div class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2">
-                <label>Evidence link <input
-                  bind:value={editCommitmentDraft.statusRefInput}
-                  class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
-                  placeholder="artifact:receipt-123 or event:decision-456"
-                  type="text"
-                /></label>
+              <div
+                class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+              >
+                <label
+                  >Evidence link <input
+                    bind:value={editCommitmentDraft.statusRefInput}
+                    class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
+                    placeholder="artifact:receipt-123 or event:decision-456"
+                    type="text"
+                  /></label
+                >
                 {#if evidenceRefSuggestions.length > 0 && (editCommitmentDraft.status === "done" || editCommitmentDraft.status === "canceled")}
                   <div class="mt-1.5 flex flex-wrap gap-1">
                     {#each evidenceRefSuggestions as suggestion}
                       <button
                         class="cursor-pointer truncate rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-0.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text)]"
-                        onclick={() => { editCommitmentDraft.statusRefInput = suggestion.ref; }}
+                        onclick={() => {
+                          editCommitmentDraft.statusRefInput = suggestion.ref;
+                        }}
                         title={suggestion.ref}
-                        type="button"
-                      >{suggestion.label}</button>
+                        type="button">{suggestion.label}</button
+                      >
                     {/each}
                   </div>
                 {/if}
               </div>
-              <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+              <label
+                class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Completion criteria (one per line) <textarea
                   bind:value={editCommitmentDraft.definitionOfDoneInput}
                   class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
                   rows="2"
                 ></textarea></label
               >
-              <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+              <label
+                class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
                 >Links (one per line) <textarea
                   bind:value={editCommitmentDraft.linksInput}
                   class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"

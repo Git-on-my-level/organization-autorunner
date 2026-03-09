@@ -24,9 +24,7 @@ test("registers actor, unlocks shell, and performs a write", async ({
   await expect(
     page.getByRole("heading", { name: "Organization Autorunner UI" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "What needs attention?" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(
     page.getByRole("link", { name: "Inbox", exact: true }),
   ).toBeVisible();
@@ -57,12 +55,8 @@ test("renders a dashboard on / and routes into inbox", async ({ page }) => {
 
   await page.goto("/");
 
-  await expect(
-    page.getByRole("heading", { name: "What needs attention?" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Attention queue" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Thread health" }),
   ).toBeVisible();
@@ -97,15 +91,11 @@ test("shows partial-failure messaging when one dashboard source is unavailable",
 
   await page.goto("/");
 
-  await expect(
-    page.getByRole("heading", { name: "What needs attention?" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(
     page.getByText("Failed to load threads:", { exact: false }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Attention queue" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Recent artifacts" }),
   ).toBeVisible();

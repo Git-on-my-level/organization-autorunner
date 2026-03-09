@@ -1,7 +1,13 @@
 import { get, writable } from "svelte/store";
 
 import { clearSelectedActor } from "./actorSession.js";
-import { normalizeBaseUrl, oarCoreBaseUrl } from "./config.js";
+import { normalizeBaseUrl } from "./config.js";
+import { getCurrentProjectSlug, currentProjectSlug } from "./projectContext.js";
+import {
+  DEFAULT_PROJECT_SLUG,
+  buildProjectStorageKey,
+  projectPath,
+} from "./projectPaths.js";
 
 export const REFRESH_TOKEN_STORAGE_KEY = "oar_ui_refresh_token";
 
@@ -10,10 +16,38 @@ export const authenticatedAgent = writable(null);
 
 const browser = typeof window !== "undefined";
 
-let accessToken = "";
-let refreshPromise;
+const authStateByProject = new Map();
 
-function resolveBaseUrl(baseUrl = oarCoreBaseUrl) {
+function createEmptyAuthState() {
+  return {
+    ready: false,
+    accessToken: "",
+    authenticatedAgent: null,
+    refreshPromise: undefined,
+  };
+}
+
+function ensureAuthState(projectSlug = getCurrentProjectSlug()) {
+  const slug = String(projectSlug ?? "").trim();
+  if (!authStateByProject.has(slug)) {
+    authStateByProject.set(slug, createEmptyAuthState());
+  }
+
+  return authStateByProject.get(slug);
+}
+
+function syncCurrentAuthStores(projectSlug = getCurrentProjectSlug()) {
+  const state = ensureAuthState(projectSlug);
+  authSessionReady.set(state.ready);
+  authenticatedAgent.set(state.authenticatedAgent);
+  return state;
+}
+
+currentProjectSlug.subscribe((projectSlug) => {
+  syncCurrentAuthStores(projectSlug);
+});
+
+function resolveBaseUrl(baseUrl = "") {
   return normalizeBaseUrl(baseUrl);
 }
 
@@ -25,7 +59,7 @@ function resolveFetch(fetchFn) {
   return globalThis.fetch.bind(globalThis);
 }
 
-function buildUrl(pathname, baseUrl = oarCoreBaseUrl) {
+function buildUrl(pathname, baseUrl = "") {
   const resolvedBaseUrl = resolveBaseUrl(baseUrl);
   if (!resolvedBaseUrl) {
     return pathname;
@@ -73,79 +107,124 @@ async function requestJSON(
   return payload;
 }
 
-function setAccessToken(nextToken) {
-  accessToken = String(nextToken ?? "").trim();
+export function refreshTokenStorageKey(projectSlug = getCurrentProjectSlug()) {
+  return buildProjectStorageKey(REFRESH_TOKEN_STORAGE_KEY, projectSlug);
 }
 
-export function getAccessToken() {
-  return accessToken;
+export function getAccessToken(projectSlug = getCurrentProjectSlug()) {
+  return ensureAuthState(projectSlug).accessToken;
 }
 
-export function loadStoredRefreshToken(storage = sessionStorage) {
-  return storage.getItem(REFRESH_TOKEN_STORAGE_KEY) ?? "";
+export function loadStoredRefreshToken(
+  storage = sessionStorage,
+  projectSlug = getCurrentProjectSlug(),
+) {
+  const scopedRefreshToken = storage.getItem(
+    refreshTokenStorageKey(projectSlug),
+  );
+  if (scopedRefreshToken) {
+    return scopedRefreshToken;
+  }
+
+  const normalizedProjectSlug = String(projectSlug ?? "").trim();
+  if (
+    !normalizedProjectSlug ||
+    normalizedProjectSlug === DEFAULT_PROJECT_SLUG
+  ) {
+    return storage.getItem(REFRESH_TOKEN_STORAGE_KEY) ?? "";
+  }
+
+  return "";
 }
 
-export function saveRefreshToken(refreshToken, storage = sessionStorage) {
+export function saveRefreshToken(
+  refreshToken,
+  storage = sessionStorage,
+  projectSlug = getCurrentProjectSlug(),
+) {
   const normalized = String(refreshToken ?? "").trim();
+  const storageKey = refreshTokenStorageKey(projectSlug);
   if (!normalized) {
+    storage.removeItem(storageKey);
     storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
     return "";
   }
 
-  storage.setItem(REFRESH_TOKEN_STORAGE_KEY, normalized);
+  storage.setItem(storageKey, normalized);
   return normalized;
 }
 
 export function clearAuthSession(
   storage = browser ? sessionStorage : undefined,
+  projectSlug = getCurrentProjectSlug(),
+  options = {},
 ) {
-  setAccessToken("");
+  const clearActor = Boolean(options.clearActor);
+  const state = ensureAuthState(projectSlug);
+  state.accessToken = "";
+  state.authenticatedAgent = null;
+  state.refreshPromise = undefined;
+  state.ready = true;
   if (storage) {
+    storage.removeItem(refreshTokenStorageKey(projectSlug));
     storage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   }
-  authenticatedAgent.set(null);
-  if (browser) {
-    clearSelectedActor();
+  if (browser && clearActor) {
+    clearSelectedActor(localStorage, projectSlug);
   }
+  syncCurrentAuthStores(projectSlug);
 }
 
-export function completeAuthSession(agent, tokens, storage = sessionStorage) {
-  setAccessToken(tokens?.access_token);
-  saveRefreshToken(tokens?.refresh_token, storage);
-  authenticatedAgent.set(agent ?? null);
-  authSessionReady.set(true);
+export function completeAuthSession(
+  agent,
+  tokens,
+  storage = sessionStorage,
+  projectSlug = getCurrentProjectSlug(),
+) {
+  const state = ensureAuthState(projectSlug);
+  state.accessToken = String(tokens?.access_token ?? "").trim();
+  saveRefreshToken(tokens?.refresh_token, storage, projectSlug);
+  state.authenticatedAgent = agent ?? null;
+  state.ready = true;
+  syncCurrentAuthStores(projectSlug);
   return {
     agent: agent ?? null,
     tokens,
   };
 }
 
-export function getAuthenticatedAgent() {
+export function getAuthenticatedAgent(projectSlug = getCurrentProjectSlug()) {
+  if (projectSlug && projectSlug !== getCurrentProjectSlug()) {
+    return ensureAuthState(projectSlug).authenticatedAgent;
+  }
+
   return get(authenticatedAgent);
 }
 
-export function getAuthenticatedActorId() {
-  return getAuthenticatedAgent()?.actor_id ?? "";
+export function getAuthenticatedActorId(projectSlug = getCurrentProjectSlug()) {
+  return getAuthenticatedAgent(projectSlug)?.actor_id ?? "";
 }
 
-export function isAuthenticated() {
-  return Boolean(getAuthenticatedAgent()?.agent_id);
+export function isAuthenticated(projectSlug = getCurrentProjectSlug()) {
+  return Boolean(getAuthenticatedAgent(projectSlug)?.agent_id);
 }
 
 export async function refreshAuthSession({
   fetchFn,
   storage = sessionStorage,
-  baseUrl = oarCoreBaseUrl,
+  baseUrl = "",
+  projectSlug = getCurrentProjectSlug(),
   redirectOnFailure = false,
 } = {}) {
-  const refreshToken = loadStoredRefreshToken(storage);
+  const state = ensureAuthState(projectSlug);
+  const refreshToken = loadStoredRefreshToken(storage, projectSlug);
   if (!refreshToken) {
-    clearAuthSession(storage);
+    clearAuthSession(storage, projectSlug);
     return null;
   }
 
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
+  if (!state.refreshPromise) {
+    state.refreshPromise = (async () => {
       const tokenResponse = await requestJSON("/auth/token", {
         fetchFn,
         baseUrl,
@@ -156,8 +235,8 @@ export async function refreshAuthSession({
         },
       });
       const nextTokens = tokenResponse.tokens ?? {};
-      setAccessToken(nextTokens.access_token);
-      saveRefreshToken(nextTokens.refresh_token, storage);
+      state.accessToken = String(nextTokens.access_token ?? "").trim();
+      saveRefreshToken(nextTokens.refresh_token, storage, projectSlug);
 
       const meResponse = await requestJSON("/agents/me", {
         fetchFn,
@@ -165,74 +244,89 @@ export async function refreshAuthSession({
         token: nextTokens.access_token,
       });
 
-      authenticatedAgent.set(meResponse.agent ?? null);
+      state.authenticatedAgent = meResponse.agent ?? null;
+      state.ready = true;
+      syncCurrentAuthStores(projectSlug);
       return {
         agent: meResponse.agent ?? null,
         tokens: nextTokens,
       };
     })()
       .catch((error) => {
-        clearAuthSession(storage);
+        clearAuthSession(storage, projectSlug);
         if (redirectOnFailure && browser) {
-          window.location.assign("/login");
+          window.location.assign(projectPath(projectSlug, "/login"));
         }
         throw error;
       })
       .finally(() => {
-        refreshPromise = undefined;
+        state.refreshPromise = undefined;
       });
   }
 
-  return refreshPromise;
+  return state.refreshPromise;
 }
 
 export async function initializeAuthSession({
   fetchFn,
   storage = browser ? sessionStorage : undefined,
-  baseUrl = oarCoreBaseUrl,
+  baseUrl = "",
+  projectSlug = getCurrentProjectSlug(),
 } = {}) {
+  const state = ensureAuthState(projectSlug);
   if (!browser || !storage) {
-    authSessionReady.set(true);
+    state.ready = true;
+    syncCurrentAuthStores(projectSlug);
     return null;
   }
 
-  authSessionReady.set(false);
+  state.ready = false;
+  syncCurrentAuthStores(projectSlug);
 
   try {
     const result = await refreshAuthSession({
       fetchFn,
       storage,
       baseUrl,
+      projectSlug,
       redirectOnFailure: false,
     });
-    authSessionReady.set(true);
+    state.ready = true;
+    syncCurrentAuthStores(projectSlug);
     return result;
   } catch {
-    authSessionReady.set(true);
+    state.ready = true;
+    syncCurrentAuthStores(projectSlug);
     return null;
   }
 }
 
-export function createAuthTokenProvider(fetchFn, baseUrl = oarCoreBaseUrl) {
+export function createAuthTokenProvider(fetchFn, options = {}) {
+  const projectSlugProvider =
+    options.projectSlugProvider ?? (() => getCurrentProjectSlug());
+  const baseUrl = options.baseUrl ?? "";
+
   return {
     getAccessToken() {
-      return getAccessToken();
+      return getAccessToken(projectSlugProvider());
     },
     hasRefreshToken(storage = sessionStorage) {
-      return Boolean(loadStoredRefreshToken(storage));
+      return Boolean(loadStoredRefreshToken(storage, projectSlugProvider()));
     },
     async refreshAccessToken() {
       const result = await refreshAuthSession({
         fetchFn,
         baseUrl,
+        projectSlug: projectSlugProvider(),
         redirectOnFailure: true,
       });
       return result?.tokens?.access_token ?? "";
     },
     async handleRefreshFailure() {
-      clearAuthSession();
+      const projectSlug = projectSlugProvider();
+      clearAuthSession(undefined, projectSlug);
       if (browser) {
-        window.location.assign("/login");
+        window.location.assign(projectPath(projectSlug, "/login"));
       }
     },
   };

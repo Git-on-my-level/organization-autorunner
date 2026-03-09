@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ACTOR_STORAGE_KEY,
+  actorStorageKey,
   buildActorCreatePayload,
   chooseActor,
   initializeActorSession,
@@ -35,13 +36,15 @@ describe("actor session / gate logic", () => {
 
   it("persists and restores selected actor id", () => {
     const storage = createMemoryStorage();
+    const storageKey = actorStorageKey();
 
     expect(loadStoredActorId(storage)).toBe("");
     expect(saveSelectedActorId("actor-123", storage)).toBe("actor-123");
     expect(loadStoredActorId(storage)).toBe("actor-123");
 
     expect(chooseActor("actor-789", storage)).toBe("actor-789");
-    expect(storage.getItem(ACTOR_STORAGE_KEY)).toBe("actor-789");
+    expect(storage.getItem(storageKey)).toBe("actor-789");
+    expect(storage.getItem(ACTOR_STORAGE_KEY)).toBe(null);
 
     expect(initializeActorSession(storage)).toBe("actor-789");
   });

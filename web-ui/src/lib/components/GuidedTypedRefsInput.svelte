@@ -104,7 +104,9 @@
   <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">{helperText}</p>
 {/if}
 
-<div class="mt-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-2.5">
+<div
+  class="mt-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-2.5"
+>
   {#if refs.length === 0}
     <p class="text-xs text-[var(--ui-text-muted)]">{emptyText}</p>
   {:else}

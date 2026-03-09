@@ -141,22 +141,30 @@
 </script>
 
 {#if conflictWarning}
-  <p class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400">
+  <p
+    class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
+  >
     {conflictWarning}
   </p>
 {/if}
 {#if editNotice}
-  <p class="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400">
+  <p
+    class="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400"
+  >
     {editNotice}
   </p>
 {/if}
 
 {#if snapshot}
-  <div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]">
+  <div
+    class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+  >
     <div
       class="flex items-center justify-between border-b border-[var(--ui-border-subtle)] px-4 py-2.5"
     >
-      <h2 class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
+      <h2
+        class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]"
+      >
         Details
       </h2>
       <button
@@ -177,7 +185,9 @@
       </div>
       <div>
         <p class="text-[12px] text-[var(--ui-text-muted)]">Cadence</p>
-        <p class="text-[var(--ui-text)]">{formatCadenceLabel(snapshot.cadence)}</p>
+        <p class="text-[var(--ui-text)]">
+          {formatCadenceLabel(snapshot.cadence)}
+        </p>
       </div>
       <div>
         <p class="text-[12px] text-[var(--ui-text-muted)]">Next check-in</p>
@@ -201,7 +211,8 @@
       <div class="border-t border-[var(--ui-border-subtle)] px-4 py-2.5">
         <div class="flex flex-wrap gap-1.5">
           {#each snapshot.tags ?? [] as tag}
-            <span class="rounded bg-[var(--ui-border)] px-2 py-0.5 text-[12px] text-[var(--ui-text-muted)]"
+            <span
+              class="rounded bg-[var(--ui-border)] px-2 py-0.5 text-[12px] text-[var(--ui-text-muted)]"
               >{tag}</span
             >
           {/each}
@@ -220,7 +231,9 @@
     {#if (snapshot.next_actions ?? []).length > 0}
       <div class="border-t border-[var(--ui-border-subtle)] px-4 py-3">
         <p class="text-[12px] text-[var(--ui-text-muted)]">Next actions</p>
-        <ul class="mt-1 list-inside list-disc text-[13px] text-[var(--ui-text)]">
+        <ul
+          class="mt-1 list-inside list-disc text-[13px] text-[var(--ui-text)]"
+        >
           {#each snapshot.next_actions ?? [] as action}<li>
               {action}
             </li>{/each}
@@ -274,7 +287,8 @@
           {editError}
         </p>{/if}
       <div class="grid gap-3 sm:grid-cols-2">
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Title <input
             bind:value={editDraft.title}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
@@ -336,7 +350,8 @@
             />{#if describeCron(editDraft.cadenceCron)}<span
                 class="mt-1 block text-[11px] text-[var(--ui-text-muted)]"
                 >{describeCron(editDraft.cadenceCron)}</span
-              >{/if}<span class="mt-0.5 block text-[11px] text-[var(--ui-text-subtle)]"
+              >{/if}<span
+              class="mt-0.5 block text-[11px] text-[var(--ui-text-subtle)]"
               >Five cron fields, server timezone.</span
             ></label
           >
@@ -355,21 +370,24 @@
             rows="2"
           ></textarea></label
         >
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Summary <textarea
             bind:value={editDraft.current_summary}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Next actions (one per line) <textarea
             bind:value={editDraft.nextActionsInput}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
             rows="2"
           ></textarea></label
         >
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
+        <label
+          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Key artifacts (one per line) <textarea
             bind:value={editDraft.keyArtifactsInput}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"

@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { page } from "$app/stores";
 
-  import { actorRegistry } from "$lib/actorSession";
+  import { actorRegistry, replaceActorRegistry } from "$lib/actorSession";
   import { coreClient } from "$lib/coreClient";
   import { threadDetailStore } from "$lib/threadDetailStore";
 
@@ -30,7 +30,11 @@
     await ensureActorRegistry();
     await threadDetailStore.fullRefresh(threadId);
     pollTimer = setInterval(
-      () => threadDetailStore.refreshThreadDetail(threadId, { snapshot: true, timeline: true }),
+      () =>
+        threadDetailStore.refreshThreadDetail(threadId, {
+          snapshot: true,
+          timeline: true,
+        }),
       POLL_INTERVAL_MS,
     );
   });
@@ -42,7 +46,7 @@
   async function ensureActorRegistry() {
     if ($actorRegistry.length > 0) return;
     try {
-      actorRegistry.set((await coreClient.listActors()).actors ?? []);
+      replaceActorRegistry((await coreClient.listActors()).actors ?? []);
     } catch (error) {
       void error;
     }
@@ -146,7 +150,8 @@
       >
         {tabLabel}
         {#if activeTab === tabId}
-          <span class="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-indigo-500"
+          <span
+            class="pointer-events-none absolute inset-x-0 -bottom-px h-0.5 bg-indigo-500"
           ></span>
         {/if}
       </button>

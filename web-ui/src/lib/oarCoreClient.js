@@ -3,11 +3,7 @@ import {
   commandRegistry,
 } from "../../../contracts/gen/ts/dist/client.js";
 
-import {
-  EXPECTED_SCHEMA_VERSION,
-  normalizeBaseUrl,
-  oarCoreBaseUrl,
-} from "./config.js";
+import { EXPECTED_SCHEMA_VERSION, normalizeBaseUrl } from "./config.js";
 
 const commandRegistryByID = new Map(
   commandRegistry.map((command) => [command.command_id, command]),
@@ -154,11 +150,12 @@ async function parseRawErrorResponse(response, fallbackStatusText) {
 }
 
 export function createOarCoreClient(options = {}) {
-  const resolvedBaseUrl = normalizeBaseUrl(options.baseUrl ?? oarCoreBaseUrl);
+  const resolvedBaseUrl = normalizeBaseUrl(options.baseUrl ?? "");
   const baseFetchFn = options.fetchFn ?? fetch;
   const actorIdProvider = options.actorIdProvider;
   const lockActorIdProvider = options.lockActorIdProvider;
   const tokenProvider = options.tokenProvider;
+  const requestContextHeadersProvider = options.requestContextHeadersProvider;
   const target = resolvedBaseUrl || "same-origin";
   const sameOriginProxyBaseUrl = "http://oar.local";
   const generatedBaseUrl = resolvedBaseUrl || sameOriginProxyBaseUrl;
@@ -192,6 +189,16 @@ export function createOarCoreClient(options = {}) {
   const fetchFn = async (input, init = {}) => {
     async function performRequest({ retrying = false } = {}) {
       const headers = new Headers(init.headers ?? {});
+      const requestContextHeaders =
+        (await requestContextHeadersProvider?.()) ?? {};
+
+      for (const [name, value] of Object.entries(requestContextHeaders)) {
+        const normalizedValue = String(value ?? "").trim();
+        if (!normalizedValue) {
+          continue;
+        }
+        headers.set(name, normalizedValue);
+      }
 
       if (retrying) {
         headers.delete("authorization");

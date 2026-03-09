@@ -7,7 +7,3 @@ export function normalizeBaseUrl(value) {
 
   return String(value).trim().replace(/\/+$/, "");
 }
-
-export const oarCoreBaseUrl = normalizeBaseUrl(
-  import.meta.env.PUBLIC_OAR_CORE_BASE_URL,
-);

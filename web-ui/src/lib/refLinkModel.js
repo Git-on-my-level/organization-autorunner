@@ -1,4 +1,5 @@
 import { parseRef, renderRef } from "./typedRefs.js";
+import { projectPath } from "./projectPaths.js";
 
 function asPathSegment(value) {
   return encodeURIComponent(String(value));
@@ -57,11 +58,16 @@ function resolveRefLabels(raw, prefix, value, options = {}) {
   };
 }
 
+function toProjectHref(projectSlug, pathname) {
+  return projectSlug ? projectPath(projectSlug, pathname) : pathname;
+}
+
 export function resolveRefLink(refValue, options = {}) {
   const parsed = parseRef(refValue);
   const raw = renderRef(parsed);
   const prefix = parsed.prefix;
   const value = parsed.value;
+  const projectSlug = options.projectSlug;
   const threadId = options.threadId;
   const snapshotIsThread = Boolean(options.snapshotIsThread);
 
@@ -87,7 +93,7 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "artifact",
       ...labels,
-      href: `/artifacts/${asPathSegment(value)}`,
+      href: toProjectHref(projectSlug, `/artifacts/${asPathSegment(value)}`),
       isExternal: false,
       isLink: true,
     };
@@ -100,7 +106,7 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "thread",
       ...labels,
-      href: `/threads/${asPathSegment(value)}`,
+      href: toProjectHref(projectSlug, `/threads/${asPathSegment(value)}`),
       isExternal: false,
       isLink: true,
     };
@@ -108,8 +114,8 @@ export function resolveRefLink(refValue, options = {}) {
 
   if (prefix === "snapshot") {
     const href = snapshotIsThread
-      ? `/threads/${asPathSegment(value)}`
-      : `/snapshots/${asPathSegment(value)}`;
+      ? toProjectHref(projectSlug, `/threads/${asPathSegment(value)}`)
+      : toProjectHref(projectSlug, `/snapshots/${asPathSegment(value)}`);
     return {
       raw,
       prefix,
@@ -141,7 +147,10 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "event",
       ...labels,
-      href: `/threads/${asPathSegment(threadId)}#event-${asPathSegment(value)}`,
+      href: toProjectHref(
+        projectSlug,
+        `/threads/${asPathSegment(threadId)}#event-${asPathSegment(value)}`,
+      ),
       isExternal: false,
       isLink: true,
     };
@@ -167,7 +176,7 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "inbox",
       ...labels,
-      href: `/inbox#inbox-${asPathSegment(value)}`,
+      href: toProjectHref(projectSlug, `/inbox#inbox-${asPathSegment(value)}`),
       isExternal: false,
       isLink: true,
     };

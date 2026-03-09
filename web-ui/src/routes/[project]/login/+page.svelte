@@ -1,5 +1,6 @@
 <script>
   import { goto } from "$app/navigation";
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
 
   import {
@@ -12,16 +13,18 @@
     createPasskeyCredential,
     getPasskeyAssertion,
   } from "$lib/passkeyBrowser";
+  import { projectPath } from "$lib/projectPaths";
 
   let registrationName = $state("");
   let registrationError = $state("");
   let loginError = $state("");
   let loadingRegistration = $state(false);
   let loadingLogin = $state(false);
+  let projectSlug = $derived($page.params.project);
 
   onMount(() => {
-    if (isAuthenticated()) {
-      goto("/");
+    if (isAuthenticated(projectSlug)) {
+      goto(projectPath(projectSlug));
     }
   });
 
@@ -44,8 +47,13 @@
         session_id: options.session_id,
         credential,
       });
-      completeAuthSession(result.agent, result.tokens);
-      await goto("/");
+      completeAuthSession(
+        result.agent,
+        result.tokens,
+        sessionStorage,
+        projectSlug,
+      );
+      await goto(projectPath(projectSlug));
     } catch (error) {
       registrationError =
         error instanceof Error ? error.message : "Passkey registration failed.";
@@ -66,8 +74,13 @@
         session_id: options.session_id,
         credential,
       });
-      completeAuthSession(result.agent, result.tokens);
-      await goto("/");
+      completeAuthSession(
+        result.agent,
+        result.tokens,
+        sessionStorage,
+        projectSlug,
+      );
+      await goto(projectPath(projectSlug));
     } catch (error) {
       loginError =
         error instanceof Error ? error.message : "Passkey sign-in failed.";
@@ -132,7 +145,9 @@
         </div>
       </section>
 
-      <section class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] lg:flex-1">
+      <section
+        class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] lg:flex-1"
+      >
         <div class="border-b border-[var(--ui-border)] px-4 py-3">
           <p
             class="text-[11px] font-medium uppercase tracking-wide text-[var(--ui-text-muted)]"
@@ -193,7 +208,7 @@
             </button>
             <a
               class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
-              href="/"
+              href={projectPath(projectSlug)}
             >
               Back to actor mode
             </a>

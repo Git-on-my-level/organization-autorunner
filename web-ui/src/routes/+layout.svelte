@@ -1,5 +1,6 @@
 <script>
-  import { onMount } from "svelte";
+  import { browser } from "$app/environment";
+  import { goto } from "$app/navigation";
   import { page } from "$app/stores";
 
   import "../app.css";
@@ -11,6 +12,7 @@
     clearSelectedActor,
     initializeActorSession,
     lookupActorDisplayName,
+    replaceActorRegistry,
     selectedActorId,
     shouldShowActorGate,
   } from "$lib/actorSession";
@@ -22,8 +24,10 @@
   } from "$lib/authSession";
   import { coreClient } from "$lib/coreClient";
   import { getShellContentConfig, navigationItems } from "$lib/navigation";
+  import { setCurrentProjectSlug } from "$lib/projectContext";
+  import { projectPath, stripProjectPath } from "$lib/projectPaths";
 
-  let { children } = $props();
+  let { children, data } = $props();
 
   const navIconPathByType = {
     home: "M3 11.5L12 4l9 7.5M5.5 10.5V20h13v-9.5M9.25 20v-5.5h5.5V20",
@@ -40,19 +44,28 @@
   let creatingActor = $state(false);
   let newActorName = $state("");
   let mobileNavOpen = $state(false);
+  let hydratedProjectSlug = $state("");
 
+  let activeProject = $derived($page.data.project ?? null);
+  let activeProjectSlug = $derived(activeProject?.slug ?? "");
+  let currentAppPath = $derived(
+    activeProjectSlug
+      ? stripProjectPath($page.url.pathname, activeProjectSlug)
+      : $page.url.pathname,
+  );
   let identityReady = $derived($actorSessionReady && $authSessionReady);
   let principalActorId = $derived($authenticatedAgent?.actor_id ?? "");
   let activeActorId = $derived(principalActorId || $selectedActorId);
-  let onLoginRoute = $derived($page.url.pathname === "/login");
+  let onLoginRoute = $derived(currentAppPath === "/login");
   let gateVisible = $derived(
-    identityReady &&
+    activeProjectSlug &&
+      identityReady &&
       !$authenticatedAgent &&
       !onLoginRoute &&
       shouldShowActorGate($actorSessionReady, $selectedActorId),
   );
   let renderLoginOnly = $derived(
-    identityReady && !$authenticatedAgent && onLoginRoute,
+    activeProjectSlug && identityReady && !$authenticatedAgent && onLoginRoute,
   );
   let selectedActorName = $derived(
     lookupActorDisplayName(activeActorId, $actorRegistry) ||
@@ -69,51 +82,75 @@
           .toUpperCase()
       : "?",
   );
-  let shellContentConfig = $derived(getShellContentConfig($page.url.pathname));
+  let shellContentConfig = $derived(getShellContentConfig(currentAppPath));
 
   $effect(() => {
     $page.url.pathname;
     mobileNavOpen = false;
   });
 
-  onMount(async () => {
-    initializeActorSession();
-    await initializeAuthSession({
-      fetchFn: globalThis.fetch.bind(globalThis),
-    });
-    await refreshActors();
+  $effect(() => {
+    if (!browser) {
+      return;
+    }
+
+    const projectSlug = activeProjectSlug;
+    if (!projectSlug) {
+      return;
+    }
+
+    setCurrentProjectSlug(projectSlug);
+    if (hydratedProjectSlug === projectSlug) {
+      return;
+    }
+
+    hydratedProjectSlug = projectSlug;
+    void hydrateProject(projectSlug);
   });
 
-  async function refreshActors() {
+  async function hydrateProject(projectSlug) {
+    initializeActorSession(localStorage, projectSlug);
+    await initializeAuthSession({
+      fetchFn: globalThis.fetch.bind(globalThis),
+      projectSlug,
+    });
+    await refreshActors(projectSlug);
+  }
+
+  async function refreshActors(projectSlug = activeProjectSlug) {
     loadingActors = true;
     actorError = "";
 
     try {
       const response = await coreClient.listActors();
-      actorRegistry.set(response.actors ?? []);
+      replaceActorRegistry(response.actors ?? [], projectSlug);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       actorError = `Failed to load actors: ${reason}`;
-      actorRegistry.set([]);
+      replaceActorRegistry([], projectSlug);
     } finally {
       loadingActors = false;
     }
   }
 
   function selectActor(actorId) {
-    if ($authenticatedAgent) {
+    if ($authenticatedAgent || !activeProjectSlug) {
       return;
     }
-    chooseActor(actorId);
+    chooseActor(actorId, localStorage, activeProjectSlug);
   }
 
   function switchIdentity() {
-    if ($authenticatedAgent) {
-      clearAuthSession();
-      window.location.assign("/login");
+    if (!activeProjectSlug) {
       return;
     }
-    clearSelectedActor();
+
+    if ($authenticatedAgent) {
+      clearAuthSession(undefined, activeProjectSlug, { clearActor: true });
+      window.location.assign(projectHref("/login"));
+      return;
+    }
+    clearSelectedActor(localStorage, activeProjectSlug);
     closeMobileNav();
   }
 
@@ -146,8 +183,11 @@
 
       const response = await coreClient.createActor(payload);
       const createdActor = response.actor;
-      actorRegistry.set([...$actorRegistry, createdActor]);
-      chooseActor(createdActor.id);
+      replaceActorRegistry(
+        [...$actorRegistry, createdActor],
+        activeProjectSlug,
+      );
+      chooseActor(createdActor.id, localStorage, activeProjectSlug);
       newActorName = "";
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -158,9 +198,21 @@
   }
 
   function isActive(href) {
-    return (
-      $page.url.pathname === href || $page.url.pathname.startsWith(`${href}/`)
-    );
+    return currentAppPath === href || currentAppPath.startsWith(`${href}/`);
+  }
+
+  function projectHref(pathname = "/") {
+    return projectPath(activeProjectSlug, pathname);
+  }
+
+  async function switchProject(nextProjectSlug) {
+    if (!nextProjectSlug || nextProjectSlug === activeProjectSlug) {
+      return;
+    }
+
+    const destination = `${projectPath(nextProjectSlug, currentAppPath)}${$page.url.search}${$page.url.hash}`;
+    closeMobileNav();
+    await goto(destination);
   }
 
   function iconPath(iconType) {
@@ -185,7 +237,9 @@
 <svelte:window onkeydown={handleWindowKeydown} />
 
 <div class="shell-root">
-  {#if !identityReady}
+  {#if !activeProjectSlug}
+    {@render children()}
+  {:else if !identityReady}
     <main class="shell-loading" aria-live="polite">
       <div class="shell-loading-card">
         <svg
@@ -276,7 +330,7 @@
         </form>
 
         <p class="actor-gate-empty">
-          Prefer authenticated access? <a href="/login"
+          Prefer authenticated access? <a href={projectHref("/login")}
             >Sign in with a passkey.</a
           >
         </p>
@@ -306,12 +360,32 @@
           </div>
         </div>
 
+        <label class="shell-actor-label" for="shell-project-picker">
+          Active project
+        </label>
+        <div class="shell-actor-panel">
+          <select
+            id="shell-project-picker"
+            class="w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+            onchange={(event) => switchProject(event.currentTarget.value)}
+            value={activeProjectSlug}
+          >
+            {#each data.projects ?? [] as project}
+              <option value={project.slug}>{project.label}</option>
+            {/each}
+          </select>
+          <p class="mt-2 text-[12px] text-[var(--ui-text-muted)]">
+            {activeProject?.description ||
+              "Each project routes to its own isolated oar-core instance."}
+          </p>
+        </div>
+
         <nav class="shell-nav" aria-label="Primary">
           {#each navigationItems as item}
             {@const active = isActive(item.href)}
             <a
               class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}
-              href={item.href}
+              href={projectHref(item.href)}
               aria-label={item.label}
             >
               <svg
@@ -424,11 +498,27 @@
                 </button>
               </div>
               <nav class="shell-mobile-nav" aria-label="Primary mobile">
+                <label
+                  class="mb-3 block text-[11px] uppercase tracking-wide text-[var(--ui-text-muted)]"
+                  for="mobile-project-picker"
+                >
+                  Active project
+                </label>
+                <select
+                  id="mobile-project-picker"
+                  class="mb-4 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+                  onchange={(event) => switchProject(event.currentTarget.value)}
+                  value={activeProjectSlug}
+                >
+                  {#each data.projects ?? [] as project}
+                    <option value={project.slug}>{project.label}</option>
+                  {/each}
+                </select>
                 {#each navigationItems as item}
                   {@const active = isActive(item.href)}
                   <a
                     class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}
-                    href={item.href}
+                    href={projectHref(item.href)}
                     onclick={closeMobileNav}
                     aria-label={item.label}
                   >

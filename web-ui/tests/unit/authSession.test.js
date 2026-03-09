@@ -7,6 +7,7 @@ import {
   clearAuthSession,
   completeAuthSession,
   loadStoredRefreshToken,
+  refreshTokenStorageKey,
   refreshAuthSession,
 } from "../../src/lib/authSession.js";
 
@@ -33,6 +34,7 @@ afterEach(() => {
 describe("authSession", () => {
   it("stores the refresh token in session storage and keeps the agent in memory", () => {
     const storage = createMemoryStorage();
+    const storageKey = refreshTokenStorageKey();
 
     completeAuthSession(
       { agent_id: "agent-1", actor_id: "actor-1", username: "passkey.user" },
@@ -44,7 +46,8 @@ describe("authSession", () => {
     );
 
     expect(loadStoredRefreshToken(storage)).toBe("refresh-1");
-    expect(storage.getItem(REFRESH_TOKEN_STORAGE_KEY)).toBe("refresh-1");
+    expect(storage.getItem(storageKey)).toBe("refresh-1");
+    expect(storage.getItem(REFRESH_TOKEN_STORAGE_KEY)).toBe(null);
     expect(get(authenticatedAgent)).toMatchObject({
       agent_id: "agent-1",
       actor_id: "actor-1",
@@ -53,7 +56,7 @@ describe("authSession", () => {
 
   it("refreshes tokens and reloads the current agent profile", async () => {
     const storage = createMemoryStorage();
-    storage.setItem(REFRESH_TOKEN_STORAGE_KEY, "refresh-old");
+    storage.setItem(refreshTokenStorageKey(), "refresh-old");
 
     const calls = [];
     const result = await refreshAuthSession({

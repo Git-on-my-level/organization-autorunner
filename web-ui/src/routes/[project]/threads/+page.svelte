@@ -1,4 +1,5 @@
 <script>
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
 
   import { coreClient } from "$lib/coreClient";
@@ -17,6 +18,7 @@
     parseTagFilterInput,
     validateCadenceSelection,
   } from "$lib/threadFilters";
+  import { projectPath } from "$lib/projectPaths";
   import { describeCron } from "$lib/threadPatch";
 
   const defaultFilters = {
@@ -35,6 +37,7 @@
   let creatingThread = $state(false);
   let createError = $state("");
   let filtersOpen = $state(false);
+  let projectSlug = $derived($page.params.project);
 
   let threadDraft = $state({
     title: "",
@@ -45,6 +48,10 @@
     cadenceCron: "",
     tagsInput: "",
   });
+
+  function projectHref(pathname = "/") {
+    return projectPath(projectSlug, pathname);
+  }
 
   onMount(async () => {
     await loadThreads();
@@ -153,10 +160,10 @@
 
   let hasActiveFilters = $derived(
     filters.status !== "" ||
-    filters.priority !== "" ||
-    filters.cadence !== "" ||
-    filters.staleness !== "all" ||
-    filters.tagInput.trim() !== "",
+      filters.priority !== "" ||
+      filters.cadence !== "" ||
+      filters.staleness !== "all" ||
+      filters.tagInput.trim() !== "",
   );
 
   function priorityDot(priority) {
@@ -237,7 +244,9 @@
 {/if}
 
 {#if filtersOpen}
-  <div class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3">
+  <div
+    class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
+  >
     <div class="grid gap-3 sm:grid-cols-5">
       <label class="text-[12px]">
         <span class="font-medium text-[var(--ui-text-muted)]">Status</span>
@@ -372,7 +381,9 @@
       </label>
       {#if threadDraft.cadencePreset === "custom"}
         <label class="text-[12px]">
-          <span class="font-medium text-[var(--ui-text-muted)]">Cron expression</span>
+          <span class="font-medium text-[var(--ui-text-muted)]"
+            >Cron expression</span
+          >
           <input
             bind:value={threadDraft.cadenceCron}
             class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
@@ -464,7 +475,7 @@
         0
           ? 'border-t border-[var(--ui-border)]'
           : ''}"
-        href={`/threads/${thread.id}`}
+        href={projectHref(`/threads/${thread.id}`)}
       >
         <span
           class="flex h-2 w-2 shrink-0 rounded-full {priorityDot(

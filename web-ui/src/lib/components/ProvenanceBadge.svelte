@@ -46,7 +46,8 @@
       {/if}
       {#if provenance?.by_field}
         <details class="mt-1">
-          <summary class="cursor-pointer text-[11px] text-[var(--ui-text-muted)]"
+          <summary
+            class="cursor-pointer text-[11px] text-[var(--ui-text-muted)]"
             >Field details</summary
           >
           <pre
@@ -60,7 +61,9 @@
     </div>
   </details>
 {:else}
-  <span class="inline-flex items-center gap-1.5 text-[11px] text-[var(--ui-text-muted)]">
+  <span
+    class="inline-flex items-center gap-1.5 text-[11px] text-[var(--ui-text-muted)]"
+  >
     <span class={`h-1.5 w-1.5 rounded-full ${dotClass}`}></span>
     {label}
   </span>

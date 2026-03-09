@@ -1,5 +1,6 @@
 <script>
   import { page } from "$app/stores";
+  import { projectPath } from "$lib/projectPaths";
   import { threadDetailStore } from "$lib/threadDetailStore";
   import { parseListInput } from "$lib/threadPatch";
   import { validateWorkOrderDraft } from "$lib/workOrderUtils";
@@ -14,6 +15,7 @@
   let workOrderShouldPrefill = $derived(
     $page.url.searchParams.get("compose") === "work-order",
   );
+  let projectSlug = $derived($page.params.project);
   let workOrderPrefillRefs = $derived(
     $page.url.searchParams
       .getAll("context_ref")
@@ -34,6 +36,10 @@
   let createdReceipt = $state(null);
 
   let workOrderPrefillNotice = $state("");
+
+  function projectHref(pathname = "/") {
+    return projectPath(projectSlug, pathname);
+  }
 
   function blankWorkOrderDraft() {
     return {
@@ -184,8 +190,12 @@
 </script>
 
 {#if workOrderShouldPrefill}
-  <div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
-    <h2 class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
+  <div
+    class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4"
+  >
+    <h2
+      class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]"
+    >
       New Work Order
     </h2>
     <p class="mt-0.5 text-[12px] text-[var(--ui-text-muted)]">
@@ -258,11 +268,13 @@
       </form>
     {/if}
     {#if createdWorkOrder}
-      <div class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3">
+      <div
+        class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3"
+      >
         <p class="text-[12px] text-[var(--ui-text-muted)]">
           Created: <a
             class="text-indigo-400 underline"
-            href={`/artifacts/${createdWorkOrder.id}`}
+            href={projectHref(`/artifacts/${createdWorkOrder.id}`)}
             >{createdWorkOrder.summary || createdWorkOrder.id}</a
           >
         </p>
@@ -270,8 +282,12 @@
     {/if}
   </div>
 {:else}
-  <div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
-    <h2 class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
+  <div
+    class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4"
+  >
+    <h2
+      class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]"
+    >
       New Work Order
     </h2>
     <p class="mt-0.5 text-[12px] text-[var(--ui-text-muted)]">
@@ -339,11 +355,13 @@
       </form>
     {/if}
     {#if createdWorkOrder}
-      <div class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3">
+      <div
+        class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3"
+      >
         <p class="text-[12px] text-[var(--ui-text-muted)]">
           Created: <a
             class="text-indigo-400 underline"
-            href={`/artifacts/${createdWorkOrder.id}`}
+            href={projectHref(`/artifacts/${createdWorkOrder.id}`)}
             >{createdWorkOrder.summary || createdWorkOrder.id}</a
           >
         </p>
@@ -352,8 +370,12 @@
   </div>
 {/if}
 
-<div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
-  <h2 class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
+<div
+  class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4"
+>
+  <h2
+    class="text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]"
+  >
     Add Receipt
   </h2>
   <p class="mt-0.5 text-[12px] text-[var(--ui-text-muted)]">
@@ -375,7 +397,9 @@
       {receiptNotice}
     </p>{/if}
   {#if workOrdersLoading}
-    <p class="mt-2 text-[12px] text-[var(--ui-text-muted)]">Loading work orders...</p>
+    <p class="mt-2 text-[12px] text-[var(--ui-text-muted)]">
+      Loading work orders...
+    </p>
   {:else if receiptDraft}
     <form
       class="mt-3 grid gap-3"
@@ -432,11 +456,13 @@
     </form>
   {/if}
   {#if createdReceipt}
-    <div class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3">
+    <div
+      class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3"
+    >
       <p class="text-[12px] text-[var(--ui-text-muted)]">
         Submitted: <a
           class="text-indigo-400 underline"
-          href={`/artifacts/${createdReceipt.id}`}
+          href={projectHref(`/artifacts/${createdReceipt.id}`)}
           >{createdReceipt.summary || createdReceipt.id}</a
         >
       </p>

@@ -38,11 +38,15 @@
 </script>
 
 <h1 class="text-lg font-semibold text-[var(--ui-text)]">
-  Snapshot: <span class="font-mono text-[var(--ui-text-muted)]">{snapshotId}</span>
+  Snapshot: <span class="font-mono text-[var(--ui-text-muted)]"
+    >{snapshotId}</span
+  >
 </h1>
 
 {#if loading}
-  <div class="mt-6 flex items-center gap-2 text-[13px] text-[var(--ui-text-muted)]">
+  <div
+    class="mt-6 flex items-center gap-2 text-[13px] text-[var(--ui-text-muted)]"
+  >
     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
       <circle
         class="opacity-25"
@@ -80,9 +84,13 @@
     {loadError}
   </div>
 {:else if snapshot}
-  <div class="mt-4 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-panel)]">
+  <div
+    class="mt-4 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+  >
     <div class="border-b border-[var(--ui-border-subtle)] px-5 py-3">
-      <h2 class="text-[13px] font-medium text-[var(--ui-text)]">Raw Snapshot JSON</h2>
+      <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
+        Raw Snapshot JSON
+      </h2>
     </div>
     <pre
       class="overflow-auto px-5 py-4 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(
