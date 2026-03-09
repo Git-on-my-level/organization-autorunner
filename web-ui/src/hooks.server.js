@@ -26,20 +26,9 @@ function isDocumentNavigationRequest(request) {
 
 function resolveProjectTarget(event) {
   const catalog = loadProjectCatalog(env);
-  const projectSlug = String(
-    event.request.headers.get(PROJECT_HEADER) ?? "",
-  ).trim();
-  if (!projectSlug) {
-    return {
-      status: 400,
-      payload: {
-        error: {
-          code: "project_header_required",
-          message: `Missing ${PROJECT_HEADER} header for oar-core request.`,
-        },
-      },
-    };
-  }
+  const projectSlug =
+    String(event.request.headers.get(PROJECT_HEADER) ?? "").trim() ||
+    catalog.defaultProject.slug;
 
   const project = catalog.projectBySlug.get(projectSlug);
   if (!project) {
