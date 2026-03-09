@@ -57,8 +57,10 @@ cli-check: ## Run CLI checks
 cli-test: ## Run CLI tests
 	cd $(CLI_DIR) && go test ./...
 
+CLI_VERSION ?= dev
+
 cli-build: ## Build CLI binary
-	cd $(CLI_DIR) && go build ./cmd/oar
+	cd $(CLI_DIR) && go build -ldflags='-X organization-autorunner-cli/internal/httpclient.CLIVersion=$(CLI_VERSION)' -o oar ./cmd/oar
 
 cli-integration-test: ## Run CLI real-binary integration tests (non-default)
 	cd $(CLI_DIR) && go test -tags=integration ./integration/...

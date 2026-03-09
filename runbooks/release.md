@@ -34,6 +34,34 @@ Release workflow outputs:
 - linux/darwin/windows archives for `amd64` + `arm64`
 - SHA256 checksum manifest (`checksums.txt`)
 
+## Installing the CLI on agent hosts
+
+One-command install (latest release):
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/Git-on-my-level/organization-autorunner/main/scripts/install-oar.sh | sh
+```
+
+Pin a specific version:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/Git-on-my-level/organization-autorunner/main/scripts/install-oar.sh | VERSION=v0.2.0 sh
+```
+
+Custom install directory:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/Git-on-my-level/organization-autorunner/main/scripts/install-oar.sh | INSTALL_DIR=/usr/local/bin sh
+```
+
+The script detects OS/arch, downloads the correct archive from the GitHub release, verifies the SHA-256 checksum, and places the `oar` binary in `~/.local/bin` (or the specified `INSTALL_DIR`).
+
+After install, register the agent with core:
+
+```bash
+oar --base-url http://<core-host>:8000 register --agent <agent-name>
+```
+
 ## Post-release validation
 
 1. Download one target archive and verify checksum:

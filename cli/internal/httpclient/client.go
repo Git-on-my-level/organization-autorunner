@@ -16,7 +16,7 @@ import (
 	"organization-autorunner-cli/internal/config"
 )
 
-const CLIVersion = "0.1.0-dev"
+var CLIVersion = "0.1.0-dev"
 
 type Client struct {
 	baseURL     string

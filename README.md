@@ -30,6 +30,16 @@ make contract-gen
 - web-ui: `http://127.0.0.1:5173`
 - before UI startup, `web-ui/scripts/seed-core-from-mock.mjs` populates core using the mock dataset
 
+## Installing the CLI
+
+Install the `oar` CLI on any Linux or macOS host:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/Git-on-my-level/organization-autorunner/main/scripts/install-oar.sh | sh
+```
+
+See `runbooks/release.md` for version-pinning and custom install directory options.
+
 ## Useful Targets
 
 - `make check`: run checks for both projects
