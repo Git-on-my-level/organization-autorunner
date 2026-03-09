@@ -194,20 +194,15 @@ test("receipt form validates typed refs and creates receipt that appears in time
 
   await page.goto("/threads/thread-onboarding");
   await page.getByRole("button", { name: "Work" }).click();
+  await page
+    .getByRole("combobox", { name: "Work order" })
+    .selectOption(workOrderId);
 
+  await page.getByLabel("Outputs (one per line)").fill("not-a-ref");
   await page
-    .getByLabel("Receipt changes summary")
-    .fill("Implemented requested fixes");
-  await page
-    .getByRole("button", { name: "Use advanced raw output input" })
-    .click();
-  await page
-    .getByLabel("Receipt outputs (typed refs, comma/newline separated)")
-    .fill("not-a-ref");
-  await page
-    .getByLabel("Add receipt evidence ref")
+    .getByLabel("Verification evidence (one per line)")
     .fill("artifact:artifact-evidence-1");
-  await page.getByRole("button", { name: "Add evidence ref" }).click();
+  await page.getByLabel("Changes summary").fill("Implemented requested fixes");
   await page.getByRole("button", { name: "Submit receipt" }).click();
 
   await expect(
@@ -218,15 +213,8 @@ test("receipt form validates typed refs and creates receipt that appears in time
   expect(postedPayload).toBeNull();
 
   await page
-    .getByLabel("Receipt outputs (typed refs, comma/newline separated)")
-    .fill("");
-  await page
-    .getByRole("button", { name: "Hide advanced raw output input" })
-    .click();
-  await page
-    .getByLabel("Add receipt output ref")
+    .getByLabel("Outputs (one per line)")
     .fill("artifact:artifact-output-1");
-  await page.getByRole("button", { name: "Add output ref" }).click();
   await page.getByRole("button", { name: "Submit receipt" }).click();
 
   await expect.poll(() => postedPayload !== null).toBe(true);
@@ -250,10 +238,7 @@ test("receipt form validates typed refs and creates receipt that appears in time
     }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Work" }).click();
-  await page
-    .getByRole("link", { name: createdReceiptArtifact.id, exact: true })
-    .click();
+  await page.goto(`/artifacts/${createdReceiptArtifact.id}`);
   await expect(
     page.getByRole("heading", {
       name: createdReceiptArtifact.summary,

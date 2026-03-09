@@ -9,6 +9,7 @@ CORE_HOST="127.0.0.1"
 UI_HOST="127.0.0.1"
 CORE_BASE_URL="http://${CORE_HOST}:${CORE_PORT}"
 UI_BASE_URL="http://${UI_HOST}:${UI_PORT}"
+UI_PROJECT_SLUG="${UI_PROJECT_SLUG:-local}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-25}"
 
 mkdir -p "$ARTIFACT_DIR"
@@ -57,9 +58,10 @@ wait_for_url() {
   local url="$1"
   local attempts="${2:-120}"
   local sleep_seconds="${3:-0.25}"
+  shift 3 || true
 
   for _ in $(seq 1 "$attempts"); do
-    if curl -fsS "$url" >/dev/null 2>&1; then
+    if curl -fsS "$@" "$url" >/dev/null 2>&1; then
       return 0
     fi
     sleep "$sleep_seconds"
@@ -168,7 +170,7 @@ fi
 ) &
 UI_PID=$!
 
-if ! wait_for_url "$UI_BASE_URL/meta/handshake" 180 0.2; then
+if ! wait_for_url "$UI_BASE_URL/meta/handshake" 180 0.2 -H "x-oar-project-slug: ${UI_PROJECT_SLUG}"; then
   echo "web-ui did not become ready on /meta/handshake" >&2
   cat "$UI_LOG" >&2 || true
   exit 1
@@ -305,7 +307,7 @@ fi
 assert_contains "$INBOX_TAIL_OUT" '"command"[[:space:]]*:[[:space:]]*"inbox stream"'
 
 # Basic UI compatibility check after typed flow.
-curl -fsS "$UI_BASE_URL/meta/handshake" >"$TMP_DIR/ui-handshake.json"
+curl -fsS -H "x-oar-project-slug: ${UI_PROJECT_SLUG}" "$UI_BASE_URL/meta/handshake" >"$TMP_DIR/ui-handshake.json"
 assert_contains "$TMP_DIR/ui-handshake.json" '"schema_version"'
 
 cat >"$TMP_DIR/summary.txt" <<SUMMARY

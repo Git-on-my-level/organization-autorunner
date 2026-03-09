@@ -101,19 +101,16 @@ test("work order composer validates typed refs and sends correct POST payload", 
 
   await page.getByLabel("Work order objective").fill("Ship onboarding update");
   await page
-    .getByLabel("Constraints (comma/newline separated)")
+    .getByLabel("Constraints (one per line)")
     .fill("No downtime\nNo schema drift");
   await page
-    .getByRole("button", { name: "Use advanced raw context input" })
-    .click();
-  await page
-    .getByLabel("Context refs (typed refs, comma/newline separated)")
+    .getByLabel("Context references (one per line)")
     .fill("not-a-typed-ref");
   await page
-    .getByLabel("Acceptance criteria (comma/newline separated)")
+    .getByLabel("Acceptance criteria (one per line)")
     .fill("Unit tests pass");
   await page
-    .getByLabel("Work order definition of done (comma/newline separated)")
+    .getByLabel("Definition of done (one per line)")
     .fill("Merged to main");
 
   await page.getByRole("button", { name: "Create work order" }).click();
@@ -125,17 +122,10 @@ test("work order composer validates typed refs and sends correct POST payload", 
   expect(postedPayload).toBeNull();
 
   await page
-    .getByLabel("Context refs (typed refs, comma/newline separated)")
-    .fill("");
-  await page
-    .getByRole("button", { name: "Hide advanced raw context input" })
-    .click();
-  await page
-    .getByLabel("Add context ref")
-    .fill("artifact:artifact-policy-draft");
-  await page.getByRole("button", { name: "Add ref to context" }).click();
-  await page.getByLabel("Add context ref").fill("event:evt-1001");
-  await page.getByRole("button", { name: "Add ref to context" }).click();
+    .getByLabel("Context references (one per line)")
+    .fill(
+      "thread:thread-onboarding\nartifact:artifact-policy-draft\nevent:evt-1001",
+    );
   await page.getByRole("button", { name: "Create work order" }).click();
 
   await expect.poll(() => postedPayload !== null).toBe(true);

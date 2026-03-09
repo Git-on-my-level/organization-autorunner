@@ -232,28 +232,27 @@ test("create receipt then submit review and see review_completed in timeline", a
 
   await page.goto("/threads/thread-onboarding");
   await page.getByRole("button", { name: "Work" }).click();
+  await page
+    .getByRole("combobox", { name: "Work order" })
+    .selectOption(workOrderId);
 
   await page
-    .getByLabel("Receipt changes summary")
-    .fill("Receipt for review flow test");
-  await page
-    .getByLabel("Add receipt output ref")
+    .getByLabel("Outputs (one per line)")
     .fill("artifact:artifact-output-1");
-  await page.getByRole("button", { name: "Add output ref" }).click();
   await page
-    .getByLabel("Add receipt evidence ref")
+    .getByLabel("Verification evidence (one per line)")
     .fill("artifact:artifact-evidence-1");
-  await page.getByRole("button", { name: "Add evidence ref" }).click();
+  await page.getByLabel("Changes summary").fill("Receipt for review flow test");
   await page.getByRole("button", { name: "Submit receipt" }).click();
 
   await expect(
     page.getByText("Receipt submitted.", { exact: true }),
   ).toBeVisible();
 
-  await page
-    .getByRole("link", { name: createdReceiptArtifact.id, exact: true })
-    .click();
-  await expect(page.getByRole("heading", { name: "Receipt" })).toBeVisible();
+  await page.goto(`/artifacts/${createdReceiptArtifact.id}`);
+  await expect(
+    page.getByRole("heading", { name: createdReceiptArtifact.summary }),
+  ).toBeVisible();
 
   await page.getByLabel("Review outcome").selectOption("revise");
   await page.getByLabel("Review notes").fill("Needs additional hardening.");

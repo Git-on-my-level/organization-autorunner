@@ -56,7 +56,7 @@ fi
 CORE_BASE_URL="${CORE_BASE_URL%/}"
 VERSION_URL="${CORE_BASE_URL}/version"
 HANDSHAKE_URL="${CORE_BASE_URL}/meta/handshake"
-export OAR_DEFAULT_PROJECT="${OAR_DEFAULT_PROJECT:-${PROJECT_SLUG}}"
+export OAR_DEFAULT_PROJECT="${PROJECT_SLUG}"
 
 echo "Checking oar-core availability at ${HANDSHAKE_URL} ..."
 if ! version_payload="$(

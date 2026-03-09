@@ -79,7 +79,9 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
 
   await page.goto("/inbox");
 
-  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Inbox", exact: true }),
+  ).toBeVisible();
   await expect(page.getByTestId("inbox-triage-header")).toBeVisible();
   await expect(page.getByTestId("urgency-summary-immediate")).toBeVisible();
   await expect(page.getByTestId("urgency-summary-high")).toBeVisible();
@@ -88,7 +90,7 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
   const targetCard = page.getByTestId("inbox-card-inbox-001");
   await expect(targetCard).toBeVisible();
 
-  await targetCard.getByRole("button", { name: "Acknowledge" }).click();
+  await targetCard.getByRole("button", { name: "Dismiss" }).click();
   await expect(targetCard).toHaveCount(0);
 });
 
@@ -102,7 +104,7 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
       recommended_action: "Record a decision on escalation path.",
       thread_id: "thread-onboarding",
       refs: ["thread:thread-onboarding"],
-      source_event_time: "2026-03-07T09:00:00.000Z",
+      source_event_time: "2026-03-09T09:00:00.000Z",
     },
     {
       id: "inbox-002",
@@ -111,7 +113,7 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
       recommended_action: "Acknowledge and assign owner.",
       thread_id: "thread-onboarding",
       refs: ["event:evt-1001"],
-      source_event_time: "2026-03-07T08:00:00.000Z",
+      source_event_time: "2026-03-09T08:00:00.000Z",
     },
     {
       id: "inbox-003",
@@ -245,7 +247,7 @@ test("recording a decision marks only the selected inbox item", async ({
   await page.fill(`#decision-summary-${decidedItemId}`, "Approve path A");
   await decidedCard.getByRole("button", { name: "Record decision" }).click();
 
-  await expect(decidedCard.getByText("Decision recorded.")).toBeVisible();
-  await expect(otherCard.getByText("Decision recorded.")).toHaveCount(0);
-  await expect(page.getByText("Decision recorded.")).toHaveCount(1);
+  await expect(decidedCard.getByText(/Decision recorded/)).toBeVisible();
+  await expect(otherCard.getByText(/Decision recorded/)).toHaveCount(0);
+  await expect(page.getByText(/Decision recorded/)).toHaveCount(1);
 });

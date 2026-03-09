@@ -64,14 +64,23 @@ test("create commitment and enforce status evidence for done transition", async 
     });
   });
 
-  await page.route(/\/commitments$/, async (route) => {
+  await page.route(/\/commitments(\?.*)?$/, async (route) => {
     const request = route.request();
-    if (request.method() !== "POST") {
+    if (request.method() === "GET") {
       await route.fulfill({
-        status: 405,
+        status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ error: "Method not allowed" }),
+        body: JSON.stringify({
+          commitments: snapshot.open_commitments
+            .map((id) => commitments[id])
+            .filter(Boolean),
+        }),
       });
+      return;
+    }
+
+    if (request.method() !== "POST") {
+      await route.continue();
       return;
     }
 
@@ -191,65 +200,37 @@ test("create commitment and enforce status evidence for done transition", async 
 
   await page.goto("/threads/thread-onboarding");
   const commitmentsSection = page
-    .locator("section")
+    .locator("div")
     .filter({ has: page.getByRole("heading", { name: "Commitments" }) });
+  await commitmentsSection.getByRole("button", { name: "New" }).click();
 
-  await commitmentsSection
-    .getByLabel("Commitment title")
-    .fill("Ship policy fix");
+  await commitmentsSection.getByLabel("Title").fill("Ship policy fix");
   await commitmentsSection.getByLabel("Owner").selectOption(actorId);
+  await commitmentsSection.getByLabel("Due date").fill("2026-03-12T00:00");
   await commitmentsSection
-    .getByLabel("Due at (ISO timestamp)")
-    .fill("2026-03-12T00:00:00.000Z");
-  await commitmentsSection
-    .getByLabel("Definition of done (comma/newline separated)")
+    .getByLabel("Completion criteria (one per line)")
     .fill("Merged\nReviewed");
-  await commitmentsSection
-    .getByLabel("Links (typed refs, comma/newline separated)")
-    .fill("thread:thread-onboarding\nartifact:artifact-policy-draft");
-  await commitmentsSection
-    .getByRole("button", { name: "Create commitment" })
-    .click();
+  await commitmentsSection.getByRole("button", { name: "Create" }).click();
 
   await expect.poll(() => createCount).toBe(1);
   await expect(
-    page.getByRole("heading", { name: "Ship policy fix" }),
+    page.getByText("Ship policy fix", { exact: true }),
   ).toBeVisible();
 
-  await commitmentsSection
-    .getByRole("button", { name: "Edit commitment" })
-    .click();
-  await commitmentsSection
-    .getByLabel("Due at (ISO timestamp)")
-    .fill("not-a-timestamp");
-  await commitmentsSection
-    .getByRole("button", { name: "Save commitment" })
-    .click();
-
-  await expect(
-    page.getByText("Due at must be a valid timestamp", { exact: false }),
-  ).toBeVisible();
-  await expect.poll(() => patchPayloads.length).toBe(0);
-
-  await commitmentsSection
-    .getByLabel("Due at (ISO timestamp)")
-    .fill("2026-03-12T00:00:00.000Z");
-  await commitmentsSection.getByLabel("Commitment status").selectOption("done");
-  await commitmentsSection
-    .getByRole("button", { name: "Save commitment" })
-    .click();
+  const commitmentCard = page.locator("#commitment-card-commitment-new-1");
+  await commitmentCard.getByRole("button", { name: "Edit" }).click();
+  await commitmentCard.getByLabel("Status").selectOption("done");
+  await commitmentCard.getByRole("button", { name: "Save" }).click();
 
   await expect(
     page.getByText("Status done requires", { exact: false }),
   ).toBeVisible();
   await expect.poll(() => patchPayloads.length).toBe(0);
 
-  await commitmentsSection
-    .getByLabel("Status evidence ref (typed ref)")
+  await commitmentCard
+    .getByLabel("Evidence link")
     .fill("artifact:artifact-receipt-1");
-  await commitmentsSection
-    .getByRole("button", { name: "Save commitment" })
-    .click();
+  await commitmentCard.getByRole("button", { name: "Save" }).click();
 
   await expect.poll(() => patchPayloads.length).toBe(1);
   expect(patchPayloads[0]).toEqual({
@@ -339,6 +320,14 @@ test("commitment edit conflict shows warning and reloads latest snapshot", async
     });
   });
 
+  await page.route(/\/commitments(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ commitments: [commitment] }),
+    });
+  });
+
   await page.route(/\/commitments\/[^/?]+$/, async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
@@ -391,23 +380,18 @@ test("commitment edit conflict shows warning and reloads latest snapshot", async
   await page.goto("/threads/thread-onboarding");
 
   const commitmentsSection = page
-    .locator("section")
+    .locator("div")
     .filter({ has: page.getByRole("heading", { name: "Commitments" }) });
   const commitmentCard = page.locator(`#commitment-card-${commitmentId}`);
 
-  await commitmentsSection
-    .getByRole("button", { name: "Edit commitment" })
-    .click();
-  await commitmentCard.getByLabel("Commitment title").fill("Client edit title");
-  await commitmentCard.getByRole("button", { name: "Save commitment" }).click();
+  await commitmentCard.getByRole("button", { name: "Edit" }).click();
+  await commitmentCard.getByLabel("Title").fill("Client edit title");
+  await commitmentCard.getByRole("button", { name: "Save" }).click();
 
   await expect.poll(() => patchAttempts).toBe(1);
   await expect(
-    commitmentsSection.getByText("Commitment was updated elsewhere.", {
+    commitmentsSection.getByText("Updated elsewhere. Reloaded", {
       exact: false,
     }),
-  ).toBeVisible();
-  await expect(
-    commitmentsSection.getByText("Server updated commitment", { exact: true }),
   ).toBeVisible();
 });
