@@ -101,7 +101,7 @@ main() {
   fi
 
   printf '\nQuick start:\n'
-  info "oar --base-url http://<core-host>:8000 register --agent <agent-name>"
+  info "oar --base-url http://<core-host>:8000 --agent <name> auth register --username <username>"
   info "oar version"
 }
 

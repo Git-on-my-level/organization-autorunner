@@ -1,5 +1,6 @@
 import { redirectToDefaultProject } from "$lib/server/projectRedirect";
 
-export function load({ params }) {
-  redirectToDefaultProject(`/threads/${params.threadId}`);
+export function load({ params, url }) {
+  const pathname = `/threads/${params.threadId}${url.search}`;
+  redirectToDefaultProject(pathname);
 }

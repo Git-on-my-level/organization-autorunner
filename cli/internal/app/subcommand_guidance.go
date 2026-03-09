@@ -23,10 +23,12 @@ var apiSubcommandSpec = subcommandSpec{
 
 var authSubcommandSpec = subcommandSpec{
 	command:  "auth",
-	valid:    []string{"register", "whoami", "update-username", "rotate", "revoke", "token-status"},
-	examples: []string{"oar auth register --username <username>", "oar auth whoami"},
+	valid:    []string{"register", "whoami", "list", "update-username", "rotate", "revoke", "token-status"},
+	examples: []string{"oar auth register --username <username>", "oar auth whoami", "oar auth list"},
 	aliases: map[string]string{
-		"status": "token-status",
+		"status":   "token-status",
+		"profiles": "list",
+		"ls":       "list",
 	},
 }
 

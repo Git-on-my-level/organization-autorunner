@@ -301,37 +301,172 @@ button:focus-visible {
   flex-direction: column;
 }
 
-.shell-brand {
+.project-switcher {
+  position: relative;
+}
+
+.project-switcher-trigger {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0.5rem;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--ui-radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ui-text);
+  cursor: pointer;
+  transition: background 120ms ease;
 }
 
-.shell-brand-mark {
-  width: 1.5rem;
-  height: 1.5rem;
+.project-switcher-trigger:hover {
+  background: var(--ui-panel-muted);
+}
+
+.project-switcher-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-shrink: 0;
   border-radius: var(--ui-radius-sm);
-  display: grid;
+  display: inline-grid;
   place-items: center;
-  color: white;
   background: var(--ui-accent-strong);
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
-.shell-brand-mark svg {
-  width: 0.75rem;
-  height: 0.75rem;
+.project-switcher-label {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  text-align: left;
+  line-height: 1.25;
 }
 
-.shell-brand-copy h1 {
-  margin: 0;
+.project-switcher-name {
   font-size: 0.8125rem;
   font-weight: 600;
-  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.shell-brand-kicker {
-  display: none;
+.project-switcher-sub {
+  font-size: 0.6875rem;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-switcher-chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  color: var(--ui-text-muted);
+  transition: transform 120ms ease;
+}
+
+.project-switcher-chevron--open {
+  transform: rotate(180deg);
+}
+
+.project-switcher-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  box-shadow: var(--ui-shadow-elevated);
+  padding: 0.25rem;
+  display: grid;
+  gap: 1px;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.project-switcher-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--ui-radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--ui-text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 80ms ease;
+}
+
+.project-switcher-option:hover {
+  background: var(--ui-panel-muted);
+}
+
+.project-switcher-option--active {
+  background: var(--ui-brand-soft);
+}
+
+.project-switcher-option-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  border-radius: var(--ui-radius-sm);
+  display: inline-grid;
+  place-items: center;
+  background: var(--ui-accent-strong);
+  color: white;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.project-switcher-option-label {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  line-height: 1.25;
+}
+
+.project-switcher-option-label > span:first-child {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-switcher-option-desc {
+  font-size: 0.6875rem;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-switcher-check {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex-shrink: 0;
+  color: var(--ui-accent);
+}
+
+.mobile-project-list {
+  display: grid;
+  gap: 1px;
+  margin-bottom: 0.25rem;
+}
+
+.mobile-project-divider {
+  height: 1px;
+  background: var(--ui-border);
+  margin: 0.25rem 0;
 }
 
 .shell-nav {

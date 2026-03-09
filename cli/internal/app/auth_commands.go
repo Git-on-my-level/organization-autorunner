@@ -8,6 +8,7 @@ import (
 	"organization-autorunner-cli/internal/authcli"
 	"organization-autorunner-cli/internal/config"
 	"organization-autorunner-cli/internal/errnorm"
+	"organization-autorunner-cli/internal/profile"
 )
 
 func (a *App) runAuth(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
@@ -23,6 +24,9 @@ func (a *App) runAuth(ctx context.Context, args []string, cfg config.Resolved) (
 	case "whoami":
 		result, err := a.runAuthWhoAmI(ctx, service)
 		return result, "auth whoami", err
+	case "list":
+		result, err := a.runAuthList(cfg)
+		return result, "auth list", err
 	case "update-username":
 		result, err := a.runAuthUpdateUsername(ctx, service, args[1:])
 		return result, "auth update-username", err
@@ -169,6 +173,86 @@ func (a *App) runAuthTokenStatus(ctx context.Context, service *authcli.Service) 
 		fmt.Sprintf("Revoked: %t", status.Revoked),
 	}, "\n")
 	return &commandResult{Text: text, Data: status}, nil
+}
+
+func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
+	homeDir, err := a.UserHomeDir()
+	if err != nil {
+		return nil, errnorm.Wrap(errnorm.KindLocal, "home_dir", "failed to determine home directory", err)
+	}
+	agents, err := profile.ListAgents(homeDir)
+	if err != nil {
+		return nil, errnorm.Wrap(errnorm.KindLocal, "list_profiles", "failed to list agent profiles", err)
+	}
+	if len(agents) == 0 {
+		return &commandResult{
+			Text: "No agent profiles found.\nRegister with: oar --base-url <url> --agent <name> auth register --username <username>",
+			Data: map[string]any{"profiles": []any{}, "count": 0},
+		}, nil
+	}
+
+	type profileSummary struct {
+		Agent    string `json:"agent"`
+		BaseURL  string `json:"base_url"`
+		AgentID  string `json:"agent_id,omitempty"`
+		Username string `json:"username,omitempty"`
+		Revoked  bool   `json:"revoked,omitempty"`
+		Active   bool   `json:"active"`
+		Path     string `json:"path"`
+	}
+
+	summaries := make([]profileSummary, 0, len(agents))
+	var lines []string
+
+	for _, agentName := range agents {
+		path := profile.ProfilePath(homeDir, agentName)
+		prof, ok, loadErr := profile.Load(path)
+		if loadErr != nil || !ok {
+			summaries = append(summaries, profileSummary{
+				Agent:  agentName,
+				Active: agentName == cfg.Agent,
+				Path:   path,
+			})
+			status := "(unreadable)"
+			if agentName == cfg.Agent {
+				status += " *active*"
+			}
+			lines = append(lines, fmt.Sprintf("  %s  %s", agentName, status))
+			continue
+		}
+
+		active := agentName == cfg.Agent
+		summaries = append(summaries, profileSummary{
+			Agent:    agentName,
+			BaseURL:  prof.BaseURL,
+			AgentID:  prof.AgentID,
+			Username: prof.Username,
+			Revoked:  prof.Revoked,
+			Active:   active,
+			Path:     path,
+		})
+
+		marker := "  "
+		if active {
+			marker = "* "
+		}
+		status := prof.BaseURL
+		if prof.Revoked {
+			status += " (revoked)"
+		}
+		if prof.Username != "" {
+			status = prof.Username + "  " + status
+		}
+		lines = append(lines, fmt.Sprintf("%s%-16s %s", marker, agentName, status))
+	}
+
+	header := fmt.Sprintf("Agent profiles (%d):", len(agents))
+	text := header + "\n" + strings.Join(lines, "\n")
+
+	return &commandResult{
+		Text: text,
+		Data: map[string]any{"profiles": summaries, "count": len(summaries)},
+	}, nil
 }
 
 func anyString(raw any) string {

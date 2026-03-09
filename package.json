@@ -9,6 +9,7 @@
     "contract:check": "./scripts/contract-check"
   },
   "devDependencies": {
+    "playwright": "^1.58.2",
     "typescript": "^5.9.3"
   },
   "pnpm": {

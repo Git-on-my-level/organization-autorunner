@@ -246,7 +246,9 @@ export async function refreshAuthSession({
 
       state.authenticatedAgent = meResponse.agent ?? null;
       state.ready = true;
-      syncCurrentAuthStores(projectSlug);
+      if (projectSlug === getCurrentProjectSlug()) {
+        syncCurrentAuthStores(projectSlug);
+      }
       return {
         agent: meResponse.agent ?? null,
         tokens: nextTokens,

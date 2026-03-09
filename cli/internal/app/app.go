@@ -68,7 +68,12 @@ func (a *App) Run(args []string) int {
 	}
 
 	cmdPeek := remaining[0]
-	configLenient := cmdPeek == "version" || cmdPeek == "help" || cmdPeek == "--help" || cmdPeek == "-h"
+	subPeek := ""
+	if len(remaining) > 1 {
+		subPeek = remaining[1]
+	}
+	configLenient := cmdPeek == "version" || cmdPeek == "help" || cmdPeek == "--help" || cmdPeek == "-h" ||
+		(cmdPeek == "auth" && (subPeek == "list" || subPeek == "ls" || subPeek == "profiles"))
 
 	resolved, err := config.Resolve(overrides, config.Environment{
 		Getenv:      a.Getenv,

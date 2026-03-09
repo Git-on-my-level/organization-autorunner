@@ -45,6 +45,7 @@
   let newActorName = $state("");
   let mobileNavOpen = $state(false);
   let hydratedProjectSlug = $state("");
+  let projectPickerOpen = $state(false);
 
   let activeProject = $derived($page.data.project ?? null);
   let activeProjectSlug = $derived(activeProject?.slug ?? "");
@@ -227,14 +228,46 @@
     mobileNavOpen = !mobileNavOpen;
   }
 
+  function projectInitials(label) {
+    return (label || "?")
+      .split(/[\s-]+/)
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+
+  function toggleProjectPicker() {
+    projectPickerOpen = !projectPickerOpen;
+  }
+
+  function closeProjectPicker() {
+    projectPickerOpen = false;
+  }
+
+  function pickProject(slug) {
+    closeProjectPicker();
+    switchProject(slug);
+  }
+
   function handleWindowKeydown(event) {
-    if (event.key === "Escape" && mobileNavOpen) {
-      closeMobileNav();
+    if (event.key === "Escape") {
+      if (projectPickerOpen) closeProjectPicker();
+      if (mobileNavOpen) closeMobileNav();
+    }
+  }
+
+  function handleWindowClick(event) {
+    if (projectPickerOpen) {
+      const picker = document.getElementById("project-picker-container");
+      if (picker && !picker.contains(event.target)) {
+        closeProjectPicker();
+      }
     }
   }
 </script>
 
-<svelte:window onkeydown={handleWindowKeydown} />
+<svelte:window onkeydown={handleWindowKeydown} onclick={handleWindowClick} />
 
 <div class="shell-root">
   {#if !activeProjectSlug}
@@ -339,45 +372,56 @@
   {:else}
     <div class="shell-frame">
       <aside class="shell-sidebar" aria-label="Primary">
-        <div class="shell-brand">
-          <div class="shell-brand-mark" aria-hidden="true">
-            <svg
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
-          </div>
-          <div class="shell-brand-copy">
-            <p class="shell-brand-kicker">Control Surface</p>
-            <h1>Organization Autorunner UI</h1>
-          </div>
-        </div>
-
-        <label class="shell-actor-label" for="shell-project-picker">
-          Active project
-        </label>
-        <div class="shell-actor-panel">
-          <select
-            id="shell-project-picker"
-            class="w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-            onchange={(event) => switchProject(event.currentTarget.value)}
-            value={activeProjectSlug}
+        <div class="project-switcher" id="project-picker-container">
+          <button
+            class="project-switcher-trigger"
+            onclick={toggleProjectPicker}
+            aria-expanded={projectPickerOpen}
+            aria-haspopup="listbox"
+            type="button"
           >
-            {#each data.projects ?? [] as project}
-              <option value={project.slug}>{project.label}</option>
-            {/each}
-          </select>
-          <p class="mt-2 text-[12px] text-[var(--ui-text-muted)]">
-            {activeProject?.description ||
-              "Each project routes to its own isolated oar-core instance."}
-          </p>
+            <span class="project-switcher-icon" aria-hidden="true">
+              {projectInitials(activeProject?.label)}
+            </span>
+            <span class="project-switcher-label">
+              <span class="project-switcher-name">{activeProject?.label || activeProjectSlug}</span>
+              <span class="project-switcher-sub">OAR Control Surface</span>
+            </span>
+            <svg class="project-switcher-chevron" class:project-switcher-chevron--open={projectPickerOpen} viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+          </button>
+
+          {#if projectPickerOpen}
+            <div class="project-switcher-dropdown" role="listbox" aria-label="Switch project">
+              {#each data.projects ?? [] as project}
+                {@const isCurrent = project.slug === activeProjectSlug}
+                <button
+                  class="project-switcher-option"
+                  class:project-switcher-option--active={isCurrent}
+                  role="option"
+                  aria-selected={isCurrent}
+                  onclick={() => pickProject(project.slug)}
+                  type="button"
+                >
+                  <span class="project-switcher-option-icon" aria-hidden="true">
+                    {projectInitials(project.label)}
+                  </span>
+                  <span class="project-switcher-option-label">
+                    <span>{project.label}</span>
+                    {#if project.description}
+                      <span class="project-switcher-option-desc">{project.description}</span>
+                    {/if}
+                  </span>
+                  {#if isCurrent}
+                    <svg class="project-switcher-check" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+                    </svg>
+                  {/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <nav class="shell-nav" aria-label="Primary">
@@ -498,22 +542,30 @@
                 </button>
               </div>
               <nav class="shell-mobile-nav" aria-label="Primary mobile">
-                <label
-                  class="mb-3 block text-[11px] uppercase tracking-wide text-[var(--ui-text-muted)]"
-                  for="mobile-project-picker"
-                >
-                  Active project
-                </label>
-                <select
-                  id="mobile-project-picker"
-                  class="mb-4 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-                  onchange={(event) => switchProject(event.currentTarget.value)}
-                  value={activeProjectSlug}
-                >
+                <div class="mobile-project-list">
                   {#each data.projects ?? [] as project}
-                    <option value={project.slug}>{project.label}</option>
+                    {@const isCurrent = project.slug === activeProjectSlug}
+                    <button
+                      class="project-switcher-option"
+                      class:project-switcher-option--active={isCurrent}
+                      onclick={() => { pickProject(project.slug); closeMobileNav(); }}
+                      type="button"
+                    >
+                      <span class="project-switcher-option-icon" aria-hidden="true">
+                        {projectInitials(project.label)}
+                      </span>
+                      <span class="project-switcher-option-label">
+                        <span>{project.label}</span>
+                      </span>
+                      {#if isCurrent}
+                        <svg class="project-switcher-check" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                          <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+                        </svg>
+                      {/if}
+                    </button>
                   {/each}
-                </select>
+                </div>
+                <div class="mobile-project-divider"></div>
                 {#each navigationItems as item}
                   {@const active = isActive(item.href)}
                   <a
