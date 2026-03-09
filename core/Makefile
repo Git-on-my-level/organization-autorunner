@@ -1,4 +1,4 @@
-.PHONY: help serve run-prod fmt vet test check lint ci-smoke smoke
+.PHONY: help serve build-prod run-prod fmt vet test check lint ci-smoke smoke
 
 HOST ?= 127.0.0.1
 PORT ?= 8000
@@ -19,7 +19,11 @@ help:
 	@echo "  make lint       - run repository lint script"
 	@echo "  make ci-smoke   - run CI smoke test script"
 	@echo "  make smoke      - run end-to-end API smoke script"
+	@echo "  make build-prod - build production binary"
 	@echo "  make run-prod   - build+run production-like binary locally"
+
+build-prod:
+	@./scripts/build-prod
 
 serve:
 	@HOST="$(HOST)" \
@@ -28,7 +32,7 @@ serve:
 	SCHEMA_PATH="$(SCHEMA_PATH)" \
 	./scripts/dev
 
-run-prod:
+run-prod: build-prod
 	@WORKSPACE_ROOT="$(WORKSPACE_ROOT)" \
 	SCHEMA_PATH="$(SCHEMA_PATH)" \
 	PORT="$(PORT)" \
