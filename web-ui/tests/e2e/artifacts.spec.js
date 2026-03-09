@@ -10,12 +10,11 @@ test("navigates from thread timeline artifact ref to artifact detail", async ({
   }, actorId);
 
   await page.goto("/threads/thread-lemon-shortage");
+  await page.getByRole("button", { name: "Timeline", exact: true }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Thread Detail: thread-lemon-shortage" }),
+    page.getByRole("heading", { name: "Emergency: Lemon Supply Disruption" }),
   ).toBeVisible();
-
-  await page.getByRole("button", { name: "Timeline", exact: true }).click();
   const artifactRef = page
     .getByRole("link", { name: "artifact:artifact-supplier-sla" })
     .first();

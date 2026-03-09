@@ -60,7 +60,9 @@
   }
 </script>
 
-<div class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4">
+<div
+  class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4"
+>
   {#if postMessageError}<p
       class="mb-3 rounded bg-red-500/10 px-3 py-1.5 text-[12px] text-red-400"
     >
@@ -74,7 +76,9 @@
     rows="2"
   ></textarea>
   <div class="mt-2 flex items-center justify-between gap-2">
-    <div class="flex items-center gap-2 text-[12px] text-[var(--ui-text-muted)]">
+    <div
+      class="flex items-center gap-2 text-[12px] text-[var(--ui-text-muted)]"
+    >
       {#if replyToEventId}
         <span>Replying to event</span>
         <button
@@ -96,7 +100,9 @@
 </div>
 
 <div class="mt-4">
-  <h2 class="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]">
+  <h2
+    class="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[var(--ui-text-muted)]"
+  >
     Timeline
   </h2>
   {#if timelineLoading}
@@ -116,7 +122,12 @@
         >
           <div class="flex items-start justify-between gap-3">
             <div class="flex min-w-0 flex-1 items-start gap-2.5">
-              <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full {eventTypeDotClass(event.rawType)}" title={event.typeLabel}></span>
+              <span
+                class="mt-1.5 h-2 w-2 shrink-0 rounded-full {eventTypeDotClass(
+                  event.rawType,
+                )}"
+                title={event.typeLabel}
+              ></span>
               <div class="min-w-0 flex-1">
                 <MarkdownRenderer
                   source={event.summary}
@@ -139,7 +150,8 @@
           {#if event.changedFields.length > 0}
             <div class="mt-1.5 flex flex-wrap gap-1 text-[12px]">
               {#each event.changedFields as field}
-                <span class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[var(--ui-text-muted)]"
+                <span
+                  class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[var(--ui-text-muted)]"
                   >{field}</span
                 >
               {/each}
@@ -157,7 +169,8 @@
 
           {#if !event.isKnownType}
             <details class="mt-1.5">
-              <summary class="cursor-pointer text-[12px] text-[var(--ui-text-muted)]"
+              <summary
+                class="cursor-pointer text-[12px] text-[var(--ui-text-muted)]"
                 >Details</summary
               >
               <pre

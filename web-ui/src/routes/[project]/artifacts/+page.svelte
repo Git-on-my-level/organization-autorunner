@@ -1,9 +1,11 @@
 <script>
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
 
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
+  import { projectPath } from "$lib/projectPaths";
 
   const KIND_LABELS = {
     work_order: "Work Order",
@@ -18,12 +20,17 @@
   let loading = $state(false);
   let error = $state("");
   let filtersOpen = $state(false);
+  let projectSlug = $derived($page.params.project);
   let filters = $state({
     kind: "",
     thread_id: "",
     created_after: "",
     created_before: "",
   });
+
+  function projectHref(pathname = "/") {
+    return projectPath(projectSlug, pathname);
+  }
 
   onMount(async () => {
     await loadArtifacts();
@@ -192,10 +199,23 @@
 {/if}
 
 {#if loading}
-  <div class="mt-12 flex items-center justify-center gap-2 text-[13px] text-[var(--ui-text-muted)]">
+  <div
+    class="mt-12 flex items-center justify-center gap-2 text-[13px] text-[var(--ui-text-muted)]"
+  >
     <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      <circle
+        class="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        stroke-width="4"
+      ></circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
     </svg>
     Loading artifacts...
   </div>
@@ -205,7 +225,9 @@
   </div>
 {:else if artifacts.length === 0}
   <div class="mt-8 text-center">
-    <p class="text-[13px] font-medium text-[var(--ui-text-muted)]">No matching artifacts</p>
+    <p class="text-[13px] font-medium text-[var(--ui-text-muted)]">
+      No matching artifacts
+    </p>
     <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
       Try adjusting filters or clearing the current view.
     </p>
@@ -218,10 +240,11 @@
   >
     {#each artifacts as artifact, i}
       <a
-        class="block px-4 py-3 transition-colors hover:bg-[var(--ui-border-subtle)] {i > 0
+        class="block px-4 py-3 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
+        0
           ? 'border-t border-[var(--ui-border)]'
           : ''}"
-        href={`/artifacts/${artifact.id}`}
+        href={projectHref(`/artifacts/${artifact.id}`)}
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">
@@ -237,7 +260,9 @@
                 >{kindDescription(artifact.kind)}</span
               >
             </div>
-            <p class="mt-1 truncate text-[13px] font-medium text-[var(--ui-text)]">
+            <p
+              class="mt-1 truncate text-[13px] font-medium text-[var(--ui-text)]"
+            >
               {rowHeading(artifact)}
             </p>
             <p class="text-[11px] text-[var(--ui-text-muted)]">

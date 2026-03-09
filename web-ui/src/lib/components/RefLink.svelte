@@ -1,4 +1,5 @@
 <script>
+  import { page } from "$app/stores";
   import { resolveRefLink } from "$lib/refLinkModel";
 
   let {
@@ -16,6 +17,7 @@
       snapshotIsThread,
       humanize,
       labelHints,
+      projectSlug: $page.params.project,
     }),
   );
 </script>
@@ -33,7 +35,9 @@
     {/if}
   </a>
 {:else}
-  <span class="inline-flex items-baseline gap-1 text-xs text-[var(--ui-text-muted)]">
+  <span
+    class="inline-flex items-baseline gap-1 text-xs text-[var(--ui-text-muted)]"
+  >
     <span>{resolved.primaryLabel}</span>
     {#if showRaw && resolved.secondaryLabel}
       <span class="text-[11px] text-gray-400">{resolved.secondaryLabel}</span>

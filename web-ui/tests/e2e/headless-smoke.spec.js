@@ -172,7 +172,9 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
   });
 
   await page.goto("/inbox");
-  await expect(page.getByRole("heading", { name: "Inbox" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Inbox", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByText("Approve onboarding exception handling", { exact: true }),
   ).toBeVisible();
@@ -186,17 +188,16 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
   await threadLink.click();
 
   await expect(
-    page.getByRole("heading", { name: "Thread Detail: thread-onboarding" }),
+    page.getByRole("heading", { name: "Customer Onboarding Workflow" }),
   ).toBeVisible();
-  const unknownEventRow = page.locator("article", {
-    hasText: "Unknown event should still render.",
-  });
+  await page.getByRole("button", { name: "Timeline" }).click();
+  const unknownEventRow = page.locator("#event-evt-unknown-1");
   await expect(unknownEventRow).toContainText("Unknown event type");
-  await expect(unknownEventRow).toContainText("Unknown event details");
+  await unknownEventRow.getByText("Details").click();
   await expect(unknownEventRow).toContainText("opaque_field");
 
-  await page.getByLabel("Message").fill("Posted from headless smoke flow");
-  await page.getByRole("button", { name: "Post message" }).click();
+  await page.locator("#message-text").fill("Posted from headless smoke flow");
+  await page.getByRole("button", { name: "Post" }).click();
 
   await expect.poll(() => postedCount).toBe(1);
   await expect(

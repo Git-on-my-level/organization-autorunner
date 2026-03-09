@@ -1,12 +1,9 @@
 import { env } from "$env/dynamic/private";
 import { isProxyableCommand } from "$lib/coreRouteCatalog";
+import { PROJECT_HEADER } from "$lib/projectPaths";
+import { loadProjectCatalog } from "$lib/server/projectCatalog";
 import { buildProxyRequestInit } from "$lib/server/coreProxy";
-
-function normalizeBaseUrl(value) {
-  return String(value ?? "")
-    .trim()
-    .replace(/\/+$/, "");
-}
+import { resolveProxyProjectTarget } from "$lib/server/proxyProjectTarget";
 
 function shouldProxyToCore(pathname, method) {
   return isProxyableCommand(method, pathname);
@@ -25,6 +22,14 @@ function isDocumentNavigationRequest(request) {
 
   const accept = request.headers.get("accept") ?? "";
   return accept.includes("text/html");
+}
+
+function resolveProjectTarget(event) {
+  const catalog = loadProjectCatalog(env);
+  return resolveProxyProjectTarget({
+    catalog,
+    projectSlug: event.request.headers.get(PROJECT_HEADER),
+  });
 }
 
 async function proxyToCore(event, coreBaseUrl) {
@@ -67,18 +72,26 @@ async function proxyToCore(event, coreBaseUrl) {
 }
 
 export async function handle({ event, resolve }) {
-  const coreBaseUrl = normalizeBaseUrl(
-    env.OAR_CORE_BASE_URL || env.PUBLIC_OAR_CORE_BASE_URL,
-  );
-
   const pathname = event.url.pathname;
   const method = event.request.method;
   const documentNavigation = isDocumentNavigationRequest(event.request);
-  const shouldProxy =
-    coreBaseUrl && shouldProxyToCore(pathname, method) && !documentNavigation;
+  const proxyableRequest =
+    shouldProxyToCore(pathname, method) && !documentNavigation;
 
-  if (shouldProxy) {
-    return proxyToCore(event, coreBaseUrl);
+  if (proxyableRequest) {
+    const target = resolveProjectTarget(event);
+    if (target.status) {
+      return new Response(JSON.stringify(target.payload), {
+        status: target.status,
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+    }
+
+    if (target.coreBaseUrl) {
+      return proxyToCore(event, target.coreBaseUrl);
+    }
   }
 
   return resolve(event);

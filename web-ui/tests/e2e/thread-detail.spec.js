@@ -92,23 +92,23 @@ test("thread detail loads snapshot/timeline and posts reply message", async ({
   });
 
   await page.goto("/threads/thread-onboarding");
+  await page.getByRole("button", { name: "Timeline" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Thread Detail: thread-onboarding" }),
+    page.getByRole("heading", { name: "Customer Onboarding Workflow" }),
   ).toBeVisible();
-  await expect(
-    page.locator("header").getByText("Customer Onboarding Workflow", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(page.getByText("What needs to happen next")).toBeVisible();
   await expect(
     page.getByText("Initial timeline message", { exact: true }),
   ).toBeVisible();
-
-  await page.getByLabel("Message").fill("Reply message from e2e");
-  await page.getByLabel("Reply to event (optional)").selectOption("evt-1001");
-  await page.getByRole("button", { name: "Post message" }).click();
+  await expect(
+    page.locator("#event-evt-1001").getByRole("button", { name: "Reply" }),
+  ).toBeVisible();
+  await page
+    .locator("#event-evt-1001")
+    .getByRole("button", { name: "Reply" })
+    .click();
+  await page.locator("#message-text").fill("Reply message from e2e");
+  await page.getByRole("button", { name: "Post" }).click();
 
   await expect.poll(() => postedEvents).toBe(1);
 
@@ -222,33 +222,27 @@ test("thread detail handles snapshot update conflict and retries after reload", 
   await page.goto("/threads/thread-onboarding");
 
   await expect(
-    page.locator("header").getByText("Customer Onboarding Workflow", {
-      exact: true,
-    }),
+    page.getByRole("heading", { name: "Customer Onboarding Workflow" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit snapshot" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Title", { exact: true }).fill("Edited after conflict");
-  await page.getByRole("button", { name: "Save snapshot changes" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
 
   await expect(
     page.getByText("Thread was updated elsewhere.", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.locator("header").getByText("Server updated title", {
-      exact: true,
-    }),
+    page.getByRole("heading", { name: "Server updated title" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit snapshot" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Title", { exact: true }).fill("Final merged title");
-  await page.getByRole("button", { name: "Save snapshot changes" }).click();
+  await page.getByRole("button", { name: "Save" }).click();
 
+  await expect(page.getByText("Changes saved.", { exact: true })).toBeVisible();
   await expect(
-    page.getByText("Snapshot updated.", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.locator("header").getByText("Final merged title", { exact: true }),
+    page.getByRole("heading", { name: "Final merged title" }),
   ).toBeVisible();
 
   expect(patchRequests).toHaveLength(2);

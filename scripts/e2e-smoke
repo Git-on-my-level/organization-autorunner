@@ -9,6 +9,7 @@ CORE_HOST="127.0.0.1"
 UI_HOST="127.0.0.1"
 CORE_BASE_URL="http://${CORE_HOST}:${CORE_PORT}"
 UI_BASE_URL="http://${UI_HOST}:${UI_PORT}"
+UI_PROJECT_SLUG="${UI_PROJECT_SLUG:-local}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-25}"
 
 mkdir -p "$ARTIFACT_DIR"
@@ -57,9 +58,10 @@ wait_for_url() {
   local url="$1"
   local attempts="${2:-120}"
   local sleep_seconds="${3:-0.25}"
+  shift 3 || true
 
   for _ in $(seq 1 "$attempts"); do
-    if curl -fsS "$url" >/dev/null 2>&1; then
+    if curl -fsS "$@" "$url" >/dev/null 2>&1; then
       return 0
     fi
     sleep "$sleep_seconds"
@@ -168,7 +170,7 @@ fi
 ) &
 UI_PID=$!
 
-if ! wait_for_url "$UI_BASE_URL/meta/handshake" 180 0.2; then
+if ! wait_for_url "$UI_BASE_URL/meta/handshake" 180 0.2 -H "x-oar-project-slug: ${UI_PROJECT_SLUG}"; then
   echo "web-ui did not become ready on /meta/handshake" >&2
   cat "$UI_LOG" >&2 || true
   exit 1
@@ -224,7 +226,10 @@ fi
 # Typed command flow: thread -> commitment -> packets.
 printf '{"thread":{"title":"Smoke thread","type":"incident","status":"active","priority":"p1","tags":["smoke","cli"],"cadence":"daily","current_summary":"smoke in progress","next_actions":["verify"],"key_artifacts":[],"provenance":{"sources":["actor_statement:smoke"]}}}\n' \
   | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" threads create >"$TMP_DIR/thread-create.json"
-THREAD_ID="$(json_get "$TMP_DIR/thread-create.json" 'data.body.thread.id')"
+THREAD_ID="$(json_get "$TMP_DIR/thread-create.json" 'data.thread.id' || true)"
+if [[ -z "$THREAD_ID" ]]; then
+  THREAD_ID="$(json_get "$TMP_DIR/thread-create.json" 'data.body.thread.id' || true)"
+fi
 if [[ -z "$THREAD_ID" ]]; then
   echo "failed to parse thread id" >&2
   cat "$TMP_DIR/thread-create.json" >&2 || true
@@ -245,7 +250,7 @@ REVIEW_ID="artifact-review-smoke"
 printf '{"artifact":{"id":"%s","refs":["thread:%s"],"summary":"Smoke work order"},"packet":{"work_order_id":"%s","thread_id":"%s","objective":"Exercise e2e smoke","constraints":["headless"],"context_refs":["thread:%s"],"acceptance_criteria":["all checks pass"],"definition_of_done":["receipt and review"]}}\n' "$WORK_ORDER_ID" "$THREAD_ID" "$WORK_ORDER_ID" "$THREAD_ID" "$THREAD_ID" \
   | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" work-orders create >"$TMP_DIR/work-order-create.json"
 
-printf '{"artifact":{"id":"%s","refs":["thread:%s","artifact:%s"],"summary":"Smoke receipt"},"packet":{"receipt_id":"%s","work_order_id":"%s","thread_id":"%s","outputs":["artifact:smoke-output"],"verification_evidence":["url:https://example.com/evidence"],"changes_summary":"smoke complete","known_gaps":[]}}\n' "$RECEIPT_ID" "$THREAD_ID" "$WORK_ORDER_ID" "$RECEIPT_ID" "$WORK_ORDER_ID" "$THREAD_ID" \
+printf '{"artifact":{"id":"%s","refs":["thread:%s","artifact:%s"],"summary":"Smoke receipt"},"packet":{"receipt_id":"%s","work_order_id":"%s","thread_id":"%s","outputs":["artifact:%s"],"verification_evidence":["url:https://example.com/evidence"],"changes_summary":"smoke complete","known_gaps":[]}}\n' "$RECEIPT_ID" "$THREAD_ID" "$WORK_ORDER_ID" "$RECEIPT_ID" "$WORK_ORDER_ID" "$THREAD_ID" "$WORK_ORDER_ID" \
   | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" receipts create >"$TMP_DIR/receipt-create.json"
 
 printf '{"artifact":{"id":"%s","refs":["thread:%s","artifact:%s","artifact:%s"],"summary":"Smoke review"},"packet":{"review_id":"%s","work_order_id":"%s","receipt_id":"%s","outcome":"accept","notes":"accepted","evidence_refs":["artifact:%s"]}}\n' "$REVIEW_ID" "$THREAD_ID" "$WORK_ORDER_ID" "$RECEIPT_ID" "$REVIEW_ID" "$WORK_ORDER_ID" "$RECEIPT_ID" "$RECEIPT_ID" \
@@ -269,7 +274,7 @@ assert_contains "$EVENTS_TAIL_OUT" '"command"[[:space:]]*:[[:space:]]*"events st
 # Ensure inbox has at least one item before stream tail.
 for _ in $(seq 1 40); do
   run_cli_json "$TMP_DIR/inbox-list.json" inbox list
-  INBOX_COUNT="$(node -e 'const fs=require("fs"); const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const n=(j?.data?.body?.items||[]).length; process.stdout.write(String(n));' "$TMP_DIR/inbox-list.json")"
+  INBOX_COUNT="$(node -e 'const fs=require("fs"); const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const items=j?.data?.items||j?.data?.body?.items||[]; process.stdout.write(String(items.length));' "$TMP_DIR/inbox-list.json")"
   if [[ "$INBOX_COUNT" -gt 0 ]]; then
     break
   fi
@@ -284,7 +289,8 @@ fi
 LAST_INBOX_EVENT_ID="$(node -e '
 const fs=require("fs");
 const j=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-const item=(j?.data?.body?.items||[])[0];
+const items=j?.data?.items||j?.data?.body?.items||[];
+const item=items[0];
 if (!item || !item.id) process.exit(1);
 const base=String(item.id);
 process.stdout.write(base+"@bootstrap");
@@ -301,7 +307,7 @@ fi
 assert_contains "$INBOX_TAIL_OUT" '"command"[[:space:]]*:[[:space:]]*"inbox stream"'
 
 # Basic UI compatibility check after typed flow.
-curl -fsS "$UI_BASE_URL/meta/handshake" >"$TMP_DIR/ui-handshake.json"
+curl -fsS -H "x-oar-project-slug: ${UI_PROJECT_SLUG}" "$UI_BASE_URL/meta/handshake" >"$TMP_DIR/ui-handshake.json"
 assert_contains "$TMP_DIR/ui-handshake.json" '"schema_version"'
 
 cat >"$TMP_DIR/summary.txt" <<SUMMARY

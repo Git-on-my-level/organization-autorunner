@@ -1,10 +1,12 @@
 <script>
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
 
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
+  import { projectPath } from "$lib/projectPaths";
   import {
     enrichInboxItem,
     getInboxCategoryLabel,
@@ -22,6 +24,7 @@
   let decisionFormErrorsById = $state({});
   let postedDecisionByInboxItem = $state({});
   let urgencyFilter = $state("all");
+  let projectSlug = $derived($page.params.project);
 
   let totalItems = $derived(items.length);
   let enrichedItems = $derived(items.map((item) => enrichInboxItem(item)));
@@ -40,6 +43,10 @@
     groupedItems.filter((group) => group.items.length > 0),
   );
   let hasFilteredItems = $derived(filteredItems.length > 0);
+
+  function projectHref(pathname = "/") {
+    return projectPath(projectSlug, pathname);
+  }
 
   onMount(async () => {
     await loadInbox();
@@ -245,7 +252,9 @@
 </div>
 
 <div class="flex gap-2 mb-4" data-testid="urgency-summary-immediate">
-  <div class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2">
+  <div
+    class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
+  >
     <p class="text-[11px] font-medium text-red-400">Immediate</p>
     <p class="text-lg font-semibold text-[var(--ui-text)]">
       {urgencySummary.immediate}
@@ -256,14 +265,18 @@
     data-testid="urgency-summary-high"
   >
     <p class="text-[11px] font-medium text-amber-400">High</p>
-    <p class="text-lg font-semibold text-[var(--ui-text)]">{urgencySummary.high}</p>
+    <p class="text-lg font-semibold text-[var(--ui-text)]">
+      {urgencySummary.high}
+    </p>
   </div>
   <div
     class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
     data-testid="urgency-summary-normal"
   >
     <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Normal</p>
-    <p class="text-lg font-semibold text-[var(--ui-text)]">{urgencySummary.normal}</p>
+    <p class="text-lg font-semibold text-[var(--ui-text)]">
+      {urgencySummary.normal}
+    </p>
   </div>
 </div>
 
@@ -338,7 +351,9 @@
   </div>
 {:else if totalItems === 0}
   <div class="mt-8 text-center py-8" data-testid="inbox-empty-state">
-    <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">Inbox is clear</h2>
+    <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">
+      Inbox is clear
+    </h2>
     <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
       Nothing needs attention right now.
     </p>
@@ -372,7 +387,9 @@
           >
             {getInboxCategoryLabel(group.category)}
           </h2>
-          <span class="text-[11px] text-[var(--ui-text-subtle)]">{group.items.length}</span>
+          <span class="text-[11px] text-[var(--ui-text-subtle)]"
+            >{group.items.length}</span
+          >
         </div>
 
         <div class="space-y-2">
@@ -392,7 +409,9 @@
                 <span class="font-medium text-[var(--ui-text-muted)]"
                   >{item.urgency_label}</span
                 >
-                <span class="text-[var(--ui-text-subtle)]">{item.age_label}</span>
+                <span class="text-[var(--ui-text-subtle)]"
+                  >{item.age_label}</span
+                >
                 {#if item.has_source_event_time}
                   <span class="text-[var(--ui-text-subtle)]">
                     {formatTimestamp(item.source_event_time)}
@@ -424,16 +443,19 @@
                 {#if item.thread_id}
                   <a
                     class="font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
-                    href={`/threads/${item.thread_id}`}>Thread</a
+                    href={projectHref(`/threads/${item.thread_id}`)}>Thread</a
                   >
                 {/if}
                 {#if item.commitment_id}
                   <a
                     class="font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
                     href={item.thread_id
-                      ? `/threads/${item.thread_id}#commitment-card-${item.commitment_id}`
-                      : `/threads#commitment-card-${item.commitment_id}`}
-                    >Commitment</a
+                      ? projectHref(
+                          `/threads/${item.thread_id}#commitment-card-${item.commitment_id}`,
+                        )
+                      : projectHref(
+                          `/threads#commitment-card-${item.commitment_id}`,
+                        )}>Commitment</a
                   >
                 {/if}
                 {#each item.refs ?? [] as refValue}
@@ -486,7 +508,9 @@
                     Decision recorded &mdash;
                     <a
                       class="font-medium underline hover:text-emerald-300"
-                      href={`/threads/${item.thread_id}#event-${postedDecisionByInboxItem[item.id].id}`}
+                      href={projectHref(
+                        `/threads/${item.thread_id}#event-${postedDecisionByInboxItem[item.id].id}`,
+                      )}
                     >
                       view in timeline
                     </a>
@@ -530,7 +554,8 @@
                     class="mt-2 block text-[12px] font-medium text-[var(--ui-text-muted)]"
                     for={`decision-notes-${item.id}`}
                   >
-                    Rationale <span class="font-normal text-[var(--ui-text-muted)]"
+                    Rationale <span
+                      class="font-normal text-[var(--ui-text-muted)]"
                       >optional</span
                     >
                   </label>

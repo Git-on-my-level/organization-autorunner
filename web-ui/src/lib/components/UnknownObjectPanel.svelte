@@ -4,7 +4,10 @@
   export let open = false;
 </script>
 
-<details class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3" {open}>
+<details
+  class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
+  {open}
+>
   <summary
     class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
   >
