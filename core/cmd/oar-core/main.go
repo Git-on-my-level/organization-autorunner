@@ -7,8 +7,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"organization-autorunner-core/internal/actors"
@@ -48,6 +50,8 @@ func main() {
 		webAuthnRPID               = envString("OAR_WEBAUTHN_RPID", "")
 		webAuthnOrigin             = envString("OAR_WEBAUTHN_ORIGIN", "")
 		webAuthnDisplayName        = envString("OAR_WEBAUTHN_RP_DISPLAY_NAME", "OAR")
+		corsAllowedOrigins         = envString("OAR_CORS_ALLOWED_ORIGINS", "")
+		shutdownTimeout            = envDuration("OAR_SHUTDOWN_TIMEOUT", 15*time.Second)
 	)
 
 	flag.StringVar(&host, "host", host, "host interface to bind")
@@ -132,17 +136,44 @@ func main() {
 		server.WithCoreInstanceID(coreInstanceID),
 		server.WithMetaCommandsPath(metaCommandsPath),
 		server.WithStreamPollInterval(streamPollInterval),
+		server.WithCORSAllowedOrigins(corsAllowedOrigins),
 	)
 	httpServer := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
-	fmt.Printf("oar-core listening on http://%s\n", addr)
-	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
+
+	serverErr := make(chan error, 1)
+	go func() {
+		fmt.Printf("oar-core listening on http://%s\n", addr)
+		if allowUnauthenticatedWrites {
+			fmt.Println("  WARNING: unauthenticated writes enabled (dev mode)")
+		}
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErr <- err
+		}
+		close(serverErr)
+	}()
+
+	select {
+	case err := <-serverErr:
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
+	case sig := <-shutdown:
+		fmt.Printf("\nreceived %s, shutting down gracefully...\n", sig)
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := httpServer.Shutdown(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "graceful shutdown failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("server stopped")
 	}
 }
 

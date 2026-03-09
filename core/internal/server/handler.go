@@ -72,6 +72,7 @@ type handlerOptions struct {
 	coreInstanceID             string
 	metaCommandsPath           string
 	streamPollInterval         time.Duration
+	corsAllowedOrigins         []string
 }
 
 func WithHealthCheck(healthCheck HealthCheckFunc) HandlerOption {
@@ -174,6 +175,21 @@ func WithStreamPollInterval(interval time.Duration) HandlerOption {
 	return func(opts *handlerOptions) {
 		if interval > 0 {
 			opts.streamPollInterval = interval
+		}
+	}
+}
+
+func WithCORSAllowedOrigins(origins string) HandlerOption {
+	return func(opts *handlerOptions) {
+		raw := strings.TrimSpace(origins)
+		if raw == "" {
+			return
+		}
+		for _, o := range strings.Split(raw, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" {
+				opts.corsAllowedOrigins = append(opts.corsAllowedOrigins, o)
+			}
 		}
 	}
 }
@@ -694,7 +710,35 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 	})
 
+	corsOriginSet := make(map[string]bool, len(opts.corsAllowedOrigins))
+	for _, o := range opts.corsAllowedOrigins {
+		corsOriginSet[o] = true
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("X-XSS-Protection", "0")
+
+		if len(corsOriginSet) > 0 {
+			origin := r.Header.Get("Origin")
+			if corsOriginSet["*"] {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
+			} else if origin != "" && corsOriginSet[origin] {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+			}
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-OAR-CLI-Version")
+			w.Header().Set("Access-Control-Expose-Headers", "X-OAR-Core-Version, X-OAR-API-Version, X-OAR-Schema-Version, X-OAR-Min-CLI-Version, X-OAR-Recommended-CLI-Version")
+			w.Header().Set("Access-Control-Max-Age", "3600")
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+		}
+
 		setVersionHeaders(w, opts, schemaVersion)
 		if shouldEnforceCLIVersion(r.URL.Path) {
 			if clientVersion := strings.TrimSpace(r.Header.Get("X-OAR-CLI-Version")); clientVersion != "" {

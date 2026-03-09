@@ -1,0 +1,16 @@
+.git
+.github
+**/.oar-workspace
+**/node_modules
+**/.svelte-kit
+**/build
+**/.bin
+**/.env
+**/.env.*
+!**/.env.example
+**/dist
+**/*.test.go
+**/*_test.go
+**/*_integration_test.go
+**/tests
+runbooks
