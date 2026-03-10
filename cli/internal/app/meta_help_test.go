@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 	"testing"
+
+	"organization-autorunner-cli/internal/registry"
 )
 
 func TestRunMetaCommandsJSON(t *testing.T) {
@@ -513,4 +516,216 @@ func TestGeneratedCommandHelpIncludesBodySchemaAndEnums(t *testing.T) {
 	if !strings.Contains(output, "oar --json events create ...") {
 		t.Fatalf("expected global --json example in generated command help output=%s", output)
 	}
+}
+
+func TestRuntimeSupportedCommandIDsMatchGeneratedHelpSpecSurface(t *testing.T) {
+	t.Parallel()
+
+	meta, err := registry.LoadEmbedded()
+	if err != nil {
+		t.Fatalf("load embedded registry: %v", err)
+	}
+
+	got := sortedCommandIDs(runtimeSupportedCommandIDs())
+	want := sortedCommandIDs(expectedRuntimeSupportedCommandIDs(meta))
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("unexpected runtime-supported command ids\n got: %v\nwant: %v", got, want)
+	}
+}
+
+func TestGeneratedHelpResolvesAllRegistryBackedRuntimePaths(t *testing.T) {
+	t.Parallel()
+
+	meta, err := registry.LoadEmbedded()
+	if err != nil {
+		t.Fatalf("load embedded registry: %v", err)
+	}
+
+	commandsByCLIPath := make(map[string]registry.Command, len(meta.Commands))
+	for _, cmd := range meta.Commands {
+		path := strings.TrimSpace(cmd.CLIPath)
+		if path == "" {
+			continue
+		}
+		commandsByCLIPath[path] = cmd
+	}
+
+	resolved := 0
+	for _, runtimePath := range expectedGeneratedHelpRuntimePaths() {
+		mapped := mapRuntimePathToRegistryPath(runtimePath)
+		cmd, ok := commandsByCLIPath[mapped]
+		if !ok {
+			continue
+		}
+		resolved++
+
+		output := runHelpCommand(t, append([]string{"help"}, strings.Fields(runtimePath)...)...)
+		header := "Generated Help: " + runtimePath
+		if _, ok := localHelperTopicByPath(runtimePath); ok {
+			header = "Local Help: " + runtimePath
+		}
+		if !strings.Contains(output, header) {
+			t.Fatalf("expected help header %q for command %q mapped to %q output=%s", header, cmd.CommandID, mapped, output)
+		}
+	}
+	if resolved == 0 {
+		t.Fatal("expected at least one registry-backed runtime path")
+	}
+}
+
+func TestRunGeneratedHelpResolvesDerivedDocsAndArtifactCommands(t *testing.T) {
+	t.Parallel()
+
+	docsGroup := runHelpCommand(t, "help", "docs")
+	if !strings.Contains(docsGroup, "docs list") {
+		t.Fatalf("expected docs list in docs group help output=%s", docsGroup)
+	}
+	if !strings.Contains(docsGroup, "docs tombstone") {
+		t.Fatalf("expected docs tombstone in docs group help output=%s", docsGroup)
+	}
+
+	docsList := runHelpCommand(t, "help", "docs", "list")
+	if !strings.Contains(docsList, "Generated Help: docs list") {
+		t.Fatalf("expected docs list exact generated help output=%s", docsList)
+	}
+	if !strings.Contains(docsList, "- Command ID: `docs.list`") {
+		t.Fatalf("expected docs.list command metadata output=%s", docsList)
+	}
+
+	docsTombstone := runHelpCommand(t, "help", "docs", "tombstone")
+	if !strings.Contains(docsTombstone, "Generated Help: docs tombstone") {
+		t.Fatalf("expected docs tombstone exact generated help output=%s", docsTombstone)
+	}
+	if !strings.Contains(docsTombstone, "- Command ID: `docs.tombstone`") {
+		t.Fatalf("expected docs.tombstone command metadata output=%s", docsTombstone)
+	}
+
+	artifactTombstone := runHelpCommand(t, "help", "artifacts", "tombstone")
+	if !strings.Contains(artifactTombstone, "Generated Help: artifacts tombstone") {
+		t.Fatalf("expected artifacts tombstone exact generated help output=%s", artifactTombstone)
+	}
+	if !strings.Contains(artifactTombstone, "- Command ID: `artifacts.tombstone`") {
+		t.Fatalf("expected artifacts.tombstone command metadata output=%s", artifactTombstone)
+	}
+}
+
+func runHelpCommand(t *testing.T, args ...string) string {
+	t.Helper()
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return t.TempDir(), nil }
+	cli.ReadFile = func(path string) ([]byte, error) {
+		return nil, &os.PathError{Op: "open", Path: path, Err: os.ErrNotExist}
+	}
+
+	exitCode := cli.Run(args)
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	return stdout.String()
+}
+
+func expectedRuntimeSupportedCommandIDs(meta registry.MetaRegistry) map[string]struct{} {
+	commandsByCLIPath := make(map[string]registry.Command, len(meta.Commands))
+	for _, cmd := range meta.Commands {
+		path := strings.TrimSpace(cmd.CLIPath)
+		if path == "" {
+			continue
+		}
+		commandsByCLIPath[path] = cmd
+	}
+
+	expected := make(map[string]struct{})
+	addPath := func(path string) {
+		mapped := mapRuntimePathToRegistryPath(path)
+		cmd, ok := commandsByCLIPath[mapped]
+		if !ok {
+			return
+		}
+		commandID := strings.TrimSpace(cmd.CommandID)
+		if commandID == "" {
+			return
+		}
+		expected[commandID] = struct{}{}
+	}
+
+	for _, spec := range []subcommandSpec{
+		threadsSubcommandSpec,
+		commitmentsSubcommandSpec,
+		artifactsSubcommandSpec,
+		docsSubcommandSpec,
+		docsRevisionSubcommandSpec,
+		eventsSubcommandSpec,
+		inboxSubcommandSpec,
+		derivedSubcommandSpec,
+		metaSubcommandSpec,
+	} {
+		command := strings.TrimSpace(spec.command)
+		if command == "" {
+			continue
+		}
+		for _, subcommand := range spec.valid {
+			path := strings.Join(strings.Fields(command+" "+strings.TrimSpace(subcommand)), " ")
+			if path == "" {
+				continue
+			}
+			addPath(path)
+		}
+	}
+	for _, resource := range []string{"work-orders", "receipts", "reviews"} {
+		addPath(resource + " create")
+	}
+
+	return expected
+}
+
+func expectedGeneratedHelpRuntimePaths() []string {
+	paths := make([]string, 0, 40)
+	appendPath := func(path string) {
+		path = strings.Join(strings.Fields(path), " ")
+		if path == "" {
+			return
+		}
+		paths = append(paths, path)
+	}
+
+	for _, spec := range []subcommandSpec{
+		threadsSubcommandSpec,
+		commitmentsSubcommandSpec,
+		artifactsSubcommandSpec,
+		docsSubcommandSpec,
+		docsRevisionSubcommandSpec,
+		eventsSubcommandSpec,
+		inboxSubcommandSpec,
+		derivedSubcommandSpec,
+		metaSubcommandSpec,
+	} {
+		command := strings.TrimSpace(spec.command)
+		if command == "" {
+			continue
+		}
+		for _, subcommand := range spec.valid {
+			appendPath(command + " " + strings.TrimSpace(subcommand))
+		}
+	}
+	for _, resource := range []string{"work-orders", "receipts", "reviews"} {
+		appendPath(resource + " create")
+	}
+
+	return paths
+}
+
+func sortedCommandIDs(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

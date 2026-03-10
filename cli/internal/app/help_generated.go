@@ -41,6 +41,8 @@ var runtimeGeneratedTopics = []runtimeHelpTopic{
 	{Path: "meta", Description: "Inspect generated command/concept metadata"},
 }
 
+var runtimeGeneratedPacketResources = []string{"work-orders", "receipts", "reviews"}
+
 var localHelperTopics = []localHelperTopic{
 	{
 		Path:        "events list",
@@ -59,6 +61,45 @@ var localHelperTopics = []localHelperTopic{
 			{Name: "--mine", Description: "Resolve to the active profile actor_id."},
 			{Name: "--max-events <n>", Description: "Keep the most recent matching events."},
 			{Name: "--full-id", Description: "Render full event ids in human output."},
+		},
+	},
+	{
+		Path:        "events validate",
+		Summary:     "Validate an `events create` payload locally from stdin or `--from-file` without sending it.",
+		JSONShape:   "`command`, `command_id`, `path_params`, `query`, `body`, `valid`",
+		Composition: "Parses the same JSON body accepted by `events create`, runs local validation rules, and returns a validation preview envelope without contacting core.",
+		Examples: []string{
+			`cat event.json | oar events validate`,
+			`oar events validate --from-file event.json`,
+		},
+		Flags: []localHelperFlag{
+			{Name: "--from-file <path>", Description: "Load the request body from a JSON file instead of stdin."},
+		},
+	},
+	{
+		Path:        "events explain",
+		Summary:     "Explain known event-type conventions, required refs, and validation hints for one type or the full catalog.",
+		JSONShape:   "`event_type`, `known`, `required_refs`, `payload_requirements`, `examples`, `hint`",
+		Composition: "Formats the embedded event reference and validation guidance into a human-readable reference without sending a request.",
+		Examples: []string{
+			`oar events explain`,
+			`oar events explain review_completed`,
+		},
+		Flags: []localHelperFlag{
+			{Name: "<event-type>", Description: "Optional event type to focus on; omit it to list known event types."},
+		},
+	},
+	{
+		Path:        "artifacts inspect",
+		Summary:     "Fetch artifact metadata and resolved content in one command for operator inspection.",
+		JSONShape:   "`artifact`, `content`, `content_headers`, `content_text`, `content_base64`",
+		Composition: "Loads artifact metadata with `artifacts get`, then fetches content with `artifacts content` using the resolved artifact id.",
+		Examples: []string{
+			`oar artifacts inspect --artifact-id <artifact-id>`,
+			`oar artifacts inspect <artifact-id-or-alias>`,
+		},
+		Flags: []localHelperFlag{
+			{Name: "--artifact-id <artifact-id>", Description: "Artifact id or unique alias to inspect."},
 		},
 	},
 	{
@@ -201,6 +242,34 @@ var localHelperTopics = []localHelperTopic{
 		},
 	},
 	{
+		Path:        "docs content",
+		Summary:     "Show the current document content together with authoritative head revision metadata.",
+		JSONShape:   "`document`, `revision`, `content`, `status_code`, `headers`",
+		Composition: "Loads `docs get`, then renders the current revision content and metadata in one operator-friendly response.",
+		Examples: []string{
+			`oar docs content --document-id <document-id>`,
+			`oar docs content <document-id-or-alias>`,
+		},
+		Flags: []localHelperFlag{
+			{Name: "--document-id <document-id>", Description: "Document id or unique alias to inspect."},
+		},
+	},
+	{
+		Path:        "docs validate-update",
+		Summary:     "Validate a `docs update` payload locally from stdin or file without sending the mutation.",
+		JSONShape:   "`command`, `command_id`, `path_params`, `query`, `body`, `valid`",
+		Composition: "Parses the same body accepted by `docs update`, expands `--content-file` when present, and returns a validation preview envelope without contacting core.",
+		Examples: []string{
+			`cat update.json | oar docs validate-update --document-id <document-id>`,
+			`oar docs validate-update --document-id <document-id> --content-file body.md`,
+		},
+		Flags: []localHelperFlag{
+			{Name: "--document-id <document-id>", Description: "Document id to validate against."},
+			{Name: "--content-file <path>", Description: "Load multiline content from a file into the JSON payload."},
+			{Name: "--from-file <path>", Description: "Load the full JSON update body from a file."},
+		},
+	},
+	{
 		Path:        "docs apply",
 		Summary:     "Apply a previously staged document update proposal.",
 		JSONShape:   "`proposal_id`, `target_command_id`, `applied`, `kept`, `result`",
@@ -287,6 +356,12 @@ func helpTopicText(topic string) (string, bool) {
 	}
 	if topic == "provenance" || topic == "provenance walk" {
 		return provenanceUsageText() + "\n", true
+	}
+	if topic == "meta docs" {
+		return metaDocsUsageText() + "\n", true
+	}
+	if topic == "meta doc" {
+		return metaDocUsageText() + "\n", true
 	}
 	text, ok := generatedHelpText(topic)
 	if !ok {
@@ -413,6 +488,11 @@ func localGroupHelpSupplement(topic string) string {
   docs apply               Apply a staged document update proposal.
   docs validate-update     Validate a docs.update payload from stdin/--from-file.
   Tip: add ` + "`--content-file <path>`" + ` to avoid hand-escaping multiline content.`)
+	case "meta":
+		return strings.TrimSpace(`Shipped reference docs:
+  meta docs               Print the bundled Markdown runtime reference.
+  meta doc                Print one bundled Markdown topic, for example ` + "`oar meta doc threads`" + `.
+  Tip: use ` + "`oar help meta`" + ` for the short runtime surface and ` + "`oar meta docs`" + ` for the full shipped reference.`)
 	default:
 		return ""
 	}
@@ -642,42 +722,51 @@ func runtimeSupportsCommand(commandID string) bool {
 }
 
 func runtimeSupportedCommandIDs() map[string]struct{} {
-	return map[string]struct{}{
-		"threads.list":               {},
-		"threads.get":                {},
-		"threads.create":             {},
-		"threads.patch":              {},
-		"threads.timeline":           {},
-		"commitments.list":           {},
-		"commitments.get":            {},
-		"commitments.create":         {},
-		"commitments.patch":          {},
-		"artifacts.list":             {},
-		"artifacts.get":              {},
-		"artifacts.create":           {},
-		"artifacts.content.get":      {},
-		"docs.create":                {},
-		"docs.get":                   {},
-		"docs.update":                {},
-		"docs.history":               {},
-		"docs.revision.get":          {},
-		"events.get":                 {},
-		"events.create":              {},
-		"events.stream":              {},
-		"inbox.list":                 {},
-		"inbox.get":                  {},
-		"inbox.ack":                  {},
-		"inbox.stream":               {},
-		"packets.work-orders.create": {},
-		"packets.receipts.create":    {},
-		"packets.reviews.create":     {},
-		"threads.context":            {},
-		"derived.rebuild":            {},
-		"meta.commands.list":         {},
-		"meta.commands.get":          {},
-		"meta.concepts.list":         {},
-		"meta.concepts.get":          {},
+	return runtimeHelpCatalogSnapshot().SupportedCommandIDs
+}
+
+func runtimeGeneratedHelpSpecs() []subcommandSpec {
+	return []subcommandSpec{
+		threadsSubcommandSpec,
+		commitmentsSubcommandSpec,
+		artifactsSubcommandSpec,
+		docsSubcommandSpec,
+		docsRevisionSubcommandSpec,
+		eventsSubcommandSpec,
+		inboxSubcommandSpec,
+		derivedSubcommandSpec,
+		{
+			command:  "meta",
+			valid:    []string{"commands", "command", "concepts", "concept"},
+			examples: metaSubcommandSpec.examples,
+			aliases:  metaSubcommandSpec.aliases,
+		},
 	}
+}
+
+func runtimeGeneratedRegistryPaths() []string {
+	paths := make([]string, 0, 40)
+	for _, spec := range runtimeGeneratedHelpSpecs() {
+		command := strings.TrimSpace(spec.command)
+		if command == "" {
+			continue
+		}
+		for _, subcommand := range spec.valid {
+			path := strings.Join(strings.Fields(command+" "+strings.TrimSpace(subcommand)), " ")
+			if path == "" {
+				continue
+			}
+			paths = append(paths, path)
+		}
+	}
+	for _, resource := range runtimeGeneratedPacketResources {
+		path := strings.Join(strings.Fields(strings.TrimSpace(resource)+" create"), " ")
+		if path == "" {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return paths
 }
 
 func onboardingHelpText() string {

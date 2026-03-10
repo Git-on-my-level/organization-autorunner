@@ -20,6 +20,7 @@ go run ./cmd/oar help threads
 ```
 
 Generated command/concept docs are under `docs/generated/`.
+The shipped runtime reference is available from the binary with `oar meta docs` / `oar meta doc <topic>`, and the checked-in artifact is regenerated with `go run ./cmd/oar-docs-gen`.
 
 Human-readable inspection commands now default to payload-first summaries. Use `--verbose` to print the full response body and `--headers` to opt into response status/header framing when debugging.
 

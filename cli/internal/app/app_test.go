@@ -113,6 +113,43 @@ func TestRunVersionAcceptsTrailingJSONFlag(t *testing.T) {
 	}
 }
 
+func TestRunMetaDocsIsConfigLenient(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	profilesDir := filepath.Join(home, ".config", "oar", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o700); err != nil {
+		t.Fatalf("mkdir profiles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "agent-a.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write profile a: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "agent-b.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write profile b: %v", err)
+	}
+
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	cli := New()
+	cli.Stdout = stdout
+	cli.Stderr = stderr
+	cli.Stdin = strings.NewReader("")
+	cli.StdinIsTTY = func() bool { return true }
+	cli.UserHomeDir = func() (string, error) { return home, nil }
+	cli.ReadFile = os.ReadFile
+
+	exitCode := cli.Run([]string{"meta", "docs"})
+	if exitCode != 0 {
+		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "# OAR Runtime Help Reference") {
+		t.Fatalf("expected runtime docs output=%s", stdout.String())
+	}
+	if strings.TrimSpace(stderr.String()) != "" {
+		t.Fatalf("expected no stderr, got %q", stderr.String())
+	}
+}
+
 func TestRunTrailingGlobalBaseURLIsAccepted(t *testing.T) {
 	t.Parallel()
 
