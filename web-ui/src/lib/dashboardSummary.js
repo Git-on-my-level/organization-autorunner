@@ -117,8 +117,96 @@ export function buildArtifactKindSummary(artifacts = []) {
   return counts;
 }
 
+function summaryGroupKey(artifact) {
+  return `${artifact?.thread_id ?? ""}||${artifact?.kind ?? ""}||${String(
+    artifact?.summary ?? "",
+  )
+    .trim()
+    .toLowerCase()}`;
+}
+
+function countRefPredecessorDepth(artifact, byId) {
+  let depth = 0;
+  const visited = new Set([artifact?.id]);
+  let current = artifact;
+
+  while (current) {
+    const predRef = (current.refs ?? []).find((ref) => {
+      if (!ref.startsWith("artifact:")) return false;
+      const predId = ref.slice("artifact:".length);
+      const pred = byId.get(predId);
+      return pred && pred.kind === current.kind && !visited.has(predId);
+    });
+    if (!predRef) break;
+    const predId = predRef.slice("artifact:".length);
+    visited.add(predId);
+    depth += 1;
+    current = byId.get(predId);
+  }
+
+  return depth;
+}
+
 export function selectRecentArtifacts(artifacts = [], limit = 5) {
-  return [...artifacts]
+  const live = (artifacts ?? []).filter((a) => !a?.tombstoned_at);
+  const byId = new Map(live.map((a) => [a.id, a]));
+
+  // Artifacts superseded by a newer artifact of the same kind via an explicit artifact: ref.
+  const supersededByRef = new Set();
+  for (const artifact of live) {
+    for (const ref of artifact.refs ?? []) {
+      if (!ref.startsWith("artifact:")) continue;
+      const predId = ref.slice("artifact:".length);
+      const pred = byId.get(predId);
+      if (pred && pred.kind === artifact.kind) {
+        supersededByRef.add(predId);
+      }
+    }
+  }
+
+  // Group the remaining artifacts by (thread, kind, summary). Within each group
+  // keep only the newest; older copies are superseded by summary heuristic.
+  const summaryGroups = new Map();
+  for (const artifact of live) {
+    if (supersededByRef.has(artifact.id)) continue;
+    const key = summaryGroupKey(artifact);
+    if (!summaryGroups.has(key)) summaryGroups.set(key, []);
+    summaryGroups.get(key).push(artifact);
+  }
+
+  const supersededBySummary = new Set();
+  for (const group of summaryGroups.values()) {
+    if (group.length <= 1) continue;
+    group.sort((a, b) => compareByTimestampDesc(a?.created_at, b?.created_at));
+    for (let i = 1; i < group.length; i++) {
+      supersededBySummary.add(group[i].id);
+    }
+  }
+
+  // Leaf artifacts are those not excluded by either rule.
+  const leafArtifacts = live.filter(
+    (a) => !supersededByRef.has(a.id) && !supersededBySummary.has(a.id),
+  );
+
+  // Annotate each leaf with whether it is an update and how many versions exist.
+  const annotated = leafArtifacts.map((artifact) => {
+    const refDepth = countRefPredecessorDepth(artifact, byId);
+    const hasRefPredecessor = refDepth > 0;
+
+    const summaryGroup = summaryGroups.get(summaryGroupKey(artifact)) ?? [];
+    const hasSummaryPredecessor = summaryGroup.length > 1;
+
+    const isUpdate = hasRefPredecessor || hasSummaryPredecessor;
+    const versionCount = hasRefPredecessor
+      ? refDepth + 1
+      : hasSummaryPredecessor
+        ? summaryGroup.length
+        : 1;
+
+    return { ...artifact, isUpdate, versionCount };
+  });
+
+  return annotated
     .sort((left, right) => {
       const byTimestamp = compareByTimestampDesc(
         left?.created_at,
@@ -127,7 +215,6 @@ export function selectRecentArtifacts(artifacts = [], limit = 5) {
       if (byTimestamp !== 0) {
         return byTimestamp;
       }
-
       return String(left?.id ?? "").localeCompare(String(right?.id ?? ""));
     })
     .slice(0, limit);

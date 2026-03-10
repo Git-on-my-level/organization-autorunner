@@ -424,6 +424,15 @@
               class="shrink-0 rounded bg-[var(--ui-panel)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ui-text-muted)]"
               >{artifact.kind}</span
             >
+            {#if artifact.isUpdate}
+              <span
+                class="shrink-0 rounded bg-[var(--ui-border-subtle)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ui-text-muted)] border border-[var(--ui-border)]"
+                title="{artifact.versionCount} versions"
+                >updated{artifact.versionCount > 1
+                  ? ` · v${artifact.versionCount}`
+                  : ""}</span
+              >
+            {/if}
             <div class="min-w-0 flex-1">
               <p class="truncate text-[13px] font-medium text-[var(--ui-text)]">
                 {artifact.summary || artifact.id}

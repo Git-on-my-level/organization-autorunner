@@ -401,9 +401,11 @@
         </p>
       {/if}
       <p class="mt-1 text-xs text-gray-500">
-        Tombstoned {#if artifact.tombstoned_by}by {artifact.tombstoned_by}{/if}
+        Tombstoned {#if artifact.tombstoned_by}by {actorName(
+            artifact.tombstoned_by,
+          )}{/if}
         {#if artifact.tombstoned_at}
-          at {new Date(artifact.tombstoned_at).toLocaleString()}
+          {formatTimestamp(artifact.tombstoned_at)}
         {/if}
       </p>
     </div>
@@ -438,9 +440,6 @@
         />
       {/if}
     </div>
-    <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">
-      ID: {artifact.id}
-    </p>
     <div class="mt-1.5">
       <ProvenanceBadge provenance={artifact.provenance} />
     </div>
@@ -503,7 +502,7 @@
     <div
       class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
     >
-      Unknown artifact kind: {artifact.kind}
+      No structured view available for this artifact.
     </div>
   {/if}
 
@@ -909,7 +908,7 @@
   >
     <summary
       class="cursor-pointer px-4 py-2.5 text-[11px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"
-      >Raw metadata JSON</summary
+      >Raw metadata — ID: {artifact.id}</summary
     >
     <pre
       class="overflow-auto px-4 pb-3 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(

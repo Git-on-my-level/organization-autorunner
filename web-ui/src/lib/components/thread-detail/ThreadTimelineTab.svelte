@@ -15,6 +15,11 @@
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
 
   let timelineView = $derived(toTimelineView(timeline, { threadId }));
+  let replyTargetEvent = $derived(
+    replyToEventId
+      ? (timelineView.find((e) => e.id === replyToEventId) ?? null)
+      : null,
+  );
 
   let messageText = $state("");
   let replyToEventId = $state("");
@@ -80,9 +85,13 @@
       class="flex items-center gap-2 text-[12px] text-[var(--ui-text-muted)]"
     >
       {#if replyToEventId}
-        <span>Replying to event</span>
+        <span class="truncate max-w-[40ch]"
+          >Replying to: {replyTargetEvent?.summary
+            ? replyTargetEvent.summary.slice(0, 80)
+            : (replyTargetEvent?.typeLabel ?? "event")}</span
+        >
         <button
-          class="cursor-pointer text-indigo-400 hover:text-indigo-300"
+          class="cursor-pointer shrink-0 text-indigo-400 hover:text-indigo-300"
           onclick={clearReplyTarget}
           type="button">Clear</button
         >

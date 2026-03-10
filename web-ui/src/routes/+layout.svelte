@@ -351,7 +351,6 @@
                 >
                 <span class="actor-gate-meta">
                   <span class="actor-gate-name">{actor.display_name}</span>
-                  <span class="actor-gate-id">{actor.id}</span>
                 </span>
               </button>
             {/each}
@@ -510,7 +509,6 @@
             >
             <div class="shell-actor-copy">
               <p>{selectedActorName}</p>
-              <span>{activeActorId.slice(0, 24)}</span>
             </div>
           </div>
           <button onclick={switchIdentity} type="button">

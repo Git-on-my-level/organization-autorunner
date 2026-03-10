@@ -269,7 +269,8 @@
               {#if document.status}
                 <span
                   class="rounded px-1.5 py-0.5 font-medium text-emerald-400 bg-emerald-500/10"
-                  >{document.status}</span
+                  >{{ draft: "Draft", active: "Active" }[document.status] ??
+                    document.status}</span
                 >
               {/if}
               {#each document.labels ?? [] as label}

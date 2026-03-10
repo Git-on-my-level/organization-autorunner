@@ -4,11 +4,15 @@
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { projectPath } from "$lib/projectPaths";
+  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+
+  const DOC_STATUS_LABELS = { draft: "Draft", active: "Active" };
 
   let documents = $state([]);
   let loading = $state(false);
   let error = $state("");
   let projectSlug = $derived($page.params.project);
+  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
 
   let createOpen = $state(false);
   let creating = $state(false);
@@ -309,7 +313,7 @@
                 <span
                   class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-semibold {statusColor(
                     doc.status,
-                  )}">{doc.status}</span
+                  )}">{DOC_STATUS_LABELS[doc.status] ?? doc.status}</span
                 >
               {/if}
               {#each (doc.labels ?? []).slice(0, 3) as label}
@@ -325,8 +329,9 @@
               {doc.title || doc.id}
             </p>
             <p class="text-[11px] text-[var(--ui-text-muted)]">
-              Updated {formatTimestamp(doc.updated_at) || "—"} by {doc.updated_by ||
-                "unknown"} · v{doc.head_revision_number}
+              Updated {formatTimestamp(doc.updated_at) || "—"} by {actorName(
+                doc.updated_by,
+              )} · v{doc.head_revision_number}
             </p>
           </div>
           <span class="shrink-0 text-[11px] text-[var(--ui-text-subtle)]">

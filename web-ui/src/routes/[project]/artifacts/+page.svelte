@@ -6,6 +6,7 @@
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { projectPath } from "$lib/projectPaths";
+  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
 
   const KIND_LABELS = {
     work_order: "Work Order",
@@ -21,6 +22,7 @@
   let error = $state("");
   let filtersOpen = $state(false);
   let projectSlug = $derived($page.params.project);
+  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
   let filters = $state({
     kind: "",
     thread_id: "",
@@ -153,11 +155,15 @@
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Kind
-        <input
+        <select
           bind:value={filters.kind}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
-          placeholder="work_order, receipt, review..."
-        />
+        >
+          <option value="">All</option>
+          {#each Object.entries(KIND_LABELS) as [value, label]}
+            <option {value}>{label}</option>
+          {/each}
+        </select>
       </label>
       <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Thread ID
@@ -266,8 +272,9 @@
               {rowHeading(artifact)}
             </p>
             <p class="text-[11px] text-[var(--ui-text-muted)]">
-              Created {formatTimestamp(artifact.created_at) || "—"} by {artifact.created_by ||
-                "unknown"}
+              Created {formatTimestamp(artifact.created_at) || "—"} by {actorName(
+                artifact.created_by,
+              )}
             </p>
           </div>
           <span class="shrink-0 text-[11px] text-[var(--ui-text-subtle)]">

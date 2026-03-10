@@ -19,6 +19,13 @@
     validateCommitmentStatusTransition,
   } from "$lib/commitmentUtils";
 
+  const COMMITMENT_STATUS_LABELS = {
+    open: "Open",
+    blocked: "Blocked",
+    done: "Completed",
+    canceled: "Canceled",
+  };
+
   let { threadId, onCommitmentSave, onCommitmentCreate } = $props();
 
   let commitments = $derived($threadDetailStore.commitments);
@@ -355,7 +362,8 @@
           <div class="flex shrink-0 items-center gap-2">
             <span
               class={`rounded px-2 py-0.5 text-[12px] font-medium ${statusBadgeClass(commitment.status)}`}
-              >{commitment.status}</span
+              >{COMMITMENT_STATUS_LABELS[commitment.status] ??
+                commitment.status}</span
             >
             <button
               class="cursor-pointer rounded px-2 py-1 text-[12px] text-[var(--ui-text-muted)] hover:bg-[var(--ui-bg-soft)] hover:text-[var(--ui-text)]"
@@ -444,11 +452,9 @@
                 >Status <select
                   bind:value={editCommitmentDraft.status}
                   class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
-                  ><option value="open">open</option><option value="blocked"
-                    >blocked</option
-                  ><option value="done">done</option><option value="canceled"
-                    >canceled</option
-                  ></select
+                  >{#each Object.entries(COMMITMENT_STATUS_LABELS) as [value, label]}<option
+                      {value}>{label}</option
+                    >{/each}</select
                 ></label
               >
               <div class="self-end text-[12px] text-[var(--ui-text-muted)]">

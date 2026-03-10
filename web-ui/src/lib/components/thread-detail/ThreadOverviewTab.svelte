@@ -300,12 +300,12 @@
           >Type <select
             bind:value={editDraft.type}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
-            ><option value="case">case</option><option value="process"
-              >process</option
-            ><option value="relationship">relationship</option><option
-              value="initiative">initiative</option
-            ><option value="incident">incident</option><option value="other"
-              >other</option
+            ><option value="case">Case</option><option value="process"
+              >Process</option
+            ><option value="relationship">Relationship</option><option
+              value="initiative">Initiative</option
+            ><option value="incident">Incident</option><option value="other"
+              >Other</option
             ></select
           ></label
         >
@@ -313,9 +313,9 @@
           >Status <select
             bind:value={editDraft.status}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
-            ><option value="active">active</option><option value="paused"
-              >paused</option
-            ><option value="closed">closed</option></select
+            ><option value="active">Active</option><option value="paused"
+              >Paused</option
+            ><option value="closed">Closed</option></select
           ></label
         >
         <label class="text-[12px] font-medium text-[var(--ui-text-muted)]"

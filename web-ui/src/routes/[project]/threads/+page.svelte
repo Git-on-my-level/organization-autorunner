@@ -256,7 +256,7 @@
         >
           <option value="">All</option>
           {#each THREAD_STATUSES as status}<option value={status}
-              >{status}</option
+              >{status[0].toUpperCase() + status.slice(1)}</option
             >{/each}
         </select>
       </label>
@@ -353,7 +353,7 @@
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           {#each THREAD_STATUSES as status}<option value={status}
-              >{status}</option
+              >{status[0].toUpperCase() + status.slice(1)}</option
             >{/each}
         </select>
       </label>

@@ -63,9 +63,24 @@ describe("dashboard summaries", () => {
     ]);
 
     const recentArtifacts = selectRecentArtifacts([
-      { id: "artifact-1", created_at: "2025-01-01T00:00:00.000Z" },
-      { id: "artifact-2", created_at: "2026-01-01T00:00:00.000Z" },
-      { id: "artifact-3", created_at: "2024-01-01T00:00:00.000Z" },
+      {
+        id: "artifact-1",
+        kind: "doc",
+        summary: "Alpha",
+        created_at: "2025-01-01T00:00:00.000Z",
+      },
+      {
+        id: "artifact-2",
+        kind: "doc",
+        summary: "Beta",
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+      {
+        id: "artifact-3",
+        kind: "doc",
+        summary: "Gamma",
+        created_at: "2024-01-01T00:00:00.000Z",
+      },
     ]);
 
     expect(recentThreads.map((thread) => thread.id)).toEqual([
@@ -78,6 +93,104 @@ describe("dashboard summaries", () => {
       "artifact-1",
       "artifact-3",
     ]);
+  });
+
+  it("deduplicates artifacts superseded by ref, annotating the survivor", () => {
+    const artifacts = [
+      {
+        id: "doc-v1",
+        kind: "doc",
+        thread_id: "thread-1",
+        summary: "My doc",
+        refs: ["thread:thread-1"],
+        created_at: "2025-01-01T00:00:00.000Z",
+      },
+      {
+        id: "doc-v2",
+        kind: "doc",
+        thread_id: "thread-1",
+        summary: "My doc",
+        refs: ["thread:thread-1", "artifact:doc-v1"],
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const result = selectRecentArtifacts(artifacts);
+    expect(result.map((a) => a.id)).toEqual(["doc-v2"]);
+    expect(result[0].isUpdate).toBe(true);
+    expect(result[0].versionCount).toBe(2);
+  });
+
+  it("deduplicates artifacts with the same summary by summary heuristic", () => {
+    const artifacts = [
+      {
+        id: "doc-old",
+        kind: "doc",
+        thread_id: "thread-1",
+        summary: "My doc",
+        refs: ["thread:thread-1"],
+        created_at: "2025-01-01T00:00:00.000Z",
+      },
+      {
+        id: "doc-new",
+        kind: "doc",
+        thread_id: "thread-1",
+        summary: "My doc",
+        refs: ["thread:thread-1"],
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const result = selectRecentArtifacts(artifacts);
+    expect(result.map((a) => a.id)).toEqual(["doc-new"]);
+    expect(result[0].isUpdate).toBe(true);
+    expect(result[0].versionCount).toBe(2);
+  });
+
+  it("excludes tombstoned artifacts", () => {
+    const artifacts = [
+      {
+        id: "doc-live",
+        kind: "doc",
+        created_at: "2026-01-01T00:00:00.000Z",
+        tombstoned_at: null,
+      },
+      {
+        id: "doc-dead",
+        kind: "doc",
+        created_at: "2026-02-01T00:00:00.000Z",
+        tombstoned_at: "2026-02-02T00:00:00.000Z",
+      },
+    ];
+
+    const result = selectRecentArtifacts(artifacts);
+    expect(result.map((a) => a.id)).toEqual(["doc-live"]);
+  });
+
+  it("does not suppress a ref to a different kind", () => {
+    const artifacts = [
+      {
+        id: "work-order-1",
+        kind: "work_order",
+        thread_id: "thread-1",
+        summary: "Fix the thing",
+        refs: ["thread:thread-1"],
+        created_at: "2025-01-01T00:00:00.000Z",
+      },
+      {
+        id: "receipt-1",
+        kind: "receipt",
+        thread_id: "thread-1",
+        summary: "Receipt for fixing the thing",
+        refs: ["thread:thread-1", "artifact:work-order-1"],
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ];
+
+    const result = selectRecentArtifacts(artifacts);
+    expect(result.map((a) => a.id)).toEqual(["receipt-1", "work-order-1"]);
+    expect(result[0].isUpdate).toBe(false);
+    expect(result[1].isUpdate).toBe(false);
   });
 
   it("summarizes artifact kinds", () => {
