@@ -34,6 +34,15 @@ Route model:
   - `OAR_UI_BASE_PATH` is applied by SvelteKit at dev/build startup, so use the
     intended value when running `./scripts/dev` or `./scripts/build`
 
+Build-time config files:
+
+- `web-ui/.env.build` is read by `svelte.config.js` for `./scripts/dev`,
+  `./scripts/build`, and `pnpm run build`
+- `web-ui/.env.build.local` layers on top for machine-local overrides
+- Shell env wins over file values when both are set
+- `.env.build` is gitignored by default; use `git add -f web-ui/.env.build` if
+  you intentionally want to commit operator-specific build config
+
 Single-core fallback:
 
 - If `OAR_PROJECTS` is unset, `OAR_CORE_BASE_URL` still creates one default
@@ -130,6 +139,15 @@ Build distributable assets:
 
 ```bash
 ./scripts/build
+```
+
+Example build config file:
+
+```bash
+cat > .env.build <<'EOF'
+OAR_UI_BASE_PATH=/oar
+ADAPTER=node
+EOF
 ```
 
 `./scripts/build` defaults to `ADAPTER=node`, producing a Node.js server at

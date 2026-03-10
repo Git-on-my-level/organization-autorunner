@@ -6,5 +6,4 @@ cd "${ROOT_DIR}"
 
 pnpm install --frozen-lockfile
 
-export ADAPTER="${ADAPTER:-node}"
 exec pnpm run build
