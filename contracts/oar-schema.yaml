@@ -184,13 +184,15 @@ primitives:
       Immutable blob. New versions are new artifacts with refs to predecessors.
       Artifact content is generally opaque to oar-core, EXCEPT for packet kinds
       (work_order, receipt, review) which are schema-validated structured content.
+      Content is stored using content-addressable storage keyed by SHA-256 digest.
     fields:
       id:            { type: string, required: true }
       created_at:    { type: datetime, required: true }
       created_by:    { type: string, required: true, description: "Actor ID" }
       kind:          { type: string, required: true, ref: enums.artifact_kind }
       content_type:  { type: string, required: true, description: "text | binary | structured" }
-      content_path:  { type: string, required: true, description: "Filesystem path to artifact content" }
+      content_hash:  { type: string, required: true, description: "SHA-256 hex digest of artifact content" }
+      content_path:  { type: string, required: true, description: "Filesystem path to artifact content, derived from content_hash" }
       refs:          { type: "list<typed_ref>", required: true, description: "Typed references (see ref_format)" }
       summary:       { type: string, required: false }
 

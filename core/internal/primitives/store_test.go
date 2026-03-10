@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/storage"
@@ -94,6 +96,99 @@ func TestCreateArtifactAcceptsSafeIDAndRejectsUnsafeIDs(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "artifact.id") {
 			t.Fatalf("expected clear artifact.id error for %q, got %v", invalidID, err)
 		}
+	}
+}
+
+func TestCreateArtifactConflictDoesNotLeakStagedContent(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+
+	artifactID := "artifact-fixed"
+	if _, err := store.CreateArtifact(context.Background(), "actor-1", map[string]any{
+		"id":   artifactID,
+		"kind": "doc",
+		"refs": []string{"thread:thread-1"},
+	}, "first content", "text"); err != nil {
+		t.Fatalf("create initial artifact: %v", err)
+	}
+
+	if got := countArtifactContentFiles(t, workspace.Layout().ArtifactContentDir); got != 1 {
+		t.Fatalf("expected 1 content file after initial create, got %d", got)
+	}
+
+	if _, err := store.CreateArtifact(context.Background(), "actor-2", map[string]any{
+		"id":   artifactID,
+		"kind": "doc",
+		"refs": []string{"thread:thread-2"},
+	}, "conflicting content", "text"); err == nil {
+		t.Fatal("expected duplicate artifact id to fail")
+	}
+
+	if got := countArtifactContentFiles(t, workspace.Layout().ArtifactContentDir); got != 1 {
+		t.Fatalf("expected duplicate artifact create not to leak content files, got %d", got)
+	}
+
+	content, _, err := store.GetArtifactContent(context.Background(), artifactID)
+	if err != nil {
+		t.Fatalf("get original artifact content: %v", err)
+	}
+	if string(content) != "first content" {
+		t.Fatalf("unexpected original artifact content after conflict: %q", string(content))
+	}
+}
+
+func TestUpdateDocumentWriteFailureDoesNotLeakStagedContent(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+
+	document, revision, err := store.CreateDocument(context.Background(), "actor-1", map[string]any{
+		"id":    "doc-locked",
+		"title": "Locked doc",
+	}, "initial text", "text", nil)
+	if err != nil {
+		t.Fatalf("create document: %v", err)
+	}
+
+	if got := countArtifactContentFiles(t, workspace.Layout().ArtifactContentDir); got != 1 {
+		t.Fatalf("expected 1 content file after document create, got %d", got)
+	}
+
+	lockTx, err := workspace.DB().BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("begin lock transaction: %v", err)
+	}
+	defer func() { _ = lockTx.Rollback() }()
+
+	if _, err := lockTx.ExecContext(context.Background(), `UPDATE documents SET updated_at = updated_at WHERE id = ?`, document["id"]); err != nil {
+		t.Fatalf("acquire document write lock: %v", err)
+	}
+
+	updateCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, _, err = store.UpdateDocument(updateCtx, "actor-2", "doc-locked", map[string]any{
+		"title": "Updated while locked",
+	}, revision["revision_id"].(string), "updated text", "text", nil)
+	if err == nil {
+		t.Fatal("expected locked document update to fail")
+	}
+
+	if got := countArtifactContentFiles(t, workspace.Layout().ArtifactContentDir); got != 1 {
+		t.Fatalf("expected failed document update not to leak content files, got %d", got)
 	}
 }
 
@@ -863,4 +958,14 @@ func assertActorStatementProvenance(t *testing.T, event map[string]any) {
 	if !reflect.DeepEqual(sources, want) {
 		t.Fatalf("unexpected actor statement provenance: got %#v want %#v", sources, want)
 	}
+}
+
+func countArtifactContentFiles(t *testing.T, dir string) int {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read artifact content dir: %v", err)
+	}
+	return len(entries)
 }

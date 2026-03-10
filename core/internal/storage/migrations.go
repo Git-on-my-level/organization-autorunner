@@ -188,6 +188,14 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_passkey_credentials_user_handle ON passkey_credentials (user_handle);`,
 		},
 	},
+	{
+		Version: 7,
+		Statements: []string{
+			`ALTER TABLE artifacts ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''`,
+			`ALTER TABLE document_revisions ADD COLUMN revision_hash TEXT NOT NULL DEFAULT ''`,
+			`CREATE INDEX IF NOT EXISTS idx_artifacts_content_hash ON artifacts (content_hash)`,
+		},
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

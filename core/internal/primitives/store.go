@@ -2,7 +2,9 @@ package primitives
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -222,56 +224,63 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 	} else if err := validateArtifactID(artifactID); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidArtifactID, err)
 	}
+	contentHash := sha256Hex(encodedContent)
+
 	metadata["id"] = artifactID
 	metadata["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
 	metadata["created_by"] = actorID
 	metadata["content_type"] = contentType
-	metadata["content_path"] = filepath.Join(s.artifactContentDir, artifactID)
+	metadata["content_hash"] = contentHash
+	metadata["content_path"] = filepath.Join(s.artifactContentDir, contentHash)
 
 	contentPath := metadata["content_path"].(string)
-	file, err := os.OpenFile(contentPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	stagedContent, err := stageContentWrite(contentPath, encodedContent)
 	if err != nil {
-		return nil, fmt.Errorf("create artifact content file: %w", err)
+		return nil, fmt.Errorf("stage artifact content: %w", err)
 	}
-
-	if _, err := file.Write(encodedContent); err != nil {
-		_ = file.Close()
-		_ = os.Remove(contentPath)
-		return nil, fmt.Errorf("write artifact content: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		_ = os.Remove(contentPath)
-		return nil, fmt.Errorf("close artifact content file: %w", err)
-	}
+	defer func() { _ = stagedContent.Cleanup() }()
 
 	refsJSON, err := json.Marshal(refs)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, fmt.Errorf("marshal artifact refs: %w", err)
 	}
 
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, fmt.Errorf("marshal artifact metadata: %w", err)
 	}
 
-	_, err = s.db.ExecContext(
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin artifact transaction: %w", err)
+	}
+
+	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		metadata["id"],
 		kind,
 		metadata["created_at"],
 		actorID,
 		contentType,
+		contentHash,
 		contentPath,
 		string(refsJSON),
 		string(metadataJSON),
-	)
-	if err != nil {
-		_ = os.Remove(contentPath)
+	); err != nil {
+		_ = tx.Rollback()
 		return nil, fmt.Errorf("insert artifact: %w", err)
+	}
+
+	if err := stagedContent.Promote(); err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("finalize artifact content: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		return nil, fmt.Errorf("commit artifact transaction: %w", err)
 	}
 
 	return metadata, nil
@@ -308,36 +317,28 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 	} else if err := validateArtifactID(artifactID); err != nil {
 		return nil, nil, fmt.Errorf("%w: %v", ErrInvalidArtifactID, err)
 	}
+	contentHash := sha256Hex(encodedContent)
+
 	metadata["id"] = artifactID
 	metadata["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
 	metadata["created_by"] = actorID
 	metadata["content_type"] = contentType
-	metadata["content_path"] = filepath.Join(s.artifactContentDir, artifactID)
+	metadata["content_hash"] = contentHash
+	metadata["content_path"] = filepath.Join(s.artifactContentDir, contentHash)
 
 	contentPath := metadata["content_path"].(string)
-	file, err := os.OpenFile(contentPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	stagedContent, err := stageContentWrite(contentPath, encodedContent)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create artifact content file: %w", err)
+		return nil, nil, fmt.Errorf("stage artifact content: %w", err)
 	}
-
-	if _, err := file.Write(encodedContent); err != nil {
-		_ = file.Close()
-		_ = os.Remove(contentPath)
-		return nil, nil, fmt.Errorf("write artifact content: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		_ = os.Remove(contentPath)
-		return nil, nil, fmt.Errorf("close artifact content file: %w", err)
-	}
+	defer func() { _ = stagedContent.Cleanup() }()
 
 	artifactRefsJSON, err := json.Marshal(artifactRefs)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal artifact refs: %w", err)
 	}
 	artifactMetadataJSON, err := json.Marshal(metadata)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal artifact metadata: %w", err)
 	}
 
@@ -352,12 +353,10 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 	threadID, _ := eventBody["thread_id"].(string)
 	eventRefs, err := normalizeStringSlice(eventBody["refs"])
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("event.refs: %w", err)
 	}
 	eventRefsJSON, err := json.Marshal(eventRefs)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal event refs: %w", err)
 	}
 
@@ -367,42 +366,38 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 		case map[string]any:
 			eventPayload = payload
 		default:
-			_ = os.Remove(contentPath)
 			return nil, nil, fmt.Errorf("event.payload must be an object when provided")
 		}
 	}
 	eventPayloadJSON, err := json.Marshal(eventPayload)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal event payload: %w", err)
 	}
 	eventBodyJSON, err := json.Marshal(eventBody)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal event body: %w", err)
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("begin transaction: %w", err)
 	}
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		metadata["id"],
 		kind,
 		metadata["created_at"],
 		actorID,
 		contentType,
+		contentHash,
 		contentPath,
 		string(artifactRefsJSON),
 		string(artifactMetadataJSON),
 	); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("insert artifact: %w", err)
 	}
 
@@ -420,13 +415,16 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 		string(eventBodyJSON),
 	); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("insert event: %w", err)
+	}
+
+	if err := stagedContent.Promote(); err != nil {
+		_ = tx.Rollback()
+		return nil, nil, fmt.Errorf("finalize artifact content: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
@@ -1888,4 +1886,85 @@ func validateArtifactID(id string) error {
 		return fmt.Errorf("artifact.id must not contain path separators")
 	}
 	return nil
+}
+
+func sha256Hex(data []byte) string {
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
+// writeContentIfAbsent writes data to path only if the file does not already
+// exist, providing atomic content-addressable deduplication.
+type stagedContentWrite struct {
+	tempPath  string
+	finalPath string
+}
+
+func stageContentWrite(path string, data []byte) (*stagedContentWrite, error) {
+	file, err := os.CreateTemp(filepath.Dir(path), ".cas-*")
+	if err != nil {
+		return nil, err
+	}
+	tempPath := file.Name()
+	cleanupOnError := func() {
+		_ = file.Close()
+		_ = os.Remove(tempPath)
+	}
+	if _, err := file.Write(data); err != nil {
+		cleanupOnError()
+		return nil, err
+	}
+	if err := file.Chmod(0o644); err != nil {
+		cleanupOnError()
+		return nil, err
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(tempPath)
+		return nil, err
+	}
+	return &stagedContentWrite{tempPath: tempPath, finalPath: path}, nil
+}
+
+func (w *stagedContentWrite) Promote() error {
+	if w == nil || w.tempPath == "" {
+		return nil
+	}
+	if _, err := os.Stat(w.finalPath); err == nil {
+		return w.Cleanup()
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := os.Rename(w.tempPath, w.finalPath); err != nil {
+		if _, statErr := os.Stat(w.finalPath); statErr == nil {
+			return w.Cleanup()
+		}
+		return err
+	}
+	w.tempPath = ""
+	return nil
+}
+
+func (w *stagedContentWrite) Cleanup() error {
+	if w == nil || w.tempPath == "" {
+		return nil
+	}
+	err := os.Remove(w.tempPath)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	w.tempPath = ""
+	return nil
+}
+
+// computeRevisionHash produces a tamper-evident hash for a document revision
+// by chaining content hash, previous revision hash, and revision metadata.
+func computeRevisionHash(contentHash, prevRevisionHash, documentID string, revisionNumber int, createdAt, createdBy string) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "content_hash:%s\n", contentHash)
+	fmt.Fprintf(h, "prev_revision_hash:%s\n", prevRevisionHash)
+	fmt.Fprintf(h, "document_id:%s\n", documentID)
+	fmt.Fprintf(h, "revision_number:%d\n", revisionNumber)
+	fmt.Fprintf(h, "created_at:%s\n", createdAt)
+	fmt.Fprintf(h, "created_by:%s\n", createdBy)
+	return hex.EncodeToString(h.Sum(nil))
 }

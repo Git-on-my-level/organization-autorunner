@@ -3,10 +3,14 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -88,6 +92,15 @@ func TestPrimitivesCRUDRoundTrip(t *testing.T) {
 		t.Fatal("expected created artifact id")
 	}
 
+	contentHash, _ := createdArtifact["artifact"]["content_hash"].(string)
+	if contentHash == "" {
+		t.Fatal("expected content_hash in created artifact")
+	}
+	expectedHash := sha256Hex([]byte("hello artifact"))
+	if contentHash != expectedHash {
+		t.Fatalf("content_hash mismatch: got %q want %q", contentHash, expectedHash)
+	}
+
 	getArtifactResp, err := http.Get(h.baseURL + "/artifacts/" + artifactID)
 	if err != nil {
 		t.Fatalf("GET /artifacts/{id}: %v", err)
@@ -103,6 +116,9 @@ func TestPrimitivesCRUDRoundTrip(t *testing.T) {
 	}
 	if loadedArtifact["artifact"]["kind"] != "my_custom_artifact" {
 		t.Fatalf("unexpected artifact kind: %#v", loadedArtifact["artifact"]["kind"])
+	}
+	if loadedArtifact["artifact"]["content_hash"] != expectedHash {
+		t.Fatalf("content_hash mismatch on GET: got %#v", loadedArtifact["artifact"]["content_hash"])
 	}
 
 	contentResp, err := http.Get(h.baseURL + "/artifacts/" + artifactID + "/content")
@@ -167,6 +183,18 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 		t.Fatal("expected created revision id")
 	}
 
+	createContentHash, _ := created["revision"]["content_hash"].(string)
+	if createContentHash == "" {
+		t.Fatal("expected content_hash in created revision")
+	}
+	if createContentHash != sha256Hex([]byte("initial text")) {
+		t.Fatalf("content_hash mismatch on create: got %q", createContentHash)
+	}
+	createRevisionHash, _ := created["revision"]["revision_hash"].(string)
+	if createRevisionHash == "" {
+		t.Fatal("expected revision_hash in created revision")
+	}
+
 	getResp, err := http.Get(h.baseURL + "/docs/doc-1")
 	if err != nil {
 		t.Fatalf("GET /docs/{document_id}: %v", err)
@@ -195,6 +223,21 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 	newHeadRevisionID, _ := updated["revision"]["revision_id"].(string)
 	if newHeadRevisionID == "" || newHeadRevisionID == headRevisionID {
 		t.Fatalf("unexpected new revision id: old=%q new=%q", headRevisionID, newHeadRevisionID)
+	}
+
+	updateContentHash, _ := updated["revision"]["content_hash"].(string)
+	if updateContentHash == "" {
+		t.Fatal("expected content_hash in updated revision")
+	}
+	if updateContentHash != sha256Hex([]byte("second text")) {
+		t.Fatalf("content_hash mismatch on update: got %q", updateContentHash)
+	}
+	updateRevisionHash, _ := updated["revision"]["revision_hash"].(string)
+	if updateRevisionHash == "" {
+		t.Fatal("expected revision_hash in updated revision")
+	}
+	if updateRevisionHash == createRevisionHash {
+		t.Fatal("revision_hash should differ between revisions")
 	}
 
 	staleResp := requestJSONExpectStatus(t, http.MethodPatch, h.baseURL+"/docs/doc-1", `{
@@ -237,6 +280,178 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 	if revisionPayload["revision"]["content"] != "initial text" {
 		t.Fatalf("unexpected revision content: %#v", revisionPayload["revision"]["content"])
 	}
+	loadedRevisionHash, _ := revisionPayload["revision"]["revision_hash"].(string)
+	if loadedRevisionHash != createRevisionHash {
+		t.Fatalf("revision_hash mismatch on GET revision: got %q want %q", loadedRevisionHash, createRevisionHash)
+	}
+}
+
+func TestArtifactContentDeduplication(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	resp1 := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{"kind":"evidence","refs":["thread:t1"]},
+		"content":"identical content",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer resp1.Body.Close()
+	var art1 map[string]map[string]any
+	if err := json.NewDecoder(resp1.Body).Decode(&art1); err != nil {
+		t.Fatalf("decode artifact 1: %v", err)
+	}
+
+	resp2 := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{"kind":"evidence","refs":["thread:t2"]},
+		"content":"identical content",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer resp2.Body.Close()
+	var art2 map[string]map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&art2); err != nil {
+		t.Fatalf("decode artifact 2: %v", err)
+	}
+
+	id1, _ := art1["artifact"]["id"].(string)
+	id2, _ := art2["artifact"]["id"].(string)
+	if id1 == id2 {
+		t.Fatal("two artifacts with identical content should have different UUIDs")
+	}
+
+	hash1, _ := art1["artifact"]["content_hash"].(string)
+	hash2, _ := art2["artifact"]["content_hash"].(string)
+	if hash1 == "" || hash2 == "" {
+		t.Fatal("expected content_hash on both artifacts")
+	}
+	if hash1 != hash2 {
+		t.Fatalf("identical content should produce identical content_hash: %q vs %q", hash1, hash2)
+	}
+
+	path1, _ := art1["artifact"]["content_path"].(string)
+	path2, _ := art2["artifact"]["content_path"].(string)
+	if path1 != path2 {
+		t.Fatalf("identical content should share content_path: %q vs %q", path1, path2)
+	}
+
+	entries, err := os.ReadDir(h.workspace.Layout().ArtifactContentDir)
+	if err != nil {
+		t.Fatalf("read artifact content dir: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 content file (dedup), got %d", len(entries))
+	}
+}
+
+func TestDocumentRevisionMerkleChainIntegrity(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/docs", `{
+		"actor_id":"actor-1",
+		"document":{"id":"merkle-doc","title":"Merkle Test"},
+		"content":"revision one",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	rev1ID, _ := created["revision"]["revision_id"].(string)
+
+	updateResp1 := requestJSONExpectStatus(t, http.MethodPatch, h.baseURL+"/docs/merkle-doc", `{
+		"actor_id":"actor-1",
+		"if_base_revision":"`+rev1ID+`",
+		"content":"revision two",
+		"content_type":"text"
+	}`, http.StatusOK)
+	defer updateResp1.Body.Close()
+	var updated1 map[string]map[string]any
+	if err := json.NewDecoder(updateResp1.Body).Decode(&updated1); err != nil {
+		t.Fatalf("decode update 1: %v", err)
+	}
+	rev2ID, _ := updated1["revision"]["revision_id"].(string)
+
+	updateResp2 := requestJSONExpectStatus(t, http.MethodPatch, h.baseURL+"/docs/merkle-doc", `{
+		"actor_id":"actor-1",
+		"if_base_revision":"`+rev2ID+`",
+		"content":"revision three",
+		"content_type":"text"
+	}`, http.StatusOK)
+	defer updateResp2.Body.Close()
+
+	historyResp, err := http.Get(h.baseURL + "/docs/merkle-doc/history")
+	if err != nil {
+		t.Fatalf("GET history: %v", err)
+	}
+	defer historyResp.Body.Close()
+	var historyPayload map[string]any
+	if err := json.NewDecoder(historyResp.Body).Decode(&historyPayload); err != nil {
+		t.Fatalf("decode history: %v", err)
+	}
+	revisions, _ := historyPayload["revisions"].([]any)
+	if len(revisions) != 3 {
+		t.Fatalf("expected 3 revisions, got %d", len(revisions))
+	}
+
+	contents := []string{"revision one", "revision two", "revision three"}
+	prevHash := ""
+	for i, rawRev := range revisions {
+		rev, ok := rawRev.(map[string]any)
+		if !ok {
+			t.Fatalf("revision %d is not a map", i)
+		}
+		revID, _ := rev["revision_id"].(string)
+
+		revResp, err := http.Get(h.baseURL + "/docs/merkle-doc/revisions/" + revID)
+		if err != nil {
+			t.Fatalf("GET revision %d: %v", i, err)
+		}
+		defer revResp.Body.Close()
+		var revPayload map[string]map[string]any
+		if err := json.NewDecoder(revResp.Body).Decode(&revPayload); err != nil {
+			t.Fatalf("decode revision %d: %v", i, err)
+		}
+
+		revisionHash, _ := revPayload["revision"]["revision_hash"].(string)
+		if revisionHash == "" {
+			t.Fatalf("revision %d missing revision_hash", i)
+		}
+
+		contentHash := sha256Hex([]byte(contents[i]))
+		revNum := i + 1
+		createdAt, _ := revPayload["revision"]["created_at"].(string)
+		createdBy, _ := revPayload["revision"]["created_by"].(string)
+		expectedHash := testComputeRevisionHash(contentHash, prevHash, "merkle-doc", revNum, createdAt, createdBy)
+
+		if revisionHash != expectedHash {
+			t.Fatalf("revision %d hash mismatch: got %q want %q (contentHash=%q prevHash=%q)", i, revisionHash, expectedHash, contentHash, prevHash)
+		}
+
+		prevHash = revisionHash
+	}
+}
+
+func sha256Hex(data []byte) string {
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
+func testComputeRevisionHash(contentHash, prevRevisionHash, documentID string, revisionNumber int, createdAt, createdBy string) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "content_hash:%s\n", contentHash)
+	fmt.Fprintf(h, "prev_revision_hash:%s\n", prevRevisionHash)
+	fmt.Fprintf(h, "document_id:%s\n", documentID)
+	fmt.Fprintf(h, "revision_number:%d\n", revisionNumber)
+	fmt.Fprintf(h, "created_at:%s\n", createdAt)
+	fmt.Fprintf(h, "created_by:%s\n", createdBy)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func TestDocumentsInvalidInputReturnsInvalidRequest(t *testing.T) {

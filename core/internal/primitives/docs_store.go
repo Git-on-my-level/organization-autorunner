@@ -95,6 +95,7 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	revisionNumber := 1
 	artifactID := uuid.NewString()
 	revisionID := artifactID
+	contentHash := sha256Hex(encodedContent)
 
 	revisionRefs := append([]string(nil), refs...)
 	if threadID != "" {
@@ -109,7 +110,8 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 		"created_at":       now,
 		"created_by":       actorID,
 		"content_type":     contentType,
-		"content_path":     filepath.Join(s.artifactContentDir, artifactID),
+		"content_hash":     contentHash,
+		"content_path":     filepath.Join(s.artifactContentDir, contentHash),
 		"refs":             revisionRefs,
 		"document_id":      documentID,
 		"revision_id":      revisionID,
@@ -121,62 +123,51 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	}
 	contentPath := artifactMetadata["content_path"].(string)
 
-	file, err := os.OpenFile(contentPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	stagedContent, err := stageContentWrite(contentPath, encodedContent)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create document content file: %w", err)
+		return nil, nil, fmt.Errorf("stage document content: %w", err)
 	}
-	if _, err := file.Write(encodedContent); err != nil {
-		_ = file.Close()
-		_ = os.Remove(contentPath)
-		return nil, nil, fmt.Errorf("write document content: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		_ = os.Remove(contentPath)
-		return nil, nil, fmt.Errorf("close document content file: %w", err)
-	}
+	defer func() { _ = stagedContent.Cleanup() }()
+
+	revisionHash := computeRevisionHash(contentHash, "", documentID, revisionNumber, now, actorID)
 
 	refsJSON, err := json.Marshal(revisionRefs)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document refs: %w", err)
 	}
 	artifactMetadataJSON, err := json.Marshal(artifactMetadata)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document artifact metadata: %w", err)
 	}
 	labelsJSON, err := json.Marshal(labels)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document labels: %w", err)
 	}
 	supersedesJSON, err := json.Marshal(supersedes)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document supersedes: %w", err)
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("begin document create transaction: %w", err)
 	}
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		artifactID,
 		"doc",
 		now,
 		actorID,
 		contentType,
+		contentHash,
 		contentPath,
 		string(refsJSON),
 		string(artifactMetadataJSON),
 	); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		if isUniqueViolation(err) {
 			return nil, nil, ErrConflict
 		}
@@ -205,7 +196,6 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 		actorID,
 	); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		if isUniqueViolation(err) {
 			return nil, nil, ErrConflict
 		}
@@ -215,28 +205,32 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO document_revisions(
-			revision_id, document_id, revision_number, prev_revision_id, artifact_id, thread_id, refs_json, created_at, created_by
-		) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?)`,
+			revision_id, document_id, revision_number, prev_revision_id, artifact_id, thread_id, refs_json, revision_hash, created_at, created_by
+		) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
 		revisionID,
 		documentID,
 		revisionNumber,
 		artifactID,
 		nullableString(threadID),
 		string(refsJSON),
+		revisionHash,
 		now,
 		actorID,
 	); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		if isUniqueViolation(err) {
 			return nil, nil, ErrConflict
 		}
 		return nil, nil, fmt.Errorf("insert document revision: %w", err)
 	}
 
+	if err := stagedContent.Promote(); err != nil {
+		_ = tx.Rollback()
+		return nil, nil, fmt.Errorf("finalize document content: %w", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("commit document create transaction: %w", err)
 	}
 
@@ -267,6 +261,8 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 		"created_at":       now,
 		"created_by":       actorID,
 		"content_type":     contentType,
+		"content_hash":     contentHash,
+		"revision_hash":    revisionHash,
 		"artifact":         artifactMetadata,
 	}
 	setDocumentContentValue(revisionMap, encodedContent, contentType)
@@ -371,6 +367,7 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	artifactID := uuid.NewString()
 	revisionID := artifactID
 	now := time.Now().UTC().Format(time.RFC3339Nano)
+	contentHash := sha256Hex(encodedContent)
 
 	revisionRefs := append([]string(nil), refs...)
 	if nextThreadID != "" {
@@ -386,7 +383,8 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 		"created_at":       now,
 		"created_by":       actorID,
 		"content_type":     contentType,
-		"content_path":     filepath.Join(s.artifactContentDir, artifactID),
+		"content_hash":     contentHash,
+		"content_path":     filepath.Join(s.artifactContentDir, contentHash),
 		"refs":             revisionRefs,
 		"document_id":      documentID,
 		"revision_id":      revisionID,
@@ -398,62 +396,60 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	}
 	contentPath := artifactMetadata["content_path"].(string)
 
-	file, err := os.OpenFile(contentPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	stagedContent, err := stageContentWrite(contentPath, encodedContent)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create document content file: %w", err)
+		return nil, nil, fmt.Errorf("stage document content: %w", err)
 	}
-	if _, err := file.Write(encodedContent); err != nil {
-		_ = file.Close()
-		_ = os.Remove(contentPath)
-		return nil, nil, fmt.Errorf("write document content: %w", err)
+	defer func() { _ = stagedContent.Cleanup() }()
+
+	var prevRevisionHash string
+	err = s.db.QueryRowContext(ctx,
+		`SELECT revision_hash FROM document_revisions WHERE document_id = ? AND revision_id = ?`,
+		documentID, doc.HeadRevisionID,
+	).Scan(&prevRevisionHash)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, nil, fmt.Errorf("load previous revision hash: %w", err)
 	}
-	if err := file.Close(); err != nil {
-		_ = os.Remove(contentPath)
-		return nil, nil, fmt.Errorf("close document content file: %w", err)
-	}
+
+	revisionHash := computeRevisionHash(contentHash, prevRevisionHash, documentID, nextRevisionNumber, now, actorID)
 
 	refsJSON, err := json.Marshal(revisionRefs)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document refs: %w", err)
 	}
 	artifactMetadataJSON, err := json.Marshal(artifactMetadata)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document artifact metadata: %w", err)
 	}
 	labelsJSON, err := json.Marshal(nextLabels)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document labels: %w", err)
 	}
 	supersedesJSON, err := json.Marshal(nextSupersedes)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("marshal document supersedes: %w", err)
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("begin document update transaction: %w", err)
 	}
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		artifactID,
 		"doc",
 		now,
 		actorID,
 		contentType,
+		contentHash,
 		contentPath,
 		string(refsJSON),
 		string(artifactMetadataJSON),
 	); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		if isUniqueViolation(err) {
 			return nil, nil, ErrConflict
 		}
@@ -463,8 +459,8 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO document_revisions(
-			revision_id, document_id, revision_number, prev_revision_id, artifact_id, thread_id, refs_json, created_at, created_by
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			revision_id, document_id, revision_number, prev_revision_id, artifact_id, thread_id, refs_json, revision_hash, created_at, created_by
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		revisionID,
 		documentID,
 		nextRevisionNumber,
@@ -472,11 +468,11 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 		artifactID,
 		nullableString(nextThreadID),
 		string(refsJSON),
+		revisionHash,
 		now,
 		actorID,
 	); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		if isUniqueViolation(err) {
 			return nil, nil, ErrConflict
 		}
@@ -512,24 +508,25 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	)
 	if err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("update document head: %w", err)
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("read document head update result: %w", err)
 	}
 	if affected == 0 {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, ErrConflict
+	}
+
+	if err := stagedContent.Promote(); err != nil {
+		_ = tx.Rollback()
+		return nil, nil, fmt.Errorf("finalize document content: %w", err)
 	}
 
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
-		_ = os.Remove(contentPath)
 		return nil, nil, fmt.Errorf("commit document update transaction: %w", err)
 	}
 
@@ -560,6 +557,8 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 		"created_at":       now,
 		"created_by":       actorID,
 		"content_type":     contentType,
+		"content_hash":     contentHash,
+		"revision_hash":    revisionHash,
 		"artifact":         artifactMetadata,
 	}
 	setDocumentContentValue(revisionMap, encodedContent, contentType)
@@ -664,6 +663,7 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 		artifactID       string
 		threadID         sql.NullString
 		refsJSON         string
+		revisionHashVal  string
 		createdAt        string
 		createdBy        string
 		artifactMetaJSON string
@@ -673,7 +673,7 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 
 	err := s.db.QueryRowContext(
 		ctx,
-		`SELECT dr.document_id, dr.revision_id, dr.revision_number, dr.prev_revision_id, dr.artifact_id, dr.thread_id, dr.refs_json, dr.created_at, dr.created_by,
+		`SELECT dr.document_id, dr.revision_id, dr.revision_number, dr.prev_revision_id, dr.artifact_id, dr.thread_id, dr.refs_json, dr.revision_hash, dr.created_at, dr.created_by,
 		        a.metadata_json, a.content_type, a.content_path
 		 FROM document_revisions dr
 		 JOIN artifacts a ON a.id = dr.artifact_id
@@ -688,6 +688,7 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 		&artifactID,
 		&threadID,
 		&refsJSON,
+		&revisionHashVal,
 		&createdAt,
 		&createdBy,
 		&artifactMetaJSON,
@@ -716,7 +717,11 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 		"created_at":      createdAt,
 		"created_by":      createdBy,
 		"content_type":    contentType,
+		"revision_hash":   revisionHashVal,
 		"artifact":        artifact,
+	}
+	if contentHashVal, ok := artifact["content_hash"].(string); ok && contentHashVal != "" {
+		revision["content_hash"] = contentHashVal
 	}
 	if prevRevisionID.Valid && strings.TrimSpace(prevRevisionID.String) != "" {
 		revision["prev_revision_id"] = prevRevisionID.String
