@@ -68,6 +68,7 @@ export declare class OarClient {
     docsCreate(options?: RequestOptions): Promise<InvokeResult>;
     docsGet(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     docsHistory(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
+    docsList(options?: RequestOptions): Promise<InvokeResult>;
     docsRevisionGet(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     docsTombstone(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     docsUpdate(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;

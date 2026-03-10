@@ -48,6 +48,8 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatNamedList(body, "commitments", "Commitments", renderCommitmentListItem)
 	case "artifacts.list":
 		return formatNamedList(body, "artifacts", "Artifacts", renderArtifactListItem)
+	case "docs.list":
+		return formatNamedList(body, "documents", "Documents", renderDocumentListItem)
 	case "events.list":
 		return formatEventsList(body)
 	case "inbox.list":
@@ -546,6 +548,14 @@ func renderInboxItemWithMode(item map[string]any, fullID bool) string {
 
 func renderRevisionListItem(item map[string]any) string {
 	return compactSummary(displayID(item), anyString(item["revision_number"]), anyString(item["created_at"]))
+}
+
+func renderDocumentListItem(item map[string]any) string {
+	return compactSummary(
+		displayID(item),
+		firstNonEmpty(anyString(item["status"]), anyString(item["updated_at"])),
+		firstNonEmpty(anyString(item["title"]), anyString(item["slug"])),
+	)
 }
 
 func compactSummary(parts ...string) string {

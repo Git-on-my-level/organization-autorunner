@@ -60,11 +60,12 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `docs`
 
-- Commands: `6`
+- Commands: `7`
 - Command IDs:
   - `docs.create` (`docs create`)
   - `docs.get` (`docs get`)
   - `docs.history` (`docs history`)
+  - `docs.list` (`docs list`)
   - `docs.revision.get` (`docs revision get`)
   - `docs.tombstone` (`docs tombstone`)
   - `docs.update` (`docs update`)

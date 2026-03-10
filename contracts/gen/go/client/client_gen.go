@@ -399,7 +399,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"docs", "revisions"},
-		Adjacent:  []string{"docs.get", "docs.history", "docs.revision.get", "docs.tombstone", "docs.update"},
+		Adjacent:  []string{"docs.get", "docs.history", "docs.list", "docs.revision.get", "docs.tombstone", "docs.update"},
 		Examples: []Example{
 			{
 				Title:   "Create document",
@@ -417,7 +417,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"docs", "revisions"},
-		Adjacent:   []string{"docs.create", "docs.history", "docs.revision.get", "docs.tombstone", "docs.update"},
+		Adjacent:   []string{"docs.create", "docs.history", "docs.list", "docs.revision.get", "docs.tombstone", "docs.update"},
 		Examples: []Example{
 			{
 				Title:   "Get document head",
@@ -435,11 +435,28 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"docs", "revisions", "lineage"},
-		Adjacent:   []string{"docs.create", "docs.get", "docs.revision.get", "docs.tombstone", "docs.update"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.list", "docs.revision.get", "docs.tombstone", "docs.update"},
 		Examples: []Example{
 			{
 				Title:   "List document history",
 				Command: "oar docs history --document-id product-constitution --json",
+			},
+		},
+	},
+	{
+		CommandID: "docs.list",
+		CLIPath:   "docs list",
+		Group:     "docs",
+		Method:    "GET",
+		Path:      "/docs",
+		InputMode: "none",
+		Stability: "beta",
+		Concepts:  []string{"docs", "revisions"},
+		Adjacent:  []string{"docs.create", "docs.get", "docs.history", "docs.revision.get", "docs.tombstone", "docs.update"},
+		Examples: []Example{
+			{
+				Title:   "List documents",
+				Command: "oar docs list --json",
 			},
 		},
 	},
@@ -453,7 +470,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"docs", "revisions"},
-		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.tombstone", "docs.update"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.list", "docs.tombstone", "docs.update"},
 		Examples: []Example{
 			{
 				Title:   "Get revision",
@@ -471,7 +488,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"docs", "lifecycle"},
-		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.revision.get", "docs.update"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.list", "docs.revision.get", "docs.update"},
 		Examples: []Example{
 			{
 				Title:   "Tombstone document",
@@ -489,7 +506,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"docs", "revisions", "concurrency"},
-		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.revision.get", "docs.tombstone"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.list", "docs.revision.get", "docs.tombstone"},
 		Examples: []Example{
 			{
 				Title:   "Update document",
@@ -1149,6 +1166,10 @@ func (c *Client) DocsGet(ctx context.Context, pathParams map[string]string, opts
 
 func (c *Client) DocsHistory(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "docs.history", pathParams, opts)
+}
+
+func (c *Client) DocsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.list", nil, opts)
 }
 
 func (c *Client) DocsRevisionGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {

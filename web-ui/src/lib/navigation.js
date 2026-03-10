@@ -23,6 +23,12 @@ export const navigationItems = [
     icon: "artifacts",
     hint: "Evidence and packets",
   },
+  {
+    label: "Docs",
+    href: "/docs",
+    icon: "docs",
+    hint: "Documents and revisions",
+  },
 ];
 
 const SHELL_CONTENT_RULES = [
@@ -42,7 +48,12 @@ const SHELL_CONTENT_RULES = [
     maxWidth: "96rem",
   },
   {
-    match: /^\/(threads|artifacts)$/,
+    match: /^\/docs\/[^/]+/,
+    mode: "fluid",
+    maxWidth: "112rem",
+  },
+  {
+    match: /^\/(threads|artifacts|docs)$/,
     mode: "wide",
     maxWidth: "88rem",
   },

@@ -11,6 +11,26 @@ import (
 	"organization-autorunner-core/internal/schema"
 )
 
+func handleListDocuments(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
+	if opts.primitiveStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
+		return
+	}
+
+	includeTombstoned := strings.TrimSpace(r.URL.Query().Get("include_tombstoned")) == "true"
+	documents, err := opts.primitiveStore.ListDocuments(r.Context(), primitives.DocumentListFilter{
+		IncludeTombstoned: includeTombstoned,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list documents")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"documents": documents,
+	})
+}
+
 func handleCreateDocument(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")

@@ -442,6 +442,31 @@ export function createOarCoreClient(options = {}) {
       return { contentType, content: await response.arrayBuffer() };
     },
 
+    listDocuments: (filters) =>
+      invokeJSON("docs.list", () => generated.docsList({ query: filters })),
+    getDocument: (documentId) =>
+      invokeJSON("docs.get", () =>
+        generated.docsGet({ document_id: String(documentId) }),
+      ),
+    getDocumentHistory: (documentId) =>
+      invokeJSON("docs.history", () =>
+        generated.docsHistory({ document_id: String(documentId) }),
+      ),
+    getDocumentRevision: (documentId, revisionId) =>
+      invokeJSON("docs.revision.get", () =>
+        generated.docsRevisionGet({
+          document_id: String(documentId),
+          revision_id: String(revisionId),
+        }),
+      ),
+    tombstoneDocument: (documentId, payload) =>
+      invokeJSON("docs.tombstone", () =>
+        generated.docsTombstone(
+          { document_id: String(documentId) },
+          { body: withActorId(payload) },
+        ),
+      ),
+
     createEvent: (payload) =>
       invokeJSON("events.create", () =>
         generated.eventsCreate({ body: withActorId(payload) }),

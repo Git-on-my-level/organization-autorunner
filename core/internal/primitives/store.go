@@ -36,6 +36,10 @@ type ArtifactListFilter struct {
 	IncludeTombstoned bool
 }
 
+type DocumentListFilter struct {
+	IncludeTombstoned bool
+}
+
 type ThreadListFilter struct {
 	Status   string
 	Priority string

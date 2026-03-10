@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.2`
-- Commands: `52`
+- Commands: `53`
 
 ## `actors.list`
 
@@ -348,6 +348,20 @@ Generated from `contracts/oar-openapi.yaml`.
 - Agent notes: Safe and idempotent.
 - Examples:
   - List document history: `oar docs history --document-id product-constitution --json`
+
+## `docs.list`
+
+- CLI path: `docs list`
+- HTTP: `GET /docs`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Discover available documents without resolving each head individually.
+- Concepts: `docs`, `revisions`
+- Error codes: `invalid_request`
+- Output: Returns `{ documents }` ordered by `updated_at` descending.
+- Agent notes: Safe and idempotent. Use `include_tombstoned=true` when auditing superseded documents.
+- Examples:
+  - List documents: `oar docs list --json`
 
 ## `docs.revision.get`
 

@@ -33,6 +33,7 @@ type PrimitiveStore interface {
 	GetArtifact(ctx context.Context, id string) (map[string]any, error)
 	GetArtifactContent(ctx context.Context, id string) ([]byte, string, error)
 	ListArtifacts(ctx context.Context, filter primitives.ArtifactListFilter) ([]map[string]any, error)
+	ListDocuments(ctx context.Context, filter primitives.DocumentListFilter) ([]map[string]any, error)
 	CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
 	GetDocument(ctx context.Context, documentID string) (map[string]any, map[string]any, error)
 	UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
@@ -490,10 +491,12 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 
 	mux.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
+		case http.MethodGet:
+			handleListDocuments(w, r, opts)
 		case http.MethodPost:
 			handleCreateDocument(w, r, opts)
 		default:
-			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and POST are supported")
 		}
 	})
 

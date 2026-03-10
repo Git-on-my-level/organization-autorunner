@@ -1509,6 +1509,181 @@ const artifacts = [
   },
 ];
 
+const MOCK_DOCUMENTS = [
+  {
+    id: "product-constitution",
+    title: "Product Constitution",
+    slug: "product-constitution",
+    status: "active",
+    labels: ["governance", "product"],
+    supersedes: [],
+    head_revision_id: "rev-pc-3",
+    head_revision_number: 3,
+    thread_id: "thread-governance",
+    created_at: "2026-02-15T10:00:00Z",
+    created_by: "actor-principal-1",
+    updated_at: "2026-03-08T14:30:00Z",
+    updated_by: "actor-principal-1",
+    tombstoned_at: null,
+  },
+  {
+    id: "incident-response-playbook",
+    title: "Incident Response Playbook",
+    slug: "incident-response-playbook",
+    status: "active",
+    labels: ["ops", "runbook"],
+    supersedes: [],
+    head_revision_id: "rev-irp-2",
+    head_revision_number: 2,
+    thread_id: "thread-pricing-glitch",
+    created_at: "2026-02-20T09:00:00Z",
+    created_by: "actor-ops-agent",
+    updated_at: "2026-03-05T11:00:00Z",
+    updated_by: "actor-ops-agent",
+    tombstoned_at: null,
+  },
+  {
+    id: "onboarding-guide-v1",
+    title: "Onboarding Guide v1",
+    slug: "onboarding-guide-v1",
+    status: "active",
+    labels: ["onboarding"],
+    supersedes: [],
+    head_revision_id: "rev-og-1",
+    head_revision_number: 1,
+    created_at: "2026-01-10T08:00:00Z",
+    created_by: "actor-principal-1",
+    updated_at: "2026-01-10T08:00:00Z",
+    updated_by: "actor-principal-1",
+    tombstoned_at: null,
+  },
+  {
+    id: "old-pricing-doc",
+    title: "Pricing Strategy (Archived)",
+    slug: "old-pricing-doc",
+    status: "active",
+    labels: ["pricing"],
+    supersedes: [],
+    head_revision_id: "rev-opd-1",
+    head_revision_number: 1,
+    created_at: "2025-12-01T08:00:00Z",
+    created_by: "actor-principal-1",
+    updated_at: "2026-03-01T10:00:00Z",
+    updated_by: "actor-principal-1",
+    tombstoned_at: "2026-03-01T10:00:00Z",
+    tombstoned_by: "actor-principal-1",
+    tombstone_reason: "Superseded by updated pricing model",
+  },
+];
+
+const MOCK_DOCUMENT_REVISIONS = {
+  "product-constitution": [
+    {
+      document_id: "product-constitution",
+      revision_id: "rev-pc-1",
+      artifact_id: "rev-pc-1",
+      revision_number: 1,
+      prev_revision_id: null,
+      created_at: "2026-02-15T10:00:00Z",
+      created_by: "actor-principal-1",
+      content_type: "text",
+      content_hash: "abc123",
+      revision_hash: "def456",
+      content:
+        "# Product Constitution v1\n\nInitial draft of product governance principles.",
+    },
+    {
+      document_id: "product-constitution",
+      revision_id: "rev-pc-2",
+      artifact_id: "rev-pc-2",
+      revision_number: 2,
+      prev_revision_id: "rev-pc-1",
+      created_at: "2026-02-28T16:00:00Z",
+      created_by: "actor-ops-agent",
+      content_type: "text",
+      content_hash: "ghi789",
+      revision_hash: "jkl012",
+      content:
+        "# Product Constitution v2\n\nUpdated with team feedback on decision-making framework.\n\n## Principles\n1. User outcomes first\n2. Evidence-based decisions\n3. Transparent trade-offs",
+    },
+    {
+      document_id: "product-constitution",
+      revision_id: "rev-pc-3",
+      artifact_id: "rev-pc-3",
+      revision_number: 3,
+      prev_revision_id: "rev-pc-2",
+      created_at: "2026-03-08T14:30:00Z",
+      created_by: "actor-principal-1",
+      content_type: "text",
+      content_hash: "mno345",
+      revision_hash: "pqr678",
+      content:
+        "# Product Constitution v3\n\nFinal ratified version with escalation framework.\n\n## Principles\n1. User outcomes first\n2. Evidence-based decisions\n3. Transparent trade-offs\n\n## Escalation\n- P0: Immediate review required\n- P1: Next business day\n- P2: Weekly review cycle",
+    },
+  ],
+  "incident-response-playbook": [
+    {
+      document_id: "incident-response-playbook",
+      revision_id: "rev-irp-1",
+      artifact_id: "rev-irp-1",
+      revision_number: 1,
+      prev_revision_id: null,
+      created_at: "2026-02-20T09:00:00Z",
+      created_by: "actor-ops-agent",
+      content_type: "text",
+      content_hash: "stu901",
+      revision_hash: "vwx234",
+      content:
+        "# Incident Response Playbook\n\n## Step 1: Triage\nAssess severity and assign priority.",
+    },
+    {
+      document_id: "incident-response-playbook",
+      revision_id: "rev-irp-2",
+      artifact_id: "rev-irp-2",
+      revision_number: 2,
+      prev_revision_id: "rev-irp-1",
+      created_at: "2026-03-05T11:00:00Z",
+      created_by: "actor-ops-agent",
+      content_type: "text",
+      content_hash: "yza567",
+      revision_hash: "bcd890",
+      content:
+        "# Incident Response Playbook v2\n\n## Step 1: Triage\nAssess severity and assign priority.\n\n## Step 2: Communicate\nNotify stakeholders within SLA window.\n\n## Step 3: Resolve\nDeploy fix and verify with evidence.",
+    },
+  ],
+  "onboarding-guide-v1": [
+    {
+      document_id: "onboarding-guide-v1",
+      revision_id: "rev-og-1",
+      artifact_id: "rev-og-1",
+      revision_number: 1,
+      prev_revision_id: null,
+      created_at: "2026-01-10T08:00:00Z",
+      created_by: "actor-principal-1",
+      content_type: "text",
+      content_hash: "efg123",
+      revision_hash: "hij456",
+      content:
+        "# Onboarding Guide\n\nWelcome to the team! Here's what you need to know.",
+    },
+  ],
+  "old-pricing-doc": [
+    {
+      document_id: "old-pricing-doc",
+      revision_id: "rev-opd-1",
+      artifact_id: "rev-opd-1",
+      revision_number: 1,
+      prev_revision_id: null,
+      created_at: "2025-12-01T08:00:00Z",
+      created_by: "actor-principal-1",
+      content_type: "text",
+      content_hash: "klm789",
+      revision_hash: "nop012",
+      content: "# Old Pricing Strategy\n\nThis document has been superseded.",
+    },
+  ],
+};
+
 export function listMockActors() {
   return actors;
 }
@@ -2218,6 +2393,39 @@ export function getMockArtifactContent(artifactId) {
       summary: artifact.summary ?? "",
     },
   };
+}
+
+export function listMockDocuments(filters = {}) {
+  let docs = [...MOCK_DOCUMENTS];
+  if (!filters.include_tombstoned) {
+    docs = docs.filter((d) => !d.tombstoned_at);
+  }
+  return docs.sort((left, right) => {
+    const timeDelta =
+      Date.parse(right.updated_at ?? 0) - Date.parse(left.updated_at ?? 0);
+    if (timeDelta !== 0) return timeDelta;
+    return String(left.id ?? "").localeCompare(String(right.id ?? ""));
+  });
+}
+
+export function getMockDocument(documentId) {
+  const doc = MOCK_DOCUMENTS.find((d) => d.id === documentId);
+  if (!doc) return null;
+  const revisions = MOCK_DOCUMENT_REVISIONS[documentId] || [];
+  const headRevision =
+    revisions.find((r) => r.revision_id === doc.head_revision_id) ||
+    revisions[revisions.length - 1] ||
+    null;
+  return { document: doc, revision: headRevision };
+}
+
+export function getMockDocumentHistory(documentId) {
+  return MOCK_DOCUMENT_REVISIONS[documentId] || [];
+}
+
+export function getMockDocumentRevision(documentId, revisionId) {
+  const revisions = MOCK_DOCUMENT_REVISIONS[documentId] || [];
+  return revisions.find((r) => r.revision_id === revisionId) || null;
 }
 
 export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {

@@ -29,6 +29,10 @@ describe("proxyContractParity", () => {
       expect(isProxyableCommand("GET", "/artifacts")).toBe(true);
     });
 
+    it("matches GET /docs", () => {
+      expect(isProxyableCommand("GET", "/docs")).toBe(true);
+    });
+
     it("matches GET /inbox", () => {
       expect(isProxyableCommand("GET", "/inbox")).toBe(true);
     });
@@ -82,6 +86,7 @@ describe("proxyContractParity", () => {
       expect(pathStrings).toContain("POST:/threads");
       expect(pathStrings).toContain("GET:/commitments");
       expect(pathStrings).toContain("GET:/artifacts");
+      expect(pathStrings).toContain("GET:/docs");
       expect(pathStrings).toContain("GET:/inbox");
       expect(pathStrings).toContain("POST:/inbox/ack");
     });

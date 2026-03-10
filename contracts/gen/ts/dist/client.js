@@ -1182,6 +1182,7 @@ export const commandRegistry = [
         "adjacent_commands": [
             "docs.get",
             "docs.history",
+            "docs.list",
             "docs.revision.get",
             "docs.tombstone",
             "docs.update"
@@ -1225,6 +1226,7 @@ export const commandRegistry = [
         "adjacent_commands": [
             "docs.create",
             "docs.history",
+            "docs.list",
             "docs.revision.get",
             "docs.tombstone",
             "docs.update"
@@ -1269,12 +1271,53 @@ export const commandRegistry = [
         "adjacent_commands": [
             "docs.create",
             "docs.get",
+            "docs.list",
             "docs.revision.get",
             "docs.tombstone",
             "docs.update"
         ],
         "go_method": "DocsHistory",
         "ts_method": "docsHistory"
+    },
+    {
+        "command_id": "docs.list",
+        "cli_path": "docs list",
+        "group": "docs",
+        "method": "GET",
+        "path": "/docs",
+        "operation_id": "listDocuments",
+        "summary": "List documents and their current head metadata",
+        "why": "Discover available documents without resolving each head individually.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ documents }` ordered by `updated_at` descending.",
+        "error_codes": [
+            "invalid_request"
+        ],
+        "concepts": [
+            "docs",
+            "revisions"
+        ],
+        "stability": "beta",
+        "agent_notes": "Safe and idempotent. Use `include_tombstoned=true` when auditing superseded documents.",
+        "examples": [
+            {
+                "title": "List documents",
+                "command": "oar docs list --json"
+            }
+        ],
+        "adjacent_commands": [
+            "docs.create",
+            "docs.get",
+            "docs.history",
+            "docs.revision.get",
+            "docs.tombstone",
+            "docs.update"
+        ],
+        "go_method": "DocsList",
+        "ts_method": "docsList"
     },
     {
         "command_id": "docs.revision.get",
@@ -1314,6 +1357,7 @@ export const commandRegistry = [
             "docs.create",
             "docs.get",
             "docs.history",
+            "docs.list",
             "docs.tombstone",
             "docs.update"
         ],
@@ -1372,6 +1416,7 @@ export const commandRegistry = [
             "docs.create",
             "docs.get",
             "docs.history",
+            "docs.list",
             "docs.revision.get",
             "docs.update"
         ],
@@ -1454,6 +1499,7 @@ export const commandRegistry = [
             "docs.create",
             "docs.get",
             "docs.history",
+            "docs.list",
             "docs.revision.get",
             "docs.tombstone"
         ],
@@ -2952,6 +2998,9 @@ export class OarClient {
     }
     docsHistory(pathParams, options = {}) {
         return this.invoke("docs.history", pathParams, options);
+    }
+    docsList(options = {}) {
+        return this.invoke("docs.list", {}, options);
     }
     docsRevisionGet(pathParams, options = {}) {
         return this.invoke("docs.revision.get", pathParams, options);

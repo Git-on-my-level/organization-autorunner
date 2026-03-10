@@ -671,6 +671,11 @@ func TestDocsCommands(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/docs":
+			if got := strings.TrimSpace(r.URL.Query().Get("include_tombstoned")); got != "true" {
+				t.Fatalf("expected include_tombstoned=true query, got %q", got)
+			}
+			_, _ = w.Write([]byte(`{"documents":[{"id":"doc_1","head_revision_id":"rev_1"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/docs":
 			body, _ := io.ReadAll(r.Body)
 			if !bytes.Contains(body, []byte(`"document"`)) {
@@ -699,6 +704,7 @@ func TestDocsCommands(t *testing.T) {
 	home := t.TempDir()
 	env := map[string]string{}
 
+	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "list", "--include-tombstoned"}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"document":{"id":"doc_1"},"content":"initial","content_type":"text"}`), []string{"--json", "--base-url", server.URL, "docs", "create"}))
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "docs", "get", "--document-id", "doc_1"}))
 	docsUpdatePayload := assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"actor_id":"actor_test","if_base_revision":"rev_1","content":"next","content_type":"text"}`), []string{"--json", "--base-url", server.URL, "docs", "update", "--document-id", "doc_1"}))

@@ -9,6 +9,7 @@ describe("navigation model", () => {
       "Inbox",
       "Threads",
       "Artifacts",
+      "Docs",
     ]);
   });
 

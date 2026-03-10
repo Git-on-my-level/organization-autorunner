@@ -1027,6 +1027,35 @@ paths:
           $ref: '#/components/responses/ErrorResponse'
 
   /docs:
+    get:
+      operationId: listDocuments
+      summary: List documents and their current head metadata
+      tags: [docs]
+      x-oar-command-id: "docs.list"
+      x-oar-cli-path: "docs list"
+      x-oar-why: "Discover available documents without resolving each head individually."
+      x-oar-examples:
+        - title: List documents
+          command: oar docs list --json
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ documents }` ordered by `updated_at` descending."
+      x-oar-error-codes: [invalid_request]
+      x-oar-concepts: [docs, revisions]
+      x-oar-stability: "beta"
+      x-oar-agent-notes: "Safe and idempotent. Use `include_tombstoned=true` when auditing superseded documents."
+      parameters:
+        - in: query
+          name: include_tombstoned
+          schema: { type: boolean }
+          description: "Include tombstoned documents in the list. Defaults to false."
+      responses:
+        '200':
+          description: Document list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentsResponse'
     post:
       operationId: createDocument
       summary: Create document with initial immutable revision
@@ -2395,6 +2424,15 @@ components:
         revision:
           $ref: '#/components/schemas/DocumentRevision'
       required: [document, revision]
+
+    DocumentsResponse:
+      type: object
+      properties:
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Document'
+      required: [documents]
 
     DocumentHistoryResponse:
       type: object

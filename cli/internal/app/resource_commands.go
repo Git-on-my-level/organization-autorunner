@@ -1264,6 +1264,21 @@ func (a *App) runDocsCommand(ctx context.Context, args []string, cfg config.Reso
 	}
 	sub := docsSubcommandSpec.normalize(args[0])
 	switch sub {
+	case "list":
+		fs := newSilentFlagSet("docs list")
+		includeTombstoned := fs.Bool("include-tombstoned", false, "Include tombstoned documents")
+		if err := fs.Parse(args[1:]); err != nil {
+			return nil, "docs list", errnorm.Usage("invalid_flags", err.Error())
+		}
+		if len(fs.Args()) > 0 {
+			return nil, "docs list", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar docs list`")
+		}
+		query := make([]queryParam, 0, 1)
+		if *includeTombstoned {
+			query = append(query, queryParam{name: "include_tombstoned", values: []string{"true"}})
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "docs list", "docs.list", nil, query, nil)
+		return result, "docs list", callErr
 	case "create":
 		body, dryRun, err := a.parseJSONBodyInputWithOptions(args[1:], "docs create", jsonBodyInputOptions{
 			allowContentFile: true,

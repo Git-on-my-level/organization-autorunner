@@ -85,11 +85,12 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `docs`
 
-- Commands: `6`
+- Commands: `7`
 - Command IDs:
   - `docs.create`
   - `docs.get`
   - `docs.history`
+  - `docs.list`
   - `docs.revision.get`
   - `docs.tombstone`
   - `docs.update`
@@ -242,11 +243,12 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `revisions`
 
-- Commands: `5`
+- Commands: `6`
 - Command IDs:
   - `docs.create`
   - `docs.get`
   - `docs.history`
+  - `docs.list`
   - `docs.revision.get`
   - `docs.update`
 

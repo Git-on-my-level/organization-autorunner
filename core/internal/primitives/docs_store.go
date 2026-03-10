@@ -34,6 +34,58 @@ type documentRow struct {
 	TombstoneReason sql.NullString
 }
 
+func (s *Store) ListDocuments(ctx context.Context, filter DocumentListFilter) ([]map[string]any, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("primitives store database is not initialized")
+	}
+
+	query := `SELECT id, thread_id, title, slug, status, labels_json, supersedes_json,
+		head_revision_id, head_revision_number, created_at, created_by, updated_at, updated_by,
+		tombstoned_at, tombstoned_by, tombstone_reason
+		FROM documents`
+	if !filter.IncludeTombstoned {
+		query += ` WHERE tombstoned_at IS NULL`
+	}
+	query += ` ORDER BY updated_at DESC, id ASC`
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query documents: %w", err)
+	}
+	defer rows.Close()
+
+	documents := make([]map[string]any, 0)
+	for rows.Next() {
+		var row documentRow
+		if err := rows.Scan(
+			&row.ID,
+			&row.ThreadID,
+			&row.Title,
+			&row.Slug,
+			&row.Status,
+			&row.LabelsJSON,
+			&row.SupersedesJSON,
+			&row.HeadRevisionID,
+			&row.HeadRevisionNum,
+			&row.CreatedAt,
+			&row.CreatedBy,
+			&row.UpdatedAt,
+			&row.UpdatedBy,
+			&row.TombstonedAt,
+			&row.TombstonedBy,
+			&row.TombstoneReason,
+		); err != nil {
+			return nil, fmt.Errorf("scan document row: %w", err)
+		}
+		documents = append(documents, row.toMap())
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate document rows: %w", err)
+	}
+
+	return documents, nil
+}
+
 func (s *Store) CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error) {
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")

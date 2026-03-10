@@ -8,4 +8,29 @@ describe("mockCoreData parity behaviors", () => {
       expect(typeof mod.listMockInboxItems).toBe("function");
     });
   });
+
+  describe("documents list matches contract behavior", () => {
+    it("filters tombstoned docs by default and sorts by updated_at desc", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const docs = mod.listMockDocuments();
+
+      expect(docs.map((doc) => doc.id)).toEqual([
+        "product-constitution",
+        "incident-response-playbook",
+        "onboarding-guide-v1",
+      ]);
+    });
+
+    it("includes tombstoned docs when requested", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const docs = mod.listMockDocuments({ include_tombstoned: true });
+
+      expect(docs.map((doc) => doc.id)).toEqual([
+        "product-constitution",
+        "incident-response-playbook",
+        "old-pricing-doc",
+        "onboarding-guide-v1",
+      ]);
+    });
+  });
 });

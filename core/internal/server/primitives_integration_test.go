@@ -204,6 +204,30 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected GET /docs/{document_id} status: got %d", getResp.StatusCode)
 	}
 
+	listResp, err := http.Get(h.baseURL + "/docs")
+	if err != nil {
+		t.Fatalf("GET /docs: %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected GET /docs status: got %d", listResp.StatusCode)
+	}
+	var listed struct {
+		Documents []map[string]any `json:"documents"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&listed); err != nil {
+		t.Fatalf("decode documents list response: %v", err)
+	}
+	if len(listed.Documents) != 1 {
+		t.Fatalf("expected one document in list, got %d", len(listed.Documents))
+	}
+	if listed.Documents[0]["id"] != "doc-1" {
+		t.Fatalf("unexpected listed document id: %#v", listed.Documents[0]["id"])
+	}
+	if _, ok := listed.Documents[0]["title"].(string); !ok {
+		t.Fatalf("expected listed document title, got %#v", listed.Documents[0]["title"])
+	}
+
 	updateResp := requestJSONExpectStatus(t, http.MethodPatch, h.baseURL+"/docs/doc-1", `{
 		"actor_id":"actor-1",
 		"document":{"title":"Constitution v2"},
@@ -872,6 +896,48 @@ func TestDocumentTombstoneLifecycle(t *testing.T) {
 	}
 	if gotDoc.Document["tombstoned_at"] == nil {
 		t.Fatal("expected tombstoned_at in direct get")
+	}
+
+	listResp, err := http.Get(h.baseURL + "/docs")
+	if err != nil {
+		t.Fatalf("GET /docs after tombstone: %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected docs list status after tombstone: got %d", listResp.StatusCode)
+	}
+	var withoutTombstones struct {
+		Documents []map[string]any `json:"documents"`
+	}
+	if err := json.NewDecoder(listResp.Body).Decode(&withoutTombstones); err != nil {
+		t.Fatalf("decode docs list after tombstone: %v", err)
+	}
+	if len(withoutTombstones.Documents) != 0 {
+		t.Fatalf("expected tombstoned document to be hidden by default, got %#v", withoutTombstones.Documents)
+	}
+
+	withTombstonesResp, err := http.Get(h.baseURL + "/docs?include_tombstoned=true")
+	if err != nil {
+		t.Fatalf("GET /docs?include_tombstoned=true: %v", err)
+	}
+	defer withTombstonesResp.Body.Close()
+	if withTombstonesResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected docs list include_tombstoned status: got %d", withTombstonesResp.StatusCode)
+	}
+	var withTombstones struct {
+		Documents []map[string]any `json:"documents"`
+	}
+	if err := json.NewDecoder(withTombstonesResp.Body).Decode(&withTombstones); err != nil {
+		t.Fatalf("decode docs list include_tombstoned response: %v", err)
+	}
+	if len(withTombstones.Documents) != 1 {
+		t.Fatalf("expected one tombstoned document in include_tombstoned list, got %d", len(withTombstones.Documents))
+	}
+	if withTombstones.Documents[0]["id"] != documentID {
+		t.Fatalf("unexpected include_tombstoned document id: %#v", withTombstones.Documents[0]["id"])
+	}
+	if withTombstones.Documents[0]["tombstoned_at"] == nil {
+		t.Fatalf("expected tombstoned document metadata in include_tombstoned list, got %#v", withTombstones.Documents[0])
 	}
 
 	reTombstoneResp := postJSONExpectStatus(t, h.baseURL+"/docs/"+documentID+"/tombstone", `{
