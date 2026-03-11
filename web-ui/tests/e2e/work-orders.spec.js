@@ -97,6 +97,22 @@ test("work order composer validates typed refs and sends correct POST payload", 
     });
   });
 
+  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: ": keepalive\n\n",
+    });
+  });
+
+  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: ": keepalive\n\n",
+    });
+  });
+
   await page.route(/\/work_orders$/, async (route) => {
     postedPayload = JSON.parse(route.request().postData() ?? "{}");
     const artifactId = postedPayload.packet.work_order_id;

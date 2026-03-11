@@ -100,6 +100,14 @@ test("create receipt then submit review and see review_completed in timeline", a
     });
   });
 
+  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: ": keepalive\n\n",
+    });
+  });
+
   await page.route(/\/artifacts(\?.*)?$/, async (route) => {
     const request = route.request();
     const url = new URL(request.url());

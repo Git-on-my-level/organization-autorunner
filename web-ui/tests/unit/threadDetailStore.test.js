@@ -85,4 +85,68 @@ describe("threadDetailStore", () => {
       documentsError: "",
     });
   });
+
+  it("coalesces queued refresh requests while a refresh is in flight", async () => {
+    const firstRefresh = deferred();
+
+    coreClientMocks.getThreadWorkspace
+      .mockResolvedValueOnce({
+        thread: { id: "thread-1", title: "Initial workspace" },
+        context: {
+          recent_events: [],
+          documents: [],
+          open_commitments: [],
+        },
+      })
+      .mockReturnValueOnce(firstRefresh.promise)
+      .mockResolvedValueOnce({
+        thread: { id: "thread-1", title: "Updated workspace" },
+        context: {
+          recent_events: [{ id: "event-2", type: "message_posted" }],
+          documents: [{ id: "doc-2", title: "Concurrent doc" }],
+          open_commitments: [{ id: "commit-2", status: "blocked" }],
+        },
+      });
+    coreClientMocks.listThreadTimeline.mockResolvedValue({
+      events: [{ id: "event-2", type: "message_posted" }],
+    });
+    coreClientMocks.listArtifacts.mockResolvedValue({
+      artifacts: [{ id: "artifact-2", kind: "work_order" }],
+    });
+
+    await threadDetailStore.loadWorkspace("thread-1");
+
+    const firstPromise = threadDetailStore.queueRefreshThreadDetail("thread-1", {
+      workspace: true,
+    });
+    const secondPromise = threadDetailStore.queueRefreshThreadDetail(
+      "thread-1",
+      {
+        timeline: true,
+        workOrders: true,
+      },
+    );
+
+    firstRefresh.resolve({
+      thread: { id: "thread-1", title: "First refresh" },
+      context: {
+        recent_events: [],
+        documents: [],
+        open_commitments: [],
+      },
+    });
+
+    await Promise.all([firstPromise, secondPromise]);
+
+    expect(coreClientMocks.getThreadWorkspace).toHaveBeenCalledTimes(2);
+    expect(coreClientMocks.listThreadTimeline).toHaveBeenCalledTimes(1);
+    expect(coreClientMocks.listArtifacts).toHaveBeenCalledTimes(1);
+    expect(get(threadDetailStore)).toMatchObject({
+      snapshot: { id: "thread-1", title: "First refresh" },
+      timeline: [{ id: "event-2", type: "message_posted" }],
+      documents: [],
+      commitments: [],
+      workOrders: [{ id: "artifact-2", kind: "work_order" }],
+    });
+  });
 });

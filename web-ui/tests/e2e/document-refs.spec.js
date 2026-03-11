@@ -213,6 +213,14 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
     });
   });
 
+  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: ": keepalive\n\n",
+    });
+  });
+
   await page.route(/\/commitments(\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,

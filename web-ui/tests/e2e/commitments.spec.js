@@ -86,6 +86,22 @@ test("create commitment and enforce status evidence for done transition", async 
     });
   });
 
+  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: ": keepalive\n\n",
+    });
+  });
+
+  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: ": keepalive\n\n",
+    });
+  });
+
   await page.route(/\/commitments(\?.*)?$/, async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
@@ -265,7 +281,7 @@ test("create commitment and enforce status evidence for done transition", async 
   });
 
   await expect(
-    page.getByText("No open commitments.", { exact: true }),
+    page.getByText("No active or blocked commitments.", { exact: true }),
   ).toBeVisible();
 });
 

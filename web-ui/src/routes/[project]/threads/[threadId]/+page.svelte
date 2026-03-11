@@ -24,26 +24,29 @@
   let conflictWarning = $state("");
   let editNotice = $state("");
 
-  const POLL_INTERVAL_MS = 30_000;
-  let pollTimer;
+  const STREAM_RECONNECT_DELAY_MS = 1_500;
+  const RECONCILE_INTERVAL_MS = 120_000;
+  let reconcileTimer;
+  let stopThreadStream = () => {};
 
   onMount(async () => {
     await ensureActorRegistry();
     await threadDetailStore.fullRefresh(threadId);
-    pollTimer = setInterval(
-      () => {
-        const flags =
-          activeTab === "timeline"
-            ? { workspace: true, timeline: true }
-            : { workspace: true };
-        return threadDetailStore.refreshThreadDetail(threadId, flags);
-      },
-      POLL_INTERVAL_MS,
+    stopThreadStream = startThreadEventStream(threadId);
+    reconcileTimer = setInterval(
+      () =>
+        threadDetailStore.queueRefreshThreadDetail(threadId, {
+          workspace: true,
+          timeline: true,
+          workOrders: true,
+        }),
+      RECONCILE_INTERVAL_MS,
     );
   });
 
   onDestroy(() => {
-    clearInterval(pollTimer);
+    stopThreadStream();
+    clearInterval(reconcileTimer);
   });
 
   async function ensureActorRegistry() {
@@ -71,9 +74,10 @@
       if (error?.status === 409) {
         conflictWarning =
           "Thread was updated elsewhere. Reloaded — reapply your changes.";
-        await threadDetailStore.refreshThreadDetail(threadId, {
+        await threadDetailStore.queueRefreshThreadDetail(threadId, {
           workspace: true,
           timeline: true,
+          workOrders: true,
         });
       } else {
         throw error;
@@ -83,44 +87,93 @@
 
   async function handleCreateCommitment(threadId, commitment) {
     await coreClient.createCommitment({ commitment });
-    await threadDetailStore.refreshThreadDetail(threadId, {
+    await threadDetailStore.queueRefreshThreadDetail(threadId, {
       workspace: true,
-      timeline: activeTab === "timeline",
+      timeline: true,
     });
   }
 
   async function handleSaveCommitment(commitmentId, payload) {
     await coreClient.updateCommitment(commitmentId, payload);
-    await threadDetailStore.refreshThreadDetail(threadId, {
+    await threadDetailStore.queueRefreshThreadDetail(threadId, {
       workspace: true,
-      timeline: activeTab === "timeline",
+      timeline: true,
     });
   }
 
   async function handleWorkOrderSubmit(threadId, artifact, packet) {
     await coreClient.createWorkOrder({ artifact, packet });
-    await threadDetailStore.refreshThreadDetail(threadId, {
+    await threadDetailStore.queueRefreshThreadDetail(threadId, {
       workspace: true,
-      timeline: activeTab === "timeline",
+      timeline: true,
       workOrders: true,
     });
   }
 
   async function handleReceiptSubmit(threadId, artifact, packet) {
     await coreClient.createReceipt({ artifact, packet });
-    await threadDetailStore.refreshThreadDetail(threadId, {
+    await threadDetailStore.queueRefreshThreadDetail(threadId, {
       workspace: true,
-      timeline: activeTab === "timeline",
+      timeline: true,
       workOrders: true,
     });
   }
 
   async function handleMessagePost(threadId, event) {
     await coreClient.createEvent({ event });
-    await threadDetailStore.refreshThreadDetail(threadId, {
+    await threadDetailStore.queueRefreshThreadDetail(threadId, {
       workspace: true,
       timeline: true,
+      workOrders: true,
     });
+  }
+
+  function startThreadEventStream(threadId) {
+    let stopped = false;
+    let reconnectTimer;
+    let controller = null;
+    let lastEventId = "";
+
+    const connect = async () => {
+      if (stopped) return;
+      controller = new AbortController();
+      try {
+        await coreClient.streamThreadEvents({
+          threadId,
+          lastEventId,
+          signal: controller.signal,
+          onEvent: async (message) => {
+            if (message?.id) {
+              lastEventId = message.id;
+            }
+            if (message?.event !== "event") {
+              return;
+            }
+            await threadDetailStore.queueRefreshThreadDetail(threadId, {
+              workspace: true,
+              timeline: true,
+              workOrders: true,
+            });
+          },
+        });
+      } catch (error) {
+        if (error?.name === "AbortError" || stopped) {
+          return;
+        }
+      }
+
+      if (!stopped) {
+        reconnectTimer = setTimeout(connect, STREAM_RECONNECT_DELAY_MS);
+      }
+    };
+
+    void connect();
+
+    return () => {
+      stopped = true;
+      controller?.abort();
+      clearTimeout(reconnectTimer);
+    };
   }
 
   $effect(() => {

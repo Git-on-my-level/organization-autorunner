@@ -26,6 +26,22 @@ function createThreadDetailStore() {
   const store = writable(initialState());
   const { subscribe, update, set } = store;
   const patchState = (patch) => update((state) => ({ ...state, ...patch }));
+  let queuedRefreshFlags = null;
+  let queuedRefreshThreadId = "";
+  let queuedRefreshPromise = null;
+
+  function mergeRefreshFlags(base = {}, next = {}) {
+    const left = base ?? {};
+    const right = next ?? {};
+    return {
+      workspace: Boolean(left.workspace || right.workspace),
+      snapshot: Boolean(left.snapshot || right.snapshot),
+      documents: Boolean(left.documents || right.documents),
+      timeline: Boolean(left.timeline || right.timeline),
+      commitments: Boolean(left.commitments || right.commitments),
+      workOrders: Boolean(left.workOrders || right.workOrders),
+    };
+  }
 
   async function loadWorkspace(threadId, filters = {}) {
     const currentState = get(store);
@@ -151,6 +167,35 @@ function createThreadDetailStore() {
     await Promise.all(promises);
   }
 
+  async function queueRefreshThreadDetail(threadId, flags = {}) {
+    if (!threadId) return;
+
+    if (queuedRefreshThreadId && queuedRefreshThreadId !== threadId) {
+      queuedRefreshFlags = null;
+      queuedRefreshPromise = null;
+    }
+
+    queuedRefreshThreadId = threadId;
+    queuedRefreshFlags = mergeRefreshFlags(queuedRefreshFlags, flags);
+
+    if (queuedRefreshPromise) {
+      return queuedRefreshPromise;
+    }
+
+    queuedRefreshPromise = (async () => {
+      while (queuedRefreshFlags) {
+        const nextFlags = queuedRefreshFlags;
+        queuedRefreshFlags = null;
+        await refreshThreadDetail(queuedRefreshThreadId, nextFlags);
+      }
+    })().finally(() => {
+      queuedRefreshPromise = null;
+      queuedRefreshThreadId = "";
+    });
+
+    return queuedRefreshPromise;
+  }
+
   async function fullRefresh(threadId) {
     await Promise.all([loadWorkspace(threadId), loadWorkOrders(threadId)]);
   }
@@ -191,6 +236,7 @@ function createThreadDetailStore() {
     loadTimeline,
     loadWorkOrders,
     refreshThreadDetail,
+    queueRefreshThreadDetail,
     fullRefresh,
     setSnapshot,
     setDocuments,

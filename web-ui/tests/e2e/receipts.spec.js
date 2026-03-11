@@ -100,6 +100,14 @@ test("receipt form validates typed refs and creates receipt that appears in time
     });
   });
 
+  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: ": keepalive\n\n",
+    });
+  });
+
   await page.route(/\/artifacts(\?.*)?$/, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
