@@ -2524,7 +2524,8 @@ export const commandRegistry: CommandSpec[] = [
       "threads.get",
       "threads.list",
       "threads.patch",
-      "threads.timeline"
+      "threads.timeline",
+      "threads.workspace"
     ],
     "go_method": "ThreadsContext",
     "ts_method": "threadsContext"
@@ -2649,7 +2650,8 @@ export const commandRegistry: CommandSpec[] = [
       "threads.get",
       "threads.list",
       "threads.patch",
-      "threads.timeline"
+      "threads.timeline",
+      "threads.workspace"
     ],
     "go_method": "ThreadsCreate",
     "ts_method": "threadsCreate"
@@ -2690,7 +2692,8 @@ export const commandRegistry: CommandSpec[] = [
       "threads.create",
       "threads.list",
       "threads.patch",
-      "threads.timeline"
+      "threads.timeline",
+      "threads.workspace"
     ],
     "go_method": "ThreadsGet",
     "ts_method": "threadsGet"
@@ -2729,7 +2732,8 @@ export const commandRegistry: CommandSpec[] = [
       "threads.create",
       "threads.get",
       "threads.patch",
-      "threads.timeline"
+      "threads.timeline",
+      "threads.workspace"
     ],
     "go_method": "ThreadsList",
     "ts_method": "threadsList"
@@ -2861,7 +2865,8 @@ export const commandRegistry: CommandSpec[] = [
       "threads.create",
       "threads.get",
       "threads.list",
-      "threads.timeline"
+      "threads.timeline",
+      "threads.workspace"
     ],
     "go_method": "ThreadsPatch",
     "ts_method": "threadsPatch"
@@ -2904,10 +2909,63 @@ export const commandRegistry: CommandSpec[] = [
       "threads.create",
       "threads.get",
       "threads.list",
-      "threads.patch"
+      "threads.patch",
+      "threads.workspace"
     ],
     "go_method": "ThreadsTimeline",
     "ts_method": "threadsTimeline"
+  },
+  {
+    "command_id": "threads.workspace",
+    "cli_path": "threads workspace",
+    "group": "threads",
+    "method": "GET",
+    "path": "/threads/{thread_id}/workspace",
+    "operation_id": "getThreadWorkspace",
+    "summary": "Get canonical thread workspace projection",
+    "why": "Load one thread workspace projection from the server, including canonical thread context plus derived collaboration and inbox summaries, so CLI and web do not need client-side joins.",
+    "input_mode": "none",
+    "streaming": {
+      "mode": "none"
+    },
+    "output_envelope": "Returns `{ thread_id, thread, context, collaboration, inbox, pending_decisions, related_threads, follow_up, section_kinds }`, with explicit section classifications.",
+    "error_codes": [
+      "invalid_request",
+      "not_found"
+    ],
+    "concepts": [
+      "threads",
+      "events",
+      "artifacts",
+      "commitments",
+      "docs",
+      "inbox"
+    ],
+    "stability": "beta",
+    "agent_notes": "Prefer this as the single-thread coordination read path. `section_kinds` distinguishes canonical versus derived sections.",
+    "examples": [
+      {
+        "title": "Workspace with defaults",
+        "command": "oar threads workspace --thread-id thread_123 --json"
+      },
+      {
+        "title": "Workspace with hydrated related review events",
+        "command": "oar threads workspace --thread-id thread_123 --include-related-event-content --include-artifact-content --json"
+      }
+    ],
+    "path_params": [
+      "thread_id"
+    ],
+    "adjacent_commands": [
+      "threads.context",
+      "threads.create",
+      "threads.get",
+      "threads.list",
+      "threads.patch",
+      "threads.timeline"
+    ],
+    "go_method": "ThreadsWorkspace",
+    "ts_method": "threadsWorkspace"
   }
 ] as CommandSpec[];
 
@@ -3191,6 +3249,10 @@ export class OarClient {
 
   threadsTimeline(pathParams: Record<string, string>, options: RequestOptions = {}): Promise<InvokeResult> {
     return this.invoke("threads.timeline", pathParams, options);
+  }
+
+  threadsWorkspace(pathParams: Record<string, string>, options: RequestOptions = {}): Promise<InvokeResult> {
+    return this.invoke("threads.workspace", pathParams, options);
   }
 
 }

@@ -1998,6 +1998,123 @@ export function getMockThread(threadId) {
   return threads.find((thread) => thread.id === threadId) ?? null;
 }
 
+function artifactContentPreview(content) {
+  const text = String(content ?? "").trim();
+  if (!text) {
+    return "";
+  }
+  return text.length <= 500 ? text : text.slice(0, 500);
+}
+
+function buildMockWorkspaceCollaboration(recentEvents, keyArtifacts, openCommitments) {
+  const recommendations = recentEvents.filter(
+    (event) => String(event.type) === "actor_statement",
+  );
+  const decisionRequests = recentEvents.filter(
+    (event) => String(event.type) === "decision_needed",
+  );
+  const decisions = recentEvents.filter(
+    (event) => String(event.type) === "decision_made",
+  );
+
+  return {
+    recommendations,
+    decision_requests: decisionRequests,
+    decisions,
+    key_artifacts: keyArtifacts,
+    open_commitments: openCommitments,
+    recommendation_count: recommendations.length,
+    decision_request_count: decisionRequests.length,
+    decision_count: decisions.length,
+    artifact_count: keyArtifacts.length,
+    open_commitment_count: openCommitments.length,
+  };
+}
+
+export function getMockThreadWorkspace(
+  threadId,
+  { max_events = 20, include_artifact_content = false } = {},
+) {
+  const thread = getMockThread(threadId);
+  if (!thread) {
+    return null;
+  }
+
+  const threadEvents = listMockTimelineEvents(threadId);
+  const recentEvents = threadEvents.slice(
+    Math.max(0, threadEvents.length - Number(max_events || 0)),
+  );
+  const openCommitments = listMockCommitments({
+    thread_id: threadId,
+    status: "open",
+  });
+  const documents = listMockDocuments({ thread_id: threadId });
+  const keyArtifacts = normalizeRefList(thread.key_artifacts).map((ref) => {
+    const { prefix, id } = splitTypedRef(ref);
+    const artifact = prefix === "artifact" ? getMockArtifact(id) : null;
+    const item = { ref, artifact };
+    if (include_artifact_content && artifact?.content_text) {
+      item.content_preview = artifactContentPreview(artifact.content_text);
+    }
+    return item;
+  });
+  const collaboration = buildMockWorkspaceCollaboration(
+    recentEvents,
+    keyArtifacts,
+    openCommitments,
+  );
+
+  return {
+    thread_id: threadId,
+    thread,
+    context: {
+      recent_events: recentEvents,
+      key_artifacts: keyArtifacts,
+      open_commitments: openCommitments,
+      documents,
+    },
+    collaboration,
+    inbox: {
+      thread_id: threadId,
+      items: [],
+      count: 0,
+      generated_at: new Date().toISOString(),
+    },
+    pending_decisions: {
+      thread_id: threadId,
+      items: [],
+      count: 0,
+      generated_at: new Date().toISOString(),
+    },
+    related_threads: { items: [], count: 0 },
+    related_recommendations: { items: [], count: 0 },
+    related_decision_requests: { items: [], count: 0 },
+    related_decisions: { items: [], count: 0 },
+    total_review_items:
+      collaboration.recommendations.length +
+      collaboration.decision_requests.length +
+      collaboration.decisions.length,
+    follow_up: {
+      workspace_refresh_command: `oar threads workspace --thread-id ${threadId} --include-artifact-content --full-id --json`,
+    },
+    section_kinds: {
+      thread: "canonical",
+      context: "canonical",
+      collaboration: "derived",
+      inbox: "derived",
+      pending_decisions: "derived",
+      related_threads: "derived",
+      related_recommendations: "derived",
+      related_decision_requests: "derived",
+      related_decisions: "derived",
+      follow_up: "convenience",
+    },
+    context_source: "threads.workspace",
+    inbox_source: "threads.workspace",
+    generated_at: new Date().toISOString(),
+  };
+}
+
 function updateThreadOpenCommitments({ thread_id, commitment_id, status }) {
   const thread = getMockThread(thread_id);
   if (!thread) {

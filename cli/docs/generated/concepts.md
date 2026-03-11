@@ -14,7 +14,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `artifacts`
 
-- Commands: `6`
+- Commands: `7`
 - Command IDs:
   - `artifacts.content.get`
   - `artifacts.create`
@@ -22,6 +22,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `artifacts.list`
   - `artifacts.tombstone`
   - `threads.context`
+  - `threads.workspace`
 
 ## `auth`
 
@@ -40,13 +41,14 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `commitments`
 
-- Commands: `5`
+- Commands: `6`
 - Command IDs:
   - `commitments.create`
   - `commitments.get`
   - `commitments.list`
   - `commitments.patch`
   - `threads.context`
+  - `threads.workspace`
 
 ## `compatibility`
 
@@ -85,7 +87,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `docs`
 
-- Commands: `8`
+- Commands: `9`
 - Command IDs:
   - `docs.create`
   - `docs.get`
@@ -95,10 +97,11 @@ Generated from `contracts/oar-openapi.yaml`.
   - `docs.tombstone`
   - `docs.update`
   - `threads.context`
+  - `threads.workspace`
 
 ## `events`
 
-- Commands: `6`
+- Commands: `7`
 - Command IDs:
   - `events.create`
   - `events.get`
@@ -106,6 +109,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `inbox.ack`
   - `threads.context`
   - `threads.timeline`
+  - `threads.workspace`
 
 ## `evidence`
 
@@ -145,12 +149,13 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `inbox`
 
-- Commands: `4`
+- Commands: `5`
 - Command IDs:
   - `inbox.ack`
   - `inbox.get`
   - `inbox.list`
   - `inbox.stream`
+  - `threads.workspace`
 
 ## `introspection`
 
@@ -281,7 +286,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `threads`
 
-- Commands: `6`
+- Commands: `7`
 - Command IDs:
   - `threads.context`
   - `threads.create`
@@ -289,6 +294,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `threads.list`
   - `threads.patch`
   - `threads.timeline`
+  - `threads.workspace`
 
 ## `token-lifecycle`
 

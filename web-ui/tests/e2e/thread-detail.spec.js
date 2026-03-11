@@ -64,6 +64,58 @@ test("thread detail loads snapshot/timeline and posts reply message", async ({
     });
   });
 
+  await page.route(
+    /\/threads\/thread-onboarding\/workspace(\?.*)?$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          thread_id: "thread-onboarding",
+          thread: {
+            id: "thread-onboarding",
+            type: "process",
+            title: "Customer Onboarding Workflow",
+            status: "active",
+            priority: "p1",
+            cadence: "weekly",
+            tags: ["ops", "customer"],
+            current_summary: "Thread detail summary.",
+            next_actions: ["Collect legal signoff"],
+            open_commitments: ["commitment-onboard-1"],
+            next_check_in_at: "2026-03-05T00:00:00.000Z",
+            updated_at: "2026-03-04T00:00:00.000Z",
+            updated_by: actorId,
+            provenance: { sources: ["actor_statement:event-1001"] },
+          },
+          context: {
+            recent_events: timeline,
+            key_artifacts: [],
+            open_commitments: [],
+            documents: [
+              {
+                id: "doc-onboarding-runbook",
+                title: "Onboarding Runbook",
+                status: "active",
+                updated_at: "2026-03-04T00:30:00.000Z",
+                updated_by: actorId,
+                labels: ["ops"],
+                head_revision_id: "rev-onboarding-runbook-2",
+                head_revision_number: 2,
+                head_revision: {
+                  revision_id: "rev-onboarding-runbook-2",
+                  revision_number: 2,
+                  content_type: "text",
+                  created_at: "2026-03-04T00:30:00.000Z",
+                },
+              },
+            ],
+          },
+        }),
+      });
+    },
+  );
+
   await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
     await route.fulfill({
       status: 200,
@@ -245,6 +297,26 @@ test("thread detail handles snapshot update conflict and retries after reload", 
 
     await route.continue();
   });
+
+  await page.route(
+    /\/threads\/thread-onboarding\/workspace(\?.*)?$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          thread_id: "thread-onboarding",
+          thread: threadSnapshot,
+          context: {
+            recent_events: [],
+            key_artifacts: [],
+            open_commitments: [],
+            documents: [],
+          },
+        }),
+      });
+    },
+  );
 
   await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
     await route.fulfill({

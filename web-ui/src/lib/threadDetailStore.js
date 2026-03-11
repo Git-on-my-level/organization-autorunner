@@ -4,6 +4,7 @@ import { get, writable } from "svelte/store";
 
 function initialState() {
   return {
+    workspace: null,
     snapshot: null,
     snapshotLoading: false,
     snapshotError: "",
@@ -26,50 +27,51 @@ function createThreadDetailStore() {
   const { subscribe, update, set } = store;
   const patchState = (patch) => update((state) => ({ ...state, ...patch }));
 
-  async function loadSnapshot(threadId) {
-    patchState({ snapshotLoading: true, snapshotError: "" });
+  async function loadWorkspace(threadId, filters = {}) {
+    patchState({
+      snapshotLoading: true,
+      snapshotError: "",
+      documentsLoading: true,
+      documentsError: "",
+      commitmentsLoading: true,
+    });
     try {
-      const snapshot = (await coreClient.getThread(threadId)).thread ?? null;
-      patchState({ snapshot });
-      return snapshot;
-    } catch (e) {
+      const workspace = await coreClient.getThreadWorkspace(threadId, filters);
+      const context =
+        workspace && typeof workspace.context === "object"
+          ? workspace.context
+          : {};
       patchState({
-        snapshotError: `Failed to load thread: ${e instanceof Error ? e.message : String(e)}`,
+        workspace,
+        snapshot: workspace?.thread ?? null,
+        documents: Array.isArray(context.documents) ? context.documents : [],
+        commitments: Array.isArray(context.open_commitments)
+          ? context.open_commitments
+          : [],
+        timeline: Array.isArray(context.recent_events)
+          ? context.recent_events
+          : [],
+      });
+      return workspace;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error);
+      patchState({
+        workspace: null,
+        snapshotError: `Failed to load workspace: ${message}`,
         snapshot: null,
+        documentsError: `Failed to load workspace: ${message}`,
+        documents: [],
+        commitments: [],
+        timeline: [],
       });
       return null;
     } finally {
-      patchState({ snapshotLoading: false });
-    }
-  }
-
-  async function loadCommitments(threadId) {
-    patchState({ commitmentsLoading: true });
-    try {
-      const response = await coreClient.listCommitments({
-        thread_id: threadId,
-        status: "open",
-      });
-      patchState({ commitments: response.commitments ?? [] });
-    } catch {
-      patchState({ commitments: [] });
-    } finally {
-      patchState({ commitmentsLoading: false });
-    }
-  }
-
-  async function loadDocuments(threadId) {
-    patchState({ documentsLoading: true, documentsError: "" });
-    try {
-      const response = await coreClient.listDocuments({ thread_id: threadId });
-      patchState({ documents: response.documents ?? [] });
-    } catch (error) {
       patchState({
-        documentsError: `Failed to load documents: ${error instanceof Error ? error.message : String(error)}`,
-        documents: [],
+        snapshotLoading: false,
+        documentsLoading: false,
+        commitmentsLoading: false,
       });
-    } finally {
-      patchState({ documentsLoading: false });
     }
   }
 
@@ -109,6 +111,7 @@ function createThreadDetailStore() {
 
   async function refreshThreadDetail(threadId, flags = {}) {
     const {
+      workspace: refreshWorkspace = false,
       snapshot: refreshSnapshot = false,
       documents: refreshDocuments = false,
       timeline: refreshTimeline = false,
@@ -117,22 +120,21 @@ function createThreadDetailStore() {
     } = flags;
 
     const promises = [];
-    if (refreshSnapshot) promises.push(loadSnapshot(threadId));
-    if (refreshDocuments) promises.push(loadDocuments(threadId));
+    if (
+      refreshWorkspace ||
+      refreshSnapshot ||
+      refreshDocuments ||
+      refreshCommitments
+    ) {
+      promises.push(loadWorkspace(threadId));
+    }
     if (refreshTimeline) promises.push(loadTimeline(threadId));
-    if (refreshCommitments) promises.push(loadCommitments(threadId));
     if (refreshWorkOrders) promises.push(loadWorkOrders(threadId));
     await Promise.all(promises);
   }
 
   async function fullRefresh(threadId) {
-    await Promise.all([
-      loadSnapshot(threadId),
-      loadDocuments(threadId),
-      loadTimeline(threadId),
-      loadCommitments(threadId),
-      loadWorkOrders(threadId),
-    ]);
+    await Promise.all([loadWorkspace(threadId), loadWorkOrders(threadId)]);
   }
 
   function setSnapshot(value) {
@@ -167,9 +169,7 @@ function createThreadDetailStore() {
 
   return {
     subscribe,
-    loadSnapshot,
-    loadDocuments,
-    loadCommitments,
+    loadWorkspace,
     loadTimeline,
     loadWorkOrders,
     refreshThreadDetail,

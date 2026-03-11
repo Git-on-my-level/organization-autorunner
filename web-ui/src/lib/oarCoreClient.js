@@ -383,6 +383,13 @@ export function createOarCoreClient(options = {}) {
           { body: withActorId(payload) },
         ),
       ),
+    getThreadWorkspace: (threadId, filters) =>
+      invokeJSON("threads.workspace", () =>
+        generated.threadsWorkspace(
+          { thread_id: String(threadId) },
+          { query: filters },
+        ),
+      ),
     listThreadTimeline: (threadId) =>
       invokeJSON("threads.timeline", () =>
         generated.threadsTimeline({ thread_id: String(threadId) }),

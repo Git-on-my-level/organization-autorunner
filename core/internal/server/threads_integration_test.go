@@ -1153,6 +1153,225 @@ func TestThreadContextRejectsInvalidQueryParams(t *testing.T) {
 	}
 }
 
+func TestThreadWorkspaceBundlesCanonicalAndDerivedSections(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createThread := func(payload string) map[string]any {
+		t.Helper()
+		resp := postJSONExpectStatus(t, h.baseURL+"/threads", payload, http.StatusCreated)
+		defer resp.Body.Close()
+
+		var created struct {
+			Thread map[string]any `json:"thread"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+			t.Fatalf("decode create thread response: %v", err)
+		}
+		return created.Thread
+	}
+
+	rootThread := createThread(`{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Workspace root",
+			"type":"initiative",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops","workspace"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["triage"],
+			"key_artifacts":["artifact:workspace-artifact-1"],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`)
+	rootThreadID := asString(rootThread["id"])
+	if rootThreadID == "" {
+		t.Fatal("expected root thread id")
+	}
+
+	relatedThread := createThread(`{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Workspace related",
+			"type":"case",
+			"status":"active",
+			"priority":"p2",
+			"tags":["ops","related"],
+			"cadence":"weekly",
+			"next_check_in_at":"2026-03-06T00:00:00Z",
+			"current_summary":"related summary",
+			"next_actions":["follow-up"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`)
+	relatedThreadID := asString(relatedThread["id"])
+	if relatedThreadID == "" {
+		t.Fatal("expected related thread id")
+	}
+
+	postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"id":"workspace-artifact-1",
+			"kind":"doc",
+			"refs":["thread:`+rootThreadID+`"],
+			"summary":"workspace artifact"
+		},
+		"content":"Workspace artifact content",
+		"content_type":"text/plain"
+	}`, http.StatusCreated).Body.Close()
+
+	postJSONExpectStatus(t, h.baseURL+"/docs", `{
+		"actor_id":"actor-1",
+		"document":{"id":"workspace-doc-1","thread_id":"`+rootThreadID+`","title":"Workspace runbook","status":"active","labels":["ops"]},
+		"refs":["thread:`+rootThreadID+`"],
+		"content":"# Workspace runbook",
+		"content_type":"text"
+	}`, http.StatusCreated).Body.Close()
+
+	createCommitmentResp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
+		"actor_id":"actor-1",
+		"commitment":{
+			"thread_id":"`+rootThreadID+`",
+			"title":"Coordinate related work",
+			"owner":"actor-1",
+			"due_at":"2026-03-08T00:00:00Z",
+			"status":"open",
+			"definition_of_done":["done"],
+			"links":["thread:`+relatedThreadID+`"],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	createCommitmentResp.Body.Close()
+
+	postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-1",
+		"event":{
+			"type":"actor_statement",
+			"thread_id":"`+rootThreadID+`",
+			"refs":["thread:`+rootThreadID+`","thread:`+relatedThreadID+`"],
+			"summary":"Coordinate with related thread",
+			"payload":{"recommendation":"Work with the related team"},
+			"provenance":{"sources":["seed:workspace-root"]}
+		}
+	}`, http.StatusCreated).Body.Close()
+
+	postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-1",
+		"event":{
+			"type":"decision_needed",
+			"thread_id":"`+rootThreadID+`",
+			"refs":["thread:`+rootThreadID+`"],
+			"summary":"Need approval on rollout",
+			"payload":{"decision":"Approve rollout"},
+			"provenance":{"sources":["seed:workspace-root"]}
+		}
+	}`, http.StatusCreated).Body.Close()
+
+	postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-1",
+		"event":{
+			"type":"actor_statement",
+			"thread_id":"`+relatedThreadID+`",
+			"refs":["thread:`+relatedThreadID+`"],
+			"summary":"Related recommendation",
+			"payload":{"recommendation":"Use the migration checklist"},
+			"provenance":{"sources":["seed:workspace-related"]}
+		}
+	}`, http.StatusCreated).Body.Close()
+
+	resp, err := http.Get(h.baseURL + "/threads/" + rootThreadID + "/workspace?include_artifact_content=true&include_related_event_content=true")
+	if err != nil {
+		t.Fatalf("GET /threads/{id}/workspace: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected workspace status: got %d", resp.StatusCode)
+	}
+
+	var payload struct {
+		ThreadID          string         `json:"thread_id"`
+		Thread            map[string]any `json:"thread"`
+		Context           struct {
+			RecentEvents    []map[string]any `json:"recent_events"`
+			KeyArtifacts    []map[string]any `json:"key_artifacts"`
+			OpenCommitments []map[string]any `json:"open_commitments"`
+			Documents       []map[string]any `json:"documents"`
+		} `json:"context"`
+		Collaboration struct {
+			Recommendations   []map[string]any `json:"recommendations"`
+			DecisionRequests  []map[string]any `json:"decision_requests"`
+			Decisions         []map[string]any `json:"decisions"`
+		} `json:"collaboration"`
+		Inbox struct {
+			Items []map[string]any `json:"items"`
+			Count int              `json:"count"`
+		} `json:"inbox"`
+		PendingDecisions struct {
+			Items []map[string]any `json:"items"`
+			Count int              `json:"count"`
+		} `json:"pending_decisions"`
+		RelatedThreads struct {
+			Count int `json:"count"`
+		} `json:"related_threads"`
+		RelatedRecommendations struct {
+			Items []map[string]any `json:"items"`
+			Count int              `json:"count"`
+		} `json:"related_recommendations"`
+		SectionKinds map[string]string `json:"section_kinds"`
+		ContextSource string           `json:"context_source"`
+		InboxSource   string           `json:"inbox_source"`
+		FollowUp      map[string]any   `json:"follow_up"`
+	} 
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode workspace response: %v", err)
+	}
+
+	if payload.ThreadID != rootThreadID || asString(payload.Thread["id"]) != rootThreadID {
+		t.Fatalf("unexpected workspace thread payload: %#v", payload)
+	}
+	if len(payload.Context.KeyArtifacts) != 1 || asString(payload.Context.KeyArtifacts[0]["ref"]) != "artifact:workspace-artifact-1" {
+		t.Fatalf("expected key artifact in workspace context, got %#v", payload.Context.KeyArtifacts)
+	}
+	if len(payload.Context.OpenCommitments) != 1 {
+		t.Fatalf("expected one open commitment in workspace context, got %#v", payload.Context.OpenCommitments)
+	}
+	if len(payload.Context.Documents) != 1 || asString(payload.Context.Documents[0]["id"]) != "workspace-doc-1" {
+		t.Fatalf("expected workspace document in context, got %#v", payload.Context.Documents)
+	}
+	if len(payload.Collaboration.Recommendations) != 1 || len(payload.Collaboration.DecisionRequests) != 1 {
+		t.Fatalf("expected collaboration summary to include recommendation and decision request, got %#v", payload.Collaboration)
+	}
+	if payload.Inbox.Count != 2 || payload.PendingDecisions.Count != 1 {
+		t.Fatalf("expected inbox count=2 and pending decisions count=1, got inbox=%#v pending=%#v", payload.Inbox, payload.PendingDecisions)
+	}
+	if payload.RelatedThreads.Count != 1 || payload.RelatedRecommendations.Count != 1 {
+		t.Fatalf("expected related thread review sections, got related_threads=%#v related_recommendations=%#v", payload.RelatedThreads, payload.RelatedRecommendations)
+	}
+	relatedEvent := payload.RelatedRecommendations.Items[0]
+	if asString(relatedEvent["source_thread_id"]) != relatedThreadID {
+		t.Fatalf("expected related recommendation source_thread_id=%q, got %#v", relatedThreadID, relatedEvent)
+	}
+	if _, ok := relatedEvent["event"].(map[string]any); !ok {
+		t.Fatalf("expected hydrated related recommendation event payload, got %#v", relatedEvent)
+	}
+	if payload.SectionKinds["context"] != "canonical" || payload.SectionKinds["inbox"] != "derived" || payload.SectionKinds["follow_up"] != "convenience" {
+		t.Fatalf("unexpected section kinds: %#v", payload.SectionKinds)
+	}
+	if payload.ContextSource != "threads.workspace" || payload.InboxSource != "threads.workspace" {
+		t.Fatalf("expected workspace sources, got context_source=%q inbox_source=%q", payload.ContextSource, payload.InboxSource)
+	}
+	if got := asString(payload.FollowUp["workspace_refresh_command"]); !strings.Contains(got, "oar threads workspace --thread-id "+rootThreadID) {
+		t.Fatalf("expected workspace follow-up hint, got %#v", payload.FollowUp)
+	}
+}
+
 func mapKeysMapAny(values map[string]map[string]any) []string {
 	keys := make([]string, 0, len(values))
 	for key := range values {

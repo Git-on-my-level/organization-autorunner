@@ -447,6 +447,22 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return
 		}
 
+		if strings.HasSuffix(remainder, "/workspace") {
+			if r.Method != http.MethodGet {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+				return
+			}
+
+			threadID := strings.TrimSuffix(remainder, "/workspace")
+			threadID = strings.TrimSuffix(threadID, "/")
+			if threadID == "" || strings.Contains(threadID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleThreadWorkspace(w, r, opts, threadID)
+			return
+		}
+
 		if strings.Contains(remainder, "/") {
 			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 			return

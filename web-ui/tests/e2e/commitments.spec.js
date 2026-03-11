@@ -56,6 +56,28 @@ test("create commitment and enforce status evidence for done transition", async 
     });
   });
 
+  await page.route(
+    /\/threads\/thread-onboarding\/workspace(\?.*)?$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          thread_id: "thread-onboarding",
+          thread: snapshot,
+          context: {
+            recent_events: [],
+            key_artifacts: [],
+            open_commitments: snapshot.open_commitments
+              .map((id) => commitments[id])
+              .filter(Boolean),
+            documents: [],
+          },
+        }),
+      });
+    },
+  );
+
   await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
     await route.fulfill({
       status: 200,
@@ -311,6 +333,26 @@ test("commitment edit conflict shows warning and reloads latest snapshot", async
       body: JSON.stringify({ thread: snapshot }),
     });
   });
+
+  await page.route(
+    /\/threads\/thread-onboarding\/workspace(\?.*)?$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          thread_id: "thread-onboarding",
+          thread: snapshot,
+          context: {
+            recent_events: [],
+            key_artifacts: [],
+            open_commitments: [commitment],
+            documents: [],
+          },
+        }),
+      });
+    },
+  );
 
   await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
     await route.fulfill({

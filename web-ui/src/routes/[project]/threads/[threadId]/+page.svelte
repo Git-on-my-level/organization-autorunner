@@ -31,12 +31,13 @@
     await ensureActorRegistry();
     await threadDetailStore.fullRefresh(threadId);
     pollTimer = setInterval(
-      () =>
-        threadDetailStore.refreshThreadDetail(threadId, {
-          snapshot: true,
-          documents: true,
-          timeline: true,
-        }),
+      () => {
+        const flags =
+          activeTab === "timeline"
+            ? { workspace: true, timeline: true }
+            : { workspace: true };
+        return threadDetailStore.refreshThreadDetail(threadId, flags);
+      },
       POLL_INTERVAL_MS,
     );
   });
@@ -71,7 +72,7 @@
         conflictWarning =
           "Thread was updated elsewhere. Reloaded — reapply your changes.";
         await threadDetailStore.refreshThreadDetail(threadId, {
-          snapshot: true,
+          workspace: true,
           timeline: true,
         });
       } else {
@@ -83,25 +84,24 @@
   async function handleCreateCommitment(threadId, commitment) {
     await coreClient.createCommitment({ commitment });
     await threadDetailStore.refreshThreadDetail(threadId, {
-      snapshot: true,
-      commitments: true,
-      timeline: true,
+      workspace: true,
+      timeline: activeTab === "timeline",
     });
   }
 
   async function handleSaveCommitment(commitmentId, payload) {
     await coreClient.updateCommitment(commitmentId, payload);
     await threadDetailStore.refreshThreadDetail(threadId, {
-      snapshot: true,
-      commitments: true,
-      timeline: true,
+      workspace: true,
+      timeline: activeTab === "timeline",
     });
   }
 
   async function handleWorkOrderSubmit(threadId, artifact, packet) {
     await coreClient.createWorkOrder({ artifact, packet });
     await threadDetailStore.refreshThreadDetail(threadId, {
-      timeline: true,
+      workspace: true,
+      timeline: activeTab === "timeline",
       workOrders: true,
     });
   }
@@ -109,7 +109,8 @@
   async function handleReceiptSubmit(threadId, artifact, packet) {
     await coreClient.createReceipt({ artifact, packet });
     await threadDetailStore.refreshThreadDetail(threadId, {
-      timeline: true,
+      workspace: true,
+      timeline: activeTab === "timeline",
       workOrders: true,
     });
   }
@@ -117,7 +118,7 @@
   async function handleMessagePost(threadId, event) {
     await coreClient.createEvent({ event });
     await threadDetailStore.refreshThreadDetail(threadId, {
-      snapshot: true,
+      workspace: true,
       timeline: true,
     });
   }
@@ -125,6 +126,12 @@
   $effect(() => {
     if ($page.url.searchParams.get("compose") === "work-order") {
       activeTab = "work";
+    }
+  });
+
+  $effect(() => {
+    if (activeTab === "timeline" && threadId) {
+      void threadDetailStore.loadTimeline(threadId);
     }
   });
 </script>

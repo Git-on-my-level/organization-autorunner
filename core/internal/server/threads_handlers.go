@@ -386,27 +386,12 @@ func handleThreadContext(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		return
 	}
 
-	maxEvents := defaultThreadContextMaxEvents
-	if rawMaxEvents := strings.TrimSpace(r.URL.Query().Get("max_events")); rawMaxEvents != "" {
-		parsed, err := strconv.Atoi(rawMaxEvents)
-		if err != nil || parsed < 0 {
-			writeError(w, http.StatusBadRequest, "invalid_request", "max_events must be a non-negative integer")
-			return
-		}
-		maxEvents = parsed
+	options, ok := resolveThreadContextOptions(w, r)
+	if !ok {
+		return
 	}
 
-	includeArtifactContent := false
-	if rawInclude := strings.TrimSpace(r.URL.Query().Get("include_artifact_content")); rawInclude != "" {
-		parsed, err := strconv.ParseBool(rawInclude)
-		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", "include_artifact_content must be true or false")
-			return
-		}
-		includeArtifactContent = parsed
-	}
-
-	thread, err := opts.primitiveStore.GetThread(r.Context(), threadID)
+	body, err := buildThreadContextPayload(r.Context(), opts, threadID, options)
 	if err != nil {
 		if errors.Is(err, primitives.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "thread not found")
@@ -416,37 +401,7 @@ func handleThreadContext(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		return
 	}
 
-	recentEvents, err := opts.primitiveStore.ListRecentEventsByThread(r.Context(), threadID, maxEvents)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load thread events")
-		return
-	}
-
-	keyArtifacts, err := buildThreadContextArtifacts(r.Context(), opts, thread, includeArtifactContent)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load key artifacts")
-		return
-	}
-
-	openCommitments, err := buildThreadContextOpenCommitments(r.Context(), opts, threadID, thread)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load open commitments")
-		return
-	}
-
-	documents, err := buildThreadContextDocuments(r.Context(), opts, threadID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load thread documents")
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"thread":           thread,
-		"recent_events":    recentEvents,
-		"key_artifacts":    keyArtifacts,
-		"open_commitments": openCommitments,
-		"documents":        documents,
-	})
+	writeJSON(w, http.StatusOK, body)
 }
 
 func buildThreadContextArtifacts(ctx context.Context, opts handlerOptions, thread map[string]any, includeArtifactContent bool) ([]map[string]any, error) {
