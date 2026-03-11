@@ -320,3 +320,8 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - `derived_inbox_items`: incrementally maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
   - `derived_thread_views`: incrementally maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
   - `POST /derived/rebuild` remains the deterministic repair path: it re-emits any missing canonical stale-thread exceptions from canonical state, then rebuilds both projection tables from current threads/events/commitments/documents.
+
+- Meaningful thread activity for stale-thread clearing:
+  - The current activity set is explicit: `actor_statement`, `decision_needed`, `decision_made`, `work_order_created`, `receipt_added`, `review_completed`, `document_created`, `document_updated`, `document_tombstoned`, `commitment_created`, `commitment_status_changed`, plus non-create `snapshot_updated` events from direct user-authored snapshot edits.
+  - Coordination noise does not count as activity: inbox acknowledgments, exception notifications, thread-creation bookkeeping, and derived `open_commitments` maintenance.
+  - `thread.open_commitments` remains present on thread reads for compatibility, but keeping that field synchronized no longer emits a user-visible timeline event or bumps the thread’s visible update clock.

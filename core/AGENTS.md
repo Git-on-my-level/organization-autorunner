@@ -46,6 +46,7 @@ organization-autorunner-core is the core backend/domain implementation for the O
 - Packet content ID fields must match `artifact.id`.
 - Inbox item IDs are deterministic and acknowledgment suppression must remain stable across rebuilds.
 - Staleness exceptions should be idempotent: no duplicate stale exceptions without newer thread activity.
+- Derived `thread.open_commitments` maintenance is compatibility state, not user-visible collaboration: keep the field correct without emitting timeline noise or bumping visible thread activity clocks.
 
 ## Change guide (where to edit)
 - For schema fields/enums/ref conventions, update:

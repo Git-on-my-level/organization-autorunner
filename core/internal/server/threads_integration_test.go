@@ -113,8 +113,8 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 	if len(listedFiltered.Threads) != 1 {
 		t.Fatalf("expected exactly one filtered thread, got %d", len(listedFiltered.Threads))
 	}
-	if stale, ok := listedFiltered.Threads[0]["stale"].(bool); !ok || !stale {
-		t.Fatalf("expected filtered thread to include stale=true, got %#v", listedFiltered.Threads[0]["stale"])
+	if stale, ok := listedFiltered.Threads[0]["stale"].(bool); !ok || stale {
+		t.Fatalf("expected filtered thread to include stale=false after thread activity, got %#v", listedFiltered.Threads[0]["stale"])
 	}
 
 	staleResp, err := http.Get(h.baseURL + "/threads?stale=true")
@@ -132,11 +132,10 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 	if err := json.NewDecoder(staleResp.Body).Decode(&staleListed); err != nil {
 		t.Fatalf("decode stale list response: %v", err)
 	}
-	if len(staleListed.Threads) < 1 {
-		t.Fatalf("expected stale list to contain created thread")
-	}
-	if stale, ok := staleListed.Threads[0]["stale"].(bool); !ok || !stale {
-		t.Fatalf("expected stale list thread to include stale=true, got %#v", staleListed.Threads[0]["stale"])
+	for _, thread := range staleListed.Threads {
+		if asString(thread["id"]) == threadID {
+			t.Fatalf("did not expect patched thread %s in stale list after thread activity: %#v", threadID, staleListed.Threads)
+		}
 	}
 
 	timelineResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
@@ -1296,18 +1295,18 @@ func TestThreadWorkspaceBundlesCanonicalAndDerivedSections(t *testing.T) {
 	}
 
 	var payload struct {
-		ThreadID          string         `json:"thread_id"`
-		Thread            map[string]any `json:"thread"`
-		Context           struct {
+		ThreadID string         `json:"thread_id"`
+		Thread   map[string]any `json:"thread"`
+		Context  struct {
 			RecentEvents    []map[string]any `json:"recent_events"`
 			KeyArtifacts    []map[string]any `json:"key_artifacts"`
 			OpenCommitments []map[string]any `json:"open_commitments"`
 			Documents       []map[string]any `json:"documents"`
 		} `json:"context"`
 		Collaboration struct {
-			Recommendations   []map[string]any `json:"recommendations"`
-			DecisionRequests  []map[string]any `json:"decision_requests"`
-			Decisions         []map[string]any `json:"decisions"`
+			Recommendations  []map[string]any `json:"recommendations"`
+			DecisionRequests []map[string]any `json:"decision_requests"`
+			Decisions        []map[string]any `json:"decisions"`
 		} `json:"collaboration"`
 		Inbox struct {
 			Items []map[string]any `json:"items"`
@@ -1324,11 +1323,11 @@ func TestThreadWorkspaceBundlesCanonicalAndDerivedSections(t *testing.T) {
 			Items []map[string]any `json:"items"`
 			Count int              `json:"count"`
 		} `json:"related_recommendations"`
-		SectionKinds map[string]string `json:"section_kinds"`
-		ContextSource string           `json:"context_source"`
-		InboxSource   string           `json:"inbox_source"`
-		FollowUp      map[string]any   `json:"follow_up"`
-	} 
+		SectionKinds  map[string]string `json:"section_kinds"`
+		ContextSource string            `json:"context_source"`
+		InboxSource   string            `json:"inbox_source"`
+		FollowUp      map[string]any    `json:"follow_up"`
+	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode workspace response: %v", err)
 	}

@@ -292,6 +292,9 @@ func TestCommitmentsCreateAndRestrictedTransitions(t *testing.T) {
 		t.Fatal("expected commitment_status_changed in timeline")
 	}
 	assertActorStatementProvenance(t, statusChangedEvent)
+	if hasOpenCommitmentMaintenanceEvent(timeline.Events) {
+		t.Fatalf("did not expect derived open_commitments maintenance event in timeline: %#v", timeline.Events)
+	}
 }
 
 func TestCommitmentCreateRequestKeyReplaysSingleWrite(t *testing.T) {
@@ -394,6 +397,9 @@ func TestCommitmentCreateRequestKeyReplaysSingleWrite(t *testing.T) {
 	if commitmentEventCount := countTimelineEvents(timeline.Events, "commitment_created"); commitmentEventCount != 1 {
 		t.Fatalf("expected one commitment_created event, got %d", commitmentEventCount)
 	}
+	if hasOpenCommitmentMaintenanceEvent(timeline.Events) {
+		t.Fatalf("did not expect derived open_commitments maintenance event in replay timeline: %#v", timeline.Events)
+	}
 }
 
 func countTimelineEvents(events []map[string]any, eventType string) int {
@@ -404,6 +410,20 @@ func countTimelineEvents(events []map[string]any, eventType string) int {
 		}
 	}
 	return count
+}
+
+func hasOpenCommitmentMaintenanceEvent(events []map[string]any) bool {
+	for _, event := range events {
+		if asString(event["type"]) != "snapshot_updated" {
+			continue
+		}
+		payload, _ := event["payload"].(map[string]any)
+		changedFields := sortedStringList(payload["changed_fields"])
+		if len(changedFields) == 1 && changedFields[0] == "open_commitments" {
+			return true
+		}
+	}
+	return false
 }
 
 func TestPatchCommitmentIfUpdatedAtOptimisticLocking(t *testing.T) {

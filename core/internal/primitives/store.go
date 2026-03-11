@@ -1680,7 +1680,6 @@ func (s *Store) recomputeThreadOpenCommitmentsTx(ctx context.Context, tx *sql.Tx
 	}
 
 	threadBody["open_commitments"] = computed
-	updatedAt := time.Now().UTC().Format(time.RFC3339Nano)
 	bodyJSON, err := json.Marshal(threadBody)
 	if err != nil {
 		return fmt.Errorf("encode thread snapshot body: %w", err)
@@ -1688,30 +1687,12 @@ func (s *Store) recomputeThreadOpenCommitmentsTx(ctx context.Context, tx *sql.Tx
 
 	_, err = tx.ExecContext(
 		ctx,
-		`UPDATE snapshots SET body_json = ?, updated_at = ?, updated_by = ? WHERE id = ? AND kind = 'thread'`,
+		`UPDATE snapshots SET body_json = ? WHERE id = ? AND kind = 'thread'`,
 		string(bodyJSON),
-		updatedAt,
-		actorID,
 		threadID,
 	)
 	if err != nil {
 		return fmt.Errorf("update thread open_commitments: %w", err)
-	}
-
-	event := map[string]any{
-		"type":       "snapshot_updated",
-		"thread_id":  threadID,
-		"refs":       []string{"snapshot:" + threadID},
-		"summary":    "thread open_commitments updated",
-		"payload":    map[string]any{"changed_fields": []string{"open_commitments"}},
-		"provenance": actorStatementProvenance(),
-	}
-	preparedEvent, err := prepareEventForInsert(actorID, event)
-	if err != nil {
-		return fmt.Errorf("prepare open_commitments snapshot_updated event: %w", err)
-	}
-	if err := insertPreparedEvent(ctx, tx, preparedEvent); err != nil {
-		return fmt.Errorf("emit open_commitments snapshot_updated event: %w", err)
 	}
 
 	return nil
