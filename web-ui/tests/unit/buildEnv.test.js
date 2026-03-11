@@ -82,8 +82,11 @@ UNQUOTED=value # inline comment
   });
 
   it("defaults to the node adapter when ADAPTER is unset", () => {
+    const cwd = createTempDir();
+
     expect(
       resolveUiBuildConfig({
+        cwd,
         env: {},
       }),
     ).toEqual({
