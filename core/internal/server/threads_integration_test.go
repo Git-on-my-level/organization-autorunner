@@ -189,6 +189,139 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 	defer rejectResp.Body.Close()
 }
 
+func TestThreadsCreateWithRequestKeyReturnsConflictForExplicitDuplicateID(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"id":"thread-explicit",
+			"title":"Existing thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p2",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["review"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated).Body.Close()
+
+	conflictResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"request_key":"duplicate-explicit-id",
+		"thread":{
+			"id":"thread-explicit",
+			"title":"Conflicting duplicate thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p2",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["review"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusConflict)
+	defer conflictResp.Body.Close()
+
+	var conflictBody struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(conflictResp.Body).Decode(&conflictBody); err != nil {
+		t.Fatalf("decode conflict response: %v", err)
+	}
+	if conflictBody.Error.Code != "conflict" {
+		t.Fatalf("expected conflict code, got %#v", conflictBody.Error.Code)
+	}
+
+	getResp, err := http.Get(h.baseURL + "/threads/thread-explicit")
+	if err != nil {
+		t.Fatalf("GET /threads/{id}: %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected get thread status: got %d", getResp.StatusCode)
+	}
+
+	var loaded struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(getResp.Body).Decode(&loaded); err != nil {
+		t.Fatalf("decode get thread response: %v", err)
+	}
+	if loaded.Thread["title"] != "Existing thread" {
+		t.Fatalf("expected original thread to remain unchanged, got %#v", loaded.Thread["title"])
+	}
+}
+
+func TestCreateThreadConflictWithRequestKeyReturnsConflict(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"id":"thread-existing",
+			"title":"Existing thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"initial",
+			"next_actions":["step-1"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated).Body.Close()
+
+	conflictResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"request_key":"dup-explicit-thread",
+		"thread":{
+			"id":"thread-existing",
+			"title":"Existing thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"initial",
+			"next_actions":["step-1"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusConflict)
+	defer conflictResp.Body.Close()
+
+	var conflictBody struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(conflictResp.Body).Decode(&conflictBody); err != nil {
+		t.Fatalf("decode conflict response: %v", err)
+	}
+	if conflictBody.Error.Code != "conflict" {
+		t.Fatalf("unexpected conflict code: %#v", conflictBody.Error.Code)
+	}
+}
+
 func TestPatchThreadIfUpdatedAtOptimisticLocking(t *testing.T) {
 	t.Parallel()
 

@@ -55,8 +55,10 @@ func handleCreateThread(w http.ResponseWriter, r *http.Request, opts handlerOpti
 	if !ok {
 		return
 	}
+	derivedThreadID := false
 	if strings.TrimSpace(req.RequestKey) != "" && firstNonEmptyString(req.Thread["id"]) == "" {
 		req.Thread["id"] = deriveRequestScopedID("threads.create", actorID, req.RequestKey, "thread")
+		derivedThreadID = true
 	}
 	replayStatus, replayPayload, replayed, err := readIdempotencyReplay(r.Context(), opts.primitiveStore, "threads.create", actorID, req.RequestKey, req)
 	if writeIdempotencyError(w, err) {
@@ -77,7 +79,7 @@ func handleCreateThread(w http.ResponseWriter, r *http.Request, opts handlerOpti
 
 	result, err := opts.primitiveStore.CreateThread(r.Context(), actorID, req.Thread)
 	if err != nil {
-		if errors.Is(err, primitives.ErrConflict) && strings.TrimSpace(req.RequestKey) != "" {
+		if errors.Is(err, primitives.ErrConflict) && strings.TrimSpace(req.RequestKey) != "" && derivedThreadID {
 			threadID := firstNonEmptyString(req.Thread["id"])
 			thread, loadErr := opts.primitiveStore.GetThread(r.Context(), threadID)
 			if loadErr == nil {

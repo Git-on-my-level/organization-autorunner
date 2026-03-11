@@ -156,6 +156,54 @@ func TestPrimitivesCRUDRoundTrip(t *testing.T) {
 	}
 }
 
+func TestArtifactsListBySecondaryThreadRef(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"kind":"my_custom_artifact",
+			"refs":["thread:thread-primary","thread:thread-secondary","customprefix:abc"],
+			"summary":"cross-thread artifact"
+		},
+		"content":"hello artifact",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create artifact response: %v", err)
+	}
+	artifactID, _ := created["artifact"]["id"].(string)
+	if artifactID == "" {
+		t.Fatal("expected created artifact id")
+	}
+
+	listResp, err := http.Get(h.baseURL + "/artifacts?thread_id=thread-secondary")
+	if err != nil {
+		t.Fatalf("GET /artifacts?thread_id=thread-secondary: %v", err)
+	}
+	defer listResp.Body.Close()
+	if listResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected list status: got %d", listResp.StatusCode)
+	}
+
+	var listed map[string][]map[string]any
+	if err := json.NewDecoder(listResp.Body).Decode(&listed); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	if len(listed["artifacts"]) != 1 {
+		t.Fatalf("expected one filtered artifact for secondary thread ref, got %d", len(listed["artifacts"]))
+	}
+	if got := asString(listed["artifacts"][0]["id"]); got != artifactID {
+		t.Fatalf("expected artifact %q in secondary-thread filter, got %#v", artifactID, listed["artifacts"])
+	}
+}
+
 func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 	t.Parallel()
 

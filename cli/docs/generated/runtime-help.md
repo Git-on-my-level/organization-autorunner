@@ -64,6 +64,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `artifacts inspect` (local-helper): Fetch artifact metadata and resolved content in one command for operator inspection.
 - `threads inspect` (local-helper): Canonical thread coordination read path: compose one view from `threads context` and related `inbox list` items.
 - `threads workspace` (local-helper): Single holistic thread coordination read: combine context, inbox, recommendation review, and related-thread signals in one command.
+- `threads review` (local-helper): Opinionated deep-read helper: run the holistic workspace view with related-event hydration and full summaries enabled by default.
 - `threads recommendations` (local-helper): Review one thread's recommendation/decision inputs plus related-thread signals with provenance and follow-up hints.
 - `threads propose-patch` (local-helper): Stage a thread patch proposal locally and show the diff before applying it.
 - `threads apply` (local-helper): Apply a previously staged thread patch proposal.
@@ -167,6 +168,7 @@ Commands:
   threads workspace        Get canonical thread workspace projection
 
 Canonical coordination read path:
+  threads review              Deep-read one thread workspace with review hydration enabled by default.
   threads workspace           Compose one holistic thread workspace from context + inbox + related-thread review.
   threads inspect             Compose one thread coordination view from context + inbox in one command.
   threads recommendations     Focus recommendation/decision review with actor+timestamp provenance.
@@ -174,7 +176,7 @@ Canonical coordination read path:
   threads patch               Send the thread patch to core immediately.
   threads propose-patch       Stage a thread patch proposal and inspect the diff before applying.
   threads apply               Apply a staged thread patch proposal.
-  Tip: start with `oar threads workspace` for one initiative/thread, use `--status/--tag/--type initiative` to discover one thread, use `oar threads context` for cross-thread aggregates, and `oar threads get` for raw snapshot-only reads. Add `--full-id` for copy/paste ids.
+  Tip: start with `oar threads review` when you want one deep review read, use `oar threads workspace` for the canonical coordination view, use `--status/--tag/--type initiative` to discover one thread, use `oar threads context` for cross-thread aggregates, and `oar threads get` for raw snapshot-only reads. Add `--full-id` for copy/paste ids.
 
 Global flags:
   Global flags can appear before or after the command path.
@@ -1758,6 +1760,41 @@ Flags:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json threads workspace ... ; oar threads workspace ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `threads review`
+
+Opinionated deep-read helper: run the holistic workspace view with related-event hydration and full summaries enabled by default.
+
+```text
+Local Help: threads review
+
+- Kind: `local helper`
+- Summary: Opinionated deep-read helper: run the holistic workspace view with related-event hydration and full summaries enabled by default.
+- Composition: Uses the same aggregate view as `threads workspace`, but defaults to a review-oriented read by hydrating related review items with `events get` content and expanding recommendation summaries in one command.
+- JSON body: `thread`, `context`, `collaboration`, `inbox`, `pending_decisions`, `related_threads`, `related_recommendations`, `related_decisions`, `follow_up`
+- Examples:
+  - `oar threads review --thread-id <thread-id>`
+  - `oar threads review --thread-id <thread-id> --full-id`
+  - `oar threads review --status active --type initiative`
+
+Flags:
+  --thread-id <thread-id>      Thread id to review.
+  --status <status>            Discover one thread by status.
+  --priority <priority>        Discover one thread by priority.
+  --stale <bool>               Discover one thread by stale state.
+  --tag <tag>                  Repeatable discovery tag filter.
+  --cadence <cadence>          Repeatable discovery cadence filter.
+  --type <thread-type>         Local discovery filter after `threads list`.
+  --max-events <n>             Maximum recent context events to include.
+  --include-artifact-content   Include artifact content previews from `threads context`.
+  --full-id                    Render full event and inbox ids in human output.
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json threads review ... ; oar threads review ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 

@@ -150,6 +150,29 @@ var localHelperTopics = []localHelperTopic{
 		},
 	},
 	{
+		Path:        "threads review",
+		Summary:     "Opinionated deep-read helper: run the holistic workspace view with related-event hydration and full summaries enabled by default.",
+		JSONShape:   "`thread`, `context`, `collaboration`, `inbox`, `pending_decisions`, `related_threads`, `related_recommendations`, `related_decisions`, `follow_up`",
+		Composition: "Uses the same aggregate view as `threads workspace`, but defaults to a review-oriented read by hydrating related review items with `events get` content and expanding recommendation summaries in one command.",
+		Examples: []string{
+			"oar threads review --thread-id <thread-id>",
+			"oar threads review --thread-id <thread-id> --full-id",
+			"oar threads review --status active --type initiative",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--thread-id <thread-id>", Description: "Thread id to review."},
+			{Name: "--status <status>", Description: "Discover one thread by status."},
+			{Name: "--priority <priority>", Description: "Discover one thread by priority."},
+			{Name: "--stale <bool>", Description: "Discover one thread by stale state."},
+			{Name: "--tag <tag>", Description: "Repeatable discovery tag filter."},
+			{Name: "--cadence <cadence>", Description: "Repeatable discovery cadence filter."},
+			{Name: "--type <thread-type>", Description: "Local discovery filter after `threads list`."},
+			{Name: "--max-events <n>", Description: "Maximum recent context events to include."},
+			{Name: "--include-artifact-content", Description: "Include artifact content previews from `threads context`."},
+			{Name: "--full-id", Description: "Render full event and inbox ids in human output."},
+		},
+	},
+	{
 		Path:        "threads recommendations",
 		Summary:     "Review one thread's recommendation/decision inputs plus related-thread signals with provenance and follow-up hints.",
 		JSONShape:   "`thread`, `recommendations`, `decision_requests`, `decisions`, `pending_decisions`, `related_threads`, `related_recommendations`, `follow_up`",
@@ -459,6 +482,7 @@ func localGroupHelpSupplement(topic string) string {
 	switch strings.TrimSpace(topic) {
 	case "threads":
 		return strings.TrimSpace(`Canonical coordination read path:
+  threads review              Deep-read one thread workspace with review hydration enabled by default.
   threads workspace           Compose one holistic thread workspace from context + inbox + related-thread review.
   threads inspect             Compose one thread coordination view from context + inbox in one command.
   threads recommendations     Focus recommendation/decision review with actor+timestamp provenance.
@@ -466,7 +490,7 @@ func localGroupHelpSupplement(topic string) string {
   threads patch               Send the thread patch to core immediately.
   threads propose-patch       Stage a thread patch proposal and inspect the diff before applying.
   threads apply               Apply a staged thread patch proposal.
-  Tip: start with ` + "`oar threads workspace`" + ` for one initiative/thread, use ` + "`--status/--tag/--type initiative`" + ` to discover one thread, use ` + "`oar threads context`" + ` for cross-thread aggregates, and ` + "`oar threads get`" + ` for raw snapshot-only reads. Add ` + "`--full-id`" + ` for copy/paste ids.`)
+  Tip: start with ` + "`oar threads review`" + ` when you want one deep review read, use ` + "`oar threads workspace`" + ` for the canonical coordination view, use ` + "`--status/--tag/--type initiative`" + ` to discover one thread, use ` + "`oar threads context`" + ` for cross-thread aggregates, and ` + "`oar threads get`" + ` for raw snapshot-only reads. Add ` + "`--full-id`" + ` for copy/paste ids.`)
 	case "commitments":
 		return strings.TrimSpace(`Mutation flow:
   commitments patch          Send the commitment patch to core immediately.

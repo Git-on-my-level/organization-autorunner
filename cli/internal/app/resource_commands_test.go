@@ -4174,6 +4174,30 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 		t.Fatalf("expected pending_decisions section in workspace payload, got %#v", threadsWorkspaceData)
 	}
 
+	threadsReviewOut := runCLIForTest(t, home, env, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"threads", "review",
+		"--thread-id", "thread_123",
+	})
+	threadsReviewPayload := assertEnvelopeOK(t, threadsReviewOut)
+	if got := anyStringValue(threadsReviewPayload["command"]); got != "threads review" {
+		t.Fatalf("expected threads review command label, got %#v", threadsReviewPayload)
+	}
+	if got := anyStringValue(threadsReviewPayload["command_id"]); got != "threads.review" {
+		t.Fatalf("expected threads.review command_id, got %#v", threadsReviewPayload)
+	}
+	threadsReviewData, _ := threadsReviewPayload["data"].(map[string]any)
+	if got := anyBoolValue(threadsReviewData["review_mode"]); !got {
+		t.Fatalf("expected review_mode marker in review payload, got %#v", threadsReviewData)
+	}
+	if got := anyBoolValue(threadsReviewData["related_event_content_enabled"]); !got {
+		t.Fatalf("expected related_event_content_enabled marker in review payload, got %#v", threadsReviewData)
+	}
+	if got := anyBoolValue(threadsReviewData["full_summary"]); !got {
+		t.Fatalf("expected full_summary enabled in review payload, got %#v", threadsReviewData)
+	}
+
 	threadsRecommendationsOut := runCLIForTest(t, home, env, nil, []string{
 		"--json",
 		"--base-url", server.URL,
@@ -4443,4 +4467,9 @@ func writeAgentProfile(t *testing.T, home string, agent string, profileJSON stri
 	if err := os.WriteFile(profilePath, []byte(profileJSON), 0o600); err != nil {
 		t.Fatalf("write profile: %v", err)
 	}
+}
+
+func anyBoolValue(raw any) bool {
+	value, _ := raw.(bool)
+	return value
 }

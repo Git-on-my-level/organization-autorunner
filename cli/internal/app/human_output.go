@@ -62,6 +62,8 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatThreadContext(body)
 	case "threads.inspect":
 		return formatThreadInspect(body)
+	case "threads.review":
+		return formatThreadWorkspace(body)
 	case "threads.workspace":
 		return formatThreadWorkspace(body)
 	case "threads.recommendations":

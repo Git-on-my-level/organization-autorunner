@@ -32,6 +32,38 @@ func (a *App) runThreadsWorkspaceCommand(ctx context.Context, args []string, cfg
 	return result, nil
 }
 
+func (a *App) runThreadsReviewCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, error) {
+	selection, err := parseThreadRecommendationsArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	selection.includeRelatedEventContent = true
+	selection.fullSummary = true
+
+	result, err := a.buildThreadWorkspaceResult(ctx, cfg, selection)
+	if err != nil {
+		return nil, err
+	}
+	data := asMap(result.Data)
+	body := extractNestedMap(data, "body")
+	if body == nil {
+		return result, nil
+	}
+	body["review_mode"] = true
+	body["related_event_content_enabled"] = true
+	data["body"] = body
+	result.Data = data
+	result.Text = formatTypedCommandText(
+		"threads.review",
+		intValue(data["status_code"]),
+		headerValues(data["headers"]),
+		body,
+		cfg.Verbose,
+		cfg.Headers,
+	)
+	return result, nil
+}
+
 func threadWorkspaceQuery(selection threadRecommendationsSelection) []queryParam {
 	query := threadContextQuery(selection.threadContextSelection)
 	if selection.includeRelatedEventContent {

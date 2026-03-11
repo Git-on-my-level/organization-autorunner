@@ -20,6 +20,10 @@ var machineCommandIdentityByPath = map[string]machineCommandIdentity{
 		Command:   "threads workspace",
 		CommandID: "threads.workspace",
 	},
+	"threads review": {
+		Command:   "threads review",
+		CommandID: "threads.review",
+	},
 	"threads propose-patch": {
 		Command:   "threads propose-patch",
 		CommandID: "threads.patch.propose",

@@ -470,6 +470,9 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 	case "workspace":
 		result, err := a.runThreadsWorkspaceCommand(ctx, args[1:], cfg)
 		return result, "threads workspace", err
+	case "review":
+		result, err := a.runThreadsReviewCommand(ctx, args[1:], cfg)
+		return result, "threads review", err
 	case "recommendations":
 		result, err := a.runThreadsRecommendationsCommand(ctx, args[1:], cfg)
 		return result, "threads recommendations", err

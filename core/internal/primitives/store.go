@@ -2005,14 +2005,46 @@ func buildListCommitmentsQuery(filter CommitmentListFilter) (string, []any) {
 }
 
 func buildListArtifactsQuery(filter ArtifactListFilter) (string, []any) {
+	if threadID := strings.TrimSpace(filter.ThreadID); threadID != "" {
+		primaryClauses := []string{"thread_id = ?"}
+		secondaryClauses := []string{"COALESCE(thread_id, '') <> ?", "EXISTS (SELECT 1 FROM json_each(refs_json) WHERE value = ?)"}
+		primaryArgs := []any{threadID}
+		secondaryArgs := []any{threadID, "thread:" + threadID}
+		if !filter.IncludeTombstoned {
+			primaryClauses = append(primaryClauses, "tombstoned_at IS NULL")
+			secondaryClauses = append(secondaryClauses, "tombstoned_at IS NULL")
+		}
+		if kind := strings.TrimSpace(filter.Kind); kind != "" {
+			primaryClauses = append(primaryClauses, "kind = ?")
+			secondaryClauses = append(secondaryClauses, "kind = ?")
+			primaryArgs = append(primaryArgs, kind)
+			secondaryArgs = append(secondaryArgs, kind)
+		}
+		if createdAfter := strings.TrimSpace(filter.CreatedAfter); createdAfter != "" {
+			primaryClauses = append(primaryClauses, "created_at >= ?")
+			secondaryClauses = append(secondaryClauses, "created_at >= ?")
+			primaryArgs = append(primaryArgs, createdAfter)
+			secondaryArgs = append(secondaryArgs, createdAfter)
+		}
+		if createdBefore := strings.TrimSpace(filter.CreatedBefore); createdBefore != "" {
+			primaryClauses = append(primaryClauses, "created_at <= ?")
+			secondaryClauses = append(secondaryClauses, "created_at <= ?")
+			primaryArgs = append(primaryArgs, createdBefore)
+			secondaryArgs = append(secondaryArgs, createdBefore)
+		}
+		query := `SELECT metadata_json FROM (
+			SELECT metadata_json, created_at, id FROM artifacts WHERE ` + strings.Join(primaryClauses, " AND ") + `
+			UNION ALL
+			SELECT metadata_json, created_at, id FROM artifacts WHERE ` + strings.Join(secondaryClauses, " AND ") + `
+		) ORDER BY created_at ASC, id ASC`
+		args := append(primaryArgs, secondaryArgs...)
+		return query, args
+	}
+
 	query := `SELECT metadata_json FROM artifacts WHERE 1=1`
 	args := make([]any, 0, 6)
 	if !filter.IncludeTombstoned {
 		query += ` AND tombstoned_at IS NULL`
-	}
-	if threadID := strings.TrimSpace(filter.ThreadID); threadID != "" {
-		query += ` AND thread_id = ?`
-		args = append(args, threadID)
 	}
 	if kind := strings.TrimSpace(filter.Kind); kind != "" {
 		query += ` AND kind = ?`
