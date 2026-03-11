@@ -104,6 +104,8 @@ ref_format:
     "event:<id>":     "References an event by ID"
     "thread:<id>":    "References a thread (snapshot) by ID — convenience alias for snapshot:<id> where type=thread"
     "inbox:<id>":     "References a derived inbox item by ID"
+    "document:<id>":  "References a document by ID"
+    "document_revision:<id>": "References a document revision by revision ID"
     "url:<url>":      "References an external URL"
   rules:
     - "All ref strings MUST begin with a typed prefix followed by a colon and the value."

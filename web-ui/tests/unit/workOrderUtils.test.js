@@ -31,7 +31,14 @@ describe("work order list helpers", () => {
 
 describe("typed ref validation", () => {
   it("rejects malformed refs", () => {
-    expect(validateTypedRefs(["artifact:a", "event:evt-1"])).toEqual({
+    expect(
+      validateTypedRefs([
+        "artifact:a",
+        "event:evt-1",
+        "document:doc-1",
+        "document_revision:rev-1",
+      ]),
+    ).toEqual({
       valid: true,
       invalidRefs: [],
     });
