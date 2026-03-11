@@ -30,6 +30,7 @@ This package contains the SvelteKit web UI for Organization Autorunner.
 - Optional external mount prefix: `OAR_UI_BASE_PATH=/oar`
   - External routes become `/oar/:project/...`
   - Build/dev the UI with the same base path you plan to serve
+  - Put build-time values in `web-ui/.env.build` or override them via shell env
   - Reverse proxies should preserve the prefix instead of stripping it
 
 - The SvelteKit server resolves proxied API traffic from the active project
@@ -45,6 +46,8 @@ WebAuthn constraints.
 ## Production serving
 
 `./scripts/build` produces a Node.js server (`ADAPTER=node` by default).
+`svelte.config.js` reads `web-ui/.env.build` and `web-ui/.env.build.local` at
+startup, with shell env taking precedence over file values.
 `./scripts/serve` starts it with `node build/index.js`. Do not use
 `vite preview` for production or reverse-proxied deployments -- it does not
 execute SvelteKit server hooks, so API proxying and bootstrap endpoints will

@@ -1,19 +1,9 @@
 import adapterAuto from "@sveltejs/adapter-auto";
 import adapterNode from "@sveltejs/adapter-node";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
+import { resolveUiBuildConfig } from "./buildEnv.js";
 
-const useNodeAdapter = process.env.ADAPTER === "node";
-const basePath = normalizeBasePath(process.env.OAR_UI_BASE_PATH);
-
-function normalizeBasePath(value = "") {
-  const trimmed = String(value ?? "").trim();
-  if (!trimmed || trimmed === "/") {
-    return "";
-  }
-
-  const normalized = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
-  return normalized.replace(/\/+$/, "");
-}
+const { basePath, useNodeAdapter } = resolveUiBuildConfig();
 
 const config = {
   preprocess: vitePreprocess(),
