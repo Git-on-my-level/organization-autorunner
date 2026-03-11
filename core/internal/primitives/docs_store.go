@@ -38,11 +38,7 @@ type documentRow struct {
 	HeadCreatedBy   sql.NullString
 }
 
-func (s *Store) ListDocuments(ctx context.Context, filter DocumentListFilter) ([]map[string]any, error) {
-	if s == nil || s.db == nil {
-		return nil, fmt.Errorf("primitives store database is not initialized")
-	}
-
+func buildListDocumentsQuery(filter DocumentListFilter) (string, []any) {
 	query := `SELECT d.id, d.thread_id, d.title, d.slug, d.status, d.labels_json, d.supersedes_json,
 		d.head_revision_id, d.head_revision_number, d.created_at, d.created_by, d.updated_at, d.updated_by,
 		d.tombstoned_at, d.tombstoned_by, d.tombstone_reason,
@@ -63,7 +59,15 @@ func (s *Store) ListDocuments(ctx context.Context, filter DocumentListFilter) ([
 		query += ` WHERE ` + strings.Join(conditions, ` AND `)
 	}
 	query += ` ORDER BY d.updated_at DESC, d.id ASC`
+	return query, args
+}
 
+func (s *Store) ListDocuments(ctx context.Context, filter DocumentListFilter) ([]map[string]any, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("primitives store database is not initialized")
+	}
+
+	query, args := buildListDocumentsQuery(filter)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query documents: %w", err)
@@ -230,10 +234,11 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, thread_id, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		artifactID,
 		"doc",
+		nullableString(threadID),
 		now,
 		actorID,
 		contentType,
@@ -531,10 +536,11 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, thread_id, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		artifactID,
 		"doc",
+		nullableString(nextThreadID),
 		now,
 		actorID,
 		contentType,

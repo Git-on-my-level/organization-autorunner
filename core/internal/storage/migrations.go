@@ -225,6 +225,55 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_idempotency_replays_created_at ON idempotency_replays (created_at)`,
 		},
 	},
+	{
+		Version: 10,
+		Statements: []string{
+			`ALTER TABLE snapshots ADD COLUMN filter_status TEXT`,
+			`ALTER TABLE snapshots ADD COLUMN filter_priority TEXT`,
+			`ALTER TABLE snapshots ADD COLUMN filter_owner TEXT`,
+			`ALTER TABLE snapshots ADD COLUMN filter_due_at TEXT`,
+			`ALTER TABLE snapshots ADD COLUMN filter_cadence TEXT`,
+			`ALTER TABLE snapshots ADD COLUMN filter_cadence_preset TEXT`,
+			`ALTER TABLE snapshots ADD COLUMN filter_tags_json TEXT NOT NULL DEFAULT '[]'`,
+			`UPDATE snapshots
+			 SET filter_status = NULLIF(json_extract(body_json, '$.status'), ''),
+			     filter_priority = NULLIF(json_extract(body_json, '$.priority'), ''),
+			     filter_owner = NULLIF(json_extract(body_json, '$.owner'), ''),
+			     filter_due_at = NULLIF(json_extract(body_json, '$.due_at'), ''),
+			     filter_cadence = NULLIF(TRIM(COALESCE(json_extract(body_json, '$.cadence'), '')), ''),
+			     filter_cadence_preset = CASE
+			         WHEN kind != 'thread' THEN NULL
+			         WHEN TRIM(COALESCE(json_extract(body_json, '$.cadence'), '')) = '' THEN 'reactive'
+			         WHEN TRIM(json_extract(body_json, '$.cadence')) = 'reactive' THEN 'reactive'
+			         WHEN TRIM(json_extract(body_json, '$.cadence')) IN ('daily', '0 9 * * *') THEN 'daily'
+			         WHEN TRIM(json_extract(body_json, '$.cadence')) IN ('weekly', '0 9 * * 1') THEN 'weekly'
+			         WHEN TRIM(json_extract(body_json, '$.cadence')) IN ('monthly', '0 9 1 * *') THEN 'monthly'
+			         ELSE 'custom'
+			     END,
+			     filter_tags_json = CASE
+			         WHEN kind = 'thread' AND json_type(json_extract(body_json, '$.tags')) = 'array' THEN json_extract(body_json, '$.tags')
+			         ELSE '[]'
+			     END`,
+			`CREATE INDEX IF NOT EXISTS idx_snapshots_kind_updated_at ON snapshots (kind, updated_at DESC, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_snapshots_kind_status_updated_at ON snapshots (kind, filter_status, updated_at DESC, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_snapshots_kind_priority_updated_at ON snapshots (kind, filter_priority, updated_at DESC, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_snapshots_kind_cadence_preset_updated_at ON snapshots (kind, filter_cadence_preset, updated_at DESC, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_snapshots_commitments_thread_status_due_updated_at ON snapshots (kind, thread_id, filter_status, filter_due_at, updated_at DESC, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_snapshots_commitments_owner_status_due_updated_at ON snapshots (kind, filter_owner, filter_status, filter_due_at, updated_at DESC, id)`,
+			`ALTER TABLE artifacts ADD COLUMN thread_id TEXT`,
+			`UPDATE artifacts
+			 SET thread_id = COALESCE(
+			         NULLIF(json_extract(metadata_json, '$.thread_id'), ''),
+			         (SELECT substr(value, 8) FROM json_each(artifacts.refs_json) WHERE value LIKE 'thread:%' LIMIT 1)
+			     )`,
+			`CREATE INDEX IF NOT EXISTS idx_artifacts_kind_tombstoned_created_at ON artifacts (kind, tombstoned_at, created_at, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_artifacts_thread_tombstoned_created_at ON artifacts (thread_id, tombstoned_at, created_at, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_artifacts_thread_kind_tombstoned_created_at ON artifacts (thread_id, kind, tombstoned_at, created_at, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_documents_tombstoned_updated_at ON documents (tombstoned_at, updated_at DESC, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_documents_thread_tombstoned_updated_at ON documents (thread_id, tombstoned_at, updated_at DESC, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_documents_status_tombstoned_updated_at ON documents (status, tombstoned_at, updated_at DESC, id)`,
+		},
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

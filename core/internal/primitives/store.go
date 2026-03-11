@@ -45,6 +45,8 @@ type ThreadListFilter struct {
 	Status   string
 	Priority string
 	Tag      string
+	Tags     []string
+	Cadences []string
 	Stale    *bool
 	Now      time.Time
 }
@@ -207,6 +209,7 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 	metadata["content_type"] = contentType
 	metadata["content_hash"] = contentHash
 	metadata["content_path"] = filepath.Join(s.artifactContentDir, contentHash)
+	artifactThreadID := firstThreadRefValue(refs)
 
 	contentPath := metadata["content_path"].(string)
 	stagedContent, err := stageContentWrite(contentPath, encodedContent)
@@ -232,10 +235,11 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, thread_id, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		metadata["id"],
 		kind,
+		nullableString(artifactThreadID),
 		metadata["created_at"],
 		actorID,
 		contentType,
@@ -303,6 +307,7 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 	metadata["content_type"] = contentType
 	metadata["content_hash"] = contentHash
 	metadata["content_path"] = filepath.Join(s.artifactContentDir, contentHash)
+	artifactThreadID := firstThreadRefValue(artifactRefs)
 
 	contentPath := metadata["content_path"].(string)
 	stagedContent, err := stageContentWrite(contentPath, encodedContent)
@@ -332,10 +337,11 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO artifacts(id, kind, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO artifacts(id, kind, thread_id, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		metadata["id"],
 		kind,
+		nullableString(artifactThreadID),
 		metadata["created_at"],
 		actorID,
 		contentType,
@@ -422,27 +428,7 @@ func (s *Store) ListArtifacts(ctx context.Context, filter ArtifactListFilter) ([
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 
-	query := `SELECT metadata_json FROM artifacts WHERE 1=1`
-	args := make([]any, 0)
-
-	if !filter.IncludeTombstoned {
-		query += ` AND tombstoned_at IS NULL`
-	}
-
-	if filter.Kind != "" {
-		query += ` AND kind = ?`
-		args = append(args, filter.Kind)
-	}
-	if filter.CreatedAfter != "" {
-		query += ` AND created_at >= ?`
-		args = append(args, filter.CreatedAfter)
-	}
-	if filter.CreatedBefore != "" {
-		query += ` AND created_at <= ?`
-		args = append(args, filter.CreatedBefore)
-	}
-	query += ` ORDER BY created_at ASC, id ASC`
-
+	query, args := buildListArtifactsQuery(filter)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query artifacts: %w", err)
@@ -459,16 +445,6 @@ func (s *Store) ListArtifacts(ctx context.Context, filter ArtifactListFilter) ([
 		var metadata map[string]any
 		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
 			return nil, fmt.Errorf("decode artifact metadata: %w", err)
-		}
-
-		if filter.ThreadID != "" {
-			refs, err := normalizeStringSlice(metadata["refs"])
-			if err != nil {
-				return nil, fmt.Errorf("decode artifact refs for filter: %w", err)
-			}
-			if !containsThreadRef(refs, filter.ThreadID) {
-				continue
-			}
 		}
 
 		artifacts = append(artifacts, metadata)
@@ -639,6 +615,7 @@ func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, pa
 	if err != nil {
 		return PatchSnapshotResult{}, fmt.Errorf("encode patched snapshot provenance: %w", err)
 	}
+	filterColumns := snapshotFilterColumnsForKind(snapshotKind, current)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -649,22 +626,44 @@ func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, pa
 	if ifUpdatedAt != nil {
 		updateResult, err = tx.ExecContext(
 			ctx,
-			`UPDATE snapshots SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ? WHERE id = ? AND updated_at = ?`,
+			`UPDATE snapshots
+			 SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ?,
+			     filter_status = ?, filter_priority = ?, filter_owner = ?, filter_due_at = ?,
+			     filter_cadence = ?, filter_cadence_preset = ?, filter_tags_json = ?
+			 WHERE id = ? AND updated_at = ?`,
 			string(updatedBodyJSON),
 			string(updatedProvenanceJSON),
 			updatedAt,
 			actorID,
+			nullableString(filterColumns.Status),
+			nullableString(filterColumns.Priority),
+			nullableString(filterColumns.Owner),
+			nullableString(filterColumns.DueAt),
+			nullableString(filterColumns.Cadence),
+			nullableString(filterColumns.CadencePreset),
+			filterColumns.TagsJSON,
 			snapshotID,
 			*ifUpdatedAt,
 		)
 	} else {
 		updateResult, err = tx.ExecContext(
 			ctx,
-			`UPDATE snapshots SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+			`UPDATE snapshots
+			 SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ?,
+			     filter_status = ?, filter_priority = ?, filter_owner = ?, filter_due_at = ?,
+			     filter_cadence = ?, filter_cadence_preset = ?, filter_tags_json = ?
+			 WHERE id = ?`,
 			string(updatedBodyJSON),
 			string(updatedProvenanceJSON),
 			updatedAt,
 			actorID,
+			nullableString(filterColumns.Status),
+			nullableString(filterColumns.Priority),
+			nullableString(filterColumns.Owner),
+			nullableString(filterColumns.DueAt),
+			nullableString(filterColumns.Cadence),
+			nullableString(filterColumns.CadencePreset),
+			filterColumns.TagsJSON,
 			snapshotID,
 		)
 	}
@@ -765,6 +764,7 @@ func (s *Store) CreateThread(ctx context.Context, actorID string, thread map[str
 	if err != nil {
 		return PatchSnapshotResult{}, fmt.Errorf("marshal thread provenance: %w", err)
 	}
+	filterColumns := snapshotFilterColumnsForKind("thread", body)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -773,14 +773,21 @@ func (s *Store) CreateThread(ctx context.Context, actorID string, thread map[str
 
 	_, err = tx.ExecContext(
 		ctx,
-		`INSERT INTO snapshots(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json)
-		 VALUES (?, 'thread', ?, ?, ?, ?, ?)`,
+		`INSERT INTO snapshots(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json, filter_status, filter_priority, filter_owner, filter_due_at, filter_cadence, filter_cadence_preset, filter_tags_json)
+		 VALUES (?, 'thread', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		threadID,
 		threadID,
 		updatedAt,
 		actorID,
 		string(bodyJSON),
 		string(provenanceJSON),
+		nullableString(filterColumns.Status),
+		nullableString(filterColumns.Priority),
+		nil,
+		nil,
+		nullableString(filterColumns.Cadence),
+		nullableString(filterColumns.CadencePreset),
+		filterColumns.TagsJSON,
 	)
 	if err != nil {
 		_ = tx.Rollback()
@@ -860,13 +867,8 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 
-	rows, err := s.db.QueryContext(
-		ctx,
-		`SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json
-		 FROM snapshots
-		 WHERE kind = 'thread'
-		 ORDER BY updated_at DESC, id ASC`,
-	)
+	query, args := buildListThreadsQuery(filter)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query threads: %w", err)
 	}
@@ -888,24 +890,6 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 			return nil, err
 		}
 
-		if filter.Status != "" {
-			status, _ := snapshot["status"].(string)
-			if status != filter.Status {
-				continue
-			}
-		}
-		if filter.Priority != "" {
-			priority, _ := snapshot["priority"].(string)
-			if priority != filter.Priority {
-				continue
-			}
-		}
-		if filter.Tag != "" {
-			tags, err := normalizeStringSlice(snapshot["tags"])
-			if err != nil || !containsString(tags, filter.Tag) {
-				continue
-			}
-		}
 		if filter.Stale != nil {
 			stale := threadIsStale(snapshot, now)
 			if stale != *filter.Stale {
@@ -1288,6 +1272,7 @@ func (s *Store) CreateCommitment(ctx context.Context, actorID string, commitment
 	if err != nil {
 		return PatchSnapshotResult{}, fmt.Errorf("marshal commitment provenance: %w", err)
 	}
+	filterColumns := snapshotFilterColumnsForKind("commitment", body)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1296,14 +1281,21 @@ func (s *Store) CreateCommitment(ctx context.Context, actorID string, commitment
 
 	_, err = tx.ExecContext(
 		ctx,
-		`INSERT INTO snapshots(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json)
-		 VALUES (?, 'commitment', ?, ?, ?, ?, ?)`,
+		`INSERT INTO snapshots(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json, filter_status, filter_priority, filter_owner, filter_due_at, filter_cadence, filter_cadence_preset, filter_tags_json)
+		 VALUES (?, 'commitment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		commitmentID,
 		threadID,
 		updatedAt,
 		actorID,
 		string(bodyJSON),
 		string(provenanceJSON),
+		nullableString(filterColumns.Status),
+		nil,
+		nullableString(filterColumns.Owner),
+		nullableString(filterColumns.DueAt),
+		nil,
+		nil,
+		filterColumns.TagsJSON,
 	)
 	if err != nil {
 		_ = tx.Rollback()
@@ -1456,6 +1448,7 @@ func (s *Store) PatchCommitment(ctx context.Context, actorID string, id string, 
 	if err != nil {
 		return PatchSnapshotResult{}, fmt.Errorf("encode patched commitment provenance: %w", err)
 	}
+	filterColumns := snapshotFilterColumnsForKind("commitment", currentBody)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1466,22 +1459,34 @@ func (s *Store) PatchCommitment(ctx context.Context, actorID string, id string, 
 	if ifUpdatedAt != nil {
 		updateResult, err = tx.ExecContext(
 			ctx,
-			`UPDATE snapshots SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ? WHERE id = ? AND updated_at = ?`,
+			`UPDATE snapshots
+			 SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ?,
+			     filter_status = ?, filter_owner = ?, filter_due_at = ?
+			 WHERE id = ? AND updated_at = ?`,
 			string(bodyJSON),
 			string(provenanceJSON),
 			updatedAt,
 			actorID,
+			nullableString(filterColumns.Status),
+			nullableString(filterColumns.Owner),
+			nullableString(filterColumns.DueAt),
 			id,
 			*ifUpdatedAt,
 		)
 	} else {
 		updateResult, err = tx.ExecContext(
 			ctx,
-			`UPDATE snapshots SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ? WHERE id = ?`,
+			`UPDATE snapshots
+			 SET body_json = ?, provenance_json = ?, updated_at = ?, updated_by = ?,
+			     filter_status = ?, filter_owner = ?, filter_due_at = ?
+			 WHERE id = ?`,
 			string(bodyJSON),
 			string(provenanceJSON),
 			updatedAt,
 			actorID,
+			nullableString(filterColumns.Status),
+			nullableString(filterColumns.Owner),
+			nullableString(filterColumns.DueAt),
 			id,
 		)
 	}
@@ -1565,13 +1570,8 @@ func (s *Store) ListCommitments(ctx context.Context, filter CommitmentListFilter
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 
-	rows, err := s.db.QueryContext(
-		ctx,
-		`SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json
-		 FROM snapshots
-		 WHERE kind = 'commitment'
-		 ORDER BY updated_at DESC, id ASC`,
-	)
+	query, args := buildListCommitmentsQuery(filter)
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query commitments: %w", err)
 	}
@@ -1586,37 +1586,6 @@ func (s *Store) ListCommitments(ctx context.Context, filter CommitmentListFilter
 		snapshot, err := row.ToSnapshotMap()
 		if err != nil {
 			return nil, err
-		}
-
-		if filter.ThreadID != "" {
-			threadID, _ := snapshot["thread_id"].(string)
-			if threadID != filter.ThreadID {
-				continue
-			}
-		}
-		if filter.Owner != "" {
-			owner, _ := snapshot["owner"].(string)
-			if owner != filter.Owner {
-				continue
-			}
-		}
-		if filter.Status != "" {
-			status, _ := snapshot["status"].(string)
-			if status != filter.Status {
-				continue
-			}
-		}
-		if filter.DueAfter != "" || filter.DueBefore != "" {
-			dueAt, _ := snapshot["due_at"].(string)
-			if strings.TrimSpace(dueAt) == "" {
-				continue
-			}
-			if filter.DueAfter != "" && dueAt < filter.DueAfter {
-				continue
-			}
-			if filter.DueBefore != "" && dueAt > filter.DueBefore {
-				continue
-			}
 		}
 
 		commitments = append(commitments, snapshot)
@@ -1758,6 +1727,16 @@ type snapshotRow struct {
 	ProvenanceJSON string
 }
 
+type snapshotFilterColumns struct {
+	Status        string
+	Priority      string
+	Owner         string
+	DueAt         string
+	Cadence       string
+	CadencePreset string
+	TagsJSON      string
+}
+
 func (s *Store) getSnapshotRow(ctx context.Context, id string) (snapshotRow, error) {
 	if s == nil || s.db == nil {
 		return snapshotRow{}, fmt.Errorf("primitives store database is not initialized")
@@ -1881,6 +1860,193 @@ func containsThreadRef(refs []string, threadID string) bool {
 		}
 	}
 	return false
+}
+
+func firstThreadRefValue(refs []string) string {
+	for _, ref := range refs {
+		prefix, value, ok := splitTypedRef(ref)
+		if !ok || prefix != "thread" {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func snapshotFilterColumnsForKind(kind string, body map[string]any) snapshotFilterColumns {
+	columns := snapshotFilterColumns{TagsJSON: "[]"}
+	if body == nil {
+		return columns
+	}
+
+	switch strings.TrimSpace(kind) {
+	case "thread":
+		columns.Status = strings.TrimSpace(anyStringValue(body["status"]))
+		columns.Priority = strings.TrimSpace(anyStringValue(body["priority"]))
+		columns.Cadence = schedule.NormalizeCadence(anyStringValue(body["cadence"]))
+		columns.CadencePreset = schedule.CadencePreset(columns.Cadence)
+		if columns.CadencePreset == "" && strings.TrimSpace(columns.Cadence) == "" {
+			columns.CadencePreset = schedule.CadenceReactive
+		}
+		if tags, err := normalizeStringSlice(body["tags"]); err == nil {
+			sortStringsStable(tags)
+			if tagsJSON, err := json.Marshal(tags); err == nil {
+				columns.TagsJSON = string(tagsJSON)
+			}
+		}
+	case "commitment":
+		columns.Status = strings.TrimSpace(anyStringValue(body["status"]))
+		columns.Owner = strings.TrimSpace(anyStringValue(body["owner"]))
+		columns.DueAt = strings.TrimSpace(anyStringValue(body["due_at"]))
+	}
+
+	return columns
+}
+
+func combineThreadTagFilters(filter ThreadListFilter) []string {
+	values := make([]string, 0, len(filter.Tags)+1)
+	if tag := strings.TrimSpace(filter.Tag); tag != "" {
+		values = append(values, tag)
+	}
+	values = append(values, filter.Tags...)
+	return uniqueNormalizedStrings(values)
+}
+
+func uniqueNormalizedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func buildThreadCadenceFilterClause(filters []string) (string, []any) {
+	normalized := uniqueNormalizedStrings(filters)
+	if len(normalized) == 0 {
+		return "", nil
+	}
+
+	clauses := make([]string, 0, len(normalized)*2)
+	args := make([]any, 0, len(normalized)*2)
+	for _, raw := range normalized {
+		cadence := schedule.NormalizeCadence(raw)
+		if cadence == "" {
+			continue
+		}
+		if schedule.IsCronCadence(cadence) {
+			clauses = append(clauses, "filter_cadence = ?")
+			args = append(args, cadence)
+			preset := schedule.CadencePreset(cadence)
+			if preset != "" && preset != schedule.CadenceCustom {
+				clauses = append(clauses, "filter_cadence_preset = ?")
+				args = append(args, preset)
+			}
+			continue
+		}
+		if preset := schedule.CadencePreset(cadence); preset != "" {
+			clauses = append(clauses, "filter_cadence_preset = ?")
+			args = append(args, preset)
+		}
+	}
+	if len(clauses) == 0 {
+		return "", nil
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")", args
+}
+
+func buildListThreadsQuery(filter ThreadListFilter) (string, []any) {
+	query := `SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json
+		 FROM snapshots
+		 WHERE kind = 'thread'`
+	args := make([]any, 0, 8)
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		query += ` AND filter_status = ?`
+		args = append(args, status)
+	}
+	if priority := strings.TrimSpace(filter.Priority); priority != "" {
+		query += ` AND filter_priority = ?`
+		args = append(args, priority)
+	}
+	for _, tag := range combineThreadTagFilters(filter) {
+		query += ` AND EXISTS (SELECT 1 FROM json_each(filter_tags_json) WHERE value = ?)`
+		args = append(args, tag)
+	}
+	if cadenceClause, cadenceArgs := buildThreadCadenceFilterClause(filter.Cadences); cadenceClause != "" {
+		query += ` AND ` + cadenceClause
+		args = append(args, cadenceArgs...)
+	}
+	query += ` ORDER BY updated_at DESC, id ASC`
+	return query, args
+}
+
+func buildListCommitmentsQuery(filter CommitmentListFilter) (string, []any) {
+	query := `SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json
+		 FROM snapshots
+		 WHERE kind = 'commitment'`
+	args := make([]any, 0, 6)
+	if threadID := strings.TrimSpace(filter.ThreadID); threadID != "" {
+		query += ` AND thread_id = ?`
+		args = append(args, threadID)
+	}
+	if owner := strings.TrimSpace(filter.Owner); owner != "" {
+		query += ` AND filter_owner = ?`
+		args = append(args, owner)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		query += ` AND filter_status = ?`
+		args = append(args, status)
+	}
+	if dueAfter := strings.TrimSpace(filter.DueAfter); dueAfter != "" {
+		query += ` AND filter_due_at >= ?`
+		args = append(args, dueAfter)
+	}
+	if dueBefore := strings.TrimSpace(filter.DueBefore); dueBefore != "" {
+		query += ` AND filter_due_at <= ?`
+		args = append(args, dueBefore)
+	}
+	query += ` ORDER BY updated_at DESC, id ASC`
+	return query, args
+}
+
+func buildListArtifactsQuery(filter ArtifactListFilter) (string, []any) {
+	query := `SELECT metadata_json FROM artifacts WHERE 1=1`
+	args := make([]any, 0, 6)
+	if !filter.IncludeTombstoned {
+		query += ` AND tombstoned_at IS NULL`
+	}
+	if threadID := strings.TrimSpace(filter.ThreadID); threadID != "" {
+		query += ` AND thread_id = ?`
+		args = append(args, threadID)
+	}
+	if kind := strings.TrimSpace(filter.Kind); kind != "" {
+		query += ` AND kind = ?`
+		args = append(args, kind)
+	}
+	if createdAfter := strings.TrimSpace(filter.CreatedAfter); createdAfter != "" {
+		query += ` AND created_at >= ?`
+		args = append(args, createdAfter)
+	}
+	if createdBefore := strings.TrimSpace(filter.CreatedBefore); createdBefore != "" {
+		query += ` AND created_at <= ?`
+		args = append(args, createdBefore)
+	}
+	query += ` ORDER BY created_at ASC, id ASC`
+	return query, args
 }
 
 func containsString(values []string, expected string) bool {

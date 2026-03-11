@@ -219,21 +219,12 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	threads, err := opts.primitiveStore.ListThreads(r.Context(), primitives.ThreadListFilter{
 		Status:   strings.TrimSpace(query.Get("status")),
 		Priority: strings.TrimSpace(query.Get("priority")),
+		Tags:     tagsFilter,
+		Cadences: cadenceFilter,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list threads")
 		return
-	}
-
-	if len(tagsFilter) > 0 || len(cadenceFilter) > 0 {
-		filtered := make([]map[string]any, 0, len(threads))
-		for _, thread := range threads {
-			if !threadMatchesTagsAndCadence(thread, tagsFilter, cadenceFilter) {
-				continue
-			}
-			filtered = append(filtered, thread)
-		}
-		threads = filtered
 	}
 
 	events, err := opts.primitiveStore.ListEvents(r.Context(), primitives.EventListFilter{
