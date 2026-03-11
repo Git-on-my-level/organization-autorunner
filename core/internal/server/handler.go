@@ -264,7 +264,7 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"schema_version": schemaVersion})
+		writeJSON(w, http.StatusOK, versionPayload(opts, schemaVersion))
 	})
 
 	mux.HandleFunc("/meta/handshake", func(w http.ResponseWriter, r *http.Request) {

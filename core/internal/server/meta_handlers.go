@@ -10,15 +10,29 @@ import (
 )
 
 func handleMetaHandshake(w http.ResponseWriter, _ *http.Request, opts handlerOptions, schemaVersion string) {
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, http.StatusOK, handshakePayload(opts, schemaVersion))
+}
+
+func handshakePayload(opts handlerOptions, schemaVersion string) map[string]any {
+	commandRegistryDigest := loadCommandRegistryDigest(opts)
+	payload := map[string]any{
 		"core_version":            strings.TrimSpace(opts.coreVersion),
 		"api_version":             strings.TrimSpace(opts.apiVersion),
 		"schema_version":          strings.TrimSpace(schemaVersion),
+		"command_registry_digest": strings.TrimSpace(commandRegistryDigest),
 		"min_cli_version":         strings.TrimSpace(opts.minCLIVersion),
 		"recommended_cli_version": strings.TrimSpace(opts.recommendedCLIVersion),
 		"cli_download_url":        strings.TrimSpace(opts.cliDownloadURL),
 		"core_instance_id":        strings.TrimSpace(opts.coreInstanceID),
-	})
+	}
+	return payload
+}
+
+func versionPayload(opts handlerOptions, schemaVersion string) map[string]any {
+	return map[string]any{
+		"schema_version":          strings.TrimSpace(schemaVersion),
+		"command_registry_digest": strings.TrimSpace(loadCommandRegistryDigest(opts)),
+	}
 }
 
 func handleMetaCommands(w http.ResponseWriter, _ *http.Request, opts handlerOptions) {

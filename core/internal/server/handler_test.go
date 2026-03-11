@@ -51,6 +51,34 @@ func TestVersionEndpoint(t *testing.T) {
 	if payload["schema_version"] != "0.2.2" {
 		t.Fatalf("unexpected schema_version: got %q", payload["schema_version"])
 	}
+	if payload["command_registry_digest"] == "" {
+		t.Fatalf("expected command registry digest, payload=%#v", payload)
+	}
+}
+
+func TestHandshakeIncludesCommandRegistryDigest(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler("0.2.2")
+	req := httptest.NewRequest(http.MethodGet, "/meta/handshake", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d", rr.Code)
+	}
+
+	var payload map[string]string
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode body: %v", err)
+	}
+	if payload["schema_version"] != "0.2.2" {
+		t.Fatalf("unexpected schema_version: got %q", payload["schema_version"])
+	}
+	if payload["command_registry_digest"] == "" {
+		t.Fatalf("expected command registry digest, payload=%#v", payload)
+	}
 }
 
 func TestMethodNotAllowed(t *testing.T) {
