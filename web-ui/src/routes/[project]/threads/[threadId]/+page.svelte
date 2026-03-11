@@ -26,14 +26,16 @@
 
   const STREAM_RECONNECT_DELAY_MS = 1_500;
   const RECONCILE_INTERVAL_MS = 120_000;
-  let reconcileTimer;
-  let stopThreadStream = () => {};
+  const liveCoordination = {
+    reconcileTimer: null,
+    stopThreadStream: () => {},
+  };
 
   onMount(async () => {
     await ensureActorRegistry();
     await threadDetailStore.fullRefresh(threadId);
-    stopThreadStream = startThreadEventStream(threadId);
-    reconcileTimer = setInterval(
+    liveCoordination.stopThreadStream = startThreadEventStream(threadId);
+    liveCoordination.reconcileTimer = setInterval(
       () =>
         threadDetailStore.queueRefreshThreadDetail(threadId, {
           workspace: true,
@@ -45,8 +47,8 @@
   });
 
   onDestroy(() => {
-    stopThreadStream();
-    clearInterval(reconcileTimer);
+    liveCoordination.stopThreadStream();
+    clearInterval(liveCoordination.reconcileTimer);
   });
 
   async function ensureActorRegistry() {

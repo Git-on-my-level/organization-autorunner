@@ -2006,7 +2006,11 @@ function artifactContentPreview(content) {
   return text.length <= 500 ? text : text.slice(0, 500);
 }
 
-function buildMockWorkspaceCollaboration(recentEvents, keyArtifacts, openCommitments) {
+function buildMockWorkspaceCollaboration(
+  recentEvents,
+  keyArtifacts,
+  openCommitments,
+) {
   const recommendations = recentEvents.filter(
     (event) => String(event.type) === "actor_statement",
   );
@@ -2348,7 +2352,12 @@ export function createMockWorkOrder({ actor_id, artifact = {}, packet = {} }) {
   const requestKey = String(arguments[0]?.request_key ?? "").trim();
   const issuedArtifactId =
     requestKey && !artifact.id && !packet.work_order_id
-      ? `artifact-work-order-${requestKey.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 20) || "mock"}`
+      ? `artifact-work-order-${
+          requestKey
+            .replace(/[^a-z0-9]+/gi, "-")
+            .toLowerCase()
+            .slice(0, 20) || "mock"
+        }`
       : "";
   const artifactId = String(artifact.id ?? issuedArtifactId).trim();
   const packetId = String(packet.work_order_id ?? artifactId).trim();
@@ -2593,10 +2602,10 @@ export function listMockDocuments(filters = {}) {
       };
     })
     .sort((left, right) => {
-    const timeDelta =
-      Date.parse(right.updated_at ?? 0) - Date.parse(left.updated_at ?? 0);
-    if (timeDelta !== 0) return timeDelta;
-    return String(left.id ?? "").localeCompare(String(right.id ?? ""));
+      const timeDelta =
+        Date.parse(right.updated_at ?? 0) - Date.parse(left.updated_at ?? 0);
+      if (timeDelta !== 0) return timeDelta;
+      return String(left.id ?? "").localeCompare(String(right.id ?? ""));
     });
 }
 
@@ -2772,7 +2781,12 @@ export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {
   const requestKey = String(arguments[0]?.request_key ?? "").trim();
   const issuedArtifactId =
     requestKey && !artifact.id && !packet.receipt_id
-      ? `artifact-receipt-${requestKey.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 20) || "mock"}`
+      ? `artifact-receipt-${
+          requestKey
+            .replace(/[^a-z0-9]+/gi, "-")
+            .toLowerCase()
+            .slice(0, 20) || "mock"
+        }`
       : "";
   const artifactId = String(artifact.id ?? issuedArtifactId).trim();
   const packetId = String(packet.receipt_id ?? artifactId).trim();

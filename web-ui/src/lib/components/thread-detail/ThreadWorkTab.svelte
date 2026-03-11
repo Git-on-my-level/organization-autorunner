@@ -264,7 +264,8 @@
         id: String(createdArtifact.id ?? "").trim(),
         summary:
           String(
-            createdArtifact.summary ?? v.normalized.changes_summary.slice(0, 120),
+            createdArtifact.summary ??
+              v.normalized.changes_summary.slice(0, 120),
           ).trim() || v.normalized.changes_summary.slice(0, 120),
       };
       receiptNotice = "Receipt submitted.";
@@ -328,14 +329,18 @@
         ></textarea></label
       >
 
-      <div class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3">
+      <div
+        class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
+      >
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p class="text-[12px] font-medium text-[var(--ui-text-muted)]">
               Suggested context refs
             </p>
             <p class="mt-0.5 text-[11px] text-[var(--ui-text-subtle)]">
-              Pull from key artifacts, recent receipts and reviews, decisions, and thread-linked docs. You can still edit the raw typed refs below.
+              Pull from key artifacts, recent receipts and reviews, decisions,
+              and thread-linked docs. You can still edit the raw typed refs
+              below.
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -372,10 +377,13 @@
                 title={suggestion.ref}
                 type="button"
               >
-                <span class="block truncate font-medium">{suggestion.title}</span>
+                <span class="block truncate font-medium"
+                  >{suggestion.title}</span
+                >
                 <span class="block truncate text-[10px] opacity-80">
                   {suggestion.source}: {suggestion.ref}
-                  {#if suggestion.detail} • {suggestion.detail}{/if}
+                  {#if suggestion.detail}
+                    • {suggestion.detail}{/if}
                 </span>
               </button>
             {/each}

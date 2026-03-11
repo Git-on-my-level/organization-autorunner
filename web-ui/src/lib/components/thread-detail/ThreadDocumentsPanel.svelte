@@ -82,30 +82,43 @@
   {:else}
     <div class="divide-y divide-[var(--ui-border-subtle)]">
       {#each documents as doc}
-        <a class="block px-4 py-3 transition-colors hover:bg-[var(--ui-bg-soft)]" href={documentHref(doc)}>
+        <a
+          class="block px-4 py-3 transition-colors hover:bg-[var(--ui-bg-soft)]"
+          href={documentHref(doc)}
+        >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <div class="flex flex-wrap items-center gap-2">
                 {#if doc.status}
-                  <span class={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${statusTone(doc.status)}`}>
+                  <span
+                    class={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${statusTone(doc.status)}`}
+                  >
                     {DOC_STATUS_LABELS[doc.status] ?? doc.status}
                   </span>
                 {/if}
                 <span class="text-[11px] text-[var(--ui-text-subtle)]">
-                  v{doc.head_revision?.revision_number ?? doc.head_revision_number ?? "?"}
+                  v{doc.head_revision?.revision_number ??
+                    doc.head_revision_number ??
+                    "?"}
                 </span>
                 {#if doc.head_revision?.content_type}
-                  <span class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]">
+                  <span
+                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                  >
                     {doc.head_revision.content_type}
                   </span>
                 {/if}
                 {#each (doc.labels ?? []).slice(0, 3) as label}
-                  <span class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]">
+                  <span
+                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                  >
                     {label}
                   </span>
                 {/each}
               </div>
-              <p class="mt-1 truncate text-[13px] font-medium text-[var(--ui-text)]">
+              <p
+                class="mt-1 truncate text-[13px] font-medium text-[var(--ui-text)]"
+              >
                 {doc.title || doc.id}
               </p>
               <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">
@@ -114,9 +127,13 @@
                 )}
               </p>
             </div>
-            <div class="shrink-0 text-right text-[11px] text-[var(--ui-text-subtle)]">
+            <div
+              class="shrink-0 text-right text-[11px] text-[var(--ui-text-subtle)]"
+            >
               <div>
-                Head revision {doc.head_revision?.revision_number ?? doc.head_revision_number ?? "?"}
+                Head revision {doc.head_revision?.revision_number ??
+                  doc.head_revision_number ??
+                  "?"}
               </div>
               <div>{formatTimestamp(doc.head_revision?.created_at) || "—"}</div>
             </div>

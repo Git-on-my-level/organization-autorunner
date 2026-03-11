@@ -10,7 +10,8 @@ export function GET({ params, url }) {
   }
 
   const maxEventsRaw = url.searchParams.get("max_events");
-  const maxEvents = maxEventsRaw == null ? undefined : Number.parseInt(maxEventsRaw, 10);
+  const maxEvents =
+    maxEventsRaw == null ? undefined : Number.parseInt(maxEventsRaw, 10);
   const workspace = getMockThreadWorkspace(params.threadId, {
     max_events: Number.isFinite(maxEvents) ? maxEvents : undefined,
     include_artifact_content:

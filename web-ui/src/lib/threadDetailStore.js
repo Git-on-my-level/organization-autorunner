@@ -82,8 +82,7 @@ function createThreadDetailStore() {
       });
       return workspace;
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       if (hasWorkspaceData) {
         patchState({
           documentsError: `Failed to refresh workspace: ${message}`,

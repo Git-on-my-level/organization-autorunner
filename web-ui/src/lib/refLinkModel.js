@@ -44,8 +44,7 @@ function humanizedLabelForPrefix(prefix, value) {
 }
 
 function resolveRefLabels(raw, prefix, value, options = {}) {
-  const humanize =
-    Boolean(options.humanize) || shouldHumanizeByDefault(prefix);
+  const humanize = Boolean(options.humanize) || shouldHumanizeByDefault(prefix);
   const labelHint = lookupLabelHint(raw, prefix, value, options.labelHints);
 
   if (!humanize) {

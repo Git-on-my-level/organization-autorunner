@@ -254,19 +254,22 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
     });
   });
 
-  await page.route(/\/artifacts\/artifact-work-order-doc-refs$/, async (route) => {
-    const request = route.request();
-    if (request.method() === "GET" && request.resourceType() === "document") {
-      await route.continue();
-      return;
-    }
+  await page.route(
+    /\/artifacts\/artifact-work-order-doc-refs$/,
+    async (route) => {
+      const request = route.request();
+      if (request.method() === "GET" && request.resourceType() === "document") {
+        await route.continue();
+        return;
+      }
 
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ artifact: workOrderArtifact }),
-    });
-  });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ artifact: workOrderArtifact }),
+      });
+    },
+  );
 
   await page.route(
     /\/artifacts\/artifact-work-order-doc-refs\/content$/,
@@ -357,13 +360,13 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
   await expect(
     page.getByText("Document refs linked for review.", { exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole("link", { name: "Document revision rev-pc-2" })
-    .click();
+  await page.getByRole("link", { name: "Document revision rev-pc-2" }).click();
   await expect(page).toHaveURL(
     /\/local\/docs\/product-constitution\?revision=rev-pc-2$/,
   );
-  await expect(page.getByText("Viewing revision 2", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("Viewing revision 2", { exact: false }),
+  ).toBeVisible();
   await expect(
     page.getByText("Draft revision with proposed escalation policy.", {
       exact: false,

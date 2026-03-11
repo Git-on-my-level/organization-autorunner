@@ -90,7 +90,9 @@
       return;
     }
 
-    const cachedRevision = revisions.find((rev) => rev.revision_id === revisionId);
+    const cachedRevision = revisions.find(
+      (rev) => rev.revision_id === revisionId,
+    );
     if (cachedRevision?.content) {
       selectedRevision = cachedRevision;
       return;
@@ -187,7 +189,9 @@
       }
 
       selectedRevision = loaded;
-      const idx = revisions.findIndex((r) => r.revision_id === targetRevisionId);
+      const idx = revisions.findIndex(
+        (r) => r.revision_id === targetRevisionId,
+      );
       if (idx >= 0) {
         revisions[idx] = { ...revisions[idx], ...loaded };
       } else if (loaded.revision_id) {

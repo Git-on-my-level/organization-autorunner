@@ -10,6 +10,8 @@ import (
 	"organization-autorunner-core/internal/primitives"
 )
 
+const derivedProjectionMaxAge = time.Minute
+
 func refreshDerivedThreadProjection(ctx context.Context, opts handlerOptions, threadID string, now time.Time, actorID string) error {
 	if opts.primitiveStore == nil {
 		return nil
@@ -165,6 +167,12 @@ func deriveThreadInboxItems(ctx context.Context, opts handlerOptions, threadID s
 func ensureDerivedThreadProjection(ctx context.Context, opts handlerOptions, threadID string, now time.Time) (primitives.DerivedThreadProjection, error) {
 	projection, err := opts.primitiveStore.GetDerivedThreadProjection(ctx, threadID)
 	if err == nil {
+		if derivedThreadProjectionExpired(projection, now) {
+			if err := refreshDerivedThreadProjection(ctx, opts, threadID, now, ""); err != nil {
+				return primitives.DerivedThreadProjection{}, err
+			}
+			return opts.primitiveStore.GetDerivedThreadProjection(ctx, threadID)
+		}
 		return projection, nil
 	}
 	if !errors.Is(err, primitives.ErrNotFound) {
@@ -181,22 +189,23 @@ func ensureDerivedThreadProjections(ctx context.Context, opts handlerOptions, th
 	if err != nil {
 		return nil, err
 	}
-	missing := make([]string, 0)
+	refreshIDs := make([]string, 0)
 	for _, threadID := range threadIDs {
 		threadID = strings.TrimSpace(threadID)
 		if threadID == "" {
 			continue
 		}
-		if _, ok := projections[threadID]; !ok {
-			missing = append(missing, threadID)
+		projection, ok := projections[threadID]
+		if !ok || derivedThreadProjectionExpired(projection, now) {
+			refreshIDs = append(refreshIDs, threadID)
 		}
 	}
-	for _, threadID := range missing {
+	for _, threadID := range refreshIDs {
 		if err := refreshDerivedThreadProjection(ctx, opts, threadID, now, ""); err != nil {
 			return nil, err
 		}
 	}
-	if len(missing) == 0 {
+	if len(refreshIDs) == 0 {
 		return projections, nil
 	}
 	return opts.primitiveStore.ListDerivedThreadProjections(ctx, threadIDs)
@@ -227,4 +236,12 @@ func formatOptionalTime(value time.Time) string {
 		return ""
 	}
 	return value.UTC().Format(time.RFC3339Nano)
+}
+
+func derivedThreadProjectionExpired(projection primitives.DerivedThreadProjection, now time.Time) bool {
+	generatedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(projection.GeneratedAt))
+	if err != nil {
+		return true
+	}
+	return now.Sub(generatedAt) >= derivedProjectionMaxAge
 }

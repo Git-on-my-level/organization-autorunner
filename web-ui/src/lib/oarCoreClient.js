@@ -218,7 +218,9 @@ async function consumeSSEStream(response, { onEvent, signal } = {}) {
     }
 
     buffer += decoder.decode();
-    const trailing = parseSSEChunk(buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n"));
+    const trailing = parseSSEChunk(
+      buffer.replace(/\r\n/g, "\n").replace(/\r/g, "\n"),
+    );
     if (trailing) {
       await onEvent?.(trailing);
     }
@@ -520,12 +522,7 @@ export function createOarCoreClient(options = {}) {
       invokeJSON("threads.timeline", () =>
         generated.threadsTimeline({ thread_id: String(threadId) }),
       ),
-    streamThreadEvents: async ({
-      threadId,
-      lastEventId,
-      signal,
-      onEvent,
-    }) => {
+    streamThreadEvents: async ({ threadId, lastEventId, signal, onEvent }) => {
       const response = await invokeRaw(
         "events.stream",
         {},

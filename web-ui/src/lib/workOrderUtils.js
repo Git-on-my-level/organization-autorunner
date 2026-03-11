@@ -107,7 +107,6 @@ function addSuggestion(suggestions, seenRefs, nextSuggestion) {
 }
 
 export function buildWorkOrderContextSuggestions({
-  threadId = "",
   snapshot = {},
   documents = [],
   timeline = [],
@@ -155,7 +154,8 @@ export function buildWorkOrderContextSuggestions({
       addSuggestion(suggestions, seenRefs, {
         ref: eventRef,
         kind: "event",
-        source: type === "decision_needed" ? "Pending decision" : "Recent decision",
+        source:
+          type === "decision_needed" ? "Pending decision" : "Recent decision",
         title: String(event?.summary ?? "").trim() || eventRef,
         detail: String(event?.ts ?? event?.created_at ?? "").trim(),
       });

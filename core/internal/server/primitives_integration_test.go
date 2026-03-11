@@ -181,7 +181,7 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 
 	createResp := postJSONExpectStatus(t, h.baseURL+"/docs", `{
 		"actor_id":"actor-1",
-		"document":{"id":"doc-1","thread_id":"thread-docs","title":"Constitution","labels":["governance"]},
+		"document":{"id":"doc-1","title":"Constitution","labels":["governance"]},
 		"refs":["thread:thread-docs"],
 		"content":"initial text",
 		"content_type":"text"

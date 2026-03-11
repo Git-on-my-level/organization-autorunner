@@ -116,9 +116,12 @@ describe("threadDetailStore", () => {
 
     await threadDetailStore.loadWorkspace("thread-1");
 
-    const firstPromise = threadDetailStore.queueRefreshThreadDetail("thread-1", {
-      workspace: true,
-    });
+    const firstPromise = threadDetailStore.queueRefreshThreadDetail(
+      "thread-1",
+      {
+        workspace: true,
+      },
+    );
     const secondPromise = threadDetailStore.queueRefreshThreadDetail(
       "thread-1",
       {

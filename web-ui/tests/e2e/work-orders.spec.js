@@ -405,7 +405,9 @@ test("work order composer suggests thread context refs and preserves manual edit
 
   const contextRefsInput = page.getByLabel("Context references (one per line)");
 
-  await expect(page.getByText("Composer prefilled from review context.")).toBeVisible();
+  await expect(
+    page.getByText("Composer prefilled from review context."),
+  ).toBeVisible();
   await expect(contextRefsInput).toHaveValue(
     "thread:thread-onboarding\nurl:https://example.com/review",
   );

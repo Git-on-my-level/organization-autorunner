@@ -237,6 +237,17 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		return
 	}
 
+	previousDocument, _, err := opts.primitiveStore.GetDocument(r.Context(), documentID)
+	if err != nil {
+		if errors.Is(err, primitives.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "document not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load document")
+		return
+	}
+	previousThreadID := anyString(previousDocument["thread_id"])
+
 	document, revision, err := opts.primitiveStore.UpdateDocument(
 		r.Context(),
 		actorID,
@@ -260,9 +271,16 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		}
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, anyString(document["thread_id"]), time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
-		return
+	refreshNow := time.Now().UTC()
+	threadIDsToRefresh := map[string]struct{}{
+		previousThreadID:                 {},
+		anyString(document["thread_id"]): {},
+	}
+	for threadID := range threadIDsToRefresh {
+		if err := refreshDerivedThreadProjection(r.Context(), opts, threadID, refreshNow, actorID); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+			return
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

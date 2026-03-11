@@ -967,7 +967,7 @@ func TestThreadContextBundlesRecentEventsArtifactsAndOpenCommitments(t *testing.
 
 	createDocumentResp := postJSONExpectStatus(t, h.baseURL+"/docs", `{
 		"actor_id":"actor-1",
-		"document":{"id":"ctx-doc-1","thread_id":"`+threadID+`","title":"Context runbook","status":"active","labels":["ops"]},
+		"document":{"id":"ctx-doc-1","title":"Context runbook","status":"active","labels":["ops"]},
 		"refs":["thread:`+threadID+`"],
 		"content":"# Context runbook",
 		"content_type":"text"

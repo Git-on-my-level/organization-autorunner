@@ -180,7 +180,9 @@ test("thread detail loads snapshot/timeline and posts reply message", async ({
 
   await page.goto("/threads/thread-onboarding");
 
-  await expect(page.getByText("Thread-linked docs and current head revisions.")).toBeVisible();
+  await expect(
+    page.getByText("Thread-linked docs and current head revisions."),
+  ).toBeVisible();
   const docLink = page.getByRole("link", { name: /Onboarding Runbook/ });
   await expect(docLink).toBeVisible();
   await expect(docLink).toHaveAttribute(
@@ -556,7 +558,9 @@ test("thread detail updates workspace panels from another actor via event stream
   await expect(
     page.getByText("Collect onboarding requirements", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText("Onboarding Runbook", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Onboarding Runbook", { exact: true }),
+  ).toBeVisible();
 
   threadSnapshot = {
     ...threadSnapshot,
