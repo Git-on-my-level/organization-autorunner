@@ -28,12 +28,22 @@ function createThreadDetailStore() {
   const patchState = (patch) => update((state) => ({ ...state, ...patch }));
 
   async function loadWorkspace(threadId, filters = {}) {
+    const currentState = get(store);
+    const hasWorkspaceData =
+      currentState.workspace !== null ||
+      currentState.snapshot !== null ||
+      currentState.documents.length > 0 ||
+      currentState.commitments.length > 0 ||
+      currentState.timeline.length > 0;
+
     patchState({
-      snapshotLoading: true,
-      snapshotError: "",
-      documentsLoading: true,
-      documentsError: "",
-      commitmentsLoading: true,
+      snapshotLoading: hasWorkspaceData ? currentState.snapshotLoading : true,
+      snapshotError: hasWorkspaceData ? currentState.snapshotError : "",
+      documentsLoading: hasWorkspaceData ? currentState.documentsLoading : true,
+      documentsError: hasWorkspaceData ? currentState.documentsError : "",
+      commitmentsLoading: hasWorkspaceData
+        ? currentState.commitmentsLoading
+        : true,
     });
     try {
       const workspace = await coreClient.getThreadWorkspace(threadId, filters);
@@ -44,7 +54,9 @@ function createThreadDetailStore() {
       patchState({
         workspace,
         snapshot: workspace?.thread ?? null,
+        snapshotError: "",
         documents: Array.isArray(context.documents) ? context.documents : [],
+        documentsError: "",
         commitments: Array.isArray(context.open_commitments)
           ? context.open_commitments
           : [],
@@ -56,15 +68,21 @@ function createThreadDetailStore() {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : String(error);
-      patchState({
-        workspace: null,
-        snapshotError: `Failed to load workspace: ${message}`,
-        snapshot: null,
-        documentsError: `Failed to load workspace: ${message}`,
-        documents: [],
-        commitments: [],
-        timeline: [],
-      });
+      if (hasWorkspaceData) {
+        patchState({
+          documentsError: `Failed to refresh workspace: ${message}`,
+        });
+      } else {
+        patchState({
+          workspace: null,
+          snapshotError: `Failed to load workspace: ${message}`,
+          snapshot: null,
+          documentsError: `Failed to load workspace: ${message}`,
+          documents: [],
+          commitments: [],
+          timeline: [],
+        });
+      }
       return null;
     } finally {
       patchState({
