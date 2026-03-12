@@ -90,6 +90,18 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatRevisionRecord(extractNestedMap(body, "revision"))
 	case "provenance.walk":
 		return formatProvenanceWalkSummary(asMap(body))
+	case "boards.list":
+		return formatBoardsList(body)
+	case "boards.get", "boards.create", "boards.update":
+		return formatBoardRecord(extractNestedMap(body, "board"))
+	case "boards.workspace":
+		return formatBoardWorkspace(body)
+	case "boards.cards.list":
+		return formatBoardCardsList(body)
+	case "boards.cards.add", "boards.cards.update", "boards.cards.move":
+		return formatBoardCardMutationResult(body)
+	case "boards.cards.remove":
+		return formatBoardCardRemoveResult(body)
 	default:
 		return formatPrettyBody(body)
 	}
@@ -1024,4 +1036,270 @@ func indentBlock(text string) []string {
 		lines[idx] = "  " + lines[idx]
 	}
 	return lines
+}
+
+var canonicalColumnOrder = []string{"backlog", "ready", "in_progress", "blocked", "review", "done"}
+
+func formatBoardsList(body any) string {
+	root := asMap(body)
+	items := asSlice(root["boards"])
+	lines := []string{fmt.Sprintf("Boards (%d):", len(items))}
+	for _, raw := range items {
+		item := asMap(raw)
+		if item == nil {
+			continue
+		}
+		board := asMap(item["board"])
+		summary := asMap(item["summary"])
+		if board == nil {
+			continue
+		}
+		lines = append(lines, "- "+renderBoardListItem(board, summary))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderBoardListItem(board map[string]any, summary map[string]any) string {
+	id := displayID(board)
+	title := anyString(board["title"])
+	status := anyString(board["status"])
+	cardCount := intValue(summary["card_count"])
+	openCommitments := intValue(summary["open_commitment_count"])
+	docCount := intValue(summary["document_count"])
+	return compactSummary(
+		id,
+		status,
+		title,
+		fmt.Sprintf("cards=%d", cardCount),
+		fmt.Sprintf("commitments=%d", openCommitments),
+		fmt.Sprintf("docs=%d", docCount),
+	)
+}
+
+func formatBoardRecord(board map[string]any) string {
+	if board == nil {
+		return formatPrettyBody(board)
+	}
+	lines := []string{"Board " + displayID(board)}
+	lines = appendScalar(lines, "title", board, "title")
+	lines = appendScalar(lines, "status", board, "status")
+	lines = appendScalar(lines, "primary_thread_id", board, "primary_thread_id")
+	lines = appendScalar(lines, "primary_document_id", board, "primary_document_id")
+	lines = appendStringList(lines, "labels", stringList(board["labels"]))
+	lines = appendStringList(lines, "owners", stringList(board["owners"]))
+	lines = appendScalar(lines, "updated_at", board, "updated_at")
+	lines = appendScalar(lines, "created_at", board, "created_at")
+	return strings.Join(lines, "\n")
+}
+
+func formatBoardWorkspace(body any) string {
+	root := asMap(body)
+	board := extractNestedMap(root, "board")
+	primaryThread := extractNestedMap(root, "primary_thread")
+	primaryDocument := extractNestedMap(root, "primary_document")
+	boardSummary := extractNestedMap(root, "board_summary")
+	cards := extractNestedMap(root, "cards")
+
+	lines := make([]string, 0, 64)
+
+	lines = append(lines, "Board "+displayID(board))
+	lines = appendScalar(lines, "title", board, "title")
+	lines = appendScalar(lines, "status", board, "status")
+
+	if primaryThread != nil {
+		lines = append(lines, "")
+		lines = append(lines, "Primary Thread:")
+		lines = append(lines, "- "+formatThreadRecord(primaryThread))
+	}
+
+	if primaryDocument != nil {
+		lines = append(lines, "")
+		lines = append(lines, "Primary Document:")
+		lines = append(lines, "- "+renderDocumentListItem(primaryDocument))
+	}
+
+	if boardSummary != nil {
+		lines = append(lines, "")
+		lines = append(lines, "Summary:")
+		cardCount := intValue(boardSummary["card_count"])
+		openCommitments := intValue(boardSummary["open_commitment_count"])
+		docCount := intValue(boardSummary["document_count"])
+		latestActivity := anyString(boardSummary["latest_activity_at"])
+		hasPrimaryDoc := asBool(boardSummary["has_primary_document"])
+		lines = append(lines, fmt.Sprintf("- cards=%d :: commitments=%d :: documents=%d", cardCount, openCommitments, docCount))
+		if latestActivity != "" {
+			lines = append(lines, fmt.Sprintf("- latest_activity: %s", latestActivity))
+		}
+		if hasPrimaryDoc {
+			lines = append(lines, "- primary_document: yes")
+		}
+	}
+
+	if cards != nil {
+		cardItems := asSlice(cards["items"])
+		if len(cardItems) > 0 {
+			lines = append(lines, "")
+			lines = appendBoardCardsByColumn(lines, cardItems)
+		}
+	}
+
+	generatedAt := anyString(root["generated_at"])
+	if generatedAt != "" {
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("generated_at: %s", generatedAt))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func appendBoardCardsByColumn(lines []string, cards []any) []string {
+	cardsByColumn := make(map[string][]any)
+	for _, raw := range cards {
+		cardWrapper := asMap(raw)
+		if cardWrapper == nil {
+			continue
+		}
+		card := asMap(cardWrapper["card"])
+		if card == nil {
+			continue
+		}
+		columnKey := anyString(card["column_key"])
+		if columnKey == "" {
+			columnKey = "backlog"
+		}
+		cardsByColumn[columnKey] = append(cardsByColumn[columnKey], cardWrapper)
+	}
+
+	for _, col := range canonicalColumnOrder {
+		colCards := cardsByColumn[col]
+		if len(colCards) == 0 {
+			continue
+		}
+		colTitle := strings.Title(strings.ReplaceAll(col, "_", " "))
+		lines = append(lines, fmt.Sprintf("%s (%d):", colTitle, len(colCards)))
+		for _, raw := range colCards {
+			cardWrapper := asMap(raw)
+			lines = append(lines, "- "+renderBoardCardItem(cardWrapper))
+		}
+	}
+	return lines
+}
+
+func renderBoardCardItem(cardWrapper map[string]any) string {
+	thread := asMap(cardWrapper["thread"])
+	summary := asMap(cardWrapper["summary"])
+	pinnedDoc := cardWrapper["pinned_document"]
+
+	threadID := displayID(thread)
+	threadTitle := anyString(thread["title"])
+
+	badges := make([]string, 0, 8)
+	if summary != nil {
+		openCommitments := intValue(summary["open_commitment_count"])
+		decisionRequests := intValue(summary["decision_request_count"])
+		decisions := intValue(summary["decision_count"])
+		recommendations := intValue(summary["recommendation_count"])
+		docs := intValue(summary["document_count"])
+		inbox := intValue(summary["inbox_count"])
+		stale := asBool(summary["stale"])
+
+		if openCommitments > 0 {
+			badges = append(badges, fmt.Sprintf("c=%d", openCommitments))
+		}
+		if decisionRequests > 0 {
+			badges = append(badges, fmt.Sprintf("dr=%d", decisionRequests))
+		}
+		if decisions > 0 {
+			badges = append(badges, fmt.Sprintf("d=%d", decisions))
+		}
+		if recommendations > 0 {
+			badges = append(badges, fmt.Sprintf("rec=%d", recommendations))
+		}
+		if docs > 0 {
+			badges = append(badges, fmt.Sprintf("doc=%d", docs))
+		}
+		if inbox > 0 {
+			badges = append(badges, fmt.Sprintf("inbox=%d", inbox))
+		}
+		if stale {
+			badges = append(badges, "STALE")
+		}
+	}
+
+	if pinnedDoc != nil {
+		badges = append(badges, "pinned")
+	}
+
+	badgeStr := ""
+	if len(badges) > 0 {
+		badgeStr = " [" + strings.Join(badges, ", ") + "]"
+	}
+
+	return compactSummary(threadID, threadTitle) + badgeStr
+}
+
+func formatBoardCardsList(body any) string {
+	root := asMap(body)
+	boardID := anyString(root["board_id"])
+	cards := asSlice(root["cards"])
+	lines := []string{fmt.Sprintf("Cards (%d):", len(cards))}
+	for _, raw := range cards {
+		card := asMap(raw)
+		if card == nil {
+			continue
+		}
+		lines = append(lines, "- "+renderBoardCardListItem(card))
+	}
+	if boardID != "" {
+		lines = append([]string{fmt.Sprintf("Board: %s", boardID)}, lines...)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderBoardCardListItem(card map[string]any) string {
+	threadID := anyString(card["thread_id"])
+	columnKey := anyString(card["column_key"])
+	rank := anyString(card["rank"])
+	pinnedDocID := anyString(card["pinned_document_id"])
+
+	parts := []string{threadID, columnKey}
+	if rank != "" {
+		parts = append(parts, "rank="+rank)
+	}
+	if pinnedDocID != "" {
+		parts = append(parts, "pinned="+pinnedDocID)
+	}
+	return strings.Join(parts, " :: ")
+}
+
+func formatBoardCardMutationResult(body any) string {
+	board := extractNestedMap(body, "board")
+	card := extractNestedMap(body, "card")
+	lines := []string{"Card updated:"}
+	if board != nil {
+		lines = appendScalar(lines, "board_updated_at", board, "updated_at")
+	}
+	if card != nil {
+		lines = append(lines, "- thread: "+anyString(card["thread_id"]))
+		lines = append(lines, "  column: "+anyString(card["column_key"]))
+		lines = append(lines, "  rank: "+anyString(card["rank"]))
+		if pinnedDocID := anyString(card["pinned_document_id"]); pinnedDocID != "" {
+			lines = append(lines, "  pinned_document: "+pinnedDocID)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatBoardCardRemoveResult(body any) string {
+	board := extractNestedMap(body, "board")
+	root := asMap(body)
+	removedThreadID := formatScalar(root["removed_thread_id"])
+	lines := []string{"Card removed:"}
+	if board != nil {
+		lines = appendScalar(lines, "board_updated_at", board, "updated_at")
+	}
+	if removedThreadID != "" {
+		lines = append(lines, "- thread: "+removedThreadID)
+	}
+	return strings.Join(lines, "\n")
 }

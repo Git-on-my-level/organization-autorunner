@@ -39,9 +39,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `boards create` (command): Create board
 - `boards get` (command): Get board metadata
 - `boards update` (command): Update board metadata
-- `boards workspace` (command): Get canonical board workspace projection
 - `boards cards` (group): Nested generated help topic.
-- `boards cards list` (command): List ordered board cards
 - `boards cards add` (command): Add existing thread to board as a card
 - `boards cards update` (command): Update board card metadata
 - `boards cards move` (command): Move board card across columns or ranks
@@ -83,6 +81,8 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `threads apply` (local-helper): Apply a previously staged thread patch proposal.
 - `commitments propose-patch` (local-helper): Stage a commitment patch proposal locally and show the diff before applying it.
 - `commitments apply` (local-helper): Apply a previously staged commitment update proposal.
+- `boards workspace` (local-helper): Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.
+- `boards cards list` (local-helper): List all cards on a board in canonical column order without hydrating thread details.
 - `docs propose-update` (local-helper): Stage a document update proposal locally and show the content diff before applying it.
 - `docs content` (local-helper): Show the current document content together with authoritative head revision metadata.
 - `docs validate-update` (local-helper): Validate a `docs update` payload locally from stdin or file without sending the mutation.
@@ -1070,34 +1070,6 @@ Global flags:
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
-## `boards workspace`
-
-Get canonical board workspace projection
-
-```text
-Generated Help: boards workspace
-
-- Command ID: `boards.workspace`
-- CLI path: `boards workspace`
-- HTTP: `GET /boards/{board_id}/workspace`
-- Stability: `beta`
-- Input mode: `none`
-- Why: Load one board's canonical board, primary thread, ordered cards, and aggregated docs/commitments/inbox sections in a single round-trip.
-- Output: Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, section_kinds, generated_at }`.
-- Error codes: `invalid_request`, `not_found`
-- Concepts: `boards`, `planning`, `threads`, `docs`, `commitments`, `inbox`
-- Agent notes: Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data.
-- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards update`
-- Examples:
-  - Board workspace: `oar boards workspace --board-id board_product_launch --json`
-
-
-Global flags:
-  Global flags can appear before or after the command path.
-  Examples: oar --json boards workspace ... ; oar boards workspace ... --json
-  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
-```
-
 ## `boards cards`
 
 Nested generated help topic.
@@ -1118,34 +1090,6 @@ Global flags:
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 
 Tip: `oar help <command path>` for full command-level generated details.
-```
-
-## `boards cards list`
-
-List ordered board cards
-
-```text
-Generated Help: boards cards list
-
-- Command ID: `boards.cards.list`
-- CLI path: `boards cards list`
-- HTTP: `GET /boards/{board_id}/cards`
-- Stability: `beta`
-- Input mode: `none`
-- Why: Read canonical board membership, column placement, and rank ordering without hydrating the full board workspace.
-- Output: Returns `{ board_id, cards }` ordered by canonical column sequence and per-column rank.
-- Error codes: `invalid_request`, `not_found`
-- Concepts: `boards`, `planning`, `ordering`
-- Agent notes: Safe and idempotent. Use `boards.workspace` when you also need hydrated thread, document, and summary sections.
-- Adjacent commands: `boards cards add`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards update`, `boards workspace`
-- Examples:
-  - List board cards: `oar boards cards list --board-id board_product_launch --json`
-
-
-Global flags:
-  Global flags can appear before or after the command path.
-  Examples: oar --json boards cards list ... ; oar boards cards list ... --json
-  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
 ## `boards cards add`
@@ -2349,6 +2293,55 @@ Flags:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json commitments apply ... ; oar commitments apply ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards workspace`
+
+Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.
+
+```text
+Local Help: boards workspace
+
+- Kind: `local helper`
+- Summary: Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.
+- Composition: Resolves a board by id, fetches the canonical workspace view with hydrated thread summaries, and renders cards grouped by canonical column order (backlog, ready, in_progress, blocked, review, done).
+- JSON body: `board_id`, `board`, `primary_thread`, `primary_document`, `cards`, `board_summary`, `generated_at`
+- Examples:
+  - `oar boards workspace --board-id <board-id>`
+  - `oar boards workspace --board-id board_product_launch`
+
+Flags:
+  --board-id <board-id>        Board id or unique prefix to load.
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards workspace ... ; oar boards workspace ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards cards list`
+
+List all cards on a board in canonical column order without hydrating thread details.
+
+```text
+Local Help: boards cards list
+
+- Kind: `local helper`
+- Summary: List all cards on a board in canonical column order without hydrating thread details.
+- Composition: Fetches the raw card list for a board ordered by canonical column sequence and per-column rank.
+- JSON body: `board_id`, `cards`
+- Examples:
+  - `oar boards cards list --board-id <board-id>`
+
+Flags:
+  --board-id <board-id>        Board id to list cards for.
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards list ... ; oar boards cards list ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 

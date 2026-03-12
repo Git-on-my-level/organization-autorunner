@@ -251,6 +251,31 @@ var localHelperTopics = []localHelperTopic{
 		},
 	},
 	{
+		Path:        "boards workspace",
+		Summary:     "Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.",
+		JSONShape:   "`board_id`, `board`, `primary_thread`, `primary_document`, `cards`, `board_summary`, `generated_at`",
+		Composition: "Resolves a board by id, fetches the canonical workspace view with hydrated thread summaries, and renders cards grouped by canonical column order (backlog, ready, in_progress, blocked, review, done).",
+		Examples: []string{
+			"oar boards workspace --board-id <board-id>",
+			"oar boards workspace --board-id board_product_launch",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--board-id <board-id>", Description: "Board id or unique prefix to load."},
+		},
+	},
+	{
+		Path:        "boards cards list",
+		Summary:     "List all cards on a board in canonical column order without hydrating thread details.",
+		JSONShape:   "`board_id`, `cards`",
+		Composition: "Fetches the raw card list for a board ordered by canonical column sequence and per-column rank.",
+		Examples: []string{
+			"oar boards cards list --board-id <board-id>",
+		},
+		Flags: []localHelperFlag{
+			{Name: "--board-id <board-id>", Description: "Board id to list cards for."},
+		},
+	},
+	{
 		Path:        "docs propose-update",
 		Summary:     "Stage a document update proposal locally and show the content diff before applying it.",
 		JSONShape:   "`proposal_id`, `target_command_id`, `path`, `body`, `diff`, `apply_command`",
