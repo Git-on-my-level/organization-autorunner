@@ -11,6 +11,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `threads` (group): Manage thread resources
 - `commitments` (group): Manage commitment resources
 - `artifacts` (group): Manage artifact resources and content
+- `boards` (group): Manage board resources and ordered cards
 - `docs` (group): Manage long-lived docs and revisions
 - `events` (group): Manage events and event streams
 - `inbox` (group): List/get/ack/stream inbox items
@@ -34,6 +35,17 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `artifacts create` (command): Create artifact
 - `artifacts content` (command): Get artifact raw content
 - `artifacts tombstone` (command): Tombstone an artifact (soft-delete)
+- `boards list` (command): List boards with derived summary data
+- `boards create` (command): Create board
+- `boards get` (command): Get board metadata
+- `boards update` (command): Update board metadata
+- `boards workspace` (command): Get canonical board workspace projection
+- `boards cards` (group): Nested generated help topic.
+- `boards cards list` (command): List ordered board cards
+- `boards cards add` (command): Add existing thread to board as a card
+- `boards cards update` (command): Update board card metadata
+- `boards cards move` (command): Move board card across columns or ranks
+- `boards cards remove` (command): Remove board card membership
 - `docs list` (command): List documents and their current head metadata
 - `docs create` (command): Create document with initial immutable revision
 - `docs get` (command): Get document and authoritative head revision
@@ -289,6 +301,28 @@ Local inspection helper:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json artifacts ... ; oar artifacts ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+
+Tip: `oar help <command path>` for full command-level generated details.
+```
+
+## `boards`
+
+Manage board resources and ordered cards
+
+```text
+Generated Help: boards
+
+Commands:
+  boards create            Create board
+  boards get               Get board metadata
+  boards list              List boards with derived summary data
+  boards update            Update board metadata
+  boards workspace         Get canonical board workspace projection
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards ... ; oar boards ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 
 Tip: `oar help <command path>` for full command-level generated details.
@@ -915,6 +949,331 @@ Global flags:
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
+## `boards list`
+
+List boards with derived summary data
+
+```text
+Generated Help: boards list
+
+- Command ID: `boards.list`
+- CLI path: `boards list`
+- HTTP: `GET /boards`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Discover durable coordination boards with enough summary data for list pages and CLI triage without per-board fan-out.
+- Output: Returns `{ boards }`, where each item includes canonical board metadata plus a derived summary.
+- Error codes: `invalid_request`
+- Concepts: `boards`, `planning`, `summaries`
+- Agent notes: Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards update`, `boards workspace`
+- Examples:
+  - List boards: `oar boards list --json`
+  - List active boards for an owner: `oar boards list --status active --owner actor_ceo --json`
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards list ... ; oar boards list ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards create`
+
+Create board
+
+```text
+Generated Help: boards create
+
+- Command ID: `boards.create`
+- CLI path: `boards create`
+- HTTP: `POST /boards`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Create a first-class coordination board with a canonical primary thread and optional primary document.
+- Output: Returns `{ board }` with server-owned identity and concurrency metadata.
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`
+- Concepts: `boards`, `planning`, `concurrency`
+- Agent notes: Replay-safe when `request_key` is reused with the same body. The primary thread is required and is never created as a card implicitly.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards get`, `boards list`, `boards update`, `boards workspace`
+- Examples:
+  - Create board: `oar boards create --from-file board-create.json --json`
+
+Body schema:
+  Required: board.primary_thread_id (string), board.title (string)
+  Optional: actor_id (string), board.column_schema (list<any>), board.id (string), board.labels (list<string>), board.owners (list<string>), board.pinned_refs (list<string>), board.primary_document_id (string), board.status (string), request_key (string)
+  Enum values: board.status: active, closed, paused
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards create ... ; oar boards create ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards get`
+
+Get board metadata
+
+```text
+Generated Help: boards get
+
+- Command ID: `boards.get`
+- CLI path: `boards get`
+- HTTP: `GET /boards/{board_id}`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Resolve one board's canonical metadata and concurrency token without hydrating the full workspace projection.
+- Output: Returns `{ board }`.
+- Error codes: `invalid_request`, `not_found`
+- Concepts: `boards`, `planning`
+- Agent notes: Safe and idempotent.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards list`, `boards update`, `boards workspace`
+- Examples:
+  - Get board: `oar boards get --board-id board_product_launch --json`
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards get ... ; oar boards get ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards update`
+
+Update board metadata
+
+```text
+Generated Help: boards update
+
+- Command ID: `boards.update`
+- CLI path: `boards update`
+- HTTP: `PATCH /boards/{board_id}`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Patch mutable board metadata with optimistic concurrency while preserving server-owned identity and timestamps.
+- Output: Returns `{ board }` after the metadata patch is applied.
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
+- Concepts: `boards`, `planning`, `concurrency`
+- Agent notes: Set `if_updated_at` from `boards.get` or `boards.workspace` to avoid lost updates.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards workspace`
+- Examples:
+  - Update board metadata: `oar boards update --board-id board_product_launch --from-file board-update.json --json`
+
+Body schema:
+  Required: if_updated_at (datetime)
+  Optional: actor_id (string), patch.column_schema (list<any>), patch.labels (list<string>), patch.owners (list<string>), patch.pinned_refs (list<string>), patch.primary_document_id (any|string), patch.status (string), patch.title (string)
+  Enum values: patch.status: active, closed, paused
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards update ... ; oar boards update ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards workspace`
+
+Get canonical board workspace projection
+
+```text
+Generated Help: boards workspace
+
+- Command ID: `boards.workspace`
+- CLI path: `boards workspace`
+- HTTP: `GET /boards/{board_id}/workspace`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Load one board's canonical board, primary thread, ordered cards, and aggregated docs/commitments/inbox sections in a single round-trip.
+- Output: Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, section_kinds, generated_at }`.
+- Error codes: `invalid_request`, `not_found`
+- Concepts: `boards`, `planning`, `threads`, `docs`, `commitments`, `inbox`
+- Agent notes: Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards update`
+- Examples:
+  - Board workspace: `oar boards workspace --board-id board_product_launch --json`
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards workspace ... ; oar boards workspace ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards cards`
+
+Nested generated help topic.
+
+```text
+Generated Help: boards cards
+
+Commands:
+  boards cards add         Add existing thread to board as a card
+  boards cards list        List ordered board cards
+  boards cards move        Move board card across columns or ranks
+  boards cards remove      Remove board card membership
+  boards cards update      Update board card metadata
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards ... ; oar boards cards ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+
+Tip: `oar help <command path>` for full command-level generated details.
+```
+
+## `boards cards list`
+
+List ordered board cards
+
+```text
+Generated Help: boards cards list
+
+- Command ID: `boards.cards.list`
+- CLI path: `boards cards list`
+- HTTP: `GET /boards/{board_id}/cards`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Read canonical board membership, column placement, and rank ordering without hydrating the full board workspace.
+- Output: Returns `{ board_id, cards }` ordered by canonical column sequence and per-column rank.
+- Error codes: `invalid_request`, `not_found`
+- Concepts: `boards`, `planning`, `ordering`
+- Agent notes: Safe and idempotent. Use `boards.workspace` when you also need hydrated thread, document, and summary sections.
+- Adjacent commands: `boards cards add`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards update`, `boards workspace`
+- Examples:
+  - List board cards: `oar boards cards list --board-id board_product_launch --json`
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards list ... ; oar boards cards list ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards cards add`
+
+Add existing thread to board as a card
+
+```text
+Generated Help: boards cards add
+
+- Command ID: `boards.cards.add`
+- CLI path: `boards cards add`
+- HTTP: `POST /boards/{board_id}/cards`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Create explicit board membership for an existing thread with canonical column placement and server-owned rank.
+- Output: Returns `{ board, card }` after membership creation and board concurrency-token advancement.
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
+- Concepts: `boards`, `planning`, `ordering`, `concurrency`
+- Agent notes: Replay-safe when `request_key` is reused with the same body. The board primary thread cannot be added as a card.
+- Adjacent commands: `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards update`, `boards workspace`
+- Examples:
+  - Add card to backlog: `oar boards cards add --board-id board_product_launch --from-file board-card-add.json --json`
+
+Body schema:
+  Required: thread_id (string)
+  Optional: actor_id (string), after_thread_id (string), before_thread_id (string), column_key (string), if_board_updated_at (datetime), pinned_document_id (string), request_key (string)
+  Enum values: column_key: backlog, blocked, done, in_progress, ready, review
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards add ... ; oar boards cards add ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards cards update`
+
+Update board card metadata
+
+```text
+Generated Help: boards cards update
+
+- Command ID: `boards.cards.update`
+- CLI path: `boards cards update`
+- HTTP: `PATCH /boards/{board_id}/cards/{thread_id}`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Patch mutable board-card metadata, which in v1 is limited to the pinned document convenience link.
+- Output: Returns `{ board, card }` after metadata update and board concurrency-token advancement.
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
+- Concepts: `boards`, `planning`, `docs`, `concurrency`
+- Agent notes: Set `if_board_updated_at` from the current board read before patching card metadata.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards create`, `boards get`, `boards list`, `boards update`, `boards workspace`
+- Examples:
+  - Update pinned document: `oar boards cards update --board-id board_product_launch --thread-id thread_123 --from-file board-card-update.json --json`
+
+Body schema:
+  Required: if_board_updated_at (datetime)
+  Optional: actor_id (string), patch.pinned_document_id (any|string)
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards update ... ; oar boards cards update ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards cards move`
+
+Move board card across columns or ranks
+
+```text
+Generated Help: boards cards move
+
+- Command ID: `boards.cards.move`
+- CLI path: `boards cards move`
+- HTTP: `POST /boards/{board_id}/cards/{thread_id}/move`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Request relative placement for a card while keeping rank tokens opaque and server-owned.
+- Output: Returns `{ board, card }` after the move is applied.
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
+- Concepts: `boards`, `planning`, `ordering`, `concurrency`
+- Agent notes: Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards update`, `boards workspace`
+- Examples:
+  - Move card into review: `oar boards cards move --board-id board_product_launch --thread-id thread_123 --from-file board-card-move.json --json`
+
+Body schema:
+  Required: column_key (string), if_board_updated_at (datetime)
+  Optional: actor_id (string), after_thread_id (string), before_thread_id (string)
+  Enum values: column_key: backlog, blocked, done, in_progress, ready, review
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards move ... ; oar boards cards move ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards cards remove`
+
+Remove board card membership
+
+```text
+Generated Help: boards cards remove
+
+- Command ID: `boards.cards.remove`
+- CLI path: `boards cards remove`
+- HTTP: `POST /boards/{board_id}/cards/{thread_id}/remove`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Delete canonical board membership for a card without introducing a separate archived-card lifecycle in v1.
+- Output: Returns `{ board, removed_thread_id }` after membership removal and board concurrency-token advancement.
+- Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
+- Concepts: `boards`, `planning`, `concurrency`
+- Agent notes: Removal deletes canonical membership. Cards are not archived separately in v1.
+- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards update`, `boards workspace`
+- Examples:
+  - Remove board card: `oar boards cards remove --board-id board_product_launch --thread-id thread_123 --from-file board-card-remove.json --json`
+
+Body schema:
+  Required: if_board_updated_at (datetime)
+  Optional: actor_id (string)
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards remove ... ; oar boards cards remove ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
 ## `docs list`
 
 List documents and their current head metadata
@@ -1192,7 +1551,7 @@ Generated Help: events create
 Body schema:
   Required: event.provenance.sources (list<string>), event.refs (list<typed_ref>), event.summary (string), event.type (string)
   Optional: actor_id (string), event.actor_id (string), event.payload (object), event.provenance.by_field (map<string, list<string>>), event.provenance.notes (string), event.thread_id (string), request_key (string)
-  Enum values: event.type (open): commitment_created, commitment_status_changed, decision_made, decision_needed, document_created, document_tombstoned, document_updated, exception_raised, inbox_item_acknowledged, message_posted, receipt_added, review_completed, snapshot_updated, work_order_claimed, work_order_created
+  Enum values: event.type (open): board_card_added, board_card_moved, board_card_removed, board_card_updated, board_created, board_updated, commitment_created, commitment_status_changed, decision_made, decision_needed, document_created, document_tombstoned, document_updated, exception_raised, inbox_item_acknowledged, message_posted, receipt_added, review_completed, snapshot_updated, work_order_claimed, work_order_created
 
 Local CLI notes:
   - Common open `event.type` values include `actor_statement`; the enum list above is illustrative, not exhaustive.

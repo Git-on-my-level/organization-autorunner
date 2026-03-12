@@ -1,0 +1,113 @@
+{
+  "ok": true,
+  "command": "boards workspace",
+  "command_id": "boards.workspace",
+  "data": {
+    "board": {
+      "id": "board_1234567890abcdef",
+      "status": "active",
+      "title": "Machine Board",
+      "updated_at": "2026-03-07T00:03:00Z"
+    },
+    "board_id": "board_1234567890abcdef",
+    "board_summary": {
+      "card_count": 1,
+      "cards_by_column": {
+        "backlog": 0,
+        "blocked": 0,
+        "done": 0,
+        "in_progress": 1,
+        "ready": 0,
+        "review": 0
+      },
+      "document_count": 1,
+      "has_primary_document": true,
+      "latest_activity_at": "2026-03-07T00:03:00Z",
+      "open_commitment_count": 1
+    },
+    "cards": {
+      "count": 1,
+      "items": [
+        {
+          "card": {
+            "board_id": "board_1234567890abcdef",
+            "column_key": "in_progress",
+            "created_at": "2026-03-07T00:00:00Z",
+            "created_by": "actor_1",
+            "pinned_document_id": null,
+            "rank": "m",
+            "thread_id": "thread_123",
+            "updated_at": "2026-03-07T00:03:00Z",
+            "updated_by": "actor_1"
+          },
+          "pinned_document": null,
+          "summary": {
+            "decision_count": 0,
+            "decision_request_count": 1,
+            "document_count": 1,
+            "inbox_count": 1,
+            "latest_activity_at": "2026-03-07T00:03:00Z",
+            "open_commitment_count": 1,
+            "recommendation_count": 1,
+            "stale": false
+          },
+          "thread": {
+            "id": "thread_123",
+            "title": "Machine-facing consistency"
+          }
+        }
+      ]
+    },
+    "commitments": {
+      "count": 1,
+      "items": [
+        {
+          "id": "commitment_ctx_1",
+          "status": "open"
+        }
+      ]
+    },
+    "documents": {
+      "count": 1,
+      "items": [
+        {
+          "id": "doc_ctx_1",
+          "status": "active",
+          "title": "Runbook"
+        }
+      ]
+    },
+    "generated_at": "2026-03-07T00:03:00Z",
+    "inbox": {
+      "count": 1,
+      "items": [
+        {
+          "id": "inbox:decision_needed:thread_123:none:event_ctx_2",
+          "thread_id": "thread_123",
+          "type": "decision_needed"
+        }
+      ]
+    },
+    "primary_document": {
+      "id": "doc_ctx_1",
+      "status": "active",
+      "title": "Runbook"
+    },
+    "primary_thread": {
+      "id": "thread_123",
+      "title": "Machine-facing consistency"
+    },
+    "section_kinds": {
+      "board": "canonical",
+      "cards": "canonical",
+      "commitments": "derived",
+      "documents": "derived",
+      "inbox": "derived",
+      "warnings": "derived"
+    },
+    "warnings": {
+      "count": 0,
+      "items": []
+    }
+  }
+}

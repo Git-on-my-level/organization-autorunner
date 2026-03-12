@@ -81,6 +81,25 @@ var artifactsSubcommandSpec = subcommandSpec{
 	},
 }
 
+var boardsSubcommandSpec = subcommandSpec{
+	command:  "boards",
+	valid:    []string{"list", "create", "get", "update", "workspace", "cards"},
+	examples: []string{"oar boards list --status active", "oar boards workspace --board-id <board-id>", "oar boards cards move --board-id <board-id> --thread-id <thread-id> --column review --if-board-updated-at <timestamp>"},
+	aliases: map[string]string{
+		"ls":   "list",
+		"show": "get",
+	},
+}
+
+var boardsCardsSubcommandSpec = subcommandSpec{
+	command:  "boards cards",
+	valid:    []string{"list", "add", "update", "move", "remove"},
+	examples: []string{"oar boards cards list --board-id <board-id>", "oar boards cards add --board-id <board-id> --thread-id <thread-id>", "oar boards cards move --board-id <board-id> --thread-id <thread-id> --column review --if-board-updated-at <timestamp>"},
+	aliases: map[string]string{
+		"ls": "list",
+	},
+}
+
 var docsSubcommandSpec = subcommandSpec{
 	command:  "docs",
 	valid:    []string{"list", "create", "get", "content", "update", "propose-update", "apply", "validate-update", "history", "revision", "tombstone"},

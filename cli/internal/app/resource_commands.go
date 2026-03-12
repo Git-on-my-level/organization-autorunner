@@ -41,6 +41,7 @@ type resourceIDLookupSpec struct {
 	listCommand    string
 	listCommandID  string
 	listField      string
+	idFieldPath    []string
 	notFoundHints  []string
 }
 
@@ -71,6 +72,16 @@ var (
 		listCommandID:  "artifacts.list",
 		listField:      "artifacts",
 		notFoundHints:  []string{"artifact not found", "artifact content not found"},
+	}
+	boardIDLookupSpec = resourceIDLookupSpec{
+		idLabel:        "board id",
+		resource:       "board",
+		resourcePlural: "boards",
+		listCommand:    "boards list",
+		listCommandID:  "boards.list",
+		listField:      "boards",
+		idFieldPath:    []string{"board", "id"},
+		notFoundHints:  []string{"board not found"},
 	}
 )
 
@@ -221,6 +232,8 @@ func (a *App) runTypedResource(ctx context.Context, resource string, args []stri
 		return a.runCommitmentsCommand(ctx, args, cfg)
 	case "artifacts":
 		return a.runArtifactsCommand(ctx, args, cfg)
+	case "boards":
+		return a.runBoardsCommand(ctx, args, cfg)
 	case "docs":
 		return a.runDocsCommand(ctx, args, cfg)
 	case "events":
@@ -1264,6 +1277,152 @@ func (a *App) runArtifactsCommand(ctx context.Context, args []string, cfg config
 		return result, "artifacts tombstone", callErr
 	default:
 		return nil, "artifacts", artifactsSubcommandSpec.unknownError(args[0])
+	}
+}
+
+func (a *App) runBoardsCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
+	if len(args) == 0 {
+		return nil, "boards", boardsSubcommandSpec.requiredError()
+	}
+	sub := boardsSubcommandSpec.normalize(args[0])
+	switch sub {
+	case "list":
+		fs := newSilentFlagSet("boards list")
+		var statusFlag trackedString
+		var labelFlag, ownerFlag trackedStrings
+		fs.Var(&statusFlag, "status", "Filter by board status")
+		fs.Var(&labelFlag, "label", "Filter by label (repeatable)")
+		fs.Var(&ownerFlag, "owner", "Filter by owner actor id (repeatable)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return nil, "boards list", errnorm.Usage("invalid_flags", err.Error())
+		}
+		if len(fs.Args()) > 0 {
+			return nil, "boards list", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar boards list`")
+		}
+		query := make([]queryParam, 0, 3)
+		addSingleQuery(&query, "status", statusFlag.value)
+		addMultiQuery(&query, "label", labelFlag.values)
+		addMultiQuery(&query, "owner", ownerFlag.values)
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "boards list", "boards.list", nil, query, nil)
+		return result, "boards list", callErr
+	case "create":
+		body, err := a.parseJSONBodyInput(args[1:], "boards create")
+		if err != nil {
+			return nil, "boards create", err
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "boards create", "boards.create", nil, nil, body)
+		return result, "boards create", callErr
+	case "get":
+		id, err := parseIDArg(args[1:], "board-id", "board id")
+		if err != nil {
+			return nil, "boards get", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(
+			ctx,
+			cfg,
+			"boards get",
+			"boards.get",
+			"board_id",
+			id,
+			boardIDLookupSpec,
+			nil,
+			nil,
+		)
+		return result, "boards get", callErr
+	case "update":
+		id, body, err := a.parseIDAndBodyInput(args[1:], "board-id", "board id", "boards update")
+		if err != nil {
+			return nil, "boards update", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(
+			ctx,
+			cfg,
+			"boards update",
+			"boards.update",
+			"board_id",
+			id,
+			boardIDLookupSpec,
+			nil,
+			body,
+		)
+		return result, "boards update", callErr
+	case "workspace":
+		id, err := parseIDArg(args[1:], "board-id", "board id")
+		if err != nil {
+			return nil, "boards workspace", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(
+			ctx,
+			cfg,
+			"boards workspace",
+			"boards.workspace",
+			"board_id",
+			id,
+			boardIDLookupSpec,
+			nil,
+			nil,
+		)
+		return result, "boards workspace", callErr
+	case "cards":
+		return a.runBoardCardsCommand(ctx, args[1:], cfg)
+	default:
+		return nil, "boards", boardsSubcommandSpec.unknownError(args[0])
+	}
+}
+
+func (a *App) runBoardCardsCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
+	if len(args) == 0 {
+		return nil, "boards cards", boardsCardsSubcommandSpec.requiredError()
+	}
+	sub := boardsCardsSubcommandSpec.normalize(args[0])
+	switch sub {
+	case "list":
+		boardID, err := parseIDArg(args[1:], "board-id", "board id")
+		if err != nil {
+			return nil, "boards cards list", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(
+			ctx,
+			cfg,
+			"boards cards list",
+			"boards.cards.list",
+			"board_id",
+			boardID,
+			boardIDLookupSpec,
+			nil,
+			nil,
+		)
+		return result, "boards cards list", callErr
+	case "add":
+		boardID, body, err := a.parseBoardIDAndCardMutationBodyInput(ctx, args[1:], cfg, "boards cards add", parseBoardCardAddMutationOptions)
+		if err != nil {
+			return nil, "boards cards add", err
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "boards cards add", "boards.cards.add", map[string]string{"board_id": boardID}, nil, body)
+		return result, "boards cards add", callErr
+	case "update":
+		boardID, threadID, body, err := a.parseBoardCardTargetAndBodyInput(ctx, args[1:], cfg, "boards cards update", parseBoardCardUpdateMutationOptions)
+		if err != nil {
+			return nil, "boards cards update", err
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "boards cards update", "boards.cards.update", map[string]string{"board_id": boardID, "thread_id": threadID}, nil, body)
+		return result, "boards cards update", callErr
+	case "move":
+		boardID, threadID, body, err := a.parseBoardCardTargetAndBodyInput(ctx, args[1:], cfg, "boards cards move", parseBoardCardMoveMutationOptions)
+		if err != nil {
+			return nil, "boards cards move", err
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "boards cards move", "boards.cards.move", map[string]string{"board_id": boardID, "thread_id": threadID}, nil, body)
+		return result, "boards cards move", callErr
+	case "remove":
+		boardID, threadID, body, err := a.parseBoardCardTargetAndBodyInput(ctx, args[1:], cfg, "boards cards remove", parseBoardCardRemoveMutationOptions)
+		if err != nil {
+			return nil, "boards cards remove", err
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "boards cards remove", "boards.cards.remove", map[string]string{"board_id": boardID, "thread_id": threadID}, nil, body)
+		return result, "boards cards remove", callErr
+	default:
+		return nil, "boards cards", boardsCardsSubcommandSpec.unknownError(args[0])
 	}
 }
 
@@ -2631,6 +2790,274 @@ func (a *App) parseIDAndBodyInputWithOptions(args []string, idFlag string, idLab
 	return id, body, dryRunFlag.set && dryRunFlag.value, nil
 }
 
+type boardCardMutationOptions struct {
+	allowRequestKey       bool
+	requireIfBoardUpdated bool
+	requireThreadTarget   bool
+	allowColumn           bool
+	requireColumn         bool
+	allowBeforeAfter      bool
+	allowPinnedDocument   bool
+	allowClearPinnedDoc   bool
+}
+
+var (
+	parseBoardCardAddMutationOptions = boardCardMutationOptions{
+		allowRequestKey:     true,
+		allowColumn:         true,
+		allowBeforeAfter:    true,
+		allowPinnedDocument: true,
+	}
+	parseBoardCardUpdateMutationOptions = boardCardMutationOptions{
+		requireIfBoardUpdated: true,
+		requireThreadTarget:   true,
+		allowPinnedDocument:   true,
+		allowClearPinnedDoc:   true,
+	}
+	parseBoardCardMoveMutationOptions = boardCardMutationOptions{
+		requireIfBoardUpdated: true,
+		requireThreadTarget:   true,
+		allowColumn:           true,
+		requireColumn:         true,
+		allowBeforeAfter:      true,
+	}
+	parseBoardCardRemoveMutationOptions = boardCardMutationOptions{
+		requireIfBoardUpdated: true,
+		requireThreadTarget:   true,
+	}
+)
+
+func (a *App) parseBoardIDAndCardMutationBodyInput(ctx context.Context, args []string, cfg config.Resolved, commandName string, options boardCardMutationOptions) (string, any, error) {
+	boardID, threadID, body, err := a.parseBoardCardMutationInput(ctx, args, cfg, commandName, options)
+	if err != nil {
+		return "", nil, err
+	}
+	if threadID != "" {
+		bodyMap, _ := body.(map[string]any)
+		if bodyMap == nil {
+			return "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("JSON body for `oar %s` must be an object", commandName))
+		}
+		bodyMap["thread_id"] = threadID
+	}
+	return boardID, body, nil
+}
+
+func (a *App) parseBoardCardTargetAndBodyInput(ctx context.Context, args []string, cfg config.Resolved, commandName string, options boardCardMutationOptions) (string, string, any, error) {
+	return a.parseBoardCardMutationInput(ctx, args, cfg, commandName, options)
+}
+
+func (a *App) parseBoardCardMutationInput(ctx context.Context, args []string, cfg config.Resolved, commandName string, options boardCardMutationOptions) (string, string, any, error) {
+	fs := newSilentFlagSet(commandName)
+	var boardIDFlag, threadIDFlag trackedString
+	var fromFileFlag, actorIDFlag, requestKeyFlag trackedString
+	var ifBoardUpdatedAtFlag, columnFlag, beforeFlag, afterFlag trackedString
+	var pinnedDocumentIDFlag trackedString
+	var clearPinnedDocumentFlag trackedBool
+	fs.Var(&boardIDFlag, "board-id", "Board id")
+	fs.Var(&threadIDFlag, "thread-id", "Thread id")
+	fs.Var(&fromFileFlag, "from-file", "Load JSON body from file path")
+	fs.Var(&actorIDFlag, "actor-id", "Actor id")
+	if options.allowRequestKey {
+		fs.Var(&requestKeyFlag, "request-key", "Request key")
+	}
+	if options.requireIfBoardUpdated {
+		fs.Var(&ifBoardUpdatedAtFlag, "if-board-updated-at", "Board updated_at concurrency token")
+	}
+	if options.allowColumn {
+		fs.Var(&columnFlag, "column", "Target board column key")
+	}
+	if options.allowBeforeAfter {
+		fs.Var(&beforeFlag, "before", "Place before this thread id")
+		fs.Var(&afterFlag, "after", "Place after this thread id")
+	}
+	if options.allowPinnedDocument {
+		fs.Var(&pinnedDocumentIDFlag, "pinned-document-id", "Pinned document id")
+	}
+	if options.allowClearPinnedDoc {
+		fs.Var(&clearPinnedDocumentFlag, "clear-pinned-document", "Clear the pinned document id")
+	}
+	if err := fs.Parse(args); err != nil {
+		return "", "", nil, errnorm.Usage("invalid_flags", err.Error())
+	}
+	positionals := fs.Args()
+
+	boardID := strings.TrimSpace(boardIDFlag.value)
+	if boardID == "" && len(positionals) > 0 {
+		boardID = strings.TrimSpace(positionals[0])
+		positionals = positionals[1:]
+	}
+	if err := validateID(boardID, "board id"); err != nil {
+		return "", "", nil, err
+	}
+
+	threadID := strings.TrimSpace(threadIDFlag.value)
+	if options.requireThreadTarget && threadID == "" && len(positionals) > 0 {
+		threadID = strings.TrimSpace(positionals[0])
+		positionals = positionals[1:]
+	}
+	if !options.requireThreadTarget && threadID == "" && len(positionals) > 0 {
+		threadID = strings.TrimSpace(positionals[0])
+		positionals = positionals[1:]
+	}
+	if options.requireThreadTarget {
+		if err := validateID(threadID, "thread id"); err != nil {
+			return "", "", nil, err
+		}
+	}
+	if len(positionals) > 0 {
+		return "", "", nil, errnorm.Usage("invalid_args", fmt.Sprintf("unexpected positional arguments for `oar %s`", commandName))
+	}
+
+	if err := validatePlacementFlags(beforeFlag.value, afterFlag.value, commandName); err != nil {
+		return "", "", nil, err
+	}
+
+	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
+	if err != nil {
+		return "", "", nil, err
+	}
+	if len(payload) > 0 {
+		if hasAnyBoardMutationFieldFlags(actorIDFlag, requestKeyFlag, ifBoardUpdatedAtFlag, columnFlag, beforeFlag, afterFlag, pinnedDocumentIDFlag, clearPinnedDocumentFlag) {
+			return "", "", nil, errnorm.Usage("invalid_args", fmt.Sprintf("field flags cannot be combined with JSON body input for `oar %s`", commandName))
+		}
+		body, err := decodeJSONPayload(payload)
+		if err != nil {
+			return "", "", nil, err
+		}
+		resolvedBoardID, err := a.resolveMaybeBoardID(ctx, cfg, boardID)
+		if err != nil {
+			return "", "", nil, err
+		}
+		resolvedThreadID, err := a.resolveMaybeThreadID(ctx, cfg, threadID)
+		if err != nil {
+			return "", "", nil, err
+		}
+		return resolvedBoardID, resolvedThreadID, body, nil
+	}
+
+	body := map[string]any{}
+	actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if actorID != "" {
+		body["actor_id"] = actorID
+	}
+	if options.allowRequestKey && strings.TrimSpace(requestKeyFlag.value) != "" {
+		body["request_key"] = strings.TrimSpace(requestKeyFlag.value)
+	}
+	if options.requireIfBoardUpdated {
+		ifUpdatedAt := strings.TrimSpace(ifBoardUpdatedAtFlag.value)
+		if ifUpdatedAt == "" {
+			return "", "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("if_board_updated_at is required for `oar %s`", commandName))
+		}
+		body["if_board_updated_at"] = ifUpdatedAt
+	}
+	if options.allowColumn {
+		column := strings.TrimSpace(columnFlag.value)
+		if options.requireColumn && column == "" {
+			return "", "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("column is required for `oar %s`", commandName))
+		}
+		if column != "" {
+			body["column_key"] = column
+		}
+	}
+	if options.allowBeforeAfter {
+		if before := strings.TrimSpace(beforeFlag.value); before != "" {
+			body["before_thread_id"] = before
+		}
+		if after := strings.TrimSpace(afterFlag.value); after != "" {
+			body["after_thread_id"] = after
+		}
+	}
+	if options.allowPinnedDocument {
+		pinnedDocumentID := strings.TrimSpace(pinnedDocumentIDFlag.value)
+		if options.allowClearPinnedDoc && clearPinnedDocumentFlag.set && clearPinnedDocumentFlag.value {
+			if pinnedDocumentID != "" {
+				return "", "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("--pinned-document-id and --clear-pinned-document cannot be combined for `oar %s`", commandName))
+			}
+			body["patch"] = map[string]any{"pinned_document_id": nil}
+		} else if pinnedDocumentID != "" {
+			if options.allowClearPinnedDoc {
+				body["patch"] = map[string]any{"pinned_document_id": pinnedDocumentID}
+			} else {
+				body["pinned_document_id"] = pinnedDocumentID
+			}
+		}
+	}
+
+	if options.requireThreadTarget && threadID == "" {
+		return "", "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("thread id is required for `oar %s`", commandName))
+	}
+	if !options.requireThreadTarget {
+		if err := validateID(threadID, "thread id"); err != nil {
+			return "", "", nil, err
+		}
+	}
+	if options.allowPinnedDocument && options.allowClearPinnedDoc {
+		if patch, _ := body["patch"].(map[string]any); len(patch) == 0 {
+			return "", "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("patch is required for `oar %s`", commandName))
+		}
+	}
+	if !options.requireThreadTarget && body["thread_id"] == nil {
+		body["thread_id"] = threadID
+	}
+
+	resolvedBoardID, err := a.resolveMaybeBoardID(ctx, cfg, boardID)
+	if err != nil {
+		return "", "", nil, err
+	}
+	resolvedThreadID, err := a.resolveMaybeThreadID(ctx, cfg, threadID)
+	if err != nil {
+		return "", "", nil, err
+	}
+	return resolvedBoardID, resolvedThreadID, body, nil
+}
+
+func validatePlacementFlags(before string, after string, commandName string) error {
+	if strings.TrimSpace(before) != "" && strings.TrimSpace(after) != "" {
+		return errnorm.Usage("invalid_request", fmt.Sprintf("--before and --after cannot be combined for `oar %s`", commandName))
+	}
+	return nil
+}
+
+func hasAnyBoardMutationFieldFlags(values ...any) bool {
+	for _, value := range values {
+		switch typed := value.(type) {
+		case trackedString:
+			if strings.TrimSpace(typed.value) != "" {
+				return true
+			}
+		case trackedBool:
+			if typed.set {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (a *App) resolveMaybeBoardID(ctx context.Context, cfg config.Resolved, rawID string) (string, error) {
+	if !shouldResolveDisplayedShortID(rawID) {
+		return rawID, nil
+	}
+	return a.resolveResourceIDFromList(ctx, cfg, rawID, boardIDLookupSpec)
+}
+
+func (a *App) resolveMaybeThreadID(ctx context.Context, cfg config.Resolved, rawID string) (string, error) {
+	if !shouldResolveDisplayedShortID(rawID) {
+		return rawID, nil
+	}
+	resolved, err := a.resolveThreadIDFilters(ctx, cfg, []string{rawID})
+	if err != nil {
+		return "", err
+	}
+	if len(resolved) == 0 {
+		return rawID, nil
+	}
+	return resolved[0], nil
+}
+
 func parseIDArg(args []string, idFlag string, idLabel string) (string, error) {
 	fs := newSilentFlagSet(idLabel)
 	var idArgFlag trackedString
@@ -3002,7 +3429,7 @@ func listResourceIDs(result *commandResult, spec resourceIDLookupSpec) []string 
 		if item == nil {
 			continue
 		}
-		id := strings.TrimSpace(anyString(item["id"]))
+		id := extractResourceListItemID(item, spec)
 		if id == "" {
 			continue
 		}
@@ -3013,6 +3440,22 @@ func listResourceIDs(result *commandResult, spec resourceIDLookupSpec) []string 
 		out = append(out, id)
 	}
 	return out
+}
+
+func extractResourceListItemID(item map[string]any, spec resourceIDLookupSpec) string {
+	path := spec.idFieldPath
+	if len(path) == 0 {
+		path = []string{"id"}
+	}
+	var current any = item
+	for _, segment := range path {
+		typed, _ := current.(map[string]any)
+		if typed == nil {
+			return ""
+		}
+		current = typed[segment]
+	}
+	return strings.TrimSpace(anyString(current))
 }
 
 func isResolvableResourceNotFoundError(err error, spec resourceIDLookupSpec) bool {
@@ -3074,6 +3517,8 @@ func enrichListBodyWithShortIDs(commandID string, body any) (any, bool) {
 		return body, addShortIDToListField(typedBody, "commitments")
 	case "artifacts.list":
 		return body, addShortIDToListField(typedBody, "artifacts")
+	case "boards.list":
+		return body, addShortIDToNestedListField(typedBody, "boards", []string{"board"})
 	case "inbox.list":
 		return body, addInboxAliasesToListField(typedBody, "items")
 	case "inbox.get":
@@ -3104,6 +3549,43 @@ func addShortIDToListField(body map[string]any, field string) bool {
 			continue
 		}
 		item["short_id"] = expectedShortID
+		changed = true
+	}
+	return changed
+}
+
+func addShortIDToNestedListField(body map[string]any, field string, path []string) bool {
+	items, _ := body[field].([]any)
+	if len(items) == 0 {
+		return false
+	}
+	changed := false
+	for _, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		if item == nil {
+			continue
+		}
+		target := item
+		for _, segment := range path {
+			nested, _ := target[segment].(map[string]any)
+			if nested == nil {
+				target = nil
+				break
+			}
+			target = nested
+		}
+		if target == nil {
+			continue
+		}
+		id := strings.TrimSpace(anyString(target["id"]))
+		if id == "" {
+			continue
+		}
+		expectedShortID := shortID(id)
+		if strings.TrimSpace(anyString(target["short_id"])) == expectedShortID {
+			continue
+		}
+		target["short_id"] = expectedShortID
 		changed = true
 	}
 	return changed

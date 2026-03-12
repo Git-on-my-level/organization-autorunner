@@ -1,0 +1,32 @@
+{
+  "ok": true,
+  "command": "boards list",
+  "command_id": "boards.list",
+  "data": {
+    "boards": [
+      {
+        "board": {
+          "id": "board_1234567890abcdef",
+          "short_id": "board_123456",
+          "status": "active",
+          "title": "Machine Board"
+        },
+        "summary": {
+          "card_count": 1,
+          "cards_by_column": {
+            "backlog": 0,
+            "blocked": 0,
+            "done": 0,
+            "in_progress": 1,
+            "ready": 0,
+            "review": 0
+          },
+          "document_count": 1,
+          "has_primary_document": true,
+          "latest_activity_at": "2026-03-07T00:03:00Z",
+          "open_commitment_count": 2
+        }
+      }
+    ]
+  }
+}
