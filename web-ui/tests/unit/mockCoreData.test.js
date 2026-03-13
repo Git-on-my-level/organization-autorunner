@@ -83,5 +83,22 @@ describe("mockCoreData parity behaviors", () => {
         message: "board.status must be one of: active, paused, closed",
       });
     });
+
+    it("rejects invalid board columns on card creation", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const result = mod.createMockBoardCard("board-product-launch", {
+        actor_id: "actor-test",
+        if_board_updated_at: mod.getMockBoard("board-product-launch")
+          ?.updated_at,
+        thread_id: "thread-pricing-glitch",
+        column_key: "triage",
+      });
+
+      expect(result).toMatchObject({
+        error: "validation",
+        message:
+          "column_key must be one of: backlog, ready, in_progress, blocked, review, done.",
+      });
+    });
   });
 });

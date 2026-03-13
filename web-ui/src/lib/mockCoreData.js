@@ -3088,6 +3088,9 @@ const canonicalColumnSchema = [
   { key: "review", title: "Review", wip_limit: 2 },
   { key: "done", title: "Done", wip_limit: null },
 ];
+const canonicalBoardColumnKeys = new Set(
+  canonicalColumnSchema.map((column) => column.key),
+);
 
 const boards = [
   {
@@ -3522,7 +3525,14 @@ export function createMockBoardCard(boardId, payload) {
     };
   }
 
-  const columnKey = String(payload.column_key || "backlog");
+  const columnKey = String(payload.column_key || "backlog").trim();
+  if (!canonicalBoardColumnKeys.has(columnKey)) {
+    return {
+      error: "validation",
+      message:
+        "column_key must be one of: backlog, ready, in_progress, blocked, review, done.",
+    };
+  }
   const columns = getBoardColumnCards(boardId);
   const targetColumn = columns[columnKey] ?? (columns[columnKey] = []);
   const nowIso = new Date().toISOString();
@@ -3617,6 +3627,13 @@ export function moveMockBoardCard(boardId, cardId, payload) {
   }
 
   const columnKey = String(payload.column_key || card.column_key).trim();
+  if (!canonicalBoardColumnKeys.has(columnKey)) {
+    return {
+      error: "validation",
+      message:
+        "column_key must be one of: backlog, ready, in_progress, blocked, review, done.",
+    };
+  }
   const columns = getBoardColumnCards(boardId);
   const sourceColumn = columns[card.column_key] ?? [];
   const targetColumn = columns[columnKey] ?? (columns[columnKey] = []);
