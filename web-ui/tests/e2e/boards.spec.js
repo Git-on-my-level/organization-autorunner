@@ -501,7 +501,6 @@ test("board UI supports create/edit and card mutation flows", async ({
     readySection.locator('a[href*="/threads/"]').nth(1),
   ).toContainText("Execution Track");
 
-  await page.getByRole("button", { name: "Manage Review Prep" }).click();
   await page.getByLabel("Move to column").selectOption("review");
   await page.getByRole("button", { name: "Move to column" }).click();
 
@@ -519,7 +518,6 @@ test("board UI supports create/edit and card mutation flows", async ({
     readySection.getByRole("link", { name: "Incident Playbook" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Manage Execution Track" }).click();
   await page.getByRole("button", { name: "Remove card" }).click();
   await expect(
     readySection.getByRole("link", { name: "Execution Track" }),
