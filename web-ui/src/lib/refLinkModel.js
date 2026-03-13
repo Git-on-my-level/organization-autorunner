@@ -40,6 +40,7 @@ function humanizedLabelForPrefix(prefix, value) {
     return `Document revision ${value}`.trim();
   if (prefix === "url") return summarizeUrl(value);
   if (prefix === "inbox") return "Inbox item";
+  if (prefix === "board") return `Board ${value}`.trim();
   return "";
 }
 
@@ -213,6 +214,19 @@ export function resolveRefLink(refValue, options = {}) {
         projectSlug,
         `/docs/revisions/${asPathSegment(value)}`,
       ),
+      isExternal: false,
+      isLink: true,
+    };
+  }
+
+  if (prefix === "board") {
+    return {
+      raw,
+      prefix,
+      value,
+      kind: "board",
+      ...labels,
+      href: toProjectHref(projectSlug, `/boards/${asPathSegment(value)}`),
       isExternal: false,
       isLink: true,
     };

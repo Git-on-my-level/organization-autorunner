@@ -2068,6 +2068,20 @@ export function getMockThreadWorkspace(
     openCommitments,
   );
 
+  const boardMemberships = boardCards
+    .filter((c) => c.thread_id === threadId)
+    .map((card) => {
+      const board = boards.find((b) => b.id === card.board_id);
+      if (!board) return null;
+      return {
+        board_id: board.id,
+        board_title: board.title,
+        column_key: card.column_key,
+        rank: card.rank,
+      };
+    })
+    .filter(Boolean);
+
   return {
     thread_id: threadId,
     thread,
@@ -2089,6 +2103,10 @@ export function getMockThreadWorkspace(
       items: [],
       count: 0,
       generated_at: new Date().toISOString(),
+    },
+    board_memberships: {
+      items: boardMemberships,
+      count: boardMemberships.length,
     },
     related_threads: { items: [], count: 0 },
     related_recommendations: { items: [], count: 0 },
@@ -3047,4 +3065,388 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
   events.push(createdEvent);
 
   return { artifact: createdArtifact, event: createdEvent };
+}
+
+// ─── Board fixtures ─────────────────────────────────────────────────────────────
+
+const canonicalColumnSchema = [
+  { key: "backlog", title: "Backlog", wip_limit: null },
+  { key: "ready", title: "Ready", wip_limit: null },
+  { key: "in_progress", title: "In Progress", wip_limit: 3 },
+  { key: "blocked", title: "Blocked", wip_limit: null },
+  { key: "review", title: "Review", wip_limit: 2 },
+  { key: "done", title: "Done", wip_limit: null },
+];
+
+const boards = [
+  {
+    id: "board-product-launch",
+    title: "Q2 Product Launch",
+    status: "active",
+    labels: ["product", "launch", "q2"],
+    owners: ["actor-ops-ai"],
+    primary_thread_id: "thread-q2-initiative",
+    primary_document_id: null,
+    column_schema: canonicalColumnSchema,
+    pinned_refs: ["thread:thread-q2-initiative"],
+    created_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
+  {
+    id: "board-supply-crisis",
+    title: "Supply Chain Crisis Response",
+    status: "active",
+    labels: ["supply-chain", "incident", "critical"],
+    owners: ["actor-ops-ai", "actor-supply-rover"],
+    primary_thread_id: "thread-lemon-shortage",
+    primary_document_id: null,
+    column_schema: canonicalColumnSchema,
+    pinned_refs: [
+      "thread:thread-lemon-shortage",
+      "artifact:artifact-supplier-sla",
+    ],
+    created_at: new Date(now - 18 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 1 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-supply-rover",
+  },
+  {
+    id: "board-summer-menu",
+    title: "Summer Menu Launch",
+    status: "active",
+    labels: ["product", "menu", "q2"],
+    owners: ["actor-flavor-ai", "actor-cashier-bot"],
+    primary_thread_id: "thread-summer-menu",
+    primary_document_id: "artifact-summer-menu-draft",
+    column_schema: canonicalColumnSchema,
+    pinned_refs: ["thread:thread-summer-menu"],
+    created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-flavor-ai",
+    updated_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-flavor-ai",
+  },
+];
+
+const boardCards = [
+  {
+    board_id: "board-product-launch",
+    thread_id: "thread-summer-menu",
+    column_key: "ready",
+    rank: "0001",
+    pinned_document_id: "artifact-summer-menu-draft",
+    created_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-flavor-ai",
+    updated_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-flavor-ai",
+  },
+  {
+    board_id: "board-product-launch",
+    thread_id: "thread-daily-ops",
+    column_key: "in_progress",
+    rank: "0002",
+    pinned_document_id: null,
+    created_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
+  {
+    board_id: "board-supply-crisis",
+    thread_id: "thread-lemon-shortage",
+    column_key: "in_progress",
+    rank: "0001",
+    pinned_document_id: null,
+    created_at: new Date(now - 18 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 18 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
+  {
+    board_id: "board-supply-crisis",
+    thread_id: "thread-squeezebot-maintenance",
+    column_key: "blocked",
+    rank: "0002",
+    pinned_document_id: "artifact-maintenance-log",
+    created_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-squeeze-bot",
+    updated_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-squeeze-bot",
+  },
+  {
+    board_id: "board-summer-menu",
+    thread_id: "thread-summer-menu",
+    column_key: "backlog",
+    rank: "0001",
+    pinned_document_id: "artifact-summer-menu-draft",
+    created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-flavor-ai",
+    updated_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-flavor-ai",
+  },
+  {
+    board_id: "board-summer-menu",
+    thread_id: "thread-pricing-glitch",
+    column_key: "done",
+    rank: "0001",
+    pinned_document_id: null,
+    created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
+];
+
+export function listMockBoards(filters = {}) {
+  let result = [...boards];
+
+  if (filters.status) {
+    result = result.filter((b) => b.status === filters.status);
+  }
+  if (filters.label) {
+    const labels = Array.isArray(filters.label)
+      ? filters.label
+      : [filters.label];
+    result = result.filter((b) => labels.some((l) => b.labels.includes(l)));
+  }
+  if (filters.owner) {
+    const owners = Array.isArray(filters.owner)
+      ? filters.owner
+      : [filters.owner];
+    result = result.filter((b) => owners.some((o) => b.owners.includes(o)));
+  }
+
+  return result.map((board) => ({
+    ...board,
+    board_summary: {
+      total_cards: boardCards.filter((c) => c.board_id === board.id).length,
+      cards_by_column: boardCards
+        .filter((c) => c.board_id === board.id)
+        .reduce((acc, card) => {
+          acc[card.column_key] = (acc[card.column_key] || 0) + 1;
+          return acc;
+        }, {}),
+    },
+  }));
+}
+
+export function getMockBoard(boardId) {
+  const board = boards.find((b) => b.id === boardId);
+  if (!board) return null;
+
+  const cards = boardCards.filter((c) => c.board_id === boardId);
+  return {
+    ...board,
+    board_summary: {
+      total_cards: cards.length,
+      cards_by_column: cards.reduce((acc, card) => {
+        acc[card.column_key] = (acc[card.column_key] || 0) + 1;
+        return acc;
+      }, {}),
+    },
+  };
+}
+
+export function getMockBoardWorkspace(boardId) {
+  const board = getMockBoard(boardId);
+  if (!board) return null;
+
+  const cards = boardCards.filter((c) => c.board_id === boardId);
+  const primaryThread = threads.find((t) => t.id === board.primary_thread_id);
+
+  const cardsByColumn = {};
+  for (const col of canonicalColumnSchema) {
+    cardsByColumn[col.key] = [];
+  }
+  for (const card of cards) {
+    if (cardsByColumn[card.column_key]) {
+      const thread = threads.find((t) => t.id === card.thread_id);
+      if (thread) {
+        cardsByColumn[card.column_key].push({
+          ...card,
+          thread,
+        });
+      }
+    }
+  }
+
+  const documents = artifacts.filter(
+    (a) => a.thread_id === board.primary_thread_id,
+  );
+  const workspaceCommitments = commitments.filter(
+    (c) => c.thread_id === board.primary_thread_id,
+  );
+  const inbox = [];
+
+  return {
+    board_id: board.id,
+    board,
+    primary_thread: primaryThread,
+    primary_document: null,
+    cards: cardsByColumn,
+    documents: { items: documents },
+    commitments: { items: workspaceCommitments },
+    inbox: { items: inbox },
+    board_summary: board.board_summary,
+    warnings: { items: [] },
+    section_kinds: {
+      cards: "by_column",
+      documents: "list",
+      commitments: "list",
+      inbox: "list",
+    },
+    generated_at: new Date().toISOString(),
+  };
+}
+
+export function listMockBoardCards(boardId) {
+  return boardCards.filter((c) => c.board_id === boardId);
+}
+
+export function createMockBoardCard(boardId, payload) {
+  const board = boards.find((b) => b.id === boardId);
+  if (!board) {
+    throw new Error(`Board not found: ${boardId}`);
+  }
+
+  const existingCards = boardCards.filter((c) => c.board_id === boardId);
+  const maxRank = existingCards.reduce((max, c) => {
+    const num = parseInt(c.rank, 10);
+    return num > max ? num : max;
+  }, 0);
+
+  const newCard = {
+    board_id: boardId,
+    thread_id: payload.thread_id,
+    column_key: payload.column_key || "backlog",
+    rank: String(maxRank + 1).padStart(4, "0"),
+    pinned_document_id: payload.pinned_document_id || null,
+    created_at: new Date().toISOString(),
+    created_by: payload.actor_id || "unknown",
+    updated_at: new Date().toISOString(),
+    updated_by: payload.actor_id || "unknown",
+  };
+
+  boardCards.push(newCard);
+
+  board.updated_at = new Date().toISOString();
+  board.updated_by = payload.actor_id || "unknown";
+
+  return { board, card: newCard };
+}
+
+export function updateMockBoardCard(boardId, cardId, payload) {
+  const cardIndex = boardCards.findIndex(
+    (c) => c.board_id === boardId && c.thread_id === cardId,
+  );
+  if (cardIndex === -1) {
+    throw new Error(`Card not found: ${cardId} on board ${boardId}`);
+  }
+
+  const card = boardCards[cardIndex];
+  const board = boards.find((b) => b.id === boardId);
+
+  if (payload.column_key) card.column_key = payload.column_key;
+  if (payload.pinned_document_id !== undefined) {
+    card.pinned_document_id = payload.pinned_document_id;
+  }
+  if (payload.after_thread_id || payload.before_thread_id) {
+    const boardCardsOnBoard = boardCards
+      .filter((c) => c.board_id === boardId && c.thread_id !== cardId)
+      .sort((a, b) => parseInt(a.rank, 10) - parseInt(b.rank, 10));
+
+    let newRank = "0001";
+    if (payload.after_thread_id) {
+      const afterCard = boardCardsOnBoard.find(
+        (c) => c.thread_id === payload.after_thread_id,
+      );
+      if (afterCard) {
+        newRank = String(parseInt(afterCard.rank, 10) + 1).padStart(4, "0");
+      }
+    } else if (payload.before_thread_id) {
+      const beforeCard = boardCardsOnBoard.find(
+        (c) => c.thread_id === payload.before_thread_id,
+      );
+      if (beforeCard) {
+        newRank = String(parseInt(beforeCard.rank, 10) - 1).padStart(4, "0");
+      }
+    }
+    card.rank = newRank;
+  }
+
+  card.updated_at = new Date().toISOString();
+  if (payload.actor_id) card.updated_by = payload.actor_id;
+
+  if (board) {
+    board.updated_at = new Date().toISOString();
+    if (payload.actor_id) board.updated_by = payload.actor_id;
+  }
+
+  return { board, card };
+}
+
+export function removeMockBoardCard(boardId, cardId) {
+  const cardIndex = boardCards.findIndex(
+    (c) => c.board_id === boardId && c.thread_id === cardId,
+  );
+  if (cardIndex === -1) {
+    throw new Error(`Card not found: ${cardId} on board ${boardId}`);
+  }
+
+  const removedCard = boardCards.splice(cardIndex, 1)[0];
+  const board = boards.find((b) => b.id === boardId);
+
+  if (board) {
+    board.updated_at = new Date().toISOString();
+  }
+
+  return { board, removed_thread_id: removedCard.thread_id };
+}
+
+export function createMockBoard(payload) {
+  const newBoard = {
+    id: `board-${Math.random().toString(36).slice(2, 10)}`,
+    title: payload.board.title,
+    status: payload.board.status || "active",
+    labels: payload.board.labels || [],
+    owners: payload.board.owners || [payload.actor_id],
+    primary_thread_id: payload.board.primary_thread_id,
+    primary_document_id: payload.board.primary_document_id || null,
+    column_schema: payload.board.column_schema || canonicalColumnSchema,
+    pinned_refs: payload.board.pinned_refs || [],
+    created_at: new Date().toISOString(),
+    created_by: payload.actor_id || "unknown",
+    updated_at: new Date().toISOString(),
+    updated_by: payload.actor_id || "unknown",
+  };
+
+  boards.push(newBoard);
+
+  return { board: newBoard };
+}
+
+export function updateMockBoard(boardId, payload) {
+  const board = boards.find((b) => b.id === boardId);
+  if (!board) {
+    throw new Error(`Board not found: ${boardId}`);
+  }
+
+  if (payload.board) {
+    if (payload.board.title !== undefined) board.title = payload.board.title;
+    if (payload.board.status !== undefined) board.status = payload.board.status;
+    if (payload.board.labels !== undefined) board.labels = payload.board.labels;
+    if (payload.board.owners !== undefined) board.owners = payload.board.owners;
+    if (payload.board.pinned_refs !== undefined) {
+      board.pinned_refs = payload.board.pinned_refs;
+    }
+    if (payload.board.column_schema !== undefined) {
+      board.column_schema = payload.board.column_schema;
+    }
+  }
+
+  board.updated_at = new Date().toISOString();
+  board.updated_by = payload.actor_id || "unknown";
+
+  return { board };
 }
