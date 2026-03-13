@@ -84,6 +84,36 @@ describe("mockCoreData parity behaviors", () => {
       });
     });
 
+    it("defaults omitted board owners to an empty list on create", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const result = mod.createMockBoard({
+        actor_id: "actor-test",
+        board: {
+          id: "board-owner-default-test",
+          title: "Owner Default",
+          primary_thread_id: "thread-summer-menu",
+        },
+      });
+
+      expect(result?.board?.owners).toEqual([]);
+    });
+
+    it("rejects empty board titles on create", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const result = mod.createMockBoard({
+        actor_id: "actor-test",
+        board: {
+          title: "   ",
+          primary_thread_id: "thread-summer-menu",
+        },
+      });
+
+      expect(result).toMatchObject({
+        error: "validation",
+        message: "board.title is required",
+      });
+    });
+
     it("rejects invalid board columns on card creation", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const result = mod.createMockBoardCard("board-product-launch", {
@@ -168,6 +198,21 @@ describe("mockCoreData parity behaviors", () => {
         document_count: 1,
         inbox_count: 0,
         stale: false,
+      });
+    });
+
+    it("rejects empty board titles on update", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const board = mod.getMockBoard("board-product-launch");
+      const result = mod.updateMockBoard("board-product-launch", {
+        actor_id: "actor-test",
+        if_updated_at: board?.updated_at,
+        patch: { title: "   " },
+      });
+
+      expect(result).toMatchObject({
+        error: "validation",
+        message: "board.title is required",
       });
     });
   });

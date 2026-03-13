@@ -3808,6 +3808,13 @@ export function createMockBoard(payload) {
       message: `Thread not found: ${primaryThreadId}`,
     };
   }
+  const boardTitle = String(payload.board.title ?? "").trim();
+  if (!boardTitle) {
+    return {
+      error: "validation",
+      message: "board.title is required",
+    };
+  }
   const boardStatus = String(payload.board.status ?? "active").trim();
   if (!["active", "paused", "closed"].includes(boardStatus)) {
     return {
@@ -3828,10 +3835,10 @@ export function createMockBoard(payload) {
   const nowIso = new Date().toISOString();
   const newBoard = {
     id: boardId,
-    title: payload.board.title,
+    title: boardTitle,
     status: boardStatus,
     labels: payload.board.labels || [],
-    owners: payload.board.owners || [payload.actor_id].filter(Boolean),
+    owners: payload.board.owners || [],
     primary_thread_id: primaryThreadId,
     primary_document_id: primaryDocumentId || null,
     column_schema: (payload.board.column_schema || canonicalColumnSchema).map(
@@ -3871,6 +3878,12 @@ export function updateMockBoard(boardId, payload) {
       };
     }
   }
+  if (patch.title !== undefined && !String(patch.title ?? "").trim()) {
+    return {
+      error: "validation",
+      message: "board.title is required",
+    };
+  }
   if (patch.primary_document_id !== undefined && patch.primary_document_id) {
     const primaryDocumentId = String(patch.primary_document_id).trim();
     if (primaryDocumentId && !getMockDocument(primaryDocumentId)) {
@@ -3881,7 +3894,7 @@ export function updateMockBoard(boardId, payload) {
     }
   }
 
-  if (patch.title !== undefined) board.title = patch.title;
+  if (patch.title !== undefined) board.title = String(patch.title).trim();
   if (patch.status !== undefined) board.status = patch.status;
   if (patch.labels !== undefined) board.labels = patch.labels;
   if (patch.owners !== undefined) board.owners = patch.owners;
