@@ -512,7 +512,6 @@ func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) 
 	replayableAddResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
 		"actor_id":"actor-1",
 		"request_key":"retry-equivalent-add",
-		"if_board_updated_at":"`+initialBoardUpdatedAt+`",
 		"thread_id":"`+memberThreadID+`",
 		"column_key":"ready",
 		"pinned_document_id":"`+memberDocumentID+`"
@@ -532,12 +531,22 @@ func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) 
 	conflictAddResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
 		"actor_id":"actor-1",
 		"request_key":"retry-mismatched-add",
-		"if_board_updated_at":"`+initialBoardUpdatedAt+`",
 		"thread_id":"`+memberThreadID+`",
 		"column_key":"blocked"
 	}`, http.StatusConflict)
 	defer conflictAddResp.Body.Close()
 	assertErrorCode(t, conflictAddResp, "conflict")
+
+	staleEquivalentAddResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
+		"actor_id":"actor-1",
+		"request_key":"retry-stale-equivalent-add",
+		"if_board_updated_at":"`+initialBoardUpdatedAt+`",
+		"thread_id":"`+memberThreadID+`",
+		"column_key":"ready",
+		"pinned_document_id":"`+memberDocumentID+`"
+	}`, http.StatusConflict)
+	defer staleEquivalentAddResp.Body.Close()
+	assertErrorCode(t, staleEquivalentAddResp, "conflict")
 }
 
 func createBoardThreadViaHTTP(t *testing.T, h primitivesTestHarness, title string) string {

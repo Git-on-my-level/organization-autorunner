@@ -342,7 +342,7 @@ func handleAddBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		IfBoardUpdatedAt: req.IfBoardUpdatedAt,
 	})
 	if err != nil {
-		if errors.Is(err, primitives.ErrConflict) && strings.TrimSpace(req.RequestKey) != "" {
+		if errors.Is(err, primitives.ErrConflict) && strings.TrimSpace(req.RequestKey) != "" && req.IfBoardUpdatedAt == nil {
 			existingBoard, loadBoardErr := opts.primitiveStore.GetBoard(r.Context(), boardID)
 			existingCards, loadCardsErr := opts.primitiveStore.ListBoardCards(r.Context(), boardID)
 			if loadBoardErr == nil && loadCardsErr == nil {
