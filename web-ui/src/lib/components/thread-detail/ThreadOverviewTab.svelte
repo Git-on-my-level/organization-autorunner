@@ -25,11 +25,15 @@
     validateCadenceSelection,
   } from "$lib/threadFilters";
   import { parseRef } from "$lib/typedRefs";
+  import { projectPath } from "$lib/projectPaths";
+  import { page } from "$app/stores";
 
   let { threadId, onSave, conflictWarning = "", editNotice = "" } = $props();
 
   let snapshot = $derived($threadDetailStore.snapshot);
+  let boardMemberships = $derived($threadDetailStore.boardMemberships);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let projectSlug = $derived($page.params.project);
 
   let editOpen = $state(false);
   let editDraft = $state(null);
@@ -250,6 +254,27 @@
               refValue={normalizeKeyArtifactRef(artifactId)}
               {threadId}
             />
+          {/each}
+        </div>
+      </div>
+    {/if}
+
+    {#if boardMemberships.length > 0}
+      <div class="border-t border-[var(--ui-border-subtle)] px-4 py-3">
+        <p class="text-[12px] text-[var(--ui-text-muted)]">Boards</p>
+        <div class="mt-1 flex flex-wrap gap-2">
+          {#each boardMemberships as membership}
+            <a
+              class="inline-flex items-center gap-1.5 rounded bg-[var(--ui-border)] px-2 py-1 text-[12px] text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border-subtle)]"
+              href={projectPath(projectSlug, `/boards/${membership.board_id}`)}
+            >
+              <span class="font-medium">{membership.board_title}</span>
+              <span
+                class="rounded bg-[var(--ui-bg-soft)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+              >
+                {membership.column_key}
+              </span>
+            </a>
           {/each}
         </div>
       </div>
