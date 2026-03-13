@@ -127,10 +127,7 @@ func handleCreateBoard(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		return
 	}
 
-	if err := emitBoardLifecycleEvent(r.Context(), opts, actorID, buildBoardCreatedEvent(board)); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to emit board lifecycle event")
-		return
-	}
+	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCreatedEvent(board))
 
 	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.create", actorID, req.RequestKey, req, http.StatusCreated, map[string]any{"board": board})
 	if writeIdempotencyError(w, err) {
@@ -229,10 +226,7 @@ func handleUpdateBoard(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		return
 	}
 
-	if err := emitBoardLifecycleEvent(r.Context(), opts, actorID, buildBoardUpdatedEvent(currentBoard, updatedBoard, req.Patch)); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to emit board lifecycle event")
-		return
-	}
+	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardUpdatedEvent(currentBoard, updatedBoard, req.Patch))
 
 	writeJSON(w, http.StatusOK, map[string]any{"board": updatedBoard})
 }
@@ -374,10 +368,7 @@ func handleAddBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		return
 	}
 
-	if err := emitBoardLifecycleEvent(r.Context(), opts, actorID, buildBoardCardAddedEvent(result.Board, result.Card)); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to emit board lifecycle event")
-		return
-	}
+	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardAddedEvent(result.Board, result.Card))
 
 	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.cards.add", actorID, req.RequestKey, req, http.StatusCreated, map[string]any{
 		"board": result.Board,
@@ -458,10 +449,7 @@ func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 
-	if err := emitBoardLifecycleEvent(r.Context(), opts, actorID, buildBoardCardUpdatedEvent(result.Board, beforeCard, result.Card)); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to emit board lifecycle event")
-		return
-	}
+	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardUpdatedEvent(result.Board, beforeCard, result.Card))
 
 	writeJSON(w, http.StatusOK, map[string]any{"board": result.Board, "card": result.Card})
 }
@@ -535,10 +523,7 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		return
 	}
 
-	if err := emitBoardLifecycleEvent(r.Context(), opts, actorID, buildBoardCardMovedEvent(result.Board, beforeCard, result.Card, req.BeforeThreadID, req.AfterThreadID)); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to emit board lifecycle event")
-		return
-	}
+	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardMovedEvent(result.Board, beforeCard, result.Card, req.BeforeThreadID, req.AfterThreadID))
 
 	writeJSON(w, http.StatusOK, map[string]any{"board": result.Board, "card": result.Card})
 }
@@ -598,10 +583,7 @@ func handleRemoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 
-	if err := emitBoardLifecycleEvent(r.Context(), opts, actorID, buildBoardCardRemovedEvent(result.Board, beforeCard)); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to emit board lifecycle event")
-		return
-	}
+	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardRemovedEvent(result.Board, beforeCard))
 
 	writeJSON(w, http.StatusOK, map[string]any{"board": result.Board, "removed_thread_id": result.RemovedThreadID})
 }
@@ -948,6 +930,10 @@ func emitBoardLifecycleEvent(ctx context.Context, opts handlerOptions, actorID s
 		return err
 	}
 	return refreshDerivedThreadProjection(ctx, opts, anyString(stored["thread_id"]), time.Now().UTC(), actorID)
+}
+
+func emitBoardLifecycleEventBestEffort(ctx context.Context, opts handlerOptions, actorID string, event map[string]any) {
+	_ = emitBoardLifecycleEvent(ctx, opts, actorID, event)
 }
 
 func boardListItemsResponse(items []primitives.BoardListItem) []map[string]any {

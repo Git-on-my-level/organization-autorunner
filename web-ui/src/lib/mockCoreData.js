@@ -3303,14 +3303,18 @@ function buildBoardSummary(board) {
 
   let latestActivityAt = board.updated_at ?? null;
   let openCommitmentCount = 0;
-  let documentCount = listMockDocuments({
-    thread_id: board.primary_thread_id,
-  }).length;
+  let documentCount = 0;
+  const threadIds = collectMockBoardWorkspaceThreadIds(
+    board.id,
+    board.primary_thread_id,
+  );
 
   for (const card of cards) {
     cardsByColumn[card.column_key] = (cardsByColumn[card.column_key] ?? 0) + 1;
+  }
 
-    const thread = getMockThread(card.thread_id);
+  for (const threadId of threadIds) {
+    const thread = getMockThread(threadId);
     if (thread?.updated_at) {
       if (
         !latestActivityAt ||
@@ -3323,7 +3327,7 @@ function buildBoardSummary(board) {
     openCommitmentCount += Array.isArray(thread?.open_commitments)
       ? thread.open_commitments.length
       : 0;
-    documentCount += listMockDocuments({ thread_id: card.thread_id }).length;
+    documentCount += listMockDocuments({ thread_id: threadId }).length;
   }
 
   return {
@@ -3344,19 +3348,34 @@ function buildBoardWorkspaceCard(card) {
     ? (getMockDocument(card.pinned_document_id)?.document ?? null)
     : null;
   const documents = listMockDocuments({ thread_id: card.thread_id });
+  const recentEvents = listMockTimelineEvents(card.thread_id);
+  const openCommitments = listMockCommitments({
+    thread_id: card.thread_id,
+    status: "open",
+  });
+  const keyArtifacts = normalizeRefList(thread.key_artifacts).map((ref) => ({
+    ref,
+    artifact: null,
+  }));
+  const collaboration = buildMockWorkspaceCollaboration(
+    recentEvents,
+    keyArtifacts,
+    openCommitments,
+  );
+  const inboxCount = listMockInboxItems().filter(
+    (item) => String(item.thread_id ?? "") === String(card.thread_id),
+  ).length;
 
   return {
     card: { ...card },
     thread: { ...thread },
     summary: {
-      open_commitment_count: Array.isArray(thread.open_commitments)
-        ? thread.open_commitments.length
-        : 0,
-      decision_request_count: 0,
-      decision_count: 0,
-      recommendation_count: 0,
+      open_commitment_count: collaboration.open_commitment_count,
+      decision_request_count: collaboration.decision_request_count,
+      decision_count: collaboration.decision_count,
+      recommendation_count: collaboration.recommendation_count,
       document_count: documents.length,
-      inbox_count: 0,
+      inbox_count: inboxCount,
       latest_activity_at: thread.updated_at ?? card.updated_at ?? null,
       stale: ["stale", "very-stale"].includes(String(thread.staleness ?? "")),
     },
@@ -3523,9 +3542,9 @@ export function getMockBoardWorkspace(boardId) {
     },
     section_kinds: {
       board: "canonical",
-      primary_thread: "derived",
-      primary_document: "derived",
-      cards: "canonical",
+      primary_thread: "canonical",
+      primary_document: "canonical",
+      cards: "convenience",
       documents: "derived",
       commitments: "derived",
       inbox: "derived",

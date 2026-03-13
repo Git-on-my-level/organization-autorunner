@@ -428,7 +428,12 @@
                 </a>
               </span>
               <span>
-                Updated {formatTimestamp(board.updated_at) || "—"} by {actorName(
+                Activity {formatTimestamp(summary?.latest_activity_at) ||
+                  formatTimestamp(board.updated_at) ||
+                  "—"}
+              </span>
+              <span>
+                Board updated {formatTimestamp(board.updated_at) || "—"} by {actorName(
                   board.updated_by,
                 )}
               </span>

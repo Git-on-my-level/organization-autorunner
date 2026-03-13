@@ -10,21 +10,42 @@ const columns = [
   { key: "done", title: "Done", wip_limit: null },
 ];
 
-function buildSummary(board, cards) {
+function buildSummary(board, cards, threads, documents) {
   const cardsByColumn = Object.fromEntries(
     columns.map((column) => [column.key, 0]),
   );
+  const threadIds = new Set([board.primary_thread_id]);
+  let latestActivityAt = board.updated_at;
+  let openCommitmentCount = 0;
+  let documentCount = 0;
 
   cards.forEach((card) => {
     cardsByColumn[card.column_key] = (cardsByColumn[card.column_key] ?? 0) + 1;
+    threadIds.add(card.thread_id);
   });
+
+  for (const threadId of threadIds) {
+    const thread = threads.find((item) => item.id === threadId);
+    if (
+      thread?.updated_at &&
+      Date.parse(thread.updated_at) > Date.parse(latestActivityAt)
+    ) {
+      latestActivityAt = thread.updated_at;
+    }
+    openCommitmentCount += Array.isArray(thread?.open_commitments)
+      ? thread.open_commitments.length
+      : 0;
+    documentCount += documents.filter(
+      (document) => document.thread_id === threadId,
+    ).length;
+  }
 
   return {
     card_count: cards.length,
     cards_by_column: cardsByColumn,
-    open_commitment_count: 0,
-    document_count: 0,
-    latest_activity_at: board.updated_at,
+    open_commitment_count: openCommitmentCount,
+    document_count: documentCount,
+    latest_activity_at: latestActivityAt,
     has_primary_document: Boolean(board.primary_document_id),
   };
 }
@@ -46,8 +67,28 @@ function sortCards(cards) {
   });
 }
 
-function buildWorkspace(board, cards, threads, documents) {
+function buildWorkspace(
+  board,
+  cards,
+  threads,
+  documents,
+  commitments,
+  inboxItems,
+) {
   const sortedCards = sortCards(cards);
+  const threadIds = new Set([
+    board.primary_thread_id,
+    ...cards.map((card) => card.thread_id),
+  ]);
+  const workspaceDocuments = documents.filter((document) =>
+    threadIds.has(document.thread_id),
+  );
+  const workspaceCommitments = commitments.filter((commitment) =>
+    threadIds.has(commitment.thread_id),
+  );
+  const workspaceInbox = inboxItems.filter((item) =>
+    threadIds.has(item.thread_id),
+  );
 
   return {
     board_id: board.id,
@@ -63,14 +104,30 @@ function buildWorkspace(board, cards, threads, documents) {
         card,
         thread: threads.find((thread) => thread.id === card.thread_id),
         summary: {
-          open_commitment_count: 0,
-          decision_request_count: 0,
+          open_commitment_count:
+            threads.find((thread) => thread.id === card.thread_id)
+              ?.open_commitments?.length ?? 0,
+          decision_request_count: workspaceInbox.filter(
+            (item) =>
+              item.thread_id === card.thread_id &&
+              item.category === "decision_needed",
+          ).length,
           decision_count: 0,
           recommendation_count: 0,
-          document_count: 0,
-          inbox_count: 0,
-          latest_activity_at: card.updated_at,
-          stale: false,
+          document_count: workspaceDocuments.filter(
+            (document) => document.thread_id === card.thread_id,
+          ).length,
+          inbox_count: workspaceInbox.filter(
+            (item) => item.thread_id === card.thread_id,
+          ).length,
+          latest_activity_at:
+            threads.find((thread) => thread.id === card.thread_id)
+              ?.updated_at ?? card.updated_at,
+          stale:
+            threads.find((thread) => thread.id === card.thread_id)
+              ?.staleness === "stale" ||
+            threads.find((thread) => thread.id === card.thread_id)
+              ?.staleness === "very-stale",
         },
         pinned_document:
           documents.find(
@@ -80,28 +137,33 @@ function buildWorkspace(board, cards, threads, documents) {
       count: cards.length,
     },
     documents: {
-      items: [],
-      count: 0,
+      items: workspaceDocuments,
+      count: workspaceDocuments.length,
     },
     commitments: {
-      items: [],
-      count: 0,
+      items: workspaceCommitments,
+      count: workspaceCommitments.length,
     },
     inbox: {
-      items: [],
-      count: 0,
+      items: workspaceInbox,
+      count: workspaceInbox.length,
       generated_at: board.updated_at,
     },
-    board_summary: buildSummary(board, cards),
+    board_summary: buildSummary(board, cards, threads, documents),
     warnings: {
-      items: [],
-      count: 0,
+      items: [
+        {
+          thread_id: "thread-review",
+          message: "card pinned document is no longer available",
+        },
+      ],
+      count: 1,
     },
     section_kinds: {
       board: "canonical",
-      primary_thread: "derived",
-      primary_document: "derived",
-      cards: "canonical",
+      primary_thread: "canonical",
+      primary_document: "canonical",
+      cards: "convenience",
       documents: "derived",
       commitments: "derived",
       inbox: "derived",
@@ -129,9 +191,9 @@ test("board UI supports create/edit and card mutation flows", async ({
       title: "Primary Coordination Thread",
       status: "active",
       priority: "p1",
-      updated_at: "2026-03-04T00:00:00.000Z",
+      updated_at: "2026-03-06T08:00:00.000Z",
       updated_by: actorId,
-      open_commitments: [],
+      open_commitments: ["commitment-primary"],
     },
     {
       id: "thread-execution",
@@ -139,9 +201,9 @@ test("board UI supports create/edit and card mutation flows", async ({
       title: "Execution Track",
       status: "active",
       priority: "p2",
-      updated_at: "2026-03-04T00:00:00.000Z",
+      updated_at: "2026-03-05T06:00:00.000Z",
       updated_by: actorId,
-      open_commitments: [],
+      open_commitments: ["commitment-execution"],
     },
     {
       id: "thread-review",
@@ -149,15 +211,17 @@ test("board UI supports create/edit and card mutation flows", async ({
       title: "Review Prep",
       status: "active",
       priority: "p2",
-      updated_at: "2026-03-04T00:00:00.000Z",
+      updated_at: "2026-03-05T07:00:00.000Z",
       updated_by: actorId,
       open_commitments: [],
+      staleness: "stale",
     },
   ];
   const documents = [
     {
       id: "doc-runbook",
       title: "Launch Runbook",
+      thread_id: "thread-primary",
       updated_at: "2026-03-04T00:00:00.000Z",
       updated_by: actorId,
       status: "active",
@@ -168,12 +232,41 @@ test("board UI supports create/edit and card mutation flows", async ({
     {
       id: "doc-playbook",
       title: "Incident Playbook",
+      thread_id: "thread-execution",
       updated_at: "2026-03-04T00:00:00.000Z",
       updated_by: actorId,
       status: "active",
       labels: [],
       head_revision_id: "rev-doc-playbook-1",
       head_revision_number: 1,
+    },
+  ];
+  const commitments = [
+    {
+      id: "commitment-primary",
+      thread_id: "thread-primary",
+      title: "Primary thread follow-up",
+      owner: actorId,
+      due_at: "2026-03-07T12:00:00.000Z",
+      status: "open",
+    },
+    {
+      id: "commitment-execution",
+      thread_id: "thread-execution",
+      title: "Execution commitment",
+      owner: actorId,
+      due_at: "2026-03-06T12:00:00.000Z",
+      status: "open",
+    },
+  ];
+  const inboxItems = [
+    {
+      id: "inbox-review-1",
+      thread_id: "thread-review",
+      category: "decision_needed",
+      title: "Need sign-off on review prep",
+      refs: ["thread:thread-review"],
+      source_event_time: "2026-03-05T05:30:00.000Z",
     },
   ];
 
@@ -234,7 +327,14 @@ test("board UI supports create/edit and card mutation flows", async ({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          boards: board ? [{ board, summary: buildSummary(board, cards) }] : [],
+          boards: board
+            ? [
+                {
+                  board,
+                  summary: buildSummary(board, cards, threads, documents),
+                },
+              ]
+            : [],
         }),
       });
       return;
@@ -269,7 +369,16 @@ test("board UI supports create/edit and card mutation flows", async ({
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(buildWorkspace(board, cards, threads, documents)),
+      body: JSON.stringify(
+        buildWorkspace(
+          board,
+          cards,
+          threads,
+          documents,
+          commitments,
+          inboxItems,
+        ),
+      ),
     });
   });
 
@@ -457,6 +566,12 @@ test("board UI supports create/edit and card mutation flows", async ({
     page.getByRole("heading", { name: "Launch Control" }),
   ).toBeVisible();
   await expect(page.getByText("Paused", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Workspace documents" }),
+  ).toBeVisible();
+  await expect(page.getByText("Commitments", { exact: true })).toBeVisible();
+  await expect(page.getByText("Review inbox", { exact: true })).toBeVisible();
+  await expect(page.getByText("Warnings", { exact: true })).toBeVisible();
   expect(boardCreatePayloads).toEqual([
     {
       actor_id: actorId,
@@ -508,6 +623,8 @@ test("board UI supports create/edit and card mutation flows", async ({
   await page.getByLabel("Target column").selectOption("ready");
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(page.getByRole("link", { name: "Review Prep" })).toBeVisible();
+  await expect(page.getByText("Stale", { exact: true })).toBeVisible();
+  await expect(page.getByText("Need sign-off on review prep")).toBeVisible();
 
   await page.getByRole("button", { name: "Manage Review Prep" }).click();
   await page.getByRole("button", { name: "Move up" }).click();
@@ -675,7 +792,9 @@ test("board edit conflict reloads latest state and allows retry", async ({
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(buildWorkspace(board, [], threads, documents)),
+      body: JSON.stringify(
+        buildWorkspace(board, [], threads, documents, [], []),
+      ),
     });
   });
 

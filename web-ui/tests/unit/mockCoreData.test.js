@@ -131,6 +131,44 @@ describe("mockCoreData parity behaviors", () => {
         "commitment-pricing-audit",
         "commitment-menu-board",
       ]);
+      expect(workspace?.section_kinds).toMatchObject({
+        board: "canonical",
+        primary_thread: "canonical",
+        primary_document: "canonical",
+        cards: "convenience",
+      });
+    });
+
+    it("includes primary-thread activity in board summaries", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const boardListItem = mod
+        .listMockBoards()
+        .find((item) => item.board.id === "board-supply-crisis");
+
+      expect(boardListItem?.summary?.open_commitment_count).toBe(3);
+      expect(
+        Date.parse(String(boardListItem?.summary?.latest_activity_at ?? "")),
+      ).toBeGreaterThan(
+        Date.parse(String(boardListItem?.board?.updated_at ?? "")),
+      );
+    });
+
+    it("uses derived collaboration and inbox counts in board card summaries", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const workspace = mod.getMockBoardWorkspace("board-summer-menu");
+      const pricingCard = workspace?.cards?.items?.find(
+        (item) => item.card?.thread_id === "thread-pricing-glitch",
+      );
+
+      expect(pricingCard?.summary).toMatchObject({
+        open_commitment_count: 0,
+        decision_request_count: 1,
+        decision_count: 1,
+        recommendation_count: 0,
+        document_count: 1,
+        inbox_count: 0,
+        stale: false,
+      });
     });
   });
 });

@@ -7,6 +7,11 @@
   import { projectPath } from "$lib/projectPaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
   import {
+    enrichInboxItem,
+    getInboxCategoryLabel,
+    groupInboxItems,
+  } from "$lib/inboxUtils";
+  import {
     BOARD_STATUS_LABELS,
     boardColumnTitle,
     groupBoardWorkspaceCards,
@@ -48,6 +53,13 @@
   let projectSlug = $derived($page.params.project);
   let boardId = $derived($page.params.boardId);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let enrichedInboxItems = $derived(
+    (workspace?.inbox?.items ?? []).map((item) => enrichInboxItem(item)),
+  );
+  let groupedInboxItems = $derived(groupInboxItems(enrichedInboxItems));
+  let visibleInboxGroups = $derived(
+    groupedInboxItems.filter((group) => group.items.length > 0),
+  );
 
   function projectHref(pathname = "/") {
     return projectPath(projectSlug, pathname);
@@ -337,6 +349,12 @@
     }
   }
 
+  function staleBadgeClass(stale) {
+    return stale
+      ? "text-red-300 bg-red-500/10"
+      : "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
+  }
+
   $effect(() => {
     if (projectSlug && boardId) {
       void loadWorkspace();
@@ -404,6 +422,9 @@
     workspace.cards,
     board.column_schema,
   )}
+  {@const boardDocuments = workspace.documents?.items ?? []}
+  {@const boardCommitments = workspace.commitments?.items ?? []}
+  {@const boardWarnings = workspace.warnings?.items ?? []}
 
   <div class="mb-4 space-y-2">
     {#if mutationNotice}
@@ -546,6 +567,30 @@
           <span class="text-[var(--ui-text-muted)]">Cards:</span>
           <span class="ml-1 text-[var(--ui-text)]">
             {workspace.board_summary?.card_count ?? workspace.cards?.count ?? 0}
+          </span>
+        </div>
+        <div
+          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
+        >
+          <span class="text-[var(--ui-text-muted)]">Documents:</span>
+          <span class="ml-1 text-[var(--ui-text)]">
+            {workspace.documents?.count ?? 0}
+          </span>
+        </div>
+        <div
+          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
+        >
+          <span class="text-[var(--ui-text-muted)]">Commitments:</span>
+          <span class="ml-1 text-[var(--ui-text)]">
+            {workspace.commitments?.count ?? 0}
+          </span>
+        </div>
+        <div
+          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
+        >
+          <span class="text-[var(--ui-text-muted)]">Inbox:</span>
+          <span class="ml-1 text-[var(--ui-text)]">
+            {workspace.inbox?.count ?? 0}
           </span>
         </div>
       </div>
@@ -773,6 +818,232 @@
     </section>
   {/if}
 
+  <div class="mb-6 grid gap-5 xl:grid-cols-2">
+    <section
+      class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+    >
+      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
+            Workspace documents
+          </h2>
+          <span class="text-[11px] text-[var(--ui-text-subtle)]">
+            {workspace.documents?.count ?? 0}
+          </span>
+        </div>
+      </div>
+
+      {#if boardDocuments.length === 0}
+        <div class="px-4 py-4 text-[12px] text-[var(--ui-text-muted)]">
+          No documents aggregated across this board yet.
+        </div>
+      {:else}
+        <div class="divide-y divide-[var(--ui-border)]">
+          {#each boardDocuments as document}
+            <div class="px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <a
+                    class="text-[13px] font-medium text-[var(--ui-text)] transition-colors hover:text-indigo-300"
+                    href={projectHref(
+                      `/docs/${encodeURIComponent(document.id)}`,
+                    )}
+                  >
+                    {document.title || document.id}
+                  </a>
+                  <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">
+                    {document.status ?? "unknown"} · Updated {formatTimestamp(
+                      document.updated_at,
+                    ) || "—"}
+                  </p>
+                </div>
+
+                {#if document.thread_id}
+                  <a
+                    class="shrink-0 text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
+                    href={projectHref(
+                      `/threads/${encodeURIComponent(document.thread_id)}`,
+                    )}
+                  >
+                    {document.thread_id}
+                  </a>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    <section
+      class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+    >
+      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
+            Commitments
+          </h2>
+          <span class="text-[11px] text-[var(--ui-text-subtle)]">
+            {workspace.commitments?.count ?? 0}
+          </span>
+        </div>
+      </div>
+
+      {#if boardCommitments.length === 0}
+        <div class="px-4 py-4 text-[12px] text-[var(--ui-text-muted)]">
+          No commitments are attached to this board's threads.
+        </div>
+      {:else}
+        <div class="divide-y divide-[var(--ui-border)]">
+          {#each boardCommitments as commitment}
+            <div class="px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-[13px] font-medium text-[var(--ui-text)]">
+                    {commitment.title || commitment.id}
+                  </p>
+                  <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">
+                    {commitment.status ?? "unknown"} · Owner {actorName(
+                      commitment.owner,
+                    )} · Due {formatTimestamp(commitment.due_at) || "—"}
+                  </p>
+                </div>
+
+                {#if commitment.thread_id}
+                  <a
+                    class="shrink-0 text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
+                    href={projectHref(
+                      `/threads/${encodeURIComponent(commitment.thread_id)}`,
+                    )}
+                  >
+                    {commitment.thread_id}
+                  </a>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    <section
+      class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] xl:col-span-2"
+    >
+      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
+            Review inbox
+          </h2>
+          <span class="text-[11px] text-[var(--ui-text-subtle)]">
+            {workspace.inbox?.count ?? 0}
+          </span>
+        </div>
+      </div>
+
+      {#if visibleInboxGroups.length === 0}
+        <div class="px-4 py-4 text-[12px] text-[var(--ui-text-muted)]">
+          No inbox items are currently derived for this board.
+        </div>
+      {:else}
+        <div class="space-y-4 px-4 py-4">
+          {#each visibleInboxGroups as group}
+            <section>
+              <div class="mb-2 flex items-center gap-2">
+                <h3
+                  class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
+                >
+                  {getInboxCategoryLabel(group.category)}
+                </h3>
+                <span class="text-[11px] text-[var(--ui-text-subtle)]">
+                  {group.items.length}
+                </span>
+              </div>
+
+              <div class="space-y-2">
+                {#each group.items as item}
+                  <article
+                    class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
+                  >
+                    <div
+                      class="flex flex-wrap items-center gap-2 text-[11px] text-[var(--ui-text-muted)]"
+                    >
+                      <span>{item.urgency_label}</span>
+                      {#if item.age_label}
+                        <span>{item.age_label}</span>
+                      {/if}
+                      {#if item.source_event_time}
+                        <span>{formatTimestamp(item.source_event_time)}</span>
+                      {/if}
+                    </div>
+
+                    <p
+                      class="mt-1 text-[13px] font-medium text-[var(--ui-text)]"
+                    >
+                      {item.title || item.summary || item.id}
+                    </p>
+
+                    <div
+                      class="mt-2 flex flex-wrap items-center gap-2 text-[11px]"
+                    >
+                      {#if item.thread_id}
+                        <a
+                          class="font-medium text-indigo-300 transition-colors hover:text-indigo-200"
+                          href={projectHref(
+                            `/threads/${encodeURIComponent(item.thread_id)}`,
+                          )}
+                        >
+                          {item.thread_id}
+                        </a>
+                      {/if}
+                      {#each item.refs ?? [] as refValue}
+                        <RefLink {refValue} threadId={item.thread_id} />
+                      {/each}
+                    </div>
+                  </article>
+                {/each}
+              </div>
+            </section>
+          {/each}
+        </div>
+      {/if}
+    </section>
+
+    {#if boardWarnings.length > 0}
+      <section
+        class="rounded-md border border-amber-500/20 bg-amber-500/5 xl:col-span-2"
+      >
+        <div class="border-b border-amber-500/10 px-4 py-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <h2 class="text-[13px] font-medium text-amber-300">Warnings</h2>
+            <span class="text-[11px] text-amber-200/80">
+              {workspace.warnings?.count ?? boardWarnings.length}
+            </span>
+          </div>
+        </div>
+
+        <div class="space-y-2 px-4 py-4">
+          {#each boardWarnings as warning}
+            <div
+              class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100"
+            >
+              {warning.message || "Workspace warning"}
+              {#if warning.thread_id}
+                <a
+                  class="ml-1 font-medium text-amber-200 underline transition-colors hover:text-amber-100"
+                  href={projectHref(
+                    `/threads/${encodeURIComponent(warning.thread_id)}`,
+                  )}
+                >
+                  {warning.thread_id}
+                </a>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
+  </div>
+
   <div class="space-y-6">
     {#each board.column_schema as column}
       {@const cards = cardsByColumn[column.key] ?? []}
@@ -834,8 +1105,32 @@
                           >
                             {cardItem.summary?.open_commitment_count ?? 0} open commitments
                             · {cardItem.summary?.document_count ?? 0}
-                            docs
+                            docs · {cardItem.summary?.inbox_count ?? 0} inbox · {cardItem
+                              .summary?.decision_request_count ?? 0}
+                            decision requests · {cardItem.summary
+                              ?.decision_count ?? 0}
+                            decisions · {cardItem.summary
+                              ?.recommendation_count ?? 0}
+                            recommendations
                           </p>
+                          <div
+                            class="mt-2 flex flex-wrap items-center gap-2 text-[10px]"
+                          >
+                            <span
+                              class="rounded px-1.5 py-0.5 {staleBadgeClass(
+                                Boolean(cardItem.summary?.stale),
+                              )}"
+                            >
+                              {cardItem.summary?.stale ? "Stale" : "Fresh"}
+                            </span>
+                            <span
+                              class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[var(--ui-text-muted)]"
+                            >
+                              Activity {formatTimestamp(
+                                cardItem.summary?.latest_activity_at,
+                              ) || "—"}
+                            </span>
+                          </div>
                         </div>
 
                         <div class="flex shrink-0 flex-col items-end gap-2">
