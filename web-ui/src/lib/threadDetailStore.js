@@ -13,12 +13,12 @@ function initialState() {
     documentsError: "",
     commitments: [],
     commitmentsLoading: false,
+    boardMemberships: [],
     timeline: [],
     timelineLoading: false,
     timelineError: "",
     workOrders: [],
     workOrdersLoading: false,
-    workOrdersError: "",
   };
 }
 
@@ -67,6 +67,10 @@ function createThreadDetailStore() {
         workspace && typeof workspace.context === "object"
           ? workspace.context
           : {};
+      const boardMembershipsData =
+        workspace && typeof workspace.board_memberships === "object"
+          ? workspace.board_memberships
+          : {};
       patchState({
         workspace,
         snapshot: workspace?.thread ?? null,
@@ -75,6 +79,9 @@ function createThreadDetailStore() {
         documentsError: "",
         commitments: Array.isArray(context.open_commitments)
           ? context.open_commitments
+          : [],
+        boardMemberships: Array.isArray(boardMembershipsData.items)
+          ? boardMembershipsData.items
           : [],
         timeline: Array.isArray(context.recent_events)
           ? context.recent_events
@@ -95,6 +102,7 @@ function createThreadDetailStore() {
           documentsError: `Failed to load workspace: ${message}`,
           documents: [],
           commitments: [],
+          boardMemberships: [],
           timeline: [],
         });
       }

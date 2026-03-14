@@ -657,6 +657,61 @@ export function createOarCoreClient(options = {}) {
       invokeJSON("inbox.ack", () =>
         generated.inboxAck({ body: withActorId(payload) }),
       ),
+
+    createBoard: (payload) =>
+      invokeJSON("boards.create", () =>
+        generated.boardsCreate({ body: withActorId(payload) }),
+      ),
+    listBoards: (filters) =>
+      invokeJSON("boards.list", () => generated.boardsList({ query: filters })),
+    getBoard: (boardId) =>
+      invokeJSON("boards.get", () =>
+        generated.boardsGet({ board_id: String(boardId) }),
+      ),
+    updateBoard: (boardId, payload) =>
+      invokeJSON("boards.update", () =>
+        generated.boardsUpdate(
+          { board_id: String(boardId) },
+          { body: withActorId(payload) },
+        ),
+      ),
+    getBoardWorkspace: (boardId) =>
+      invokeJSON("boards.workspace", () =>
+        generated.boardsWorkspace({ board_id: String(boardId) }),
+      ),
+
+    addBoardCard: (boardId, payload) =>
+      invokeJSON("boards.cards.add", () =>
+        generated.boardsCardsAdd(
+          { board_id: String(boardId) },
+          { body: withActorId(payload) },
+        ),
+      ),
+    listBoardCards: (boardId) =>
+      invokeJSON("boards.cards.list", () =>
+        generated.boardsCardsList({ board_id: String(boardId) }),
+      ),
+    moveBoardCard: (boardId, cardId, payload) =>
+      invokeJSON("boards.cards.move", () =>
+        generated.boardsCardsMove(
+          { board_id: String(boardId), thread_id: String(cardId) },
+          { body: withActorId(payload) },
+        ),
+      ),
+    removeBoardCard: (boardId, cardId, payload) =>
+      invokeJSON("boards.cards.remove", () =>
+        generated.boardsCardsRemove(
+          { board_id: String(boardId), thread_id: String(cardId) },
+          { body: withActorId(payload) },
+        ),
+      ),
+    updateBoardCard: (boardId, cardId, payload) =>
+      invokeJSON("boards.cards.update", () =>
+        generated.boardsCardsUpdate(
+          { board_id: String(boardId), thread_id: String(cardId) },
+          { body: withActorId(payload) },
+        ),
+      ),
   };
 }
 

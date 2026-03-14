@@ -7,6 +7,7 @@ export const KNOWN_REF_PREFIXES = new Set([
   "inbox",
   "document",
   "document_revision",
+  "board",
 ]);
 
 export function parseRef(rawRef) {

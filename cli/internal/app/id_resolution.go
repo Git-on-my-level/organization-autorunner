@@ -10,6 +10,7 @@ import (
 var typedRefLookupByPrefix = map[string]resourceIDLookupSpec{
 	"thread":     threadIDLookupSpec,
 	"artifact":   artifactIDLookupSpec,
+	"board":      boardIDLookupSpec,
 	"commitment": commitmentIDLookupSpec,
 }
 
@@ -60,6 +61,10 @@ func commandSupportsMutationIDResolution(commandID string) bool {
 	switch strings.TrimSpace(commandID) {
 	case "commitments.create",
 		"commitments.patch",
+		"boards.create",
+		"boards.update",
+		"boards.cards.add",
+		"boards.cards.move",
 		"docs.create",
 		"docs.update",
 		"events.create",
@@ -98,6 +103,26 @@ func (a *App) normalizeMutationCommandBody(ctx context.Context, cfg config.Resol
 		}
 		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
 			{key: "refs", kind: mutationFieldTypedRefList},
+		})
+	case "boards.create":
+		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "board"), []mutationFieldSpec{
+			{key: "primary_thread_id", kind: mutationFieldThreadID},
+			{key: "pinned_refs", kind: mutationFieldTypedRefList},
+		})
+	case "boards.update":
+		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "patch"), []mutationFieldSpec{
+			{key: "pinned_refs", kind: mutationFieldTypedRefList},
+		})
+	case "boards.cards.add":
+		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
+			{key: "thread_id", kind: mutationFieldThreadID},
+			{key: "before_thread_id", kind: mutationFieldThreadID},
+			{key: "after_thread_id", kind: mutationFieldThreadID},
+		})
+	case "boards.cards.move":
+		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
+			{key: "before_thread_id", kind: mutationFieldThreadID},
+			{key: "after_thread_id", kind: mutationFieldThreadID},
 		})
 	case "docs.create", "docs.update":
 		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{

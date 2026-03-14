@@ -52,7 +52,7 @@ describe("oarCoreClient error messaging", () => {
         if (String(url).endsWith("/meta/handshake")) {
           return new Response(
             JSON.stringify({
-              schema_version: "0.2.2",
+              schema_version: "0.2.3",
               command_registry_digest: expectedDigest,
               core_version: "test",
               api_version: "0.2",
@@ -72,7 +72,7 @@ describe("oarCoreClient error messaging", () => {
     });
 
     await expect(verifyCoreSchemaVersion(client)).resolves.toMatchObject({
-      schema_version: "0.2.2",
+      schema_version: "0.2.3",
     });
   });
 
@@ -106,7 +106,7 @@ describe("oarCoreClient error messaging", () => {
         if (String(url).endsWith("/version")) {
           return new Response(
             JSON.stringify({
-              schema_version: "0.2.2",
+              schema_version: "0.2.3",
               command_registry_digest: expectedDigest,
             }),
             {
@@ -124,7 +124,7 @@ describe("oarCoreClient error messaging", () => {
     });
 
     await expect(verifyCoreSchemaVersion(client)).resolves.toMatchObject({
-      schema_version: "0.2.2",
+      schema_version: "0.2.3",
     });
   });
 
@@ -135,7 +135,7 @@ describe("oarCoreClient error messaging", () => {
         if (String(url).endsWith("/meta/handshake")) {
           return new Response(
             JSON.stringify({
-              schema_version: "0.2.2",
+              schema_version: "0.2.3",
               command_registry_digest: "stale-core-digest",
               core_version: "test",
               api_version: "0.2",
