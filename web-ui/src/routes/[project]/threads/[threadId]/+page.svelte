@@ -8,6 +8,7 @@
 
   import ThreadDetailHeader from "$lib/components/thread-detail/ThreadDetailHeader.svelte";
   import ThreadOverviewTab from "$lib/components/thread-detail/ThreadOverviewTab.svelte";
+  import ThreadBoardsPanel from "$lib/components/thread-detail/ThreadBoardsPanel.svelte";
   import ThreadDocumentsPanel from "$lib/components/thread-detail/ThreadDocumentsPanel.svelte";
   import ThreadCommitmentsPanel from "$lib/components/thread-detail/ThreadCommitmentsPanel.svelte";
   import ThreadWorkTab from "$lib/components/thread-detail/ThreadWorkTab.svelte";
@@ -239,6 +240,7 @@
       {conflictWarning}
       {editNotice}
     />
+    <ThreadBoardsPanel {threadId} />
     <ThreadDocumentsPanel {threadId} />
     <ThreadCommitmentsPanel
       {threadId}

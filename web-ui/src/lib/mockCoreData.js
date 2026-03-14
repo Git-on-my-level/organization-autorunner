@@ -2137,6 +2137,16 @@ export function getMockThreadWorkspace(
     })
     .filter(Boolean);
 
+  const ownedBoards = boards
+    .filter((b) => b.primary_thread_id === threadId)
+    .map((b) => ({
+      id: b.id,
+      title: b.title,
+      status: b.status,
+      card_count: boardCards.filter((c) => c.board_id === b.id).length,
+      updated_at: b.updated_at,
+    }));
+
   return {
     thread_id: threadId,
     thread,
@@ -2158,6 +2168,10 @@ export function getMockThreadWorkspace(
       items: [],
       count: 0,
       generated_at: new Date().toISOString(),
+    },
+    owned_boards: {
+      items: ownedBoards,
+      count: ownedBoards.length,
     },
     board_memberships: {
       items: boardMemberships,

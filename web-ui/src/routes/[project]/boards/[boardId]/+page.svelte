@@ -1,16 +1,11 @@
 <script>
   import { page } from "$app/stores";
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
-  import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { projectPath } from "$lib/projectPaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
-  import {
-    enrichInboxItem,
-    getInboxCategoryLabel,
-    groupInboxItems,
-  } from "$lib/inboxUtils";
+  import { enrichInboxItem } from "$lib/inboxUtils";
   import {
     BOARD_STATUS_LABELS,
     boardColumnTitle,
@@ -55,10 +50,6 @@
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
   let enrichedInboxItems = $derived(
     (workspace?.inbox?.items ?? []).map((item) => enrichInboxItem(item)),
-  );
-  let groupedInboxItems = $derived(groupInboxItems(enrichedInboxItems));
-  let visibleInboxGroups = $derived(
-    groupedInboxItems.filter((group) => group.items.length > 0),
   );
 
   function projectHref(pathname = "/") {
@@ -110,6 +101,41 @@
   function documentHint(documentId) {
     const document = availableDocuments.find((item) => item.id === documentId);
     return document?.title ?? "";
+  }
+
+  function cardCommitments(threadId) {
+    return (workspace?.commitments?.items ?? []).filter(
+      (c) => String(c.thread_id ?? "") === String(threadId),
+    );
+  }
+
+  function cardDocuments(threadId) {
+    return (workspace?.documents?.items ?? []).filter(
+      (d) => String(d.thread_id ?? "") === String(threadId),
+    );
+  }
+
+  function cardInboxItems(threadId) {
+    return enrichedInboxItems.filter(
+      (item) => String(item.thread_id ?? "") === String(threadId),
+    );
+  }
+
+  function threadStatusDotClass(status) {
+    switch (status) {
+      case "done":
+        return "bg-emerald-400";
+      case "canceled":
+        return "bg-gray-500";
+      case "paused":
+        return "bg-amber-400";
+      case "stale":
+        return "bg-orange-400";
+      case "very-stale":
+        return "bg-red-400";
+      default:
+        return "bg-blue-400";
+    }
   }
 
   async function loadWorkspace() {
@@ -375,21 +401,6 @@
   {/each}
 </datalist>
 
-<div class="mb-4">
-  <div class="flex items-center gap-2">
-    <a
-      class="text-[12px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
-      href={projectHref("/boards")}
-    >
-      Boards
-    </a>
-    <span class="text-[12px] text-[var(--ui-text-subtle)]">/</span>
-    <span class="text-[12px] text-[var(--ui-text-muted)]">
-      {workspace?.board?.title || boardId}
-    </span>
-  </div>
-</div>
-
 {#if loading}
   <div
     class="mt-12 flex items-center justify-center gap-2 text-[13px] text-[var(--ui-text-muted)]"
@@ -422,203 +433,118 @@
     workspace.cards,
     board.column_schema,
   )}
-  {@const boardDocuments = workspace.documents?.items ?? []}
-  {@const boardCommitments = workspace.commitments?.items ?? []}
   {@const boardWarnings = workspace.warnings?.items ?? []}
 
-  <div class="mb-4 space-y-2">
-    {#if mutationNotice}
-      <div
-        class="rounded-md bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400"
+  <!-- Board header — minimal: title, status, actions, one context line -->
+  <div class="mb-3">
+    <div class="flex items-center gap-2 text-[12px]">
+      <a
+        class="text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
+        href={projectHref("/boards")}
       >
-        {mutationNotice}
-      </div>
-    {/if}
+        Boards
+      </a>
+      <span class="text-[var(--ui-text-subtle)]">/</span>
+      <span class="text-[var(--ui-text-muted)]">
+        {workspace?.board?.title || boardId}
+      </span>
+    </div>
 
-    {#if conflictWarning}
-      <div
-        class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
-      >
-        {conflictWarning}
-      </div>
-    {/if}
-
-    {#if mutationError}
-      <div class="rounded-md bg-red-500/10 px-3 py-2 text-[12px] text-red-400">
-        {mutationError}
-      </div>
-    {/if}
-
-    {#if supportError}
-      <div
-        class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
-      >
-        {supportError}
-      </div>
-    {/if}
-  </div>
-
-  <div
-    class="mb-6 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
-  >
-    <div class="border-b border-[var(--ui-border)] px-4 py-3">
-      <div class="flex items-start justify-between gap-4">
-        <div class="min-w-0">
-          <div class="mb-2 flex flex-wrap items-center gap-2">
-            {#if board.status}
-              <span
-                class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-semibold {statusColor(
-                  board.status,
-                )}"
-              >
-                {BOARD_STATUS_LABELS[board.status] ?? board.status}
-              </span>
-            {/if}
-            {#each board.labels ?? [] as label}
-              <span
-                class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
-              >
-                {label}
-              </span>
-            {/each}
-          </div>
-
-          <h1 class="text-xl font-semibold text-[var(--ui-text)]">
-            {board.title || board.id}
-          </h1>
-          <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
-            Updated {formatTimestamp(board.updated_at) || "—"} by {actorName(
-              board.updated_by,
-            )}
-          </p>
-        </div>
-
-        <div class="flex flex-wrap justify-end gap-2">
-          <button
-            class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
-            onclick={openBoardEditForm}
-            type="button"
+    <div class="mt-1.5 flex items-center justify-between gap-3">
+      <div class="flex min-w-0 items-center gap-2">
+        <h1 class="truncate text-lg font-semibold text-[var(--ui-text)]">
+          {board.title || board.id}
+        </h1>
+        {#if board.status}
+          <span
+            class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold {statusColor(
+              board.status,
+            )}"
           >
-            {showBoardEditForm ? "Close edit" : "Edit board"}
-          </button>
-          <button
-            class="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-indigo-500"
-            onclick={openAddCardForm}
-            type="button"
-          >
-            {showAddCardForm ? "Close add card" : "Add card"}
-          </button>
-        </div>
+            {BOARD_STATUS_LABELS[board.status] ?? board.status}
+          </span>
+        {/if}
+      </div>
+
+      <div class="flex shrink-0 gap-2">
+        <button
+          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
+          onclick={openBoardEditForm}
+          type="button"
+        >
+          {showBoardEditForm ? "Close" : "Edit"}
+        </button>
+        <button
+          class="rounded-md bg-indigo-600 px-2.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-indigo-500"
+          onclick={openAddCardForm}
+          type="button"
+        >
+          {showAddCardForm ? "Close" : "+ Card"}
+        </button>
       </div>
     </div>
 
-    <div class="space-y-4 px-4 py-3">
-      {#if board.owners?.length > 0}
-        <div class="text-[12px] text-[var(--ui-text-muted)]">
-          Owned by
-          <span class="text-[var(--ui-text)]">
-            {board.owners.map((owner) => actorName(owner)).join(", ")}
-          </span>
-        </div>
+    <!-- Single context line -->
+    <div
+      class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[var(--ui-text-muted)]"
+    >
+      {#if primaryThread}
+        <a
+          class="text-indigo-400 transition-colors hover:text-indigo-300"
+          href={projectHref(
+            `/threads/${encodeURIComponent(primaryThread.id)}`,
+          )}
+        >
+          {primaryThread.title || "Thread"}
+        </a>
+        <span class="text-[var(--ui-text-subtle)]">·</span>
       {/if}
-
-      <div class="flex flex-wrap gap-3 text-[12px]">
-        {#if primaryThread}
-          <div
-            class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
-          >
-            <span class="text-[var(--ui-text-muted)]">Primary thread:</span>
-            <a
-              class="ml-1 text-indigo-300 transition-colors hover:text-indigo-200"
-              href={projectHref(
-                `/threads/${encodeURIComponent(primaryThread.id)}`,
-              )}
-            >
-              {primaryThread.id}
-            </a>
-            {#if primaryThread.title}
-              <span class="ml-1 text-[var(--ui-text-subtle)]">
-                - {primaryThread.title}
-              </span>
-            {/if}
-          </div>
-        {/if}
-
-        {#if workspace.primary_document}
-          <div
-            class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
-          >
-            <span class="text-[var(--ui-text-muted)]">Primary doc:</span>
-            <a
-              class="ml-1 text-indigo-300 transition-colors hover:text-indigo-200"
-              href={projectHref(
-                `/docs/${encodeURIComponent(workspace.primary_document.id)}`,
-              )}
-            >
-              {workspace.primary_document.title ||
-                workspace.primary_document.id}
-            </a>
-          </div>
-        {/if}
-
-        <div
-          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
-        >
-          <span class="text-[var(--ui-text-muted)]">Cards:</span>
-          <span class="ml-1 text-[var(--ui-text)]">
-            {workspace.board_summary?.card_count ?? workspace.cards?.count ?? 0}
-          </span>
-        </div>
-        <div
-          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
-        >
-          <span class="text-[var(--ui-text-muted)]">Documents:</span>
-          <span class="ml-1 text-[var(--ui-text)]">
-            {workspace.documents?.count ?? 0}
-          </span>
-        </div>
-        <div
-          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
-        >
-          <span class="text-[var(--ui-text-muted)]">Commitments:</span>
-          <span class="ml-1 text-[var(--ui-text)]">
-            {workspace.commitments?.count ?? 0}
-          </span>
-        </div>
-        <div
-          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
-        >
-          <span class="text-[var(--ui-text-muted)]">Inbox:</span>
-          <span class="ml-1 text-[var(--ui-text)]">
-            {workspace.inbox?.count ?? 0}
-          </span>
-        </div>
-      </div>
-
-      {#if board.pinned_refs?.length > 0}
-        <div>
-          <h2
-            class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
-          >
-            Pinned refs
-          </h2>
-          <div class="flex flex-wrap gap-2">
-            {#each board.pinned_refs as ref}
-              <span
-                class="rounded bg-[var(--ui-border)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-              >
-                <RefLink refValue={ref} humanize={true} showRaw={true} />
-              </span>
-            {/each}
-          </div>
-        </div>
-      {/if}
+      <span>
+        {workspace.board_summary?.card_count ?? workspace.cards?.count ?? 0} cards
+      </span>
+      <span class="text-[var(--ui-text-subtle)]">·</span>
+      <span>Updated {formatTimestamp(board.updated_at) || "—"}</span>
     </div>
   </div>
 
+  <!-- Notification alerts -->
+  {#if mutationNotice || conflictWarning || mutationError || supportError}
+    <div class="mb-3 space-y-2">
+      {#if mutationNotice}
+        <div
+          class="rounded-md bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-400"
+        >
+          {mutationNotice}
+        </div>
+      {/if}
+      {#if conflictWarning}
+        <div
+          class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
+        >
+          {conflictWarning}
+        </div>
+      {/if}
+      {#if mutationError}
+        <div
+          class="rounded-md bg-red-500/10 px-3 py-2 text-[12px] text-red-400"
+        >
+          {mutationError}
+        </div>
+      {/if}
+      {#if supportError}
+        <div
+          class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
+        >
+          {supportError}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  <!-- Board edit form (collapsible) -->
   {#if showBoardEditForm}
     <section
-      class="mb-5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+      class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
     >
       <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
         <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
@@ -632,7 +558,7 @@
             Board title
             <input
               bind:value={boardTitle}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
               type="text"
             />
           </label>
@@ -641,7 +567,7 @@
             Status
             <select
               bind:value={boardStatus}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
             >
               {#each Object.entries(BOARD_STATUS_LABELS) as [value, label]}
                 <option {value}>{label}</option>
@@ -653,7 +579,7 @@
             Primary document ID
             <input
               bind:value={boardPrimaryDocumentId}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
               list="board-detail-document-options"
               placeholder="incident-response-playbook"
               type="text"
@@ -680,7 +606,7 @@
             Labels
             <textarea
               bind:value={boardLabels}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
               rows="3"
             ></textarea>
           </label>
@@ -689,7 +615,7 @@
             Owners
             <textarea
               bind:value={boardOwners}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
               rows="3"
             ></textarea>
           </label>
@@ -734,9 +660,10 @@
     </section>
   {/if}
 
+  <!-- Add card form (collapsible) -->
   {#if showAddCardForm}
     <section
-      class="mb-5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+      class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
     >
       <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
         <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
@@ -745,12 +672,12 @@
       </div>
 
       <div class="space-y-3 px-4 py-3">
-        <div class="grid gap-3 md:grid-cols-2">
+        <div class="grid gap-3 md:grid-cols-3">
           <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
             Thread ID
             <input
               bind:value={addCardThreadId}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
               list="board-detail-thread-options"
               placeholder="thread-onboarding"
               type="text"
@@ -766,7 +693,7 @@
             Target column
             <select
               bind:value={addCardColumnKey}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
             >
               {#each board.column_schema as column}
                 <option value={column.key}>
@@ -781,7 +708,7 @@
             Pinned document ID
             <input
               bind:value={addCardPinnedDocumentId}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
               list="board-detail-document-options"
               placeholder="onboarding-guide-v1"
               type="text"
@@ -818,360 +745,216 @@
     </section>
   {/if}
 
-  <div class="mb-6 grid gap-5 xl:grid-cols-2">
-    <section
-      class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
-    >
-      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
-            Workspace documents
-          </h2>
-          <span class="text-[11px] text-[var(--ui-text-subtle)]">
-            {workspace.documents?.count ?? 0}
-          </span>
-        </div>
-      </div>
-
-      {#if boardDocuments.length === 0}
-        <div class="px-4 py-4 text-[12px] text-[var(--ui-text-muted)]">
-          No documents aggregated across this board yet.
-        </div>
-      {:else}
-        <div class="divide-y divide-[var(--ui-border)]">
-          {#each boardDocuments as document}
-            <div class="px-4 py-3">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <a
-                    class="text-[13px] font-medium text-[var(--ui-text)] transition-colors hover:text-indigo-300"
-                    href={projectHref(
-                      `/docs/${encodeURIComponent(document.id)}`,
-                    )}
-                  >
-                    {document.title || document.id}
-                  </a>
-                  <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">
-                    {document.status ?? "unknown"} · Updated {formatTimestamp(
-                      document.updated_at,
-                    ) || "—"}
-                  </p>
-                </div>
-
-                {#if document.thread_id}
-                  <a
-                    class="shrink-0 text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
-                    href={projectHref(
-                      `/threads/${encodeURIComponent(document.thread_id)}`,
-                    )}
-                  >
-                    {document.thread_id}
-                  </a>
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </section>
-
-    <section
-      class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
-    >
-      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
-            Commitments
-          </h2>
-          <span class="text-[11px] text-[var(--ui-text-subtle)]">
-            {workspace.commitments?.count ?? 0}
-          </span>
-        </div>
-      </div>
-
-      {#if boardCommitments.length === 0}
-        <div class="px-4 py-4 text-[12px] text-[var(--ui-text-muted)]">
-          No commitments are attached to this board's threads.
-        </div>
-      {:else}
-        <div class="divide-y divide-[var(--ui-border)]">
-          {#each boardCommitments as commitment}
-            <div class="px-4 py-3">
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-[13px] font-medium text-[var(--ui-text)]">
-                    {commitment.title || commitment.id}
-                  </p>
-                  <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">
-                    {commitment.status ?? "unknown"} · Owner {actorName(
-                      commitment.owner,
-                    )} · Due {formatTimestamp(commitment.due_at) || "—"}
-                  </p>
-                </div>
-
-                {#if commitment.thread_id}
-                  <a
-                    class="shrink-0 text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
-                    href={projectHref(
-                      `/threads/${encodeURIComponent(commitment.thread_id)}`,
-                    )}
-                  >
-                    {commitment.thread_id}
-                  </a>
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </div>
-      {/if}
-    </section>
-
-    <section
-      class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] xl:col-span-2"
-    >
-      <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
-            Review inbox
-          </h2>
-          <span class="text-[11px] text-[var(--ui-text-subtle)]">
-            {workspace.inbox?.count ?? 0}
-          </span>
-        </div>
-      </div>
-
-      {#if visibleInboxGroups.length === 0}
-        <div class="px-4 py-4 text-[12px] text-[var(--ui-text-muted)]">
-          No inbox items are currently derived for this board.
-        </div>
-      {:else}
-        <div class="space-y-4 px-4 py-4">
-          {#each visibleInboxGroups as group}
-            <section>
-              <div class="mb-2 flex items-center gap-2">
-                <h3
-                  class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
-                >
-                  {getInboxCategoryLabel(group.category)}
-                </h3>
-                <span class="text-[11px] text-[var(--ui-text-subtle)]">
-                  {group.items.length}
-                </span>
-              </div>
-
-              <div class="space-y-2">
-                {#each group.items as item}
-                  <article
-                    class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2"
-                  >
-                    <div
-                      class="flex flex-wrap items-center gap-2 text-[11px] text-[var(--ui-text-muted)]"
-                    >
-                      <span>{item.urgency_label}</span>
-                      {#if item.age_label}
-                        <span>{item.age_label}</span>
-                      {/if}
-                      {#if item.source_event_time}
-                        <span>{formatTimestamp(item.source_event_time)}</span>
-                      {/if}
-                    </div>
-
-                    <p
-                      class="mt-1 text-[13px] font-medium text-[var(--ui-text)]"
-                    >
-                      {item.title || item.summary || item.id}
-                    </p>
-
-                    <div
-                      class="mt-2 flex flex-wrap items-center gap-2 text-[11px]"
-                    >
-                      {#if item.thread_id}
-                        <a
-                          class="font-medium text-indigo-300 transition-colors hover:text-indigo-200"
-                          href={projectHref(
-                            `/threads/${encodeURIComponent(item.thread_id)}`,
-                          )}
-                        >
-                          {item.thread_id}
-                        </a>
-                      {/if}
-                      {#each item.refs ?? [] as refValue}
-                        <RefLink {refValue} threadId={item.thread_id} />
-                      {/each}
-                    </div>
-                  </article>
-                {/each}
-              </div>
-            </section>
-          {/each}
-        </div>
-      {/if}
-    </section>
-
-    {#if boardWarnings.length > 0}
-      <section
-        class="rounded-md border border-amber-500/20 bg-amber-500/5 xl:col-span-2"
-      >
-        <div class="border-b border-amber-500/10 px-4 py-2.5">
-          <div class="flex items-center justify-between gap-2">
-            <h2 class="text-[13px] font-medium text-amber-300">Warnings</h2>
-            <span class="text-[11px] text-amber-200/80">
-              {workspace.warnings?.count ?? boardWarnings.length}
-            </span>
-          </div>
-        </div>
-
-        <div class="space-y-2 px-4 py-4">
-          {#each boardWarnings as warning}
-            <div
-              class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100"
-            >
-              {warning.message || "Workspace warning"}
-              {#if warning.thread_id}
-                <a
-                  class="ml-1 font-medium text-amber-200 underline transition-colors hover:text-amber-100"
-                  href={projectHref(
-                    `/threads/${encodeURIComponent(warning.thread_id)}`,
-                  )}
-                >
-                  {warning.thread_id}
-                </a>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      </section>
-    {/if}
-  </div>
-
-  <div class="space-y-6">
+  <!-- ═══ KANBAN BOARD ═══ -->
+  <div class="flex gap-3 overflow-x-auto pb-4">
     {#each board.column_schema as column}
       {@const cards = cardsByColumn[column.key] ?? []}
-      <section>
-        <div class="mb-2 flex items-center justify-between">
-          <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">
-            {column.title || boardColumnTitle(column.key, board.column_schema)}
-          </h2>
+      <div
+        class="flex min-w-[220px] flex-1 flex-col rounded-md bg-[var(--ui-panel-muted)]"
+      >
+        <!-- Column header -->
+        <div
+          class="flex items-center justify-between px-3 py-2.5"
+        >
+          <h3
+            class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
+          >
+            {column.title ||
+              boardColumnTitle(column.key, board.column_schema)}
+          </h3>
           <span
-            class="rounded bg-[var(--ui-border)] px-2 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
+            class="min-w-[1.25rem] rounded-full bg-[var(--ui-border)] px-1.5 py-0.5 text-center text-[11px] text-[var(--ui-text-subtle)]"
           >
             {cards.length}
           </span>
         </div>
 
-        {#if cards.length === 0}
-          <div
-            class="rounded-md border border-dashed border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-4 py-6 text-center text-[12px] text-[var(--ui-text-muted)]"
-          >
-            No cards in {(
-              column.title || boardColumnTitle(column.key, board.column_schema)
-            ).toLowerCase()}
-          </div>
-        {:else}
-          <div
-            class="space-y-px overflow-hidden rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
-          >
+        <!-- Card list -->
+        <div
+          class="flex-1 space-y-2 overflow-y-auto px-2 pb-2"
+          style="max-height: calc(100vh - 260px); min-height: 120px;"
+        >
+          {#if cards.length === 0}
+            <div
+              class="flex items-center justify-center rounded-md border border-dashed border-[var(--ui-border)] px-3 py-10 text-[11px] text-[var(--ui-text-subtle)]"
+            >
+              No cards
+            </div>
+          {:else}
             {#each cards as cardItem, index}
               {@const card = cardItem.card}
               {@const thread = cardItem.thread}
               {@const threadStatus = getThreadStatus(thread)}
-              <div
-                class={index > 0 ? "border-t border-[var(--ui-border)]" : ""}
-              >
-                <div class="px-4 py-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0 flex-1">
-                      <div class="flex items-start justify-between gap-3">
-                        <div class="min-w-0 flex-1">
-                          <a
-                            class="truncate text-[13px] font-medium transition-colors hover:text-indigo-300 {threadStatusColor(
-                              threadStatus,
-                            )}"
-                            href={projectHref(
-                              `/threads/${encodeURIComponent(card.thread_id)}`,
-                            )}
-                          >
-                            {thread?.title || card.thread_id}
-                          </a>
-                          <p
-                            class="mt-0.5 text-[11px] text-[var(--ui-text-muted)]"
-                          >
-                            {thread?.status ?? "unknown"} · {thread?.priority ??
-                              "—"}
-                            · Added {formatTimestamp(card.created_at)}
-                          </p>
-                          <p
-                            class="mt-1 text-[11px] text-[var(--ui-text-subtle)]"
-                          >
-                            {cardItem.summary?.open_commitment_count ?? 0} open commitments
-                            · {cardItem.summary?.document_count ?? 0}
-                            docs · {cardItem.summary?.inbox_count ?? 0} inbox · {cardItem
-                              .summary?.decision_request_count ?? 0}
-                            decision requests · {cardItem.summary
-                              ?.decision_count ?? 0}
-                            decisions · {cardItem.summary
-                              ?.recommendation_count ?? 0}
-                            recommendations
-                          </p>
-                          <div
-                            class="mt-2 flex flex-wrap items-center gap-2 text-[10px]"
-                          >
-                            <span
-                              class="rounded px-1.5 py-0.5 {staleBadgeClass(
-                                Boolean(cardItem.summary?.stale),
-                              )}"
-                            >
-                              {cardItem.summary?.stale ? "Stale" : "Fresh"}
-                            </span>
-                            <span
-                              class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[var(--ui-text-muted)]"
-                            >
-                              Activity {formatTimestamp(
-                                cardItem.summary?.latest_activity_at,
-                              ) || "—"}
-                            </span>
-                          </div>
-                        </div>
 
-                        <div class="flex shrink-0 flex-col items-end gap-2">
-                          {#if cardItem.pinned_document}
-                            <a
-                              class="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-300 transition-colors hover:text-indigo-200"
-                              href={projectHref(
-                                `/docs/${encodeURIComponent(cardItem.pinned_document.id)}`,
-                              )}
-                            >
-                              {cardItem.pinned_document.title ||
-                                cardItem.pinned_document.id}
-                            </a>
-                          {/if}
-                          <button
-                            aria-label={`Manage ${thread?.title || card.thread_id}`}
-                            class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1 text-[11px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
-                            onclick={() => openCardManager(cardItem)}
-                            type="button"
-                          >
-                            {expandedCardId === card.thread_id
-                              ? "Close actions"
-                              : "Manage"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
+              <div
+                class="group rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] transition-colors hover:border-[var(--ui-border-strong)]"
+              >
+                <div class="px-2.5 py-2">
+                  <!-- Title row -->
+                  <div class="flex items-start gap-2">
+                    <span
+                      class="mt-[5px] h-2 w-2 shrink-0 rounded-full {threadStatusDotClass(
+                        threadStatus,
+                      )}"
+                    ></span>
+                    <a
+                      class="block min-w-0 flex-1 text-[13px] font-medium leading-snug transition-colors hover:text-indigo-300 {threadStatusColor(
+                        threadStatus,
+                      )}"
+                      href={projectHref(
+                        `/threads/${encodeURIComponent(card.thread_id)}`,
+                      )}
+                    >
+                      {thread?.title || card.thread_id}
+                    </a>
                   </div>
 
-                  {#if expandedCardId === card.thread_id}
-                    <div
-                      class="mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] p-3"
+                  <!-- Meta -->
+                  <div
+                    class="mt-1 pl-4 text-[11px] text-[var(--ui-text-muted)]"
+                  >
+                    {thread?.status ?? "unknown"} · {thread?.priority ??
+                      "—"}
+                    · {formatTimestamp(card.created_at)}
+                  </div>
+
+                  <!-- Compact stat badges -->
+                  <div class="mt-1.5 flex flex-wrap gap-1 pl-4">
+                    {#if (cardItem.summary?.open_commitment_count ?? 0) > 0}
+                      <span
+                        class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                      >
+                        {cardItem.summary.open_commitment_count} commit.
+                      </span>
+                    {/if}
+                    {#if (cardItem.summary?.inbox_count ?? 0) > 0}
+                      <span
+                        class="rounded bg-amber-500/10 px-1 py-0.5 text-[10px] text-amber-400"
+                      >
+                        {cardItem.summary.inbox_count} inbox
+                      </span>
+                    {/if}
+                    {#if (cardItem.summary?.decision_request_count ?? 0) > 0}
+                      <span
+                        class="rounded bg-indigo-500/10 px-1 py-0.5 text-[10px] text-indigo-400"
+                      >
+                        {cardItem.summary.decision_request_count} decisions
+                      </span>
+                    {/if}
+                    <span
+                      class="rounded px-1 py-0.5 text-[10px] {staleBadgeClass(
+                        Boolean(cardItem.summary?.stale),
+                      )}"
                     >
-                      <div class="grid gap-3 md:grid-cols-2">
+                      {cardItem.summary?.stale ? "Stale" : "Fresh"}
+                    </span>
+                  </div>
+
+                  <!-- Pinned document -->
+                  {#if cardItem.pinned_document}
+                    <div class="mt-1.5 pl-4">
+                      <a
+                        class="inline-block rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-300 transition-colors hover:text-indigo-200"
+                        href={projectHref(
+                          `/docs/${encodeURIComponent(cardItem.pinned_document.id)}`,
+                        )}
+                      >
+                        {cardItem.pinned_document.title ||
+                          cardItem.pinned_document.id}
+                      </a>
+                    </div>
+                  {/if}
+
+                  <!-- Manage toggle -->
+                  <div class="mt-2 flex justify-end">
+                    <button
+                      aria-label={`Manage ${thread?.title || card.thread_id}`}
+                      class="rounded px-1.5 py-0.5 text-[11px] text-[var(--ui-text-subtle)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text-muted)]"
+                      onclick={() => openCardManager(cardItem)}
+                      type="button"
+                    >
+                      {expandedCardId === card.thread_id
+                        ? "Close"
+                        : "Actions"}
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Expanded card detail + actions -->
+                {#if expandedCardId === card.thread_id}
+                  {@const thisCommitments = cardCommitments(card.thread_id)}
+                  {@const thisInbox = cardInboxItems(card.thread_id)}
+                  {@const thisDocs = cardDocuments(card.thread_id)}
+                  <div
+                    class="border-t border-[var(--ui-border)] bg-[var(--ui-panel-muted)]"
+                  >
+                    <!-- Per-card commitments -->
+                    {#if thisCommitments.length > 0}
+                      <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                          Commitments
+                        </p>
+                        {#each thisCommitments as c}
+                          <div class="mt-1 text-[11px]">
+                            <span class="text-[var(--ui-text)]">
+                              {c.title || c.id}
+                            </span>
+                            <span class="text-[var(--ui-text-subtle)]">
+                              · {c.status ?? "?"} · Due {formatTimestamp(c.due_at) || "—"}
+                            </span>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+
+                    <!-- Per-card inbox items -->
+                    {#if thisInbox.length > 0}
+                      <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                          Inbox
+                        </p>
+                        {#each thisInbox as item}
+                          <div class="mt-1 text-[11px]">
+                            <span class="text-amber-400">{item.urgency_label}</span>
+                            <span class="text-[var(--ui-text)]">
+                              {item.title || item.summary || item.id}
+                            </span>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+
+                    <!-- Per-card documents -->
+                    {#if thisDocs.length > 0}
+                      <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                          Documents
+                        </p>
+                        {#each thisDocs as doc}
+                          <div class="mt-1">
+                            <a
+                              class="text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
+                              href={projectHref(
+                                `/docs/${encodeURIComponent(doc.id)}`,
+                              )}
+                            >
+                              {doc.title || doc.id}
+                            </a>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+
+                    <!-- Card actions -->
+                    <div class="space-y-2 px-2.5 py-2">
+                      <div class="flex items-end gap-1.5">
                         <label
-                          class="text-[12px] font-medium text-[var(--ui-text-muted)]"
+                          class="min-w-0 flex-1 text-[11px] text-[var(--ui-text-muted)]"
                         >
-                          Move to column
+                          Move to
                           <select
                             bind:value={manageMoveColumnKey}
-                            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+                            class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
                           >
                             {#each board.column_schema as moveColumn}
                               <option value={moveColumn.key}>
@@ -1184,30 +967,8 @@
                             {/each}
                           </select>
                         </label>
-
-                        <label
-                          class="text-[12px] font-medium text-[var(--ui-text-muted)]"
-                        >
-                          Pinned document ID
-                          <input
-                            bind:value={managePinnedDocumentId}
-                            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-                            list="board-detail-document-options"
-                            type="text"
-                          />
-                          {#if documentHint(managePinnedDocumentId)}
-                            <span
-                              class="mt-1 block text-[11px] text-[var(--ui-text-subtle)]"
-                            >
-                              {documentHint(managePinnedDocumentId)}
-                            </span>
-                          {/if}
-                        </label>
-                      </div>
-
-                      <div class="mt-3 flex flex-wrap gap-2">
                         <button
-                          class="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+                          class="rounded bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40"
                           disabled={mutatingCardId === card.thread_id}
                           onclick={() =>
                             moveCard(
@@ -1217,53 +978,94 @@
                             )}
                           type="button"
                         >
-                          Move to column
+                          Move
                         </button>
+                      </div>
+
+                      <div class="flex items-end gap-1.5">
+                        <label
+                          class="min-w-0 flex-1 text-[11px] text-[var(--ui-text-muted)]"
+                        >
+                          Pinned doc
+                          <input
+                            bind:value={managePinnedDocumentId}
+                            class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
+                            list="board-detail-document-options"
+                            type="text"
+                          />
+                        </label>
                         <button
-                          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                          class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
+                          disabled={mutatingCardId === card.thread_id}
+                          onclick={() => saveCardPinnedDocument(cardItem)}
+                          type="button"
+                        >
+                          Save
+                        </button>
+                      </div>
+
+                      <div class="flex items-center gap-1">
+                        <button
+                          class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
                           disabled={index === 0 ||
                             mutatingCardId === card.thread_id}
                           onclick={() =>
                             reorderCard(cardItem, cards, index, "up")}
                           type="button"
                         >
-                          Move up
+                          ↑
                         </button>
                         <button
-                          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-60"
+                          class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
                           disabled={index === cards.length - 1 ||
                             mutatingCardId === card.thread_id}
                           onclick={() =>
                             reorderCard(cardItem, cards, index, "down")}
                           type="button"
                         >
-                          Move down
+                          ↓
                         </button>
+                        <div class="flex-1"></div>
                         <button
-                          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)] disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={mutatingCardId === card.thread_id}
-                          onclick={() => saveCardPinnedDocument(cardItem)}
-                          type="button"
-                        >
-                          Save pinned doc
-                        </button>
-                        <button
-                          class="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-[12px] font-medium text-red-400 transition-colors hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-60"
+                          class="rounded border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-40"
                           disabled={mutatingCardId === card.thread_id}
                           onclick={() => removeCard(cardItem)}
                           type="button"
                         >
-                          Remove card
+                          Remove
                         </button>
                       </div>
                     </div>
-                  {/if}
-                </div>
+                  </div>
+                {/if}
               </div>
             {/each}
-          </div>
-        {/if}
-      </section>
+          {/if}
+        </div>
+      </div>
     {/each}
   </div>
+
+  <!-- Warnings (shown as inline alerts if any) -->
+  {#if boardWarnings.length > 0}
+    <div class="mt-4 space-y-1.5">
+      {#each boardWarnings as warning}
+        <div
+          class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100"
+        >
+          {warning.message || "Workspace warning"}
+          {#if warning.thread_id}
+            <a
+              class="ml-1 font-medium text-amber-200 underline transition-colors hover:text-amber-100"
+              href={projectHref(
+                `/threads/${encodeURIComponent(warning.thread_id)}`,
+              )}
+            >
+              {warning.thread_id}
+            </a>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  {/if}
 {/if}

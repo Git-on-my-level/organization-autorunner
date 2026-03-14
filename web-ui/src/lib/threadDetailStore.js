@@ -14,6 +14,7 @@ function initialState() {
     commitments: [],
     commitmentsLoading: false,
     boardMemberships: [],
+    ownedBoards: [],
     timeline: [],
     timelineLoading: false,
     timelineError: "",
@@ -71,6 +72,10 @@ function createThreadDetailStore() {
         workspace && typeof workspace.board_memberships === "object"
           ? workspace.board_memberships
           : {};
+      const ownedBoardsData =
+        workspace && typeof workspace.owned_boards === "object"
+          ? workspace.owned_boards
+          : {};
       patchState({
         workspace,
         snapshot: workspace?.thread ?? null,
@@ -82,6 +87,9 @@ function createThreadDetailStore() {
           : [],
         boardMemberships: Array.isArray(boardMembershipsData.items)
           ? boardMembershipsData.items
+          : [],
+        ownedBoards: Array.isArray(ownedBoardsData.items)
+          ? ownedBoardsData.items
           : [],
         timeline: Array.isArray(context.recent_events)
           ? context.recent_events
@@ -103,6 +111,7 @@ function createThreadDetailStore() {
           documents: [],
           commitments: [],
           boardMemberships: [],
+          ownedBoards: [],
           timeline: [],
         });
       }
