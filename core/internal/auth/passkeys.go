@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -414,7 +415,7 @@ func generatePasskeyUsername(displayName string) (string, error) {
 		return "", fmt.Errorf("generate passkey username suffix: %w", err)
 	}
 	username, err := normalizeUsername(
-		fmt.Sprintf("passkey.%s.%s", base, base64.RawURLEncoding.EncodeToString(suffix)),
+		fmt.Sprintf("passkey.%s.%s", base, hex.EncodeToString(suffix)),
 	)
 	if err != nil {
 		return "", err
