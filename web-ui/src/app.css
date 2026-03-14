@@ -659,6 +659,7 @@ button:focus-visible {
   inset: 0;
   z-index: 35;
   display: flex;
+  flex-direction: row-reverse; /* panel on left to match hamburger position */
 }
 
 .shell-mobile-backdrop {
@@ -669,7 +670,7 @@ button:focus-visible {
 
 .shell-mobile-panel {
   width: min(80vw, 16rem);
-  border-left: 1px solid var(--ui-border);
+  border-right: 1px solid var(--ui-border);
   background: var(--ui-panel);
   padding: 0.625rem;
   display: flex;

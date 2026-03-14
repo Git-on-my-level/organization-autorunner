@@ -52,19 +52,22 @@ async function main() {
 }
 
 async function detectSeededState() {
-  const [actorsBody, threadsBody] = await Promise.all([
+  const [actorsBody, threadsBody, boardsBody] = await Promise.all([
     request("GET", "/actors"),
     request("GET", "/threads"),
+    request("GET", "/boards"),
   ]);
 
   const actorIds = new Set((actorsBody?.actors ?? []).map((actor) => actor?.id));
   const threadTitles = new Set(
     (threadsBody?.threads ?? []).map((thread) => String(thread?.title ?? "")),
   );
+  const boardCount = (boardsBody?.boards ?? []).length;
 
   return (
     actorIds.has("actor-ops-ai") &&
-    threadTitles.has("Emergency: Lemon Supply Disruption")
+    threadTitles.has("Emergency: Lemon Supply Disruption") &&
+    boardCount > 0
   );
 }
 
@@ -173,21 +176,31 @@ async function seedDocuments() {
     const threadId = normalizeMappedOptionalThreadId(sourceDocument.thread_id);
     const refs = threadId ? [`thread:${threadId}`] : [];
 
-    const createResponse = await request("POST", "/docs", {
-      actor_id: actorId,
-      document: {
-        id: documentId,
-        title: sourceDocument.title,
-        slug: sourceDocument.slug,
-        status: sourceDocument.status,
-        labels: sourceDocument.labels,
-        supersedes: sourceDocument.supersedes,
-        ...(threadId ? { thread_id: threadId } : {}),
-      },
-      refs,
-      content: firstRevision.content,
-      content_type: normalizeDocumentContentType(firstRevision.content_type),
-    });
+    let createResponse;
+    try {
+      createResponse = await request("POST", "/docs", {
+        actor_id: actorId,
+        document: {
+          id: documentId,
+          title: sourceDocument.title,
+          slug: sourceDocument.slug,
+          status: sourceDocument.status,
+          labels: sourceDocument.labels,
+          supersedes: sourceDocument.supersedes,
+          ...(threadId ? { thread_id: threadId } : {}),
+        },
+        refs,
+        content: firstRevision.content,
+        content_type: normalizeDocumentContentType(firstRevision.content_type),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isAlreadyExistsConflict(msg)) {
+        documentIdMap.set(documentId, documentId);
+        continue;
+      }
+      throw err;
+    }
 
     const createdDocument = createResponse?.document;
     const createdRevision = createResponse?.revision;
@@ -257,64 +270,88 @@ async function seedArtifacts() {
     const kind = String(sourceArtifact.kind ?? "").trim();
 
     if (kind === "work_order") {
-      await request("POST", "/work_orders", {
-        actor_id: actorId,
-        artifact: {
-          id: sourceArtifact.id,
-          kind,
-          thread_id: mapThreadId(sourceArtifact.thread_id),
-          summary: sourceArtifact.summary,
-          refs: mapRefs(sourceArtifact.refs),
-          provenance: sourceArtifact.provenance,
-        },
-        packet: {
-          ...sourceArtifact.packet,
-          thread_id: mapThreadId(sourceArtifact.packet?.thread_id),
-          context_refs: mapRefs(sourceArtifact.packet?.context_refs),
-        },
-      });
+      try {
+        await request("POST", "/work_orders", {
+          actor_id: actorId,
+          artifact: {
+            id: sourceArtifact.id,
+            kind,
+            thread_id: mapThreadId(sourceArtifact.thread_id),
+            summary: sourceArtifact.summary,
+            refs: mapRefs(sourceArtifact.refs),
+            provenance: sourceArtifact.provenance,
+          },
+          packet: {
+            ...sourceArtifact.packet,
+            thread_id: mapThreadId(sourceArtifact.packet?.thread_id),
+            context_refs: mapRefs(sourceArtifact.packet?.context_refs),
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (isAlreadyExistsConflict(msg)) {
+          continue;
+        }
+        throw err;
+      }
       continue;
     }
 
     if (kind === "receipt") {
-      await request("POST", "/receipts", {
-        actor_id: actorId,
-        artifact: {
-          id: sourceArtifact.id,
-          kind,
-          thread_id: mapThreadId(sourceArtifact.thread_id),
-          summary: sourceArtifact.summary,
-          refs: mapRefs(sourceArtifact.refs),
-          provenance: sourceArtifact.provenance,
-        },
-        packet: {
-          ...sourceArtifact.packet,
-          thread_id: mapThreadId(sourceArtifact.packet?.thread_id),
-          outputs: mapRefs(sourceArtifact.packet?.outputs),
-          verification_evidence: mapRefs(
-            sourceArtifact.packet?.verification_evidence,
-          ),
-        },
-      });
+      try {
+        await request("POST", "/receipts", {
+          actor_id: actorId,
+          artifact: {
+            id: sourceArtifact.id,
+            kind,
+            thread_id: mapThreadId(sourceArtifact.thread_id),
+            summary: sourceArtifact.summary,
+            refs: mapRefs(sourceArtifact.refs),
+            provenance: sourceArtifact.provenance,
+          },
+          packet: {
+            ...sourceArtifact.packet,
+            thread_id: mapThreadId(sourceArtifact.packet?.thread_id),
+            outputs: mapRefs(sourceArtifact.packet?.outputs),
+            verification_evidence: mapRefs(
+              sourceArtifact.packet?.verification_evidence,
+            ),
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (isAlreadyExistsConflict(msg)) {
+          continue;
+        }
+        throw err;
+      }
       continue;
     }
 
     if (kind === "review") {
-      await request("POST", "/reviews", {
-        actor_id: actorId,
-        artifact: {
-          id: sourceArtifact.id,
-          kind,
-          thread_id: mapThreadId(sourceArtifact.thread_id),
-          summary: sourceArtifact.summary,
-          refs: mapRefs(sourceArtifact.refs),
-          provenance: sourceArtifact.provenance,
-        },
-        packet: {
-          ...sourceArtifact.packet,
-          evidence_refs: mapRefs(sourceArtifact.packet?.evidence_refs),
-        },
-      });
+      try {
+        await request("POST", "/reviews", {
+          actor_id: actorId,
+          artifact: {
+            id: sourceArtifact.id,
+            kind,
+            thread_id: mapThreadId(sourceArtifact.thread_id),
+            summary: sourceArtifact.summary,
+            refs: mapRefs(sourceArtifact.refs),
+            provenance: sourceArtifact.provenance,
+          },
+          packet: {
+            ...sourceArtifact.packet,
+            evidence_refs: mapRefs(sourceArtifact.packet?.evidence_refs),
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (isAlreadyExistsConflict(msg)) {
+          continue;
+        }
+        throw err;
+      }
       continue;
     }
 
@@ -332,19 +369,27 @@ async function seedArtifacts() {
       content = sourceArtifact.content_text;
     }
 
-    await request("POST", "/artifacts", {
-      actor_id: actorId,
-      artifact: {
-        id: sourceArtifact.id,
-        kind,
-        thread_id: mapThreadId(sourceArtifact.thread_id),
-        summary: sourceArtifact.summary,
-        refs: mapRefs(sourceArtifact.refs),
-        provenance: sourceArtifact.provenance,
-      },
-      content_type: contentType,
-      content,
-    });
+    try {
+      await request("POST", "/artifacts", {
+        actor_id: actorId,
+        artifact: {
+          id: sourceArtifact.id,
+          kind,
+          thread_id: mapThreadId(sourceArtifact.thread_id),
+          summary: sourceArtifact.summary,
+          refs: mapRefs(sourceArtifact.refs),
+          provenance: sourceArtifact.provenance,
+        },
+        content_type: contentType,
+        content,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isAlreadyExistsConflict(msg)) {
+        continue;
+      }
+      throw err;
+    }
   }
 }
 
@@ -593,6 +638,10 @@ function normalizeDocumentContentType(value) {
     default:
       return "text";
   }
+}
+
+function isAlreadyExistsConflict(message) {
+  return message.includes("409") && message.includes("already exists");
 }
 
 function compareBoardCardsForSeed(left, right) {

@@ -204,6 +204,50 @@ func TestArtifactsListBySecondaryThreadRef(t *testing.T) {
 	}
 }
 
+func TestCreateArtifactReturnsConflictForDuplicateID(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	firstResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"id":"artifact-duplicate",
+			"kind":"my_custom_artifact",
+			"refs":["thread:thread-1"],
+			"summary":"first create"
+		},
+		"content":"hello artifact",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	firstResp.Body.Close()
+
+	secondResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"id":"artifact-duplicate",
+			"kind":"my_custom_artifact",
+			"refs":["thread:thread-1"],
+			"summary":"duplicate create"
+		},
+		"content":"hello artifact again",
+		"content_type":"text"
+	}`, http.StatusConflict)
+	defer secondResp.Body.Close()
+
+	var payload map[string]map[string]any
+	if err := json.NewDecoder(secondResp.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode conflict response: %v", err)
+	}
+	if payload["error"]["code"] != "conflict" {
+		t.Fatalf("expected conflict error code, got %#v", payload["error"])
+	}
+	if payload["error"]["message"] != "artifact already exists" {
+		t.Fatalf("expected duplicate artifact message, got %#v", payload["error"])
+	}
+}
+
 func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 	t.Parallel()
 

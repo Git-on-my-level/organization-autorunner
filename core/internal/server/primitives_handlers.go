@@ -238,6 +238,10 @@ func handleCreateArtifact(w http.ResponseWriter, r *http.Request, opts handlerOp
 
 	artifact, err := opts.primitiveStore.CreateArtifact(r.Context(), actorID, req.Artifact, req.Content, req.ContentType)
 	if err != nil {
+		if errors.Is(err, primitives.ErrConflict) {
+			writeError(w, http.StatusConflict, "conflict", "artifact already exists")
+			return
+		}
 		if errors.Is(err, primitives.ErrInvalidArtifactID) {
 			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 			return

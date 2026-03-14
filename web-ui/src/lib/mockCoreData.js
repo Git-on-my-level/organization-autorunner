@@ -1090,47 +1090,6 @@ const commitments = [
 
 const artifacts = [
   {
-    id: "artifact-supplier-sla-v2",
-    kind: "doc",
-    thread_id: "thread-lemon-shortage",
-    summary: "CitrusBot Farm SLA — uptime and delivery commitments",
-    refs: ["thread:thread-lemon-shortage", "artifact:artifact-supplier-sla"],
-    content_type: "text/markdown",
-    content_text: `# CitrusBot Farm Supplier SLA (Amended)
-
-**Supplier:** CitrusBot Farm (API: api.citrusbotfarm.io)
-**Contract term:** 2026-01-01 to 2026-12-31
-**Account:** Zesty Bots Lemonade Co.
-**Amendment:** Emergency response SLA tightened following March breach.
-
----
-
-## Uptime Commitment
-- 99.5% monthly uptime on procurement API
-- Maximum **2-hour** outage response time (reduced from 4h after breach)
-
-## Delivery Commitments
-- Standard orders: fulfilled within 24 hours of confirmation
-- Emergency orders (priority flag): fulfilled within 4 hours
-- Minimum order: 20 lemons | Maximum single order: 500 lemons
-
-## Pricing
-- Standard rate: $0.20/lemon
-- Emergency surcharge: +$0.08/lemon for same-day fulfillment
-
-## SLA Breach Conditions
-- **Tier 1:** API downtime >2 hours in any rolling 24-hour window (amended)
-- **Tier 2:** Delivery miss >2 hours past confirmed delivery window
-- Credits issued per clause 4.2 (Tier 1: $12.00 flat; Tier 2: $6.00 flat)
-
-## Current Status
-- ✅ API restored. Amendment accepted by CitrusBot Farm.`,
-    created_at: new Date(now - 10 * 60 * 1000).toISOString(),
-    created_by: "actor-ops-ai",
-    provenance: { sources: ["actor_statement:evt-supply-001"] },
-    tombstoned_at: null,
-  },
-  {
     id: "artifact-supplier-sla",
     kind: "doc",
     thread_id: "thread-lemon-shortage",
@@ -1170,6 +1129,47 @@ const artifacts = [
 - Credit owed: $12.00 (per clause 4.2)
 - SLA breach report: pending (assigned OpsAI)`,
     created_at: new Date(now - 20 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    provenance: { sources: ["actor_statement:evt-supply-001"] },
+    tombstoned_at: null,
+  },
+  {
+    id: "artifact-supplier-sla-v2",
+    kind: "doc",
+    thread_id: "thread-lemon-shortage",
+    summary: "CitrusBot Farm SLA — uptime and delivery commitments",
+    refs: ["thread:thread-lemon-shortage", "artifact:artifact-supplier-sla"],
+    content_type: "text/markdown",
+    content_text: `# CitrusBot Farm Supplier SLA (Amended)
+
+**Supplier:** CitrusBot Farm (API: api.citrusbotfarm.io)
+**Contract term:** 2026-01-01 to 2026-12-31
+**Account:** Zesty Bots Lemonade Co.
+**Amendment:** Emergency response SLA tightened following March breach.
+
+---
+
+## Uptime Commitment
+- 99.5% monthly uptime on procurement API
+- Maximum **2-hour** outage response time (reduced from 4h after breach)
+
+## Delivery Commitments
+- Standard orders: fulfilled within 24 hours of confirmation
+- Emergency orders (priority flag): fulfilled within 4 hours
+- Minimum order: 20 lemons | Maximum single order: 500 lemons
+
+## Pricing
+- Standard rate: $0.20/lemon
+- Emergency surcharge: +$0.08/lemon for same-day fulfillment
+
+## SLA Breach Conditions
+- **Tier 1:** API downtime >2 hours in any rolling 24-hour window (amended)
+- **Tier 2:** Delivery miss >2 hours past confirmed delivery window
+- Credits issued per clause 4.2 (Tier 1: $12.00 flat; Tier 2: $6.00 flat)
+
+## Current Status
+- ✅ API restored. Amendment accepted by CitrusBot Farm.`,
+    created_at: new Date(now - 10 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
     provenance: { sources: ["actor_statement:evt-supply-001"] },
     tombstoned_at: null,
@@ -1652,11 +1652,11 @@ const MOCK_DOCUMENTS = [
     head_revision_id: "rev-opd-1",
     head_revision_number: 1,
     created_at: "2025-12-01T08:00:00Z",
-    created_by: "actor-principal-1",
+    created_by: "actor-ops-ai",
     updated_at: "2026-03-01T10:00:00Z",
-    updated_by: "actor-principal-1",
+    updated_by: "actor-ops-ai",
     tombstoned_at: "2026-03-01T10:00:00Z",
-    tombstoned_by: "actor-principal-1",
+    tombstoned_by: "actor-ops-ai",
     tombstone_reason: "Superseded by updated pricing model",
   },
 ];
@@ -1760,7 +1760,7 @@ const MOCK_DOCUMENT_REVISIONS = {
       revision_number: 1,
       prev_revision_id: null,
       created_at: "2025-12-01T08:00:00Z",
-      created_by: "actor-principal-1",
+      created_by: "actor-ops-ai",
       content_type: "text",
       content_hash: "klm789",
       revision_hash: "nop012",
