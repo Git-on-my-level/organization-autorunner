@@ -204,6 +204,31 @@ const threads = [
       sources: ["actor_statement:evt-q2-001"],
     },
   },
+  {
+    id: "thread-onboarding",
+    type: "process",
+    title: "Agent onboarding and continuity",
+    status: "active",
+    priority: "p2",
+    tags: ["onboarding", "ops", "q2"],
+    key_artifacts: [],
+    cadence: "weekly",
+    current_summary:
+      "Runbook and checklist for bringing new agents (FlavorMind, Till-E, SupplyRover) " +
+      "online. Onboarding guide v1 in use. Next: document handoff steps for SqueezeBot 2000 " +
+      "when Riverside stand opens.",
+    next_actions: [
+      "Update onboarding guide with POS and inventory system setup steps",
+      "Schedule knowledge-transfer session before Riverside go-live",
+    ],
+    open_commitments: [],
+    next_check_in_at: new Date(now + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+    provenance: {
+      sources: ["actor_statement:evt-onboard-001"],
+    },
+  },
 ];
 
 const inboxItems = [
@@ -876,6 +901,24 @@ const events = [
     summary: "Commitment created: FlavorMind to draft Riverside seasonal menu.",
     payload: { commitment_id: "commitment-q2-menu" },
     provenance: { sources: ["actor_statement:evt-q2-001"] },
+  },
+
+  // ── Onboarding thread ───────────────────────────────────────────────────
+  {
+    id: "evt-onboard-001",
+    ts: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    type: "message_posted",
+    actor_id: "actor-ops-ai",
+    thread_id: "thread-onboarding",
+    refs: ["thread:thread-onboarding", "document:onboarding-guide-v1"],
+    summary: "OpsAI opened onboarding runbook thread for new agent setup.",
+    payload: {
+      text:
+        "Tracking agent onboarding and continuity here. Onboarding guide v1 is the source " +
+        "of record. When SqueezeBot 2000 arrives for Riverside, we'll add stand setup and " +
+        "handoff steps. Till-E and FlavorMind were onboarded using this runbook.",
+    },
+    provenance: { sources: ["actor_statement:evt-onboard-001"] },
   },
 ];
 
@@ -1560,11 +1603,11 @@ const MOCK_DOCUMENTS = [
     supersedes: [],
     head_revision_id: "rev-pc-3",
     head_revision_number: 3,
-    thread_id: "thread-governance",
+    thread_id: "thread-q2-initiative",
     created_at: "2026-02-15T10:00:00Z",
-    created_by: "actor-principal-1",
+    created_by: "actor-ops-ai",
     updated_at: "2026-03-08T14:30:00Z",
-    updated_by: "actor-principal-1",
+    updated_by: "actor-ops-ai",
     tombstoned_at: null,
   },
   {
@@ -1578,9 +1621,9 @@ const MOCK_DOCUMENTS = [
     head_revision_number: 2,
     thread_id: "thread-pricing-glitch",
     created_at: "2026-02-20T09:00:00Z",
-    created_by: "actor-ops-agent",
+    created_by: "actor-ops-ai",
     updated_at: "2026-03-05T11:00:00Z",
-    updated_by: "actor-ops-agent",
+    updated_by: "actor-ops-ai",
     tombstoned_at: null,
   },
   {
@@ -1592,10 +1635,11 @@ const MOCK_DOCUMENTS = [
     supersedes: [],
     head_revision_id: "rev-og-1",
     head_revision_number: 1,
+    thread_id: "thread-onboarding",
     created_at: "2026-01-10T08:00:00Z",
-    created_by: "actor-principal-1",
+    created_by: "actor-ops-ai",
     updated_at: "2026-01-10T08:00:00Z",
-    updated_by: "actor-principal-1",
+    updated_by: "actor-ops-ai",
     tombstoned_at: null,
   },
   {
@@ -1626,7 +1670,7 @@ const MOCK_DOCUMENT_REVISIONS = {
       revision_number: 1,
       prev_revision_id: null,
       created_at: "2026-02-15T10:00:00Z",
-      created_by: "actor-principal-1",
+      created_by: "actor-ops-ai",
       content_type: "text",
       content_hash: "abc123",
       revision_hash: "def456",
@@ -1640,7 +1684,7 @@ const MOCK_DOCUMENT_REVISIONS = {
       revision_number: 2,
       prev_revision_id: "rev-pc-1",
       created_at: "2026-02-28T16:00:00Z",
-      created_by: "actor-ops-agent",
+      created_by: "actor-ops-ai",
       content_type: "text",
       content_hash: "ghi789",
       revision_hash: "jkl012",
@@ -1654,7 +1698,7 @@ const MOCK_DOCUMENT_REVISIONS = {
       revision_number: 3,
       prev_revision_id: "rev-pc-2",
       created_at: "2026-03-08T14:30:00Z",
-      created_by: "actor-principal-1",
+      created_by: "actor-ops-ai",
       content_type: "text",
       content_hash: "mno345",
       revision_hash: "pqr678",
@@ -1670,7 +1714,7 @@ const MOCK_DOCUMENT_REVISIONS = {
       revision_number: 1,
       prev_revision_id: null,
       created_at: "2026-02-20T09:00:00Z",
-      created_by: "actor-ops-agent",
+      created_by: "actor-ops-ai",
       content_type: "text",
       content_hash: "stu901",
       revision_hash: "vwx234",
@@ -1684,7 +1728,7 @@ const MOCK_DOCUMENT_REVISIONS = {
       revision_number: 2,
       prev_revision_id: "rev-irp-1",
       created_at: "2026-03-05T11:00:00Z",
-      created_by: "actor-ops-agent",
+      created_by: "actor-ops-ai",
       content_type: "text",
       content_hash: "yza567",
       revision_hash: "bcd890",
@@ -1700,7 +1744,7 @@ const MOCK_DOCUMENT_REVISIONS = {
       revision_number: 1,
       prev_revision_id: null,
       created_at: "2026-01-10T08:00:00Z",
-      created_by: "actor-principal-1",
+      created_by: "actor-ops-ai",
       content_type: "text",
       content_hash: "efg123",
       revision_hash: "hij456",

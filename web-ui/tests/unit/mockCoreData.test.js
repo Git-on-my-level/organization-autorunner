@@ -35,7 +35,7 @@ describe("mockCoreData parity behaviors", () => {
 
     it("supports thread-scoped filtering and head revision summaries", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
-      const docs = mod.listMockDocuments({ thread_id: "thread-governance" });
+      const docs = mod.listMockDocuments({ thread_id: "thread-q2-initiative" });
 
       expect(docs.map((doc) => doc.id)).toEqual(["product-constitution"]);
       expect(docs[0]?.head_revision).toMatchObject({
@@ -153,6 +153,7 @@ describe("mockCoreData parity behaviors", () => {
 
       expect(workspace?.documents?.items?.map((doc) => doc.id)).toEqual([
         "incident-response-playbook",
+        "onboarding-guide-v1",
       ]);
       expect(
         workspace?.commitments?.items?.map((commitment) => commitment.id),

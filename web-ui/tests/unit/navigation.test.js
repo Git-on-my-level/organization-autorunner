@@ -8,6 +8,7 @@ describe("navigation model", () => {
       "Home",
       "Inbox",
       "Threads",
+      "Boards",
       "Artifacts",
       "Docs",
     ]);
@@ -16,6 +17,7 @@ describe("navigation model", () => {
   it("detects known routes", () => {
     expect(isKnownSection("/")).toBe(true);
     expect(isKnownSection("/threads")).toBe(true);
+    expect(isKnownSection("/boards")).toBe(true);
     expect(isKnownSection("/missing")).toBe(false);
   });
 });

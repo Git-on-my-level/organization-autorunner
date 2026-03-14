@@ -28,6 +28,7 @@ organization-autorunner-ui is the frontend/client application for the Organizati
 - Inbox: `src/routes/inbox/+page.svelte`
 - Thread list: `src/routes/threads/+page.svelte`
 - Thread detail (snapshot, commitments, timeline, work orders, receipts, message posting): `src/routes/threads/[threadId]/+page.svelte`
+- Board list/detail: `src/routes/[project]/boards/+page.svelte`, `src/routes/[project]/boards/[boardId]/+page.svelte`
 - Artifact list/detail: `src/routes/artifacts/+page.svelte`, `src/routes/artifacts/[artifactId]/+page.svelte`
 - Docs list: `src/routes/[project]/docs/+page.svelte`
 - Document detail (revisions, integrity hashes, tombstone): `src/routes/[project]/docs/[documentId]/+page.svelte`

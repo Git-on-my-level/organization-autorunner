@@ -18,6 +18,12 @@ export const navigationItems = [
     hint: "Ongoing work",
   },
   {
+    label: "Boards",
+    href: "/boards",
+    icon: "boards",
+    hint: "Kanban boards",
+  },
+  {
     label: "Artifacts",
     href: "/artifacts",
     icon: "artifacts",
@@ -53,9 +59,14 @@ const SHELL_CONTENT_RULES = [
     maxWidth: "112rem",
   },
   {
-    match: /^\/(threads|artifacts|docs)$/,
+    match: /^\/(threads|artifacts|docs|boards)$/,
     mode: "wide",
     maxWidth: "88rem",
+  },
+  {
+    match: /^\/boards\/[^/]+/,
+    mode: "fluid",
+    maxWidth: "112rem",
   },
   {
     match: /^\/inbox$/,
