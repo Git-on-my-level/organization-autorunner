@@ -52,7 +52,7 @@
 
   {#if !hasAny}
     <p class="px-4 py-3 text-[13px] text-[var(--ui-text-muted)]">
-      No boards linked to this thread.
+      This thread isn't tracked on any boards yet.
     </p>
   {:else}
     <div class="divide-y divide-[var(--ui-border-subtle)]">

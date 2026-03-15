@@ -389,18 +389,18 @@
 {:else if artifact}
   {#if artifact?.tombstoned_at}
     <div
-      class="tombstone-banner mb-4 rounded-md border border-red-200 bg-red-50 p-4"
+      class="tombstone-banner mb-4 rounded-md border border-red-500/20 bg-red-500/10 p-4"
     >
-      <div class="flex items-center gap-2 text-sm font-semibold text-red-800">
+      <div class="flex items-center gap-2 text-[13px] font-semibold text-red-400">
         <span>⚠</span>
         <span>This artifact has been tombstoned</span>
       </div>
       {#if artifact.tombstone_reason}
-        <p class="mt-2 text-[13px] text-red-900">
+        <p class="mt-2 text-[13px] text-red-400">
           Reason: {artifact.tombstone_reason}
         </p>
       {/if}
-      <p class="mt-1 text-xs text-gray-500">
+      <p class="mt-1 text-[11px] text-gray-500">
         Tombstoned {#if artifact.tombstoned_by}by {actorName(
             artifact.tombstoned_by,
           )}{/if}

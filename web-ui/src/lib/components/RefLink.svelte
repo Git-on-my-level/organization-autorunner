@@ -36,7 +36,7 @@
   </a>
 {:else}
   <span
-    class="inline-flex items-baseline gap-1 text-xs text-[var(--ui-text-muted)]"
+    class="inline-flex items-baseline gap-1 text-[11px] text-[var(--ui-text-muted)]"
   >
     <span>{resolved.primaryLabel}</span>
     {#if showRaw && resolved.secondaryLabel}

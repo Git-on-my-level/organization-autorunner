@@ -147,6 +147,63 @@ function countRefPredecessorDepth(artifact, byId) {
   return depth;
 }
 
+export function threadHealthSentence(summary) {
+  const { openCount, staleCount, highPriorityCount } = summary;
+
+  if (openCount === 0) {
+    return "No open threads.";
+  }
+
+  if (staleCount === 0 && highPriorityCount === 0) {
+    return openCount === 1
+      ? "1 open thread is on track."
+      : `All ${openCount} open threads are on track.`;
+  }
+
+  if (staleCount > 0 && highPriorityCount === 0) {
+    return staleCount === 1
+      ? "1 thread may need a check-in."
+      : `${staleCount} threads may need a check-in.`;
+  }
+
+  if (highPriorityCount > 0 && staleCount === 0) {
+    return highPriorityCount === 1
+      ? "1 high-priority thread needs attention."
+      : `${highPriorityCount} high-priority threads need attention.`;
+  }
+
+  const stalePart =
+    staleCount === 1 ? "1 stale thread" : `${staleCount} stale threads`;
+  const highPart =
+    highPriorityCount === 1
+      ? "1 high-priority thread"
+      : `${highPriorityCount} high-priority threads`;
+  return `${stalePart} and ${highPart} need attention.`;
+}
+
+export function inboxSummarySentence(categorySummary) {
+  const total = categorySummary.reduce((sum, entry) => sum + entry.count, 0);
+
+  if (total === 0) {
+    return "Inbox is clear.";
+  }
+
+  const decisionEntry = categorySummary.find(
+    (entry) => entry.category === "decision_needed",
+  );
+  const decisions = decisionEntry ? decisionEntry.count : 0;
+
+  const itemWord = total === 1 ? "item needs" : "items need";
+  const base = `${total} ${itemWord} your attention`;
+
+  if (decisions > 0) {
+    const decisionWord = decisions === 1 ? "decision" : "decisions";
+    return `${base}, including ${decisions} ${decisionWord}.`;
+  }
+
+  return `${base}.`;
+}
+
 export function selectRecentArtifacts(artifacts = [], limit = 5) {
   const live = (artifacts ?? []).filter((a) => !a?.tombstoned_at);
   const byId = new Map(live.map((a) => [a.id, a]));

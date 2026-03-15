@@ -814,7 +814,7 @@
                   <div
                     class="mt-1 pl-4 text-[11px] text-[var(--ui-text-muted)]"
                   >
-                    {thread?.status ?? "unknown"} · {thread?.priority ??
+                    {thread?.status ?? "\u2014"} · {thread?.priority ??
                       "—"}
                     · {formatTimestamp(card.created_at)}
                   </div>
@@ -898,10 +898,10 @@
                         {#each thisCommitments as c}
                           <div class="mt-1 text-[11px]">
                             <span class="text-[var(--ui-text)]">
-                              {c.title || c.id}
+                              {c.title || ""}{#if !c.title}<span class="font-mono text-[var(--ui-text-subtle)]">{c.id}</span>{/if}
                             </span>
                             <span class="text-[var(--ui-text-subtle)]">
-                              · {c.status ?? "?"} · Due {formatTimestamp(c.due_at) || "—"}
+                              · {c.status ?? "\u2014"} · Due {formatTimestamp(c.due_at) || "—"}
                             </span>
                           </div>
                         {/each}

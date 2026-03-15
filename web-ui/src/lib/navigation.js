@@ -27,13 +27,13 @@ export const navigationItems = [
     label: "Artifacts",
     href: "/artifacts",
     icon: "artifacts",
-    hint: "Evidence and packets",
+    hint: "Work orders, receipts, reviews",
   },
   {
     label: "Docs",
     href: "/docs",
     icon: "docs",
-    hint: "Documents and revisions",
+    hint: "Docs and versioned content",
   },
 ];
 

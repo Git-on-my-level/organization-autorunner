@@ -240,7 +240,7 @@
   <div>
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">Inbox</h1>
     <p class="text-[13px] text-[var(--ui-text-muted)]">
-      Items sorted by urgency. Older items surface first.
+      Sorted by urgency. Oldest items bubble up.
     </p>
   </div>
   <span
@@ -585,7 +585,7 @@
                     >
                       {decisionInFlightById[item.id]
                         ? "Recording..."
-                        : "Record decision"}
+                        : "Submit decision"}
                     </button>
                   </div>
                 </form>

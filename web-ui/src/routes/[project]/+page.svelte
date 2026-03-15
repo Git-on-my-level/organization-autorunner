@@ -6,8 +6,10 @@
   import {
     buildInboxCategorySummary,
     buildThreadHealthSummary,
+    inboxSummarySentence,
     selectRecentArtifacts,
     selectRecentlyUpdatedThreads,
+    threadHealthSentence,
   } from "$lib/dashboardSummary";
   import { formatTimestamp } from "$lib/formatDate";
   import { getInboxCategoryLabel, sortInboxItems } from "$lib/inboxUtils";
@@ -158,6 +160,9 @@
           href={projectHref("/inbox")}>View all</a
         >
       </div>
+      {#if inboxState.status === "ready"}
+        <p class="text-[13px] text-gray-500 mt-1 mb-2">{inboxSummarySentence(inboxSummary)}</p>
+      {/if}
 
       {#if loading && inboxState.status === "idle"}
         <div
@@ -186,7 +191,7 @@
         </p>
       {:else if inboxState.items.length === 0}
         <p class="text-[13px] text-[var(--ui-text-muted)] py-3">
-          Inbox clear. Check threads for follow-ups.
+          Nothing needs attention right now.
         </p>
       {:else}
         <div class="flex gap-2 mb-3">
@@ -242,6 +247,9 @@
           href={projectHref("/threads")}>View all</a
         >
       </div>
+      {#if threadsState.status === "ready"}
+        <p class="text-[13px] text-gray-500 mt-1 mb-2">{threadHealthSentence(threadHealth)}</p>
+      {/if}
 
       {#if loading && threadsState.status === "idle"}
         <div
@@ -270,7 +278,7 @@
         </p>
       {:else if threadsState.items.length === 0}
         <p class="text-[13px] text-[var(--ui-text-muted)] py-3">
-          No threads yet.
+          No threads yet. They'll appear here as work begins.
         </p>
       {:else}
         <div class="flex gap-2 mb-3">
@@ -406,7 +414,7 @@
       </p>
     {:else if artifactsState.items.length === 0}
       <p class="text-[13px] text-[var(--ui-text-muted)] py-3">
-        No artifacts yet.
+        No artifacts yet. Work orders and receipts will show up here.
       </p>
     {:else}
       <div

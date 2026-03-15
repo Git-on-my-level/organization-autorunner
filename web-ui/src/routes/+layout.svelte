@@ -77,7 +77,7 @@
   let selectedActorName = $derived(
     lookupActorDisplayName(activeActorId, $actorRegistry) ||
       $authenticatedAgent?.username ||
-      "Unknown actor",
+      "Unknown identity",
   );
   let initials = $derived(
     selectedActorName
@@ -207,7 +207,7 @@
       newActorName = "";
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      actorError = `Failed to create actor: ${reason}`;
+      actorError = `Failed to create identity: ${reason}`;
     } finally {
       creatingActor = false;
     }
@@ -323,11 +323,10 @@
     <main class="actor-gate-wrap">
       <section class="actor-gate-card">
         <div class="actor-gate-header">
-          <p class="actor-gate-eyebrow">Identity Required</p>
-          <h1>Select Actor Identity</h1>
+          <p class="actor-gate-eyebrow">Who are you?</p>
+          <h1>Choose your identity</h1>
           <p>
-            Choose an existing actor or register a new one to begin making
-            changes.
+            Pick an existing identity or create a new one.
           </p>
         </div>
 
@@ -337,9 +336,9 @@
 
         <div class="actor-gate-list" aria-live="polite">
           {#if loadingActors}
-            <p class="actor-gate-empty">Loading actors...</p>
+            <p class="actor-gate-empty">Loading identities...</p>
           {:else if $actorRegistry.length === 0}
-            <p class="actor-gate-empty">No actors found. Create one below.</p>
+            <p class="actor-gate-empty">No identities yet. Create one to get started.</p>
           {:else}
             {#each $actorRegistry as actor}
               <button
@@ -539,7 +538,7 @@
               />
             </svg>
           </button>
-          <p>Organization Autorunner UI</p>
+          <p>OAR</p>
           <button
             class="shell-mobile-identity"
             onclick={switchIdentity}

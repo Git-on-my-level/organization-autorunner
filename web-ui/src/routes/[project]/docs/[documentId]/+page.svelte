@@ -326,7 +326,7 @@
 {:else if document}
   {#if document.tombstoned_at}
     <div class="mb-4 rounded-md border border-red-500/30 bg-red-500/10 p-4">
-      <div class="flex items-center gap-2 text-sm font-semibold text-red-400">
+      <div class="flex items-center gap-2 text-[13px] font-semibold text-red-400">
         <span>⚠</span>
         <span>This document has been tombstoned</span>
       </div>
@@ -335,12 +335,12 @@
           Reason: {document.tombstone_reason}
         </p>
       {/if}
-      <p class="mt-1 text-xs text-[var(--ui-text-muted)]">
+      <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">
         Tombstoned {#if document.tombstoned_by}by {actorName(
             document.tombstoned_by,
           )}{/if}
         {#if document.tombstoned_at}
-          at {new Date(document.tombstoned_at).toLocaleString()}
+          at {formatTimestamp(document.tombstoned_at)}
         {/if}
       </p>
     </div>
@@ -354,7 +354,7 @@
         <div class="flex items-start justify-between gap-3">
           <div>
             <h1 class="text-lg font-semibold text-[var(--ui-text)]">
-              {document.title || document.id}
+              {document.title || ""}{#if !document.title}<span class="font-mono text-[var(--ui-text-subtle)]">{document.id}</span>{/if}
             </h1>
             <div class="mt-1 flex flex-wrap items-center gap-2 text-[12px]">
               {#if document.status}
@@ -371,7 +371,7 @@
                 >
               {/each}
               <span class="text-[var(--ui-text-muted)]"
-                >v{displayedRevision?.revision_number ?? "?"}</span
+                >v{displayedRevision?.revision_number ?? "\u2014"}</span
               >
               <span class="text-[var(--ui-text-muted)]"
                 >{formatTimestamp(displayedRevision?.created_at) || "—"}</span

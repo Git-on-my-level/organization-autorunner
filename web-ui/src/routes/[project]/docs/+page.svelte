@@ -324,7 +324,7 @@
       No documents yet
     </p>
     <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
-      Create your first document using the button above.
+      No documents yet. Create one to start tracking content.
     </p>
   </div>
 {/if}

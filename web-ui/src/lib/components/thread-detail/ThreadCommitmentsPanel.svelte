@@ -378,7 +378,7 @@
     <p class="px-4 py-3 text-[12px] text-[var(--ui-text-muted)]">Loading...</p>
   {:else if commitments.length === 0}
     <p class="px-4 py-3 text-[13px] text-[var(--ui-text-muted)]">
-      No active or blocked commitments.
+      No open commitments. All clear.
     </p>
   {:else}
     {#each commitments as commitment, i}
@@ -392,7 +392,7 @@
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0 flex-1">
             <p class="text-[13px] font-medium text-[var(--ui-text)]">
-              {commitment.title || commitment.id}
+              {commitment.title || ""}{#if !commitment.title}<span class="font-mono text-[var(--ui-text-subtle)]">{commitment.id}</span>{/if}
             </p>
             <p class="mt-0.5 text-[12px] text-[var(--ui-text-muted)]">
               {actorName(commitment.owner)} · Due {commitment.due_at

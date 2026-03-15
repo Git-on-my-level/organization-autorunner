@@ -262,7 +262,7 @@
     <details class="border-t border-[var(--ui-border-subtle)]">
       <summary
         class="cursor-pointer px-4 py-2.5 text-[12px] text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"
-        >Raw JSON</summary
+        >Debug data</summary
       >
       <pre
         class="overflow-auto px-4 pb-3 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(

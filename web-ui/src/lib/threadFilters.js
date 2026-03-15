@@ -259,11 +259,11 @@ export function computeStaleness(thread) {
   const backendStale = readBackendStaleState(thread);
   if (typeof backendStale === "boolean") {
     return backendStale
-      ? { stale: true, label: "Stale", className: "bg-rose-100 text-rose-700" }
+      ? { stale: true, label: "Stale", className: "bg-red-500/10 text-red-400" }
       : {
           stale: false,
           label: "Fresh",
-          className: "bg-emerald-100 text-emerald-700",
+          className: "bg-emerald-500/10 text-emerald-400",
         };
   }
 
@@ -271,16 +271,16 @@ export function computeStaleness(thread) {
     return {
       stale: false,
       label: "No check-in",
-      className: "bg-slate-100 text-slate-700",
+      className: "bg-gray-200 text-gray-600",
     };
   }
 
   const stale = Date.parse(String(thread.next_check_in_at)) < Date.now();
   return stale
-    ? { stale: true, label: "Stale", className: "bg-rose-100 text-rose-700" }
+    ? { stale: true, label: "Stale", className: "bg-red-500/10 text-red-400" }
     : {
         stale: false,
         label: "Fresh",
-        className: "bg-emerald-100 text-emerald-700",
+        className: "bg-emerald-500/10 text-emerald-400",
       };
 }

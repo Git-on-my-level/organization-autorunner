@@ -347,7 +347,7 @@
       No boards yet
     </p>
     <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
-      Create one to start organizing work into canonical columns.
+      No boards yet. Create one to organize work visually.
     </p>
   </div>
 {:else}
