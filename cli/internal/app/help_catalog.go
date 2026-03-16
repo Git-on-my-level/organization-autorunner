@@ -35,8 +35,9 @@ var (
 
 var runtimeHelpManualDocTopics = []runtimeHelpDocTopic{
 	{Path: "onboarding", Kind: "manual", Summary: "Offline quick-start mental model and first command flow."},
-	{Path: "draft", Kind: "manual", Summary: "Local draft staging, listing, commit, and discard workflow."},
-	{Path: "provenance", Kind: "manual", Summary: "Deterministic provenance walk reference and examples."},
+	{Path: "agent-guide", Kind: "manual", Summary: "Prescriptive agent guide for choosing OAR primitives, operating safely, and automating the CLI well."},
+	{Path: "draft", Kind: "manual", Summary: "Prescriptive guide for when to stage writes locally, when to use proposal flows instead, and how to commit safely."},
+	{Path: "provenance", Kind: "manual", Summary: "Guide for tracing typed-ref lineage through the OAR graph with shallow, investigation-first walks."},
 }
 
 func runtimeHelpCatalogSnapshot() runtimeHelpCatalog {

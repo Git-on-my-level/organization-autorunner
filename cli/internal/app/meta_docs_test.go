@@ -18,6 +18,9 @@ func TestRunMetaDocsPrintsBundledRuntimeReference(t *testing.T) {
 	if !strings.Contains(output, "## `threads`") {
 		t.Fatalf("expected threads topic in runtime docs output=%s", output)
 	}
+	if !strings.Contains(output, "## `agent-guide`") {
+		t.Fatalf("expected agent-guide topic in runtime docs output=%s", output)
+	}
 	if !strings.Contains(output, "## `docs tombstone`") {
 		t.Fatalf("expected docs tombstone topic in runtime docs output=%s", output)
 	}
@@ -38,6 +41,21 @@ func TestRunMetaDocPrintsSingleTopicMarkdown(t *testing.T) {
 	}
 	if strings.Contains(output, "## `docs`") {
 		t.Fatalf("expected single-topic markdown output=%s", output)
+	}
+}
+
+func TestRunMetaDocPrintsAgentGuideMarkdown(t *testing.T) {
+	t.Parallel()
+
+	output := runHelpCommand(t, "meta", "doc", "agent-guide")
+	if !strings.Contains(output, "## `agent-guide`") {
+		t.Fatalf("expected agent-guide markdown header output=%s", output)
+	}
+	if !strings.Contains(output, "Operating posture") {
+		t.Fatalf("expected operating posture section output=%s", output)
+	}
+	if !strings.Contains(output, "`boards`") || !strings.Contains(output, "`docs`") {
+		t.Fatalf("expected higher-level abstractions in agent guide output=%s", output)
 	}
 }
 

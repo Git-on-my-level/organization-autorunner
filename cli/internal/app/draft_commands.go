@@ -1213,7 +1213,22 @@ func ensureDraftTargetMatchesConfig(draft persistedDraft, cfg config.Resolved) e
 
 func draftUsageText() string {
 	return strings.TrimSpace(`
-Draft commands stage write requests locally before commit.
+Draft staging
+
+Use `+"`oar draft`"+` when you want a local checkpoint before sending a write to core.
+
+Choose the right path:
+
+- Use direct commands when the mutation is small and you are ready to apply it now.
+- Prefer command-specific proposal flows when they exist, such as `+"`threads propose-patch`"+` or `+"`docs propose-update`"+`, because they add domain-aware diff/review helpers.
+- Use `+"`draft`"+` for lower-level commands, generic JSON bodies, or cases where you want to stage the exact request before commit.
+
+Standard workflow
+
+1. Build the exact payload for the target command.
+2. Stage it with `+"`draft create`"+`.
+3. Inspect staged drafts with `+"`draft list`"+`.
+4. Commit when ready, or discard if the request should not be sent.
 
 Usage:
   oar draft create --command <command-id> [--from-file <path>]
@@ -1221,8 +1236,16 @@ Usage:
   oar draft commit <draft-id> [--keep]
   oar draft discard <draft-id>
 
+Heuristics
+
+- Keep drafts short-lived; they are a checkpoint, not durable state.
+- Prefer one clear intent per draft.
+- Use `+"`--from-file`"+` or stdin for non-trivial JSON bodies so requests stay reproducible.
+- Re-read current state before committing older drafts if the target may have changed.
+
 Examples:
   cat payload.json | oar draft create --command threads.create
+  oar draft list
   oar draft commit draft-20260305T103000-a1b2c3d4e5f6
 `) + "\n"
 }

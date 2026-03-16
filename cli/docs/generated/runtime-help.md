@@ -5,9 +5,10 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 ## Topics
 
 - `onboarding` (manual): Offline quick-start mental model and first command flow.
-- `draft` (manual): Local draft staging, listing, commit, and discard workflow.
-- `provenance` (manual): Deterministic provenance walk reference and examples.
-- `import` (manual): Bootstrap an agent-led import with precision-first doctrine, preview-first planning, and graph-aware OAR write conventions.
+- `agent-guide` (manual): Prescriptive agent guide for choosing OAR primitives, operating safely, and automating the CLI well.
+- `draft` (manual): Prescriptive guide for when to stage writes locally, when to use proposal flows instead, and how to commit safely.
+- `provenance` (manual): Guide for tracing typed-ref lineage through the OAR graph with shallow, investigation-first walks.
+- `import` (manual): Prescriptive import guide for building low-duplication, discoverable OAR graphs from external material.
 - `threads` (group): Manage thread resources
 - `commitments` (group): Manage commitment resources
 - `artifacts` (group): Manage artifact resources and content
@@ -87,6 +88,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `docs content` (local-helper): Show the current document content together with authoritative head revision metadata.
 - `docs validate-update` (local-helper): Validate a `docs update` payload locally from stdin or file without sending the mutation.
 - `docs apply` (local-helper): Apply a previously staged document update proposal.
+- `meta skill` (local-helper): Render a bundled editor-specific skill file from the canonical OAR agent guide.
 - `import scan` (local-helper): Scan a folder or zip archive into a normalized inventory with text cache, repo-root hints, and cluster hints.
 - `import dedupe` (local-helper): Create exact and probable duplicate reports from a scan inventory with conservative skip recommendations.
 - `import plan` (local-helper): Build a conservative import plan that prefers collector threads, hub docs, dedupe-first writes, and low orphan rates.
@@ -98,24 +100,17 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 Offline quick-start mental model and first command flow.
 
 ```text
-Onboarding: mental model
+Onboarding: first steps
 
-1. `oar` is a non-interactive CLI that maps stable command paths to core HTTP endpoints and emits plain text or a single JSON envelope.
-2. Each command should be safe for automation, so defaults, errors, and output shapes are designed for scripts first.
-3. Profiles (`--agent`) hold reusable auth and base URL settings so repeated commands stay short and consistent.
-4. Typed commands (`threads`, `events`, `inbox`, and packet creators) are the primary surface, while `api call` is the escape hatch.
-5. The fastest way to stay aligned is to run health/auth checks first, then execute the work-order loop one step at a time.
+Use onboarding to get a working session quickly. For the fuller operating model, read `oar meta doc agent-guide`.
 
-Work-order loop
+1. Point the CLI at the core API with `--base-url` or `OAR_BASE_URL`.
+2. Register or select a reusable agent/profile with `--agent`.
+3. Confirm connectivity and identity with `oar doctor` and `oar auth whoami`.
+4. Run a cheap read command before any mutation.
+5. Use `oar meta skill cursor` if you want a bundled Cursor skill file generated from the shipped guide.
 
-1. Inspect inbound work and context: `oar inbox list` or `oar inbox stream --max-events 1`.
-2. Read current state before mutating it: `oar threads workspace --thread-id <thread-id>`.
-   Use `oar threads context` for cross-thread aggregates and `oar threads get` for raw snapshot-only reads.
-3. Stage a mutation proposal when you need reviewable intent: `oar docs propose-update`, `oar threads propose-patch`, `oar commitments propose-patch`, or `oar draft create --command <command-id>`.
-4. Apply the staged proposal (or commit a draft for lower-level commands) and capture returned IDs.
-5. Confirm outcomes in timeline/events and ack inbox items to close the loop.
-
-First 5 commands to run
+First commands to run
 
   oar --base-url http://127.0.0.1:8000 --agent <agent> doctor
   oar --base-url http://127.0.0.1:8000 --agent <agent> auth register --username <username>
@@ -123,17 +118,154 @@ First 5 commands to run
   oar --agent <agent> threads list
   oar --agent <agent> inbox stream --max-events 1
 
-Optional full runbook (local, offline)
+Next step
 
-  cli/docs/runbook.md
+  oar meta doc agent-guide
+```
+
+## `agent-guide`
+
+Prescriptive agent guide for choosing OAR primitives, operating safely, and automating the CLI well.
+
+```text
+Agent guide
+
+Use this guide when you need to operate `oar` well, not just get it running. Favor stable CLI patterns over environment-specific setup.
+
+Operating posture
+
+- Treat `oar` as the contract-aligned interface to an OAR core API.
+- Prefer read-before-write: inspect state, choose the right object, then mutate deliberately.
+- Prefer `--json` for automation, default output for quick human inspection.
+- Prefer profiles and env vars over repeated flags.
+- Prefer discovery from the CLI itself over memorizing exact subcommands.
+
+
+Core model
+
+- `events`: immutable facts, observations, and updates. Use for append-only activity, audit trails, and streams.
+- `threads`: durable work objects and coordination state. Use for initiatives, incidents, cases, processes, relationships, and similar work units.
+- `inbox`: work intake and notifications. Use to see what needs attention and ack handled items.
+- `draft`: staged or reviewable mutations. Use when a write should be inspected before commit.
+- `docs`: long-lived narrative knowledge. Use for plans, notes, decisions, summaries, and shared context.
+- `boards`: structured coordination views. Use to group and review work across multiple objects.
+- `auth` and profiles: identity plus reusable config.
+- `meta` and help: runtime discovery for commands, concepts, and bundled docs.
+
+Heuristic:
+- Use `events` for facts.
+- Use `threads` for ongoing work and ownership.
+- Use `docs` for narrative or reference material.
+- Use `boards` for portfolio or workflow visibility.
+- Use `draft` when you want a checkpoint before applying change.
+
+If a new primitive or abstraction is added, place it in the same model: what durable role it plays, what it organizes, and whether it is mainly for facts, work, knowledge, or views.
+
+
+Higher-level concepts
+
+- `docs` are the long-lived narrative layer. Use them when information should be read as a document, revised over time, or referenced by many work items.
+- `boards` are coordination views. Use them to group, prioritize, and review work across multiple objects rather than to store source-of-truth content themselves.
+- `threads` often back execution; `docs` explain; `boards` organize. Keep those roles distinct.
+
+
+Standard workflow
+
+1. Confirm environment and identity.
+2. Discover current state with list/get/context commands.
+3. Decide which primitive matches the task.
+4. Make the smallest valid mutation.
+5. Verify via read commands, timeline, stream, or resulting state.
+
+For interrupt-driven work, a common loop is: `inbox` -> inspect related `thread` or `doc` -> apply change directly or via `draft` -> verify -> ack inbox item.
+
+
+Configuration
+
+- Set the target core with `--base-url` or `OAR_BASE_URL`.
+- Reuse identity/config with `--agent` or `OAR_AGENT`.
+- Use env vars in scripts so command bodies stay portable and short.
+- If available, run `oar doctor` when config or connectivity is unclear.
+- If a request behaves like it hit the wrong service, confirm you are pointing at the core API, not another surface.
+
+Config precedence is typically: flags -> environment -> profile -> defaults.
+
+
+Discovery first
+
+Do not overfit to examples in this guide. Ask the CLI what exists now:
+
+  oar help
+  oar help <group>
+  oar help <group> <command>
+  oar meta docs
+  oar meta doc <topic>
+
+Use help output as the source of truth for exact flags, request shapes, enums, and newly added primitives.
+
+
+Command habits
+
+- Use list/get/context/workspace commands to orient before editing.
+- Use `--full-id` when an ID will be reused in later commands.
+- Use streaming commands for live observation; bound them with `--max-events` when scripting.
+- Use `draft` or proposal/apply flows when the CLI exposes them and the change benefits from reviewability.
+- Prefer narrow filters over broad listings when triaging large state.
+
+
+Automation
+
+- Use `--json` for machine consumption.
+- Parse the response envelope, not formatted text.
+- Treat `error.code`, `error.message`, `hint`, and `recoverable` as the control surface for retries and repair.
+- Keep scripts idempotent where possible: read state, compare, then write only when needed.
+
+
+Onboarding and recovery
+
+When starting in a new environment:
+
+1. Set base URL.
+2. Register or select an agent/profile if required.
+3. Confirm identity.
+4. Run a cheap read command.
+
+When stuck:
+
+- Re-run with `--json` to inspect structured failure details.
+- Check help for the exact command path you are using.
+- Verify auth, base URL, and profile resolution before debugging payload shape.
+
+
+Maintenance rule
+
+- Keep this guide focused on durable usage patterns.
+- Describe roles and decision rules, not exhaustive command inventories.
+- Prefer `oar help` and `oar meta docs` over embedding fragile schemas.
+- Mention examples of primitives and abstractions, but avoid implying the list is closed.
 ```
 
 ## `draft`
 
-Local draft staging, listing, commit, and discard workflow.
+Prescriptive guide for when to stage writes locally, when to use proposal flows instead, and how to commit safely.
 
 ```text
-Draft commands stage write requests locally before commit.
+Draft staging
+
+Use `oar draft` when you want a local checkpoint before sending a write to core.
+
+Choose the right path:
+
+- Use direct commands when the mutation is small and you are ready to apply it now.
+- Prefer command-specific proposal flows when they exist, such as `threads propose-patch` or `docs propose-update`, because they add domain-aware diff/review helpers.
+- Use `draft` for lower-level commands, generic JSON bodies, or cases where you want to stage the exact request before commit.
+
+Standard workflow
+
+1. Build the exact payload for the target command.
+2. Stage it with `draft create`.
+3. Inspect staged drafts with `draft list`.
+4. Commit when ready, or discard if the request should not be sent.
 
 Usage:
   oar draft create --command <command-id> [--from-file <path>]
@@ -141,17 +273,38 @@ Usage:
   oar draft commit <draft-id> [--keep]
   oar draft discard <draft-id>
 
+Heuristics
+
+- Keep drafts short-lived; they are a checkpoint, not durable state.
+- Prefer one clear intent per draft.
+- Use `--from-file` or stdin for non-trivial JSON bodies so requests stay reproducible.
+- Re-read current state before committing older drafts if the target may have changed.
+
 Examples:
   cat payload.json | oar draft create --command threads.create
+  oar draft list
   oar draft commit draft-20260305T103000-a1b2c3d4e5f6
 ```
 
 ## `provenance`
 
-Deterministic provenance walk reference and examples.
+Guide for tracing typed-ref lineage through the OAR graph with shallow, investigation-first walks.
 
 ```text
-Provenance navigation
+Provenance guide
+
+Use `oar provenance walk` when you need to answer questions like:
+
+- Why does this object exist?
+- What evidence or earlier object led to it?
+- What thread, artifact, event, or snapshot is this derived from?
+
+Mental model
+
+- Provenance is a graph of typed refs, not just a linear event log.
+- Start from the object you trust most, then walk outward a few hops.
+- Keep walks narrow at first; increase depth only when the first pass is insufficient.
+- Use event-chain expansion when you specifically need event-to-event lineage, not as the default for every investigation.
 
 Usage:
   oar provenance walk --from <typed-ref> [--depth <n>] [--include-event-chain]
@@ -162,6 +315,14 @@ Typed ref roots:
   artifact:<id>
   snapshot:<id>
 
+Heuristics
+
+- Start from `event:<id>` when explaining one update or mutation.
+- Start from `thread:<id>` when explaining a work item's evidence and history.
+- Start from `artifact:<id>` when tracing a file or attachment back to its source.
+- Start from `snapshot:<id>` when investigating derived or captured state.
+- Prefer shallow depths like 1-3 before broader traversals.
+
 Examples:
   oar --json provenance walk --from event:event_123 --depth 2
   oar --json provenance walk --from snapshot:snapshot_123 --depth 1
@@ -170,14 +331,19 @@ Examples:
 
 ## `import`
 
-Bootstrap an agent-led import with precision-first doctrine, preview-first planning, and graph-aware OAR write conventions.
+Prescriptive import guide for building low-duplication, discoverable OAR graphs from external material.
 
 ```text
-Import bootstrap
+Import guide
 
-Purpose
+Use `oar import` to turn external material into a clean OAR graph. The goal is not to dump files into the system. The goal is to create discoverable threads, docs, and artifacts with low duplication, low orphan rates, and clear provenance.
 
-Use `oar import` to start a precision-first import into OAR. The goal is not to dump files into the workspace. The goal is to create a clean graph with low duplication, low orphan rates, and strong discoverability.
+Object model
+
+- `threads` hold ongoing work, collector structures, and discoverable entry points.
+- `docs` hold narrative knowledge, summaries, and hub content.
+- `artifacts` hold raw or attached evidence.
+- Import should create a graph that people and agents can navigate, not just a pile of uploaded files.
 
 Read in this order
 
@@ -195,6 +361,7 @@ Operating stance
 - Imported material should usually get a discoverable entry point: a collector thread, a hub doc, or both.
 - Codebases should not become one OAR object per source file.
 - Binary attachments should be preserved conservatively; if reliable raw upload is not available, keep explicit pending work instead of pretending they were imported cleanly.
+- Prefer preview-first planning over eager execution.
 
 Recommended loop
 
@@ -495,8 +662,9 @@ Commands:
 
 Shipped reference docs:
   meta docs               Print the bundled Markdown runtime reference.
-  meta doc                Print one bundled Markdown topic, for example `oar meta doc threads`.
-  Tip: use `oar help meta` for the short runtime surface and `oar meta docs` for the full shipped reference.
+  meta doc                Print one bundled Markdown topic, for example `oar meta doc agent-guide`.
+  meta skill              Render a bundled editor-specific skill file, for example `oar meta skill cursor`.
+  Tip: use `oar help meta` for the short runtime surface, `oar meta docs` for the full shipped reference, and `oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard` to export a Cursor skill.
 
 Global flags:
   Global flags can appear before or after the command path.
@@ -2446,6 +2614,35 @@ Flags:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json docs apply ... ; oar docs apply ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `meta skill`
+
+Render a bundled editor-specific skill file from the canonical OAR agent guide.
+
+```text
+Local Help: meta skill
+
+- Kind: `local helper`
+- Summary: Render a bundled editor-specific skill file from the canonical OAR agent guide.
+- Composition: Pure local helper. Renders a maintained skill document from the bundled agent guide and optionally writes it to a chosen file or directory.
+- JSON body: `target`, `content`, `default_file`, `written_files`, `guide_topic`, `skill_name`
+- Examples:
+  - `oar meta skill cursor`
+  - `oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard`
+  - `oar meta skill --target cursor --write-file ./SKILL.md`
+
+Flags:
+  <target>                     Skill target to render. Currently supported: `cursor`.
+  --target <target>            Flag form of the skill target.
+  --write-file <path>          Write the rendered skill to this exact path.
+  --write-dir <dir>            Write the rendered skill into this directory using its default filename.
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json meta skill ... ; oar meta skill ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 

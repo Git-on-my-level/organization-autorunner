@@ -13,11 +13,14 @@ func TestRunImportIsConfigLenient(t *testing.T) {
 
 	home := t.TempDir()
 	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"import"})
-	if !strings.Contains(raw, "Import bootstrap") {
+	if !strings.Contains(raw, "Import guide") {
 		t.Fatalf("expected import bootstrap help, got %q", raw)
 	}
 	if !strings.Contains(raw, "oar help import") {
 		t.Fatalf("expected import read order guidance, got %q", raw)
+	}
+	if !strings.Contains(raw, "threads") || !strings.Contains(raw, "docs") || !strings.Contains(raw, "artifacts") {
+		t.Fatalf("expected import object model guidance, got %q", raw)
 	}
 }
 
@@ -31,6 +34,9 @@ func TestHelpTopicImport(t *testing.T) {
 	}
 	if !strings.Contains(raw, "oar import scan") {
 		t.Fatalf("expected scan guidance, got %q", raw)
+	}
+	if !strings.Contains(raw, "Prefer preview-first planning over eager execution.") {
+		t.Fatalf("expected preview-first guidance, got %q", raw)
 	}
 }
 

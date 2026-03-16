@@ -377,6 +377,8 @@ Core Commands:
 
 Onboarding:
   `+"`oar help onboarding`"+` for the offline quick-start topic.
+  `+"`oar meta doc agent-guide`"+` for the prescriptive bundled agent guide.
+  `+"`oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard`"+` to export a Cursor skill file.
 
 Global Flags:
   --json
@@ -406,6 +408,9 @@ func helpTopicText(topic string) (string, bool) {
 	}
 	if topic == "onboarding" {
 		return onboardingHelpText(), true
+	}
+	if topic == "agent-guide" {
+		return agentGuideText(), true
 	}
 	if topic == "provenance" || topic == "provenance walk" {
 		return provenanceUsageText() + "\n", true
@@ -548,8 +553,9 @@ func localGroupHelpSupplement(topic string) string {
 	case "meta":
 		return strings.TrimSpace(`Shipped reference docs:
   meta docs               Print the bundled Markdown runtime reference.
-  meta doc                Print one bundled Markdown topic, for example ` + "`oar meta doc threads`" + `.
-  Tip: use ` + "`oar help meta`" + ` for the short runtime surface and ` + "`oar meta docs`" + ` for the full shipped reference.`)
+  meta doc                Print one bundled Markdown topic, for example ` + "`oar meta doc agent-guide`" + `.
+  meta skill              Render a bundled editor-specific skill file, for example ` + "`oar meta skill cursor`" + `.
+  Tip: use ` + "`oar help meta`" + ` for the short runtime surface, ` + "`oar meta docs`" + ` for the full shipped reference, and ` + "`oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard`" + ` to export a Cursor skill.`)
 	default:
 		return ""
 	}
@@ -829,24 +835,17 @@ func runtimeGeneratedRegistryPaths() []string {
 }
 
 func onboardingHelpText() string {
-	return strings.TrimSpace(`Onboarding: mental model
+	return strings.TrimSpace(`Onboarding: first steps
 
-1. ` + "`oar`" + ` is a non-interactive CLI that maps stable command paths to core HTTP endpoints and emits plain text or a single JSON envelope.
-2. Each command should be safe for automation, so defaults, errors, and output shapes are designed for scripts first.
-3. Profiles (` + "`--agent`" + `) hold reusable auth and base URL settings so repeated commands stay short and consistent.
-4. Typed commands (` + "`threads`" + `, ` + "`events`" + `, ` + "`inbox`" + `, and packet creators) are the primary surface, while ` + "`api call`" + ` is the escape hatch.
-5. The fastest way to stay aligned is to run health/auth checks first, then execute the work-order loop one step at a time.
+Use onboarding to get a working session quickly. For the fuller operating model, read ` + "`oar meta doc agent-guide`" + `.
 
-Work-order loop
+1. Point the CLI at the core API with ` + "`--base-url`" + ` or ` + "`OAR_BASE_URL`" + `.
+2. Register or select a reusable agent/profile with ` + "`--agent`" + `.
+3. Confirm connectivity and identity with ` + "`oar doctor`" + ` and ` + "`oar auth whoami`" + `.
+4. Run a cheap read command before any mutation.
+5. Use ` + "`oar meta skill cursor`" + ` if you want a bundled Cursor skill file generated from the shipped guide.
 
-1. Inspect inbound work and context: ` + "`oar inbox list`" + ` or ` + "`oar inbox stream --max-events 1`" + `.
-2. Read current state before mutating it: ` + "`oar threads workspace --thread-id <thread-id>`" + `.
-   Use ` + "`oar threads context`" + ` for cross-thread aggregates and ` + "`oar threads get`" + ` for raw snapshot-only reads.
-3. Stage a mutation proposal when you need reviewable intent: ` + "`oar docs propose-update`" + `, ` + "`oar threads propose-patch`" + `, ` + "`oar commitments propose-patch`" + `, or ` + "`oar draft create --command <command-id>`" + `.
-4. Apply the staged proposal (or commit a draft for lower-level commands) and capture returned IDs.
-5. Confirm outcomes in timeline/events and ack inbox items to close the loop.
-
-First 5 commands to run
+First commands to run
 
   oar --base-url http://127.0.0.1:8000 --agent <agent> doctor
   oar --base-url http://127.0.0.1:8000 --agent <agent> auth register --username <username>
@@ -854,9 +853,9 @@ First 5 commands to run
   oar --agent <agent> threads list
   oar --agent <agent> inbox stream --max-events 1
 
-Optional full runbook (local, offline)
+Next step
 
-  cli/docs/runbook.md`)
+  oar meta doc agent-guide`)
 }
 
 func mapRuntimePathToRegistryPath(path string) string {

@@ -34,8 +34,8 @@ var authSubcommandSpec = subcommandSpec{
 
 var metaSubcommandSpec = subcommandSpec{
 	command:  "meta",
-	valid:    []string{"commands", "command", "concepts", "concept", "docs", "doc"},
-	examples: []string{"oar meta commands", "oar meta command --command-id threads.list", "oar meta docs", "oar meta doc threads"},
+	valid:    []string{"commands", "command", "concepts", "concept", "docs", "doc", "skill"},
+	examples: []string{"oar meta commands", "oar meta command --command-id threads.list", "oar meta docs", "oar meta doc agent-guide", "oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard"},
 }
 
 var draftSubcommandSpec = subcommandSpec{
