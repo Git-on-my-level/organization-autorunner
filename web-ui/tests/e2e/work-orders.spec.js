@@ -4,6 +4,7 @@ test("work order composer validates typed refs and sends correct POST payload", 
   page,
 }) => {
   const actorId = "actor-work-order-e2e";
+  const createdWorkOrderId = "artifact-work-order-created-1";
   let postedPayload = null;
   let timeline = [];
 
@@ -115,7 +116,10 @@ test("work order composer validates typed refs and sends correct POST payload", 
 
   await page.route(/\/work_orders$/, async (route) => {
     postedPayload = JSON.parse(route.request().postData() ?? "{}");
-    const artifactId = postedPayload.packet.work_order_id;
+    const artifactId =
+      postedPayload.artifact?.id ??
+      postedPayload.packet?.work_order_id ??
+      createdWorkOrderId;
     const createdEvent = {
       id: "event-work-order-1",
       ts: "2026-03-04T05:00:00.000Z",
@@ -186,8 +190,9 @@ test("work order composer validates typed refs and sends correct POST payload", 
   expect(postedPayload.artifact.kind).toBe("work_order");
   expect(postedPayload.artifact.thread_id).toBe("thread-onboarding");
   expect(postedPayload.artifact.refs).toEqual(["thread:thread-onboarding"]);
+  expect(postedPayload.artifact.id).toBeUndefined();
+  expect(postedPayload.packet).not.toHaveProperty("work_order_id");
   expect(postedPayload.packet).toMatchObject({
-    work_order_id: postedPayload.artifact.id,
     thread_id: "thread-onboarding",
     objective: "Ship onboarding update",
     constraints: ["No downtime", "No schema drift"],

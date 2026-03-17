@@ -1,9 +1,14 @@
 import { expect, test } from "@playwright/test";
 
+function hoursAgo(hours) {
+  return new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+}
+
 test("inbox triage shows urgency summary and dismissing removes an item", async ({
   page,
 }) => {
   const actorId = "actor-e2e";
+  let inboxRequestCount = 0;
   let inboxItems = [
     {
       id: "inbox-001",
@@ -12,7 +17,7 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
       recommended_action: "Record a decision on escalation path.",
       thread_id: "thread-onboarding",
       refs: ["thread:thread-onboarding"],
-      source_event_time: "2026-03-07T09:00:00.000Z",
+      source_event_time: hoursAgo(30),
     },
     {
       id: "inbox-002",
@@ -21,7 +26,7 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
       recommended_action: "Acknowledge and assign owner.",
       thread_id: "thread-onboarding",
       refs: ["event:evt-1001"],
-      source_event_time: "2026-03-07T08:00:00.000Z",
+      source_event_time: hoursAgo(1),
     },
     {
       id: "inbox-003",
@@ -30,7 +35,7 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
       recommended_action: "Adjust due date.",
       thread_id: "thread-incident-42",
       refs: ["thread:thread-incident-42"],
-      source_event_time: "2026-03-05T02:00:00.000Z",
+      source_event_time: hoursAgo(60),
     },
   ];
 
@@ -66,7 +71,13 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
     });
   });
 
-  await page.route(/\/inbox\?.+$/, async (route) => {
+  await page.route(/\/inbox(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.resourceType() === "document") {
+      await route.continue();
+      return;
+    }
+    inboxRequestCount += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -78,6 +89,7 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
   });
 
   await page.goto("/inbox");
+  await expect.poll(() => inboxRequestCount).toBeGreaterThan(0);
 
   await expect(
     page.getByRole("heading", { name: "Inbox", exact: true }),
@@ -96,6 +108,7 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
 
 test("inbox urgency filters reduce visible cards", async ({ page }) => {
   const actorId = "actor-e2e";
+  let inboxRequestCount = 0;
   const inboxItems = [
     {
       id: "inbox-001",
@@ -104,7 +117,7 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
       recommended_action: "Record a decision on escalation path.",
       thread_id: "thread-onboarding",
       refs: ["thread:thread-onboarding"],
-      source_event_time: "2026-03-09T09:00:00.000Z",
+      source_event_time: hoursAgo(30),
     },
     {
       id: "inbox-002",
@@ -113,7 +126,7 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
       recommended_action: "Acknowledge and assign owner.",
       thread_id: "thread-onboarding",
       refs: ["event:evt-1001"],
-      source_event_time: "2026-03-09T08:00:00.000Z",
+      source_event_time: hoursAgo(1),
     },
     {
       id: "inbox-003",
@@ -122,7 +135,7 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
       recommended_action: "Adjust due date.",
       thread_id: "thread-incident-42",
       refs: ["thread:thread-incident-42"],
-      source_event_time: "2026-03-05T02:00:00.000Z",
+      source_event_time: hoursAgo(60),
     },
   ];
 
@@ -140,7 +153,13 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
     });
   });
 
-  await page.route(/\/inbox\?.+$/, async (route) => {
+  await page.route(/\/inbox(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.resourceType() === "document") {
+      await route.continue();
+      return;
+    }
+    inboxRequestCount += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -152,6 +171,7 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
   });
 
   await page.goto("/inbox");
+  await expect.poll(() => inboxRequestCount).toBeGreaterThan(0);
   await expect(page.getByTestId("inbox-card-inbox-001")).toBeVisible();
   await expect(page.getByTestId("inbox-card-inbox-002")).toBeVisible();
   await expect(page.getByTestId("inbox-card-inbox-003")).toBeVisible();
@@ -164,7 +184,7 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
   await page.getByRole("button", { name: /Aging 24h\+/ }).click();
   await expect(page.getByTestId("inbox-card-inbox-003")).toBeVisible();
   await expect(page.getByTestId("inbox-card-inbox-001")).toBeVisible();
-  await expect(page.getByTestId("inbox-card-inbox-002")).toBeVisible();
+  await expect(page.getByTestId("inbox-card-inbox-002")).toHaveCount(0);
 });
 
 test("recording a decision marks only the selected inbox item", async ({
@@ -174,6 +194,7 @@ test("recording a decision marks only the selected inbox item", async ({
   const sharedThreadId = "thread-onboarding";
   const decidedItemId = "inbox-001";
   const otherItemId = "inbox-002";
+  let inboxRequestCount = 0;
   let inboxItems = [
     {
       id: decidedItemId,
@@ -182,7 +203,7 @@ test("recording a decision marks only the selected inbox item", async ({
       recommended_action: "Record a decision on escalation path.",
       thread_id: sharedThreadId,
       refs: [`thread:${sharedThreadId}`],
-      source_event_time: "2026-03-07T09:00:00.000Z",
+      source_event_time: hoursAgo(30),
     },
     {
       id: otherItemId,
@@ -191,7 +212,7 @@ test("recording a decision marks only the selected inbox item", async ({
       recommended_action: "Acknowledge and assign owner.",
       thread_id: sharedThreadId,
       refs: ["event:evt-1001"],
-      source_event_time: "2026-03-07T08:00:00.000Z",
+      source_event_time: hoursAgo(1),
     },
   ];
 
@@ -209,7 +230,13 @@ test("recording a decision marks only the selected inbox item", async ({
     });
   });
 
-  await page.route(/\/inbox\?.+$/, async (route) => {
+  await page.route(/\/inbox(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.resourceType() === "document") {
+      await route.continue();
+      return;
+    }
+    inboxRequestCount += 1;
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -236,6 +263,7 @@ test("recording a decision marks only the selected inbox item", async ({
   });
 
   await page.goto("/inbox");
+  await expect.poll(() => inboxRequestCount).toBeGreaterThan(0);
 
   const decidedCard = page.getByTestId(`inbox-card-${decidedItemId}`);
   const otherCard = page.getByTestId(`inbox-card-${otherItemId}`);
@@ -245,7 +273,7 @@ test("recording a decision marks only the selected inbox item", async ({
 
   await decidedCard.getByRole("button", { name: "Decide" }).click();
   await page.fill(`#decision-summary-${decidedItemId}`, "Approve path A");
-  await decidedCard.getByRole("button", { name: "Record decision" }).click();
+  await decidedCard.getByRole("button", { name: "Submit decision" }).click();
 
   await expect(decidedCard.getByText(/Decision recorded/)).toBeVisible();
   await expect(otherCard.getByText(/Decision recorded/)).toHaveCount(0);

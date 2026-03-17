@@ -3,6 +3,7 @@ package primitives_test
 import (
 	"context"
 	"errors"
+	"organization-autorunner-core/internal/blob"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,7 +23,7 @@ func TestBoardStoreCreateUpdateAndListSummaries(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	primaryThreadID := createBoardTestThread(t, ctx, store, "Primary board thread")
 	cardThreadA := createBoardTestThread(t, ctx, store, "Card thread A")
@@ -142,7 +143,7 @@ func TestBoardStoreCreateRejectsBoardIDsWithPathSeparators(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	primaryThreadID := createBoardTestThread(t, ctx, store, "Primary board thread")
 
 	_, err = store.CreateBoard(ctx, "actor-1", map[string]any{
@@ -168,7 +169,7 @@ func TestBoardStoreCardOrderingAndMutations(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	primaryThreadID := createBoardTestThread(t, ctx, store, "Primary board thread")
 	cardThreadA := createBoardTestThread(t, ctx, store, "Card thread A")
@@ -300,7 +301,7 @@ func TestBoardStoreMembershipValidationAndLookup(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	primaryThreadA := createBoardTestThread(t, ctx, store, "Board A primary thread")
 	primaryThreadB := createBoardTestThread(t, ctx, store, "Board B primary thread")

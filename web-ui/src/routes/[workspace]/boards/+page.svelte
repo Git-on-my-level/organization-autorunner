@@ -1,0 +1,503 @@
+<script>
+  import { page } from "$app/stores";
+  import { goto } from "$app/navigation";
+  import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
+  import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
+  import SearchableMultiEntityPicker from "$lib/components/SearchableMultiEntityPicker.svelte";
+  import { coreClient } from "$lib/coreClient";
+  import { formatTimestamp } from "$lib/formatDate";
+  import { workspacePath } from "$lib/workspacePaths";
+  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import {
+    BOARD_STATUS_LABELS,
+    CANONICAL_BOARD_COLUMNS,
+    boardSummaryCounts,
+    freshnessStatusLabel,
+    freshnessStatusTone,
+    isFreshnessCurrent,
+    parseDelimitedValues,
+  } from "$lib/boardUtils";
+
+  let boards = $state([]);
+  let loading = $state(false);
+  let error = $state("");
+  let creating = $state(false);
+  let createError = $state("");
+  let supportError = $state("");
+  let showCreateForm = $state(false);
+  let availableThreads = $state([]);
+  let availableDocuments = $state([]);
+
+  let createTitle = $state("");
+  let createStatus = $state("active");
+  let createPrimaryThreadId = $state("");
+  let createPrimaryDocumentId = $state("");
+  let createLabels = $state("");
+  let createOwnerIds = $state([]);
+  let createPinnedRefs = $state("");
+
+  let workspaceSlug = $derived($page.params.workspace);
+  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let threadOptions = $derived(
+    availableThreads.map((thread) => ({
+      id: thread.id,
+      title: thread.title || thread.id,
+      subtitle: [thread.status, thread.priority].filter(Boolean).join(" · "),
+      keywords: [thread.type, ...(thread.tags ?? [])],
+    })),
+  );
+  let documentOptions = $derived(
+    availableDocuments.map((document) => ({
+      id: document.id,
+      title: document.title || document.id,
+      subtitle: [
+        document.status,
+        document.thread_id && `Thread ${document.thread_id}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      keywords: document.labels ?? [],
+    })),
+  );
+  let actorOptions = $derived(
+    $actorRegistry.map((actor) => ({
+      id: actor.id,
+      title: actor.display_name || actor.id,
+      subtitle: actor.id,
+      keywords: actor.tags ?? [],
+    })),
+  );
+
+  function workspaceHref(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
+  }
+
+  function navigateToBoard(boardId) {
+    goto(workspaceHref(`/boards/${boardId}`));
+  }
+
+  function threadTitle(threadId) {
+    return availableThreads.find((item) => item.id === threadId)?.title ?? "";
+  }
+
+  function resetCreateForm() {
+    createTitle = "";
+    createStatus = "active";
+    createPrimaryThreadId = "";
+    createPrimaryDocumentId = "";
+    createLabels = "";
+    createOwnerIds = [];
+    createPinnedRefs = "";
+  }
+
+  async function loadBoards() {
+    loading = true;
+    error = "";
+    try {
+      const data = await coreClient.listBoards({});
+      boards = data.boards ?? [];
+    } catch (e) {
+      error = `Failed to load boards: ${e instanceof Error ? e.message : String(e)}`;
+      boards = [];
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function loadCreateSupport() {
+    supportError = "";
+    try {
+      const [threadData, documentData] = await Promise.all([
+        coreClient.listThreads({}),
+        coreClient.listDocuments({}),
+      ]);
+      availableThreads = threadData.threads ?? [];
+      availableDocuments = documentData.documents ?? [];
+    } catch (e) {
+      supportError = `Failed to load board form options: ${e instanceof Error ? e.message : String(e)}`;
+      availableThreads = [];
+      availableDocuments = [];
+    }
+  }
+
+  async function submitCreateBoard() {
+    createError = "";
+
+    const title = createTitle.trim();
+    const primaryThreadId = createPrimaryThreadId.trim();
+
+    if (!title || !primaryThreadId) {
+      createError = "Title and primary thread are required.";
+      return;
+    }
+
+    const board = {
+      title,
+      status: createStatus,
+      primary_thread_id: primaryThreadId,
+    };
+    const labels = parseDelimitedValues(createLabels);
+    const owners = [...createOwnerIds];
+    const pinnedRefs = parseDelimitedValues(createPinnedRefs);
+
+    if (labels.length > 0) board.labels = labels;
+    if (owners.length > 0) board.owners = owners;
+    if (createPrimaryDocumentId.trim()) {
+      board.primary_document_id = createPrimaryDocumentId.trim();
+    }
+    if (pinnedRefs.length > 0) board.pinned_refs = pinnedRefs;
+
+    creating = true;
+    try {
+      const created = await coreClient.createBoard({ board });
+      await loadBoards();
+      resetCreateForm();
+      showCreateForm = false;
+      await goto(workspaceHref(`/boards/${created.board.id}`));
+    } catch (e) {
+      createError = `Failed to create board: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      creating = false;
+    }
+  }
+
+  function statusColor(status) {
+    if (status === "active") return "text-emerald-400 bg-emerald-500/10";
+    if (status === "paused") return "text-amber-300 bg-amber-500/10";
+    if (status === "closed") return "text-slate-300 bg-slate-500/10";
+    return "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
+  }
+
+  $effect(() => {
+    if (workspaceSlug) {
+      void loadBoards();
+      void loadCreateSupport();
+    }
+  });
+</script>
+
+<div class="mb-4 flex items-start justify-between gap-4">
+  <div>
+    <h1 class="text-lg font-semibold text-[var(--ui-text)]">Boards</h1>
+    <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
+      Canonical visual progress maps over live work. Use them as a trusted scan
+      surface, not a disposable kanban layer.
+    </p>
+  </div>
+
+  <button
+    class="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-indigo-500"
+    onclick={() => {
+      createError = "";
+      showCreateForm = !showCreateForm;
+    }}
+    type="button"
+  >
+    {showCreateForm ? "Hide create form" : "Create board"}
+  </button>
+</div>
+
+{#if error}
+  <div class="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
+    {error}
+  </div>
+{/if}
+
+{#if showCreateForm}
+  <section
+    class="mb-5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+  >
+    <div class="border-b border-[var(--ui-border)] px-4 py-2.5">
+      <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
+        Create board
+      </h2>
+    </div>
+
+    <div class="space-y-3 px-4 py-3">
+      {#if createError}
+        <div
+          class="rounded-md bg-red-500/10 px-3 py-2 text-[12px] text-red-400"
+        >
+          {createError}
+        </div>
+      {/if}
+
+      {#if supportError}
+        <div
+          class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
+        >
+          {supportError}
+        </div>
+      {/if}
+
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
+          Board title
+          <input
+            bind:value={createTitle}
+            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+            placeholder="Q3 launch board"
+            type="text"
+          />
+        </label>
+
+        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
+          Status
+          <select
+            bind:value={createStatus}
+            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+          >
+            {#each Object.entries(BOARD_STATUS_LABELS) as [value, label]}
+              <option {value}>{label}</option>
+            {/each}
+          </select>
+        </label>
+
+        <SearchableEntityPicker
+          bind:value={createPrimaryThreadId}
+          advancedLabel="Use a manual primary thread ID"
+          helperText="Pick the canonical thread this board organizes around."
+          items={threadOptions}
+          label="Primary thread"
+          manualLabel="Primary thread ID"
+          manualPlaceholder="thread-q2-initiative"
+          placeholder="Search threads by title, ID, or tags"
+        />
+
+        <SearchableEntityPicker
+          bind:value={createPrimaryDocumentId}
+          advancedLabel="Use a manual primary document ID"
+          helperText="Optional: pin the canonical doc lineage this board should foreground."
+          items={documentOptions}
+          label="Primary document"
+          manualLabel="Primary document ID"
+          manualPlaceholder="product-constitution"
+          placeholder="Search documents by title, ID, or thread"
+        />
+      </div>
+
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
+          Labels
+          <textarea
+            bind:value={createLabels}
+            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+            placeholder="product, launch"
+            rows="3"
+          ></textarea>
+        </label>
+
+        <SearchableMultiEntityPicker
+          bind:values={createOwnerIds}
+          advancedLabel="Add a manual owner ID"
+          helperText="Owners stay visible on the board list and detail scan surfaces."
+          items={actorOptions}
+          label="Owners"
+          manualLabel="Owner ID"
+          manualPlaceholder="actor-ops-ai"
+          placeholder="Search actors by name, ID, or tags"
+        />
+      </div>
+
+      <div>
+        <p class="text-[12px] font-medium text-[var(--ui-text-muted)]">
+          Pinned refs
+        </p>
+        <GuidedTypedRefsInput
+          bind:value={createPinnedRefs}
+          addInputLabel="Add board pinned ref"
+          addInputPlaceholder="thread:thread-q2-initiative"
+          addButtonLabel="Add ref"
+          emptyText="No pinned refs yet."
+          helperText="Pinned refs appear in the board header."
+          textareaAriaLabel="Board pinned refs"
+        />
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button
+          class="rounded-md bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={creating}
+          onclick={submitCreateBoard}
+          type="button"
+        >
+          {creating ? "Creating..." : "Create board"}
+        </button>
+        <button
+          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
+          onclick={() => {
+            showCreateForm = false;
+            createError = "";
+          }}
+          type="button"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </section>
+{/if}
+
+{#if loading}
+  <div
+    class="mt-12 flex items-center justify-center gap-2 text-[13px] text-[var(--ui-text-muted)]"
+  >
+    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+      <circle
+        class="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        stroke-width="4"
+      ></circle>
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      ></path>
+    </svg>
+    Loading boards...
+  </div>
+{:else if boards.length === 0}
+  <div class="mt-8 text-center">
+    <p class="text-[13px] font-medium text-[var(--ui-text-muted)]">
+      No boards yet
+    </p>
+    <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
+      No boards yet. Create one to give operators a trustworthy visual map of
+      active work.
+    </p>
+  </div>
+{:else}
+  <div
+    class="space-y-px overflow-hidden rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+  >
+    {#each boards as item, i}
+      {@const board = item.board}
+      {@const summary = item.summary}
+      {@const counts = boardSummaryCounts(summary)}
+      {@const projectionFreshness = item.projection_freshness ?? null}
+      <div
+        class="block cursor-pointer px-4 py-3 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
+        0
+          ? 'border-t border-[var(--ui-border)]'
+          : ''}"
+        onclick={() => navigateToBoard(board.id)}
+        onkeydown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            navigateToBoard(board.id);
+          }
+        }}
+        role="button"
+        tabindex="0"
+      >
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              {#if board.status}
+                <span
+                  class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-semibold {statusColor(
+                    board.status,
+                  )}"
+                >
+                  {BOARD_STATUS_LABELS[board.status] ?? board.status}
+                </span>
+              {/if}
+              {#if projectionFreshness}
+                <span
+                  class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium {freshnessStatusTone(
+                    projectionFreshness.status,
+                  )}"
+                >
+                  {freshnessStatusLabel(projectionFreshness.status)}
+                </span>
+              {/if}
+              {#if summary?.has_primary_document}
+                <span
+                  class="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-300"
+                >
+                  Has doc
+                </span>
+              {/if}
+              {#each (board.labels ?? []).slice(0, 3) as label}
+                <span
+                  class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                >
+                  {label}
+                </span>
+              {/each}
+            </div>
+
+            <p
+              class="mt-1 truncate text-[13px] font-medium text-[var(--ui-text)]"
+            >
+              {board.title || board.id}
+            </p>
+
+            <div
+              class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--ui-text-muted)]"
+            >
+              {#if board.owners?.length > 0}
+                <span>
+                  Owned by {board.owners
+                    .map((owner) => actorName(owner))
+                    .join(", ")}
+                </span>
+              {/if}
+              <span>
+                <span class="text-[var(--ui-text-subtle)]">Thread:</span>
+                <a
+                  class="text-indigo-300 transition-colors hover:text-indigo-200"
+                  href={workspaceHref(
+                    `/threads/${encodeURIComponent(board.primary_thread_id)}`,
+                  )}
+                >
+                  {threadTitle(board.primary_thread_id) ||
+                    board.primary_thread_id}
+                </a>
+              </span>
+              <span>
+                Visual scan updated {formatTimestamp(board.updated_at) || "—"}
+              </span>
+              {#if isFreshnessCurrent(projectionFreshness)}
+                <span>
+                  Latest derived activity {formatTimestamp(
+                    summary?.latest_activity_at,
+                  ) || "—"}
+                </span>
+              {:else if projectionFreshness}
+                <span>Derived scan details are still catching up</span>
+              {/if}
+            </div>
+          </div>
+
+          <div class="shrink-0 text-[11px] text-[var(--ui-text-subtle)]">
+            {#if isFreshnessCurrent(projectionFreshness)}
+              <div class="flex gap-1">
+                {#each CANONICAL_BOARD_COLUMNS as column}
+                  <span
+                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5"
+                    title={`${column.title}: ${counts[column.key]} cards`}
+                  >
+                    {counts[column.key]}
+                  </span>
+                {/each}
+              </div>
+              <p
+                class="mt-1 text-right text-[10px] text-[var(--ui-text-subtle)]"
+              >
+                {summary?.card_count ?? 0} cards by column
+              </p>
+            {:else}
+              <p class="text-right text-[10px] text-[var(--ui-text-subtle)]">
+                Waiting for a current derived card scan
+              </p>
+            {/if}
+          </div>
+        </div>
+      </div>
+    {/each}
+  </div>
+{/if}

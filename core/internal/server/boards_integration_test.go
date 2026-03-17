@@ -135,10 +135,15 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 		PrimaryDocument map[string]any `json:"primary_document"`
 		Cards           struct {
 			Items []struct {
-				Card           map[string]any `json:"card"`
-				Thread         map[string]any `json:"thread"`
-				Summary        map[string]any `json:"summary"`
-				PinnedDocument map[string]any `json:"pinned_document"`
+				Membership map[string]any `json:"membership"`
+				Backing    struct {
+					Thread         map[string]any `json:"thread"`
+					PinnedDocument map[string]any `json:"pinned_document"`
+				} `json:"backing"`
+				Derived struct {
+					Summary   map[string]any `json:"summary"`
+					Freshness map[string]any `json:"freshness"`
+				} `json:"derived"`
 			} `json:"items"`
 			Count int `json:"count"`
 		} `json:"cards"`
@@ -154,8 +159,10 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 			Items []map[string]any `json:"items"`
 			Count int              `json:"count"`
 		} `json:"inbox"`
-		BoardSummary map[string]any `json:"board_summary"`
-		Warnings     struct {
+		BoardSummary          map[string]any `json:"board_summary"`
+		ProjectionFreshness   map[string]any `json:"projection_freshness"`
+		BoardSummaryFreshness map[string]any `json:"board_summary_freshness"`
+		Warnings              struct {
 			Count int `json:"count"`
 		} `json:"warnings"`
 		SectionKinds map[string]string `json:"section_kinds"`
@@ -176,20 +183,29 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 		t.Fatalf("expected one board workspace card, got %#v", workspacePayload.Cards)
 	}
 	cardItem := workspacePayload.Cards.Items[0]
-	if asString(cardItem.Card["thread_id"]) != memberThreadID || asString(cardItem.Thread["id"]) != memberThreadID {
+	if asString(cardItem.Membership["thread_id"]) != memberThreadID || asString(cardItem.Backing.Thread["id"]) != memberThreadID {
 		t.Fatalf("unexpected board workspace card item: %#v", cardItem)
 	}
-	if asString(cardItem.PinnedDocument["id"]) != memberDocumentID {
-		t.Fatalf("expected pinned document %q, got %#v", memberDocumentID, cardItem.PinnedDocument)
+	if asString(cardItem.Backing.PinnedDocument["id"]) != memberDocumentID {
+		t.Fatalf("expected pinned document %q, got %#v", memberDocumentID, cardItem.Backing.PinnedDocument)
 	}
-	if intFromAny(cardItem.Summary["open_commitment_count"]) != 1 || intFromAny(cardItem.Summary["document_count"]) != 1 || intFromAny(cardItem.Summary["inbox_count"]) != 1 {
-		t.Fatalf("unexpected board card summary: %#v", cardItem.Summary)
+	if intFromAny(cardItem.Derived.Summary["open_commitment_count"]) != 1 || intFromAny(cardItem.Derived.Summary["document_count"]) != 1 || intFromAny(cardItem.Derived.Summary["inbox_count"]) != 1 {
+		t.Fatalf("unexpected board card summary: %#v", cardItem.Derived.Summary)
+	}
+	if got := asString(cardItem.Derived.Freshness["status"]); got != "current" {
+		t.Fatalf("expected card freshness current, got %#v", cardItem.Derived.Freshness)
 	}
 	if workspacePayload.Documents.Count != 2 || workspacePayload.Commitments.Count != 2 || workspacePayload.Inbox.Count != 1 {
 		t.Fatalf("unexpected workspace aggregate sections: documents=%#v commitments=%#v inbox=%#v", workspacePayload.Documents, workspacePayload.Commitments, workspacePayload.Inbox)
 	}
 	if intFromAny(workspacePayload.BoardSummary["card_count"]) != 1 || intFromAny(workspacePayload.BoardSummary["open_commitment_count"]) != 2 || intFromAny(workspacePayload.BoardSummary["document_count"]) != 2 {
 		t.Fatalf("unexpected board summary: %#v", workspacePayload.BoardSummary)
+	}
+	if got := asString(workspacePayload.ProjectionFreshness["status"]); got != "current" {
+		t.Fatalf("expected board projection freshness current, got %#v", workspacePayload.ProjectionFreshness)
+	}
+	if got := asString(workspacePayload.BoardSummaryFreshness["status"]); got != "current" {
+		t.Fatalf("expected board summary freshness current, got %#v", workspacePayload.BoardSummaryFreshness)
 	}
 	if workspacePayload.Warnings.Count != 0 {
 		t.Fatalf("expected warnings.count=0, got %#v", workspacePayload.Warnings)

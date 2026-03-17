@@ -838,7 +838,7 @@ Generated Help: threads context
 - Output: Returns `{ thread, recent_events, key_artifacts, open_commitments, documents }`.
 - Error codes: `invalid_request`, `not_found`
 - Concepts: `threads`, `events`, `artifacts`, `commitments`, `docs`
-- Agent notes: Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.
+- Agent notes: Derived thread context projection; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.
 - Adjacent commands: `threads create`, `threads get`, `threads list`, `threads patch`, `threads timeline`, `threads workspace`
 - Examples:
   - Context with defaults: `oar threads context --thread-id thread_123 --json`
@@ -1748,7 +1748,7 @@ Generated Help: inbox list
 - Why: Surface derived actionable risk and decision signals.
 - Output: Returns `{ items, generated_at }`.
 - Concepts: `inbox`, `derived-views`
-- Agent notes: Safe and idempotent.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Safe and idempotent.
 - Adjacent commands: `inbox ack`, `inbox get`, `inbox stream`
 - Examples:
   - List inbox: `oar inbox list --json`
@@ -1776,7 +1776,7 @@ Generated Help: inbox get
 - Output: Returns `{ item, generated_at }` for the requested inbox item.
 - Error codes: `not_found`
 - Concepts: `inbox`, `derived-views`
-- Agent notes: CLI supports canonical ids, aliases, and unique prefixes.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. CLI supports canonical ids, aliases, and unique prefixes.
 - Adjacent commands: `inbox ack`, `inbox list`, `inbox stream`
 - Examples:
   - Get inbox item by canonical id: `oar inbox get --id inbox:decision_needed:thread_123:none:event_123 --json`
@@ -1805,7 +1805,7 @@ Generated Help: inbox ack
 - Output: Returns `{ event }` representing acknowledgment.
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`
 - Concepts: `inbox`, `events`
-- Agent notes: Idempotent at semantic level; repeated acks should not duplicate active inbox items.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Idempotent at semantic level; repeated acks should not duplicate active inbox items.
 - Adjacent commands: `inbox get`, `inbox list`, `inbox stream`
 - Examples:
   - Ack inbox item: `oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json`
@@ -1837,7 +1837,7 @@ Generated Help: inbox stream
 - Output: SSE stream where each event carries `{ item }` derived inbox metadata.
 - Error codes: `internal_error`, `cli_outdated`
 - Concepts: `inbox`, `derived-views`, `streaming`
-- Agent notes: Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.
 - Adjacent commands: `inbox ack`, `inbox get`, `inbox list`
 - Examples:
   - Stream inbox updates: `oar inbox tail --json`
@@ -1866,7 +1866,7 @@ Generated Help: inbox tail
 - Output: SSE stream where each event carries `{ item }` derived inbox metadata.
 - Error codes: `internal_error`, `cli_outdated`
 - Concepts: `inbox`, `derived-views`, `streaming`
-- Agent notes: Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.
 - Adjacent commands: `inbox ack`, `inbox get`, `inbox list`
 - Examples:
   - Stream inbox updates: `oar inbox tail --json`

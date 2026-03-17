@@ -281,7 +281,7 @@ test("create commitment and enforce status evidence for done transition", async 
   });
 
   await expect(
-    page.getByText("No active or blocked commitments.", { exact: true }),
+    page.getByText("No open commitments. All clear.", { exact: true }),
   ).toBeVisible();
 });
 

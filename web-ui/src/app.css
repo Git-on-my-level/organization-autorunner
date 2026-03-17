@@ -306,11 +306,11 @@ button:focus-visible {
   flex-direction: column;
 }
 
-.project-switcher {
+.workspace-switcher {
   position: relative;
 }
 
-.project-switcher-trigger {
+.workspace-switcher-trigger {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -324,11 +324,11 @@ button:focus-visible {
   transition: background 120ms ease;
 }
 
-.project-switcher-trigger:hover {
+.workspace-switcher-trigger:hover {
   background: var(--ui-panel-muted);
 }
 
-.project-switcher-icon {
+.workspace-switcher-icon {
   width: 1.75rem;
   height: 1.75rem;
   flex-shrink: 0;
@@ -342,7 +342,7 @@ button:focus-visible {
   letter-spacing: 0.02em;
 }
 
-.project-switcher-label {
+.workspace-switcher-label {
   min-width: 0;
   flex: 1;
   display: grid;
@@ -350,7 +350,7 @@ button:focus-visible {
   line-height: 1.25;
 }
 
-.project-switcher-name {
+.workspace-switcher-name {
   font-size: 0.8125rem;
   font-weight: 600;
   white-space: nowrap;
@@ -358,7 +358,7 @@ button:focus-visible {
   text-overflow: ellipsis;
 }
 
-.project-switcher-sub {
+.workspace-switcher-sub {
   font-size: 0.6875rem;
   color: var(--ui-text-muted);
   white-space: nowrap;
@@ -366,7 +366,7 @@ button:focus-visible {
   text-overflow: ellipsis;
 }
 
-.project-switcher-chevron {
+.workspace-switcher-chevron {
   width: 0.875rem;
   height: 0.875rem;
   flex-shrink: 0;
@@ -374,11 +374,11 @@ button:focus-visible {
   transition: transform 120ms ease;
 }
 
-.project-switcher-chevron--open {
+.workspace-switcher-chevron--open {
   transform: rotate(180deg);
 }
 
-.project-switcher-dropdown {
+.workspace-switcher-dropdown {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
@@ -395,7 +395,7 @@ button:focus-visible {
   overflow-y: auto;
 }
 
-.project-switcher-option {
+.workspace-switcher-option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -410,15 +410,15 @@ button:focus-visible {
   transition: background 80ms ease;
 }
 
-.project-switcher-option:hover {
+.workspace-switcher-option:hover {
   background: var(--ui-panel-muted);
 }
 
-.project-switcher-option--active {
+.workspace-switcher-option--active {
   background: var(--ui-brand-soft);
 }
 
-.project-switcher-option-icon {
+.workspace-switcher-option-icon {
   width: 1.5rem;
   height: 1.5rem;
   flex-shrink: 0;
@@ -432,14 +432,14 @@ button:focus-visible {
   letter-spacing: 0.02em;
 }
 
-.project-switcher-option-label {
+.workspace-switcher-option-label {
   min-width: 0;
   flex: 1;
   display: grid;
   line-height: 1.25;
 }
 
-.project-switcher-option-label > span:first-child {
+.workspace-switcher-option-label > span:first-child {
   font-size: 0.8125rem;
   font-weight: 500;
   white-space: nowrap;
@@ -447,7 +447,7 @@ button:focus-visible {
   text-overflow: ellipsis;
 }
 
-.project-switcher-option-desc {
+.workspace-switcher-option-desc {
   font-size: 0.6875rem;
   color: var(--ui-text-muted);
   white-space: nowrap;
@@ -455,20 +455,20 @@ button:focus-visible {
   text-overflow: ellipsis;
 }
 
-.project-switcher-check {
+.workspace-switcher-check {
   width: 0.875rem;
   height: 0.875rem;
   flex-shrink: 0;
   color: var(--ui-accent);
 }
 
-.mobile-project-list {
+.mobile-workspace-list {
   display: grid;
   gap: 1px;
   margin-bottom: 0.25rem;
 }
 
-.mobile-project-divider {
+.mobile-workspace-divider {
   height: 1px;
   background: var(--ui-border);
   margin: 0.25rem 0;

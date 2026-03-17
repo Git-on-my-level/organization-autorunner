@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"organization-autorunner-core/internal/blob"
 	"os"
 	"reflect"
 	"sort"
@@ -24,7 +25,7 @@ func TestStoreAppendAndGetEventUnknownTypeAccepted(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	event, err := store.AppendEvent(context.Background(), "actor-1", map[string]any{
 		"type":       "custom_event_type",
@@ -55,7 +56,7 @@ func TestCreateArtifactAcceptsSafeIDAndRejectsUnsafeIDs(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	validIDs := []string{
 		"artifact-123",
@@ -108,7 +109,7 @@ func TestCreateArtifactConflictDoesNotLeakStagedContent(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	artifactID := "artifact-fixed"
 	if _, err := store.CreateArtifact(context.Background(), "actor-1", map[string]any{
@@ -153,7 +154,7 @@ func TestUpdateDocumentWriteFailureDoesNotLeakStagedContent(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	document, revision, err := store.CreateDocument(context.Background(), "actor-1", map[string]any{
 		"id":    "doc-locked",
@@ -201,7 +202,7 @@ func TestPatchSnapshotPreservesUnknownFieldsAndEmitsChangedFields(t *testing.T) 
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	initialBody := map[string]any{
 		"title":         "original title",
@@ -323,7 +324,7 @@ func TestPatchSnapshotOptimisticLockingIfUpdatedAt(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	initialBodyJSON, err := json.Marshal(map[string]any{
 		"title": "original",
@@ -419,7 +420,7 @@ func TestCreateThreadStoresProvenanceOnlyInProvenanceJSON(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":            "Thread provenance create",
@@ -487,7 +488,7 @@ func TestPatchThreadProvenanceRoundTripAndPreserveWhenOmitted(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":            "Thread provenance patch",
@@ -584,7 +585,7 @@ func TestCommitmentOpenCommitmentsMaintenance(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":           "Thread A",
@@ -713,7 +714,7 @@ func TestPatchCommitmentOptimisticLockingIfUpdatedAt(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":           "Thread for lock test",
@@ -820,7 +821,7 @@ func TestPatchCommitmentRestrictedTransitionRequiresEvidence(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":           "Thread A",
@@ -871,7 +872,7 @@ func TestListRecentEventsByThreadLimitAndOrder(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	threadID := "thread-limit-order"
 
 	insert := func(id string, ts string, eventType string) {

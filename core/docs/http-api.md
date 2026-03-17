@@ -40,6 +40,18 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - `agent_revoked`
   - `key_mismatch`
 
+## API Surface Classification
+
+Each endpoint is classified with an `x-oar-surface` extension indicating its role:
+
+- **`canonical`**: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, board cards, events, snapshots, packets). These are the durable substrate for automation.
+
+- **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `threads.context`, `threads.workspace`, `boards.workspace`, `inbox.list/get/stream/ack`. **Do not build durable automation directly on projection payload shapes.** Use canonical APIs or CLI commands for durable substrate.
+
+- **`utility`**: Infrastructure endpoints for health, version, meta discovery, auth bootstrap, and maintenance. Examples: `/health`, `/version`, `/meta/*`, `/auth/*`, `/actors`, `/derived/rebuild`.
+
+Projection endpoints return a `section_kinds` field to distinguish canonical vs derived sections, and a `generated_at` timestamp indicating when the projection was generated.
+
 ## Endpoints
 
 ### Version
@@ -48,7 +60,8 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - Response: `{ "schema_version": "0.2.2" }`
 
 - `GET /meta/handshake`
-  - Response: `{ "core_version", "api_version", "schema_version", "min_cli_version", "recommended_cli_version", "cli_download_url", "core_instance_id" }`
+  - Response: `{ "core_version", "api_version", "schema_version", "min_cli_version", "recommended_cli_version", "cli_download_url", "core_instance_id", "dev_actor_mode" }`
+  - `dev_actor_mode` is a boolean indicating whether development actor mode is enabled (default: `false`). When `true`, the legacy actor picker/creator UI flow is available. When `false`, authentication is required.
 
 - Compatibility headers emitted on all responses:
   - `X-OAR-Core-Version`
@@ -82,6 +95,7 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 - `POST /actors`
   - Body: `{ "actor": { id, display_name, tags?, created_at } }`
   - Response: `{ "actor": <actor> }`
+  - **Blocked when `dev_actor_mode=false`**: Returns `403 Forbidden` with error code `dev_actor_mode_disabled`. Production deployments should use passkey or public key authentication to create linked actors instead.
 
 - `GET /actors`
   - Response: `{ "actors": [<actor>...] }`
@@ -294,11 +308,13 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 ### Inbox and derived views
 
 - `GET /inbox`
-  - Response: `{ "items": [<inbox_item>...], "generated_at": "..." }`
+  - Side-effect free read of materialized inbox rows.
+  - Response: `{ "items": [<inbox_item>...], "generated_at": "...", "projection_freshness": { "status": "current|pending|missing|error", "threads": [...] } }`
   - Optional query: `risk_horizon_days`
 
 - `GET /inbox/{inbox_item_id}`
-  - Response: `{ "item": <inbox_item>, "generated_at": "..." }`
+  - Side-effect free read of materialized inbox rows.
+  - Response: `{ "item": <inbox_item>, "generated_at": "...", "projection_freshness": { ... } }`
   - Optional query: `risk_horizon_days`
 
 - `GET /inbox/stream`
@@ -317,9 +333,11 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - Response: `{ "ok": true }`
 
 - Materialized derived projections used by the common read path:
-  - `derived_inbox_items`: incrementally maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
-  - `derived_thread_views`: incrementally maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
+  - `derived_inbox_items`: asynchronously maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
+  - `derived_thread_views`: asynchronously maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
+  - `thread_projection_refresh_status`: durable per-thread refresh state used to expose `current`, `pending`, `missing`, or `error` freshness metadata without mutating projections inside GET handlers.
   - `POST /derived/rebuild` remains the deterministic repair path: it re-emits any missing canonical stale-thread exceptions from canonical state, then rebuilds both projection tables from current threads/events/commitments/documents.
+  - Standard GET responses never repair or recompute projections inline; they return the best currently materialized data plus freshness metadata.
 
 - Meaningful thread activity for stale-thread clearing:
   - The current activity set is explicit: `actor_statement`, `decision_needed`, `decision_made`, `work_order_created`, `receipt_added`, `review_completed`, `document_created`, `document_updated`, `document_tombstoned`, `commitment_created`, `commitment_status_changed`, plus non-create `snapshot_updated` events from direct user-authored snapshot edits.

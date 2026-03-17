@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"organization-autorunner-core/internal/blob"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -43,7 +44,7 @@ func TestAgentAuthLifecycleAndActorCompatibility(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load schema contract: %v", err)
 	}
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	handler := NewHandler(
 		"0.2.2",
 		WithActorRegistry(registry),
@@ -51,6 +52,7 @@ func TestAgentAuthLifecycleAndActorCompatibility(t *testing.T) {
 		WithHealthCheck(workspace.Ping),
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -300,7 +302,7 @@ func TestWriteAuthToggleRejectsUnauthenticatedWritesWhenDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load schema contract: %v", err)
 	}
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	handler := NewHandler(
 		"0.2.2",
 		WithActorRegistry(registry),
@@ -309,6 +311,7 @@ func TestWriteAuthToggleRejectsUnauthenticatedWritesWhenDisabled(t *testing.T) {
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(false),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -404,7 +407,7 @@ func TestConcurrentFreshAuthRegistrationsSucceed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load schema contract: %v", err)
 	}
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	handler := NewHandler(
 		"0.2.2",
 		WithActorRegistry(registry),

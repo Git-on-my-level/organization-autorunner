@@ -13,6 +13,7 @@ Required for every command operation:
 - `x-oar-error-codes`: stable semantic error code list
 - `x-oar-concepts`: related concept tags
 - `x-oar-stability`: one of `experimental|beta|stable`
+- `x-oar-surface`: one of `canonical|projection|utility`
 - `x-oar-agent-notes`: idempotency/retry caveats
 
 Recommended:
@@ -20,3 +21,9 @@ Recommended:
 - include at least one `x-oar-examples` command per operation
 - keep `x-oar-command-id` immutable once published
 - keep concept labels lower-case and dash-separated
+
+Surface classification:
+
+- `canonical`: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, events)
+- `projection`: operator convenience surfaces that aggregate multiple canonical resources (workspace/context endpoints, inbox)
+- `utility`: meta/handshake, auth bootstrap, rebuild/repair, and similar non-domain endpoints

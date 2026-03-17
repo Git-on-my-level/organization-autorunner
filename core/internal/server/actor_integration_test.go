@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"organization-autorunner-core/internal/blob"
 	"path/filepath"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestActorEndpointsRegisterAndListStableOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load schema contract: %v", err)
 	}
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	handler := NewHandler(
 		"0.2.2",
 		WithActorRegistry(registry),
@@ -39,6 +40,7 @@ func TestActorEndpointsRegisterAndListStableOrder(t *testing.T) {
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -86,7 +88,7 @@ func TestPostThreadsRejectsUnknownActorID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load schema contract: %v", err)
 	}
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	handler := NewHandler(
 		"0.2.2",
 		WithActorRegistry(registry),

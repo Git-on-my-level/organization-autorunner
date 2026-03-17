@@ -6,11 +6,23 @@ test("create document flow — POST /docs and navigate to new document", async (
   const actorId = "actor-docs-create-e2e";
   let createCount = 0;
   let listCount = 0;
+  let createPayload = null;
+  const threads = [
+    {
+      id: "thread-docs",
+      title: "Operations Thread",
+      status: "active",
+      priority: "p1",
+      type: "process",
+      tags: ["ops"],
+    },
+  ];
   const createdDoc = {
     id: "new-test-doc",
     title: "New Test Document",
     status: "draft",
     labels: ["ops"],
+    thread_id: "thread-docs",
     head_revision_id: "rev-new-1",
     head_revision_number: 1,
     updated_at: new Date().toISOString(),
@@ -41,6 +53,14 @@ test("create document flow — POST /docs and navigate to new document", async (
     });
   });
 
+  await page.route(/\/threads(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ threads }),
+    });
+  });
+
   await page.route(/\/docs(\?.*)?$/, async (route) => {
     const request = route.request();
     if (request.method() === "GET" && request.resourceType() === "document") {
@@ -62,6 +82,7 @@ test("create document flow — POST /docs and navigate to new document", async (
 
     if (request.method() === "POST") {
       createCount += 1;
+      createPayload = JSON.parse(request.postData() ?? "{}");
       await route.fulfill({
         status: 201,
         contentType: "application/json",
@@ -95,10 +116,10 @@ test("create document flow — POST /docs and navigate to new document", async (
   // effects have completed before interacting with buttons.
   await page.waitForLoadState("networkidle");
   await expect(
-    page.getByRole("heading", { name: "Documents", exact: true }),
+    page.getByRole("heading", { name: "Docs", exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "New document" }).click();
+  await page.getByRole("button", { name: "New doc" }).click();
   // The form appears inside {#if createOpen}; wait for textarea to confirm
   await expect(page.locator("textarea")).toBeVisible();
 
@@ -108,13 +129,24 @@ test("create document flow — POST /docs and navigate to new document", async (
     .getByPlaceholder("Document title", { exact: true })
     .fill("New Test Document");
   await page.getByPlaceholder("e.g. ops, runbook").fill("ops");
+  await page.getByLabel("Thread linkage search").fill("Operations Thread");
+  await page.getByRole("button", { name: /Operations Thread/ }).click();
   await page
     .locator("textarea")
     .fill("# New Test Document\n\nThis is created from the E2E test.");
 
-  await page.getByRole("button", { name: "Create document" }).click();
+  await page.getByRole("button", { name: "Create doc" }).click();
 
   await expect.poll(() => createCount).toBe(1);
+  expect(createPayload).toMatchObject({
+    actor_id: actorId,
+    document: {
+      title: "New Test Document",
+      status: "draft",
+      labels: ["ops"],
+      thread_id: "thread-docs",
+    },
+  });
   await expect(page).toHaveURL(/\/local\/docs\/new-test-doc$/);
   await expect(
     page.locator("section").getByRole("heading", { name: "New Test Document" }),
@@ -126,14 +158,34 @@ test("update document flow — PATCH /docs/:id creates a new revision", async ({
 }) => {
   const actorId = "actor-docs-update-e2e";
   let updateCount = 0;
+  let updatePayload = null;
   const baseRevisionId = "rev-update-1";
   const newRevisionId = "rev-update-2";
+  const threads = [
+    {
+      id: "thread-ops",
+      title: "Operations Thread",
+      status: "active",
+      priority: "p1",
+      type: "process",
+      tags: ["ops"],
+    },
+    {
+      id: "thread-policy",
+      title: "Policy Thread",
+      status: "active",
+      priority: "p2",
+      type: "process",
+      tags: ["policy"],
+    },
+  ];
 
   const initialDoc = {
     id: "updatable-doc",
     title: "Updatable Document",
     status: "active",
     labels: ["ops"],
+    thread_id: "thread-ops",
     head_revision_id: baseRevisionId,
     head_revision_number: 1,
     updated_at: "2026-03-08T10:00:00Z",
@@ -153,6 +205,7 @@ test("update document flow — PATCH /docs/:id creates a new revision", async ({
 
   const updatedDoc = {
     ...initialDoc,
+    thread_id: "thread-policy",
     head_revision_id: newRevisionId,
     head_revision_number: 2,
     updated_at: new Date().toISOString(),
@@ -184,6 +237,14 @@ test("update document flow — PATCH /docs/:id creates a new revision", async ({
     });
   });
 
+  await page.route(/\/threads(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ threads }),
+    });
+  });
+
   await page.route(/\/docs\/updatable-doc$/, async (route) => {
     const request = route.request();
     if (request.method() === "GET" && request.resourceType() === "document") {
@@ -205,6 +266,7 @@ test("update document flow — PATCH /docs/:id creates a new revision", async ({
 
     if (request.method() === "PATCH") {
       const payload = JSON.parse(request.postData() ?? "{}");
+      updatePayload = payload;
 
       if (payload.if_base_revision !== baseRevisionId) {
         await route.fulfill({
@@ -246,12 +308,21 @@ test("update document flow — PATCH /docs/:id creates a new revision", async ({
     page.getByRole("button", { name: "Save revision" }),
   ).toBeVisible();
 
+  await page.getByLabel("Thread linkage search").fill("Policy Thread");
+  await page.getByRole("button", { name: /Policy Thread/ }).click();
   // The single textarea in the revision form (pre-filled with head content).
   await page.locator("textarea").fill("Revised content from E2E test.");
 
   await page.getByRole("button", { name: "Save revision" }).click();
 
   await expect.poll(() => updateCount).toBe(1);
+  expect(updatePayload).toMatchObject({
+    actor_id: actorId,
+    if_base_revision: baseRevisionId,
+    document: {
+      thread_id: "thread-policy",
+    },
+  });
 
   await expect(page.getByText("Revised content from E2E test.")).toBeVisible();
   // Check that revision number v2 is shown in the metadata span (exact match
@@ -301,6 +372,14 @@ test("structured/binary content type — New revision button is hidden, CLI hint
           { id: actorId, display_name: "Structured Tester", tags: ["human"] },
         ],
       }),
+    });
+  });
+
+  await page.route(/\/threads(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ threads: [] }),
     });
   });
 
@@ -379,6 +458,14 @@ test("update document conflict — 409 response shows error", async ({
     });
   });
 
+  await page.route(/\/threads(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ threads: [] }),
+    });
+  });
+
   await page.route(/\/docs\/conflict-doc$/, async (route) => {
     const request = route.request();
     if (request.method() === "GET" && request.resourceType() === "document") {
@@ -431,10 +518,20 @@ test("update document conflict — 409 response shows error", async ({
   );
 });
 
-test("documents list redirects through the default project and loads revision history", async ({
+test("documents list redirects through the default workspace and loads revision history", async ({
   page,
 }) => {
   const actorId = "actor-docs-e2e";
+  const threads = [
+    {
+      id: "thread-governance",
+      title: "Governance Thread",
+      status: "active",
+      priority: "p1",
+      type: "initiative",
+      tags: ["governance"],
+    },
+  ];
   const documents = [
     {
       id: "product-constitution",
@@ -461,6 +558,14 @@ test("documents list redirects through the default project and loads revision hi
   await page.addInitScript((selectedActorId) => {
     window.localStorage.setItem("oar_ui_actor_id", selectedActorId);
   }, actorId);
+
+  await page.route(/\/threads(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ threads }),
+    });
+  });
 
   await page.route(/\/docs(\?.*)?$/, async (route) => {
     const request = route.request();
@@ -610,7 +715,7 @@ test("documents list redirects through the default project and loads revision hi
   await page.goto("/docs");
   await expect(page).toHaveURL(/\/local\/docs$/);
   await expect(
-    page.getByRole("heading", { name: "Documents", exact: true }),
+    page.getByRole("heading", { name: "Docs", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: /Product Constitution/ }),
@@ -624,7 +729,7 @@ test("documents list redirects through the default project and loads revision hi
     page.getByRole("heading", { name: "Product Constitution", exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Version history" }).click();
+  await page.getByRole("button", { name: "Revision history" }).click();
   await expect(
     page.getByText("Current version", { exact: true }),
   ).toBeVisible();
@@ -648,7 +753,7 @@ test("documents list redirects through the default project and loads revision hi
       exact: true,
     }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Version history" }).click();
+  await page.getByRole("button", { name: "Revision history" }).click();
   await expect(page.getByText("Version 3", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Version 1", { exact: true })).toBeVisible();
 });

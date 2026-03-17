@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"organization-autorunner-core/internal/blob"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -53,13 +54,20 @@ func newPrimitivesTestServerWithStore(t *testing.T, workspace *storage.Workspace
 	}
 
 	registry := actors.NewStore(workspace.DB())
+	projectionWorker := NewProjectionWorker(
+		WithPrimitiveStore(primitiveStore),
+		WithSchemaContract(contract),
+		WithInboxRiskHorizon(defaultInboxRiskHorizon),
+	)
 	handler := NewHandler(
 		contract.Version,
 		WithHealthCheck(workspace.Ping),
 		WithActorRegistry(registry),
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
+		WithProjectionMaintenance(NewSyncProjectionMaintenance(projectionWorker)),
 		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	t.Cleanup(func() {
@@ -78,7 +86,7 @@ func TestBoardCreateSucceedsWhenLifecycleEventAppendFails(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	baseStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	baseStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	h := newPrimitivesTestServerWithStore(t, workspace, &boardLifecycleFailureStore{
 		PrimitiveStore:      baseStore,
 		appendBoardEventErr: errors.New("board event append failed"),
@@ -125,7 +133,7 @@ func TestBoardAddCardSucceedsWhenLifecycleProjectionRefreshFails(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	baseStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	baseStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	store := &boardLifecycleFailureStore{
 		PrimitiveStore: baseStore,
 	}

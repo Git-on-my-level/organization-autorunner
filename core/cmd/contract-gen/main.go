@@ -52,6 +52,7 @@ type operation struct {
 	ErrorCodes  []string     `yaml:"x-oar-error-codes"`
 	Concepts    []string     `yaml:"x-oar-concepts"`
 	Stability   string       `yaml:"x-oar-stability"`
+	Surface     string       `yaml:"x-oar-surface"`
 	AgentNotes  string       `yaml:"x-oar-agent-notes"`
 	RequestBody *requestBody `yaml:"requestBody"`
 }
@@ -200,6 +201,7 @@ type command struct {
 	ErrorCodes  []string     `json:"error_codes,omitempty"`
 	Concepts    []string     `json:"concepts,omitempty"`
 	Stability   string       `json:"stability,omitempty"`
+	Surface     string       `json:"surface,omitempty"`
 	AgentNotes  string       `json:"agent_notes,omitempty"`
 	Examples    []oarExample `json:"examples,omitempty"`
 	BodySchema  *bodySchema  `json:"body_schema,omitempty"`
@@ -348,6 +350,7 @@ func collectCommands(doc openAPIDocument, schemaDoc oarSchemaDocument) []command
 				ErrorCodes:  compactStrings(pair.op.ErrorCodes),
 				Concepts:    compactStrings(pair.op.Concepts),
 				Stability:   strings.TrimSpace(pair.op.Stability),
+				Surface:     strings.TrimSpace(pair.op.Surface),
 				AgentNotes:  strings.TrimSpace(pair.op.AgentNotes),
 				Examples:    compactExamples(pair.op.Examples),
 				BodySchema:  deriveBodySchema(doc, schemaDoc, commandID, pair.op),
@@ -1031,6 +1034,9 @@ func writeMarkdown(path string, doc openAPIDocument, commands []command) error {
 		if cmd.Stability != "" {
 			b.WriteString(fmt.Sprintf("- Stability: `%s`\n", cmd.Stability))
 		}
+		if cmd.Surface != "" {
+			b.WriteString(fmt.Sprintf("- Surface: `%s`\n", cmd.Surface))
+		}
 		if cmd.InputMode != "" {
 			b.WriteString(fmt.Sprintf("- Input mode: `%s`\n", cmd.InputMode))
 		}
@@ -1145,6 +1151,7 @@ Required for every command operation:
 - `+"`x-oar-error-codes`"+`: stable semantic error code list
 - `+"`x-oar-concepts`"+`: related concept tags
 - `+"`x-oar-stability`"+`: one of `+"`experimental|beta|stable`"+`
+- `+"`x-oar-surface`"+`: one of `+"`canonical|projection|utility`"+`
 - `+"`x-oar-agent-notes`"+`: idempotency/retry caveats
 
 Recommended:
@@ -1152,6 +1159,12 @@ Recommended:
 - include at least one `+"`x-oar-examples`"+` command per operation
 - keep `+"`x-oar-command-id`"+` immutable once published
 - keep concept labels lower-case and dash-separated
+
+Surface classification:
+
+- `+"`canonical`"+`: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, events)
+- `+"`projection`"+`: operator convenience surfaces that aggregate multiple canonical resources (workspace/context endpoints, inbox)
+- `+"`utility`"+`: meta/handshake, auth bootstrap, rebuild/repair, and similar non-domain endpoints
 `) + "\n"
 	return os.WriteFile(path, []byte(content), 0o644)
 }
@@ -1436,6 +1449,7 @@ func writeTSClient(tsOutDir string, commands []command) error {
 	b.WriteString("  output_envelope?: string;\n")
 	b.WriteString("  error_codes?: string[];\n")
 	b.WriteString("  stability?: string;\n")
+	b.WriteString("  surface?: string;\n")
 	b.WriteString("  agent_notes?: string;\n")
 	b.WriteString("  concepts?: string[];\n")
 	b.WriteString("  adjacent_commands?: string[];\n")

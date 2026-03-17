@@ -5,6 +5,7 @@ test("receipt form validates typed refs and creates receipt that appears in time
 }) => {
   const actorId = "actor-receipt-e2e";
   const workOrderId = "artifact-work-order-1";
+  const createdReceiptId = "artifact-receipt-created-1";
   let postedPayload = null;
   let createdReceiptArtifact = null;
   let createdReceiptPacket = null;
@@ -196,9 +197,15 @@ test("receipt form validates typed refs and creates receipt that appears in time
 
   await page.route(/\/receipts$/, async (route) => {
     postedPayload = JSON.parse(route.request().postData() ?? "{}");
-    const receiptId = postedPayload.packet.receipt_id;
+    const receiptId =
+      postedPayload.artifact?.id ??
+      postedPayload.packet?.receipt_id ??
+      createdReceiptId;
 
-    createdReceiptPacket = { ...postedPayload.packet };
+    createdReceiptPacket = {
+      ...postedPayload.packet,
+      receipt_id: receiptId,
+    };
     createdReceiptArtifact = {
       id: receiptId,
       kind: "receipt",
@@ -263,6 +270,8 @@ test("receipt form validates typed refs and creates receipt that appears in time
 
   await expect.poll(() => postedPayload !== null).toBe(true);
   expect(postedPayload.actor_id).toBe(actorId);
+  expect(postedPayload.artifact.id).toBeUndefined();
+  expect(postedPayload.packet).not.toHaveProperty("receipt_id");
   expect(postedPayload.packet).toMatchObject({
     thread_id: "thread-onboarding",
     work_order_id: workOrderId,

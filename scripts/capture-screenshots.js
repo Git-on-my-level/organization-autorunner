@@ -34,24 +34,24 @@ const { chromium } = require('playwright');
   
   console.log('Taking initial screenshot with sidebar...');
   await page.screenshot({ 
-    path: 'output/playwright/project-switcher-closed.png',
+    path: 'output/playwright/workspace-switcher-closed.png',
     fullPage: true 
   });
-  console.log('✓ Saved: output/playwright/project-switcher-closed.png');
+  console.log('✓ Saved: output/playwright/workspace-switcher-closed.png');
   
-  // Find and click the project switcher button
-  console.log('Looking for project switcher button...');
+  // Find and click the workspace switcher button
+  console.log('Looking for workspace switcher button...');
   
-  // Try different selectors for the project switcher
+  // Try different selectors for the workspace switcher
   const selectors = [
     '[role="combobox"]',
     'button[aria-haspopup="listbox"]',
-    'button[aria-label*="project"]',
-    'button[aria-label*="Project"]',
-    '[data-testid="project-switcher"]',
-    // Look for button with project name text
+    'button[aria-label*="workspace"]',
+    'button[aria-label*="Workspace"]',
+    '[data-testid="workspace-switcher"]',
+    // Look for button with workspace name text
     'button:has-text("demo-org")',
-    'button:has-text("project")',
+    'button:has-text("workspace")',
     // Look for button at top of sidebar with chevron icon
     'aside button:has([class*="chevron"])',
     'nav button:has([class*="chevron"])',
@@ -76,7 +76,7 @@ const { chromium } = require('playwright');
   }
   
   if (!clicked) {
-    console.log('Could not find project switcher button with standard selectors.');
+    console.log('Could not find workspace switcher button with standard selectors.');
     console.log('Trying to find any button in the sidebar...');
     
     // Last resort: get all buttons and look for one that opens a dropdown
@@ -89,8 +89,8 @@ const { chromium } = require('playwright');
         const text = await btn.textContent();
         console.log(`Button ${i}: "${text?.substring(0, 50)}"`);
         
-        // Look for button with project-like text or at top of page
-        if (text && (text.includes('demo') || text.includes('org') || text.includes('project'))) {
+        // Look for button with workspace-like text or at top of page
+        if (text && (text.includes('demo') || text.includes('org') || text.includes('workspace'))) {
           console.log(`Trying button ${i}...`);
           await btn.click();
           clicked = true;
@@ -103,19 +103,19 @@ const { chromium } = require('playwright');
   }
   
   if (clicked) {
-    console.log('Clicked project switcher button, waiting for dropdown...');
+    console.log('Clicked workspace switcher button, waiting for dropdown...');
     // Wait for dropdown to appear
     await page.waitForTimeout(1000);
   } else {
-    console.log('Warning: Could not find and click project switcher button');
+    console.log('Warning: Could not find and click workspace switcher button');
   }
   
   console.log('Taking screenshot with dropdown open...');
   await page.screenshot({ 
-    path: 'output/playwright/project-switcher-open.png',
+    path: 'output/playwright/workspace-switcher-open.png',
     fullPage: true 
   });
-  console.log('✓ Saved: output/playwright/project-switcher-open.png');
+  console.log('✓ Saved: output/playwright/workspace-switcher-open.png');
   
   // Keep browser open for a few seconds so user can see it
   await page.waitForTimeout(3000);

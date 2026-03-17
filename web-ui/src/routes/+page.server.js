@@ -1,9 +1,9 @@
 import { redirect } from "@sveltejs/kit";
 
-import { projectPath } from "$lib/projectPaths";
-import { loadProjectCatalog } from "$lib/server/projectCatalog";
+import { workspacePath } from "$lib/workspacePaths";
+import { loadWorkspaceCatalog } from "$lib/server/workspaceCatalog";
 
 export function load() {
-  const catalog = loadProjectCatalog();
-  throw redirect(307, projectPath(catalog.defaultProject.slug));
+  const catalog = loadWorkspaceCatalog();
+  throw redirect(307, workspacePath(catalog.defaultWorkspace.slug));
 }
