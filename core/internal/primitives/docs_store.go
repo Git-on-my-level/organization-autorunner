@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"organization-autorunner-core/internal/blob"
 )
 
 type documentRow struct {
@@ -114,8 +115,8 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if strings.TrimSpace(s.artifactContentDir) == "" {
-		return nil, nil, fmt.Errorf("artifact content directory is not configured")
+	if s.blob == nil {
+		return nil, nil, fmt.Errorf("blob backend is not configured")
 	}
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
@@ -191,7 +192,7 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 		"created_by":       actorID,
 		"content_type":     contentType,
 		"content_hash":     contentHash,
-		"content_path":     filepath.Join(s.artifactContentDir, contentHash),
+		"content_path":     filepath.Join(s.blobRoot, contentHash),
 		"refs":             revisionRefs,
 		"document_id":      documentID,
 		"revision_id":      revisionID,
@@ -203,7 +204,7 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	}
 	contentPath := artifactMetadata["content_path"].(string)
 
-	stagedContent, err := stageContentWrite(contentPath, encodedContent)
+	stagedContent, err := s.blob.Write(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, nil, fmt.Errorf("stage document content: %w", err)
 	}
@@ -388,8 +389,8 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if strings.TrimSpace(s.artifactContentDir) == "" {
-		return nil, nil, fmt.Errorf("artifact content directory is not configured")
+	if s.blob == nil {
+		return nil, nil, fmt.Errorf("blob backend is not configured")
 	}
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
@@ -485,7 +486,7 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 		"created_by":       actorID,
 		"content_type":     contentType,
 		"content_hash":     contentHash,
-		"content_path":     filepath.Join(s.artifactContentDir, contentHash),
+		"content_path":     filepath.Join(s.blobRoot, contentHash),
 		"refs":             revisionRefs,
 		"document_id":      documentID,
 		"revision_id":      revisionID,
@@ -497,7 +498,7 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	}
 	contentPath := artifactMetadata["content_path"].(string)
 
-	stagedContent, err := stageContentWrite(contentPath, encodedContent)
+	stagedContent, err := s.blob.Write(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, nil, fmt.Errorf("stage document content: %w", err)
 	}
@@ -897,13 +898,13 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 		createdBy        string
 		artifactMetaJSON string
 		contentType      string
-		contentPath      string
+		contentHash      string
 	)
 
 	err := s.db.QueryRowContext(
 		ctx,
 		`SELECT dr.document_id, dr.revision_id, dr.revision_number, dr.prev_revision_id, dr.artifact_id, dr.thread_id, dr.refs_json, dr.revision_hash, dr.created_at, dr.created_by,
-		        a.metadata_json, a.content_type, a.content_path
+		        a.metadata_json, a.content_type, a.content_hash
 		 FROM document_revisions dr
 		 JOIN artifacts a ON a.id = dr.artifact_id
 		 WHERE dr.document_id = ? AND dr.revision_id = ?`,
@@ -922,7 +923,7 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 		&createdBy,
 		&artifactMetaJSON,
 		&contentType,
-		&contentPath,
+		&contentHash,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -949,8 +950,8 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 		"revision_hash":   revisionHashVal,
 		"artifact":        artifact,
 	}
-	if contentHashVal, ok := artifact["content_hash"].(string); ok && contentHashVal != "" {
-		revision["content_hash"] = contentHashVal
+	if contentHash != "" {
+		revision["content_hash"] = contentHash
 	}
 	if prevRevisionID.Valid && strings.TrimSpace(prevRevisionID.String) != "" {
 		revision["prev_revision_id"] = prevRevisionID.String
@@ -960,9 +961,12 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 	}
 
 	if includeContent {
-		contentBytes, err := os.ReadFile(contentPath)
+		if s.blob == nil {
+			return nil, fmt.Errorf("blob backend is not configured")
+		}
+		contentBytes, err := s.blob.Read(ctx, contentHash)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
+			if errors.Is(err, blob.ErrBlobNotFound) {
 				return nil, ErrNotFound
 			}
 			return nil, fmt.Errorf("read document revision content: %w", err)

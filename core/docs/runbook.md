@@ -26,14 +26,20 @@ This runbook covers reproducible local and production-like operation for `oar-co
 | WebAuthn RP display name | n/a | `OAR_WEBAUTHN_RP_DISPLAY_NAME` | `OAR` |
 | CORS allowed origins | n/a | `OAR_CORS_ALLOWED_ORIGINS` | unset (CORS disabled) |
 | Graceful shutdown timeout | n/a | `OAR_SHUTDOWN_TIMEOUT` | `15s` |
+| Blob storage backend | n/a | `OAR_BLOB_BACKEND` | `filesystem` |
+| Blob storage root | n/a | `OAR_BLOB_ROOT` | `<workspace>/artifacts/content` |
 
 ## Workspace layout
 
 The workspace root contains:
 
 - `state.sqlite`: canonical structured data (events, snapshots, artifacts metadata, actors, derived views)
-- `artifacts/content/`: artifact bytes
+- `artifacts/content/`: artifact bytes (content-addressable blobs)
 - `logs/`, `tmp/`: operational directories
+
+Blob storage is abstracted behind a storage seam (`internal/blob.Backend`). The default
+`filesystem` backend stores content in `artifacts/content/` using content-addressable paths.
+Future backends (S3, GCS, etc.) can be added without changes to core logic.
 
 ## Migrations / initialization
 

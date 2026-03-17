@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"organization-autorunner-core/internal/blob"
 	"path/filepath"
 	"testing"
 
@@ -36,7 +37,7 @@ func newManualProjectionTestServer(t *testing.T) manualProjectionHarness {
 	}
 
 	registry := actors.NewStore(workspace.DB())
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	worker := NewProjectionWorker(
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),

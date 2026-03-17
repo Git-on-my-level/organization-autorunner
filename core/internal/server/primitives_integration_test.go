@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"organization-autorunner-core/internal/blob"
 	"os"
 	"path/filepath"
 	"strings"
@@ -960,7 +961,7 @@ func newPrimitivesTestServer(t *testing.T) primitivesTestHarness {
 	}
 
 	registry := actors.NewStore(workspace.DB())
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	projectionWorker := NewProjectionWorker(
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),

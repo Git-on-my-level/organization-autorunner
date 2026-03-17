@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"organization-autorunner-core/internal/blob"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -439,7 +440,7 @@ func newMetaStreamTestHarness(t *testing.T, options ...HandlerOption) metaStream
 		WithHealthCheck(workspace.Ping),
 		WithActorRegistry(registry),
 		WithAuthStore(auth.NewStore(workspace.DB())),
-		WithPrimitiveStore(primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)),
+		WithPrimitiveStore(primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(true),
 		WithEnableDevActorMode(true),

@@ -12,6 +12,7 @@ Monorepo for Organization Autorunner.
 ## Architecture / Design Docs
 
 - **Foundation**: [docs/architecture/foundation.md](docs/architecture/foundation.md) — durable product and architecture decisions that define OAR.
+- **Hosted v1**: [docs/architecture/hosted-v1.md](docs/architecture/hosted-v1.md) — architecture for the managed offering.
 - Module-level specs: [core/docs/oar-core-spec.md](core/docs/oar-core-spec.md), [web-ui/docs/oar-ui-spec.md](web-ui/docs/oar-ui-spec.md).
 
 ## Quickstart

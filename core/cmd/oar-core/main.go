@@ -15,6 +15,7 @@ import (
 
 	"organization-autorunner-core/internal/actors"
 	"organization-autorunner-core/internal/auth"
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/server"
@@ -38,6 +39,8 @@ func main() {
 		listenAddress              = envString("OAR_LISTEN_ADDR", "")
 		schemaPath                 = envString("OAR_SCHEMA_PATH", defaultSchemaPath)
 		workspaceRoot              = envString("OAR_WORKSPACE_ROOT", defaultWorkspaceRoot)
+		blobBackend                = envString("OAR_BLOB_BACKEND", "filesystem")
+		blobRoot                   = envString("OAR_BLOB_ROOT", "")
 		coreVersion                = envString("OAR_CORE_VERSION", "")
 		apiVersion                 = envString("OAR_API_VERSION", defaultAPIVersion)
 		minCLIVersion              = envString("OAR_MIN_CLI_VERSION", defaultMinCLIVersion)
@@ -60,6 +63,8 @@ func main() {
 	flag.StringVar(&listenAddress, "listen-addr", listenAddress, "full listen address host:port; overrides --host/--port")
 	flag.StringVar(&schemaPath, "schema-path", schemaPath, "path to ../contracts/oar-schema.yaml")
 	flag.StringVar(&workspaceRoot, "workspace-root", workspaceRoot, "root directory for sqlite/filesystem workspace")
+	flag.StringVar(&blobBackend, "blob-backend", blobBackend, "blob storage backend (filesystem)")
+	flag.StringVar(&blobRoot, "blob-root", blobRoot, "root directory for blob storage (defaults to workspace artifacts/content)")
 	flag.StringVar(&coreVersion, "core-version", coreVersion, "core version reported in handshake/version headers (defaults to schema version)")
 	flag.StringVar(&apiVersion, "api-version", apiVersion, "api version reported in handshake/version headers")
 	flag.StringVar(&minCLIVersion, "min-cli-version", minCLIVersion, "minimum compatible CLI version")
@@ -101,6 +106,20 @@ func main() {
 		streamPollInterval = time.Second
 	}
 
+	effectiveBlobRoot := blobRoot
+	if effectiveBlobRoot == "" {
+		effectiveBlobRoot = workspace.Layout().ArtifactContentDir
+	}
+
+	var blobBackendImpl blob.Backend
+	switch blobBackend {
+	case "filesystem":
+		blobBackendImpl = blob.NewFilesystemBackend(effectiveBlobRoot)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown blob backend: %s (supported: filesystem)\n", blobBackend)
+		os.Exit(1)
+	}
+
 	addr := listenAddress
 	if addr == "" {
 		addr = net.JoinHostPort(host, strconv.Itoa(port))
@@ -114,7 +133,7 @@ func main() {
 	authStore := auth.NewStore(workspace.DB())
 	passkeySessionStore := auth.NewPasskeySessionStore(auth.DefaultPasskeySessionTTL)
 	defer passkeySessionStore.Close()
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blobBackendImpl, effectiveBlobRoot)
 	projectionWorker := server.NewProjectionWorker(
 		server.WithPrimitiveStore(primitiveStore),
 		server.WithSchemaContract(contract),
