@@ -1498,12 +1498,12 @@ export const commandRegistry = [
         "path": "/boards/{board_id}/workspace",
         "operation_id": "getBoardWorkspace",
         "summary": "Get canonical board workspace projection",
-        "why": "Load one board's canonical board, primary thread, ordered cards, and aggregated docs/commitments/inbox sections in a single round-trip.",
+        "why": "Load one board's canonical organizing map plus hydrated backing resources and derived scan sections in a single round-trip.",
         "input_mode": "none",
         "streaming": {
             "mode": "none"
         },
-        "output_envelope": "Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, section_kinds, generated_at }`.",
+        "output_envelope": "Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, projection_freshness, board_summary_freshness, section_kinds, generated_at }`, where each card keeps canonical membership/backing data separate from derived summary/freshness.",
         "error_codes": [
             "invalid_request",
             "not_found"
@@ -1518,7 +1518,7 @@ export const commandRegistry = [
         ],
         "stability": "beta",
         "surface": "projection",
-        "agent_notes": "Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data.",
+        "agent_notes": "Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards, board-card membership, and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Card envelopes keep canonical membership/backing refs separate from derived summary/freshness.",
         "examples": [
             {
                 "title": "Board workspace",
