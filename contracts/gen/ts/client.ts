@@ -22,6 +22,7 @@ export interface CommandSpec {
   output_envelope?: string;
   error_codes?: string[];
   stability?: string;
+  surface?: string;
   agent_notes?: string;
   concepts?: string[];
   adjacent_commands?: string[];
@@ -64,6 +65,7 @@ export const commandRegistry: CommandSpec[] = [
       "identity"
     ],
     "stability": "stable",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -100,6 +102,7 @@ export const commandRegistry: CommandSpec[] = [
       "identity"
     ],
     "stability": "stable",
+    "surface": "utility",
     "agent_notes": "Not idempotent by default; repeated creates with same id return conflict.",
     "examples": [
       {
@@ -145,6 +148,7 @@ export const commandRegistry: CommandSpec[] = [
       "identity"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Requires Bearer access token.",
     "examples": [
       {
@@ -185,6 +189,7 @@ export const commandRegistry: CommandSpec[] = [
       "key-management"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Old keys are marked revoked and cannot mint assertion tokens.",
     "examples": [
       {
@@ -234,6 +239,7 @@ export const commandRegistry: CommandSpec[] = [
       "identity"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Requires Bearer access token.",
     "examples": [
       {
@@ -281,6 +287,7 @@ export const commandRegistry: CommandSpec[] = [
       "revocation"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Requires Bearer access token.",
     "examples": [
       {
@@ -318,6 +325,7 @@ export const commandRegistry: CommandSpec[] = [
       "content"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Stream to file for large payloads.",
     "examples": [
       {
@@ -361,6 +369,7 @@ export const commandRegistry: CommandSpec[] = [
       "evidence"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Treat as non-idempotent unless caller controls artifact id collisions.",
     "examples": [
       {
@@ -420,6 +429,7 @@ export const commandRegistry: CommandSpec[] = [
       "artifacts"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -461,6 +471,7 @@ export const commandRegistry: CommandSpec[] = [
       "filtering"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -501,6 +512,7 @@ export const commandRegistry: CommandSpec[] = [
       "lifecycle"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Idempotent; repeated tombstone calls on the same artifact are safe.",
     "examples": [
       {
@@ -558,6 +570,7 @@ export const commandRegistry: CommandSpec[] = [
       "identity"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Registration is open in v0; future invite/secret gating can wrap this endpoint.",
     "examples": [
       {
@@ -610,6 +623,7 @@ export const commandRegistry: CommandSpec[] = [
       "passkey"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Provide `username` to scope login to one principal, or omit it for discoverable login.",
     "body_schema": {
       "optional": [
@@ -654,6 +668,7 @@ export const commandRegistry: CommandSpec[] = [
       "passkey"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Session ids are one-time use and expire quickly.",
     "body_schema": {
       "required": [
@@ -700,6 +715,7 @@ export const commandRegistry: CommandSpec[] = [
       "passkey"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Intended for browser-based WebAuthn clients.",
     "body_schema": {
       "required": [
@@ -743,6 +759,7 @@ export const commandRegistry: CommandSpec[] = [
       "passkey"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Session ids are one-time use and expire quickly.",
     "body_schema": {
       "required": [
@@ -792,6 +809,7 @@ export const commandRegistry: CommandSpec[] = [
       "token-lifecycle"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Refresh tokens are one-time use and rotated on successful exchange.",
     "examples": [
       {
@@ -871,6 +889,7 @@ export const commandRegistry: CommandSpec[] = [
       "concurrency"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body. The board primary thread cannot be added as a card.",
     "examples": [
       {
@@ -965,6 +984,7 @@ export const commandRegistry: CommandSpec[] = [
       "ordering"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent. Use `boards.workspace` when you also need hydrated thread, document, and summary sections.",
     "examples": [
       {
@@ -1017,6 +1037,7 @@ export const commandRegistry: CommandSpec[] = [
       "concurrency"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column.",
     "examples": [
       {
@@ -1103,6 +1124,7 @@ export const commandRegistry: CommandSpec[] = [
       "concurrency"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Removal deletes canonical membership. Cards are not archived separately in v1.",
     "examples": [
       {
@@ -1170,6 +1192,7 @@ export const commandRegistry: CommandSpec[] = [
       "concurrency"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Set `if_board_updated_at` from the current board read before patching card metadata.",
     "examples": [
       {
@@ -1239,6 +1262,7 @@ export const commandRegistry: CommandSpec[] = [
       "concurrency"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body. The primary thread is required and is never created as a card implicitly.",
     "examples": [
       {
@@ -1338,6 +1362,7 @@ export const commandRegistry: CommandSpec[] = [
       "planning"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -1385,6 +1410,7 @@ export const commandRegistry: CommandSpec[] = [
       "summaries"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side.",
     "examples": [
       {
@@ -1437,6 +1463,7 @@ export const commandRegistry: CommandSpec[] = [
       "concurrency"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Set `if_updated_at` from `boards.get` or `boards.workspace` to avoid lost updates.",
     "examples": [
       {
@@ -1535,7 +1562,8 @@ export const commandRegistry: CommandSpec[] = [
       "inbox"
     ],
     "stability": "beta",
-    "agent_notes": "Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data.",
+    "surface": "projection",
+    "agent_notes": "Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data.",
     "examples": [
       {
         "title": "Board workspace",
@@ -1583,6 +1611,7 @@ export const commandRegistry: CommandSpec[] = [
       "commitments"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body; otherwise each create issues a new commitment id.",
     "examples": [
       {
@@ -1680,6 +1709,7 @@ export const commandRegistry: CommandSpec[] = [
       "commitments"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -1720,6 +1750,7 @@ export const commandRegistry: CommandSpec[] = [
       "filtering"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -1762,6 +1793,7 @@ export const commandRegistry: CommandSpec[] = [
       "provenance"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Provide `refs` for restricted transitions and use `if_updated_at` to avoid lost updates.",
     "examples": [
       {
@@ -1863,6 +1895,7 @@ export const commandRegistry: CommandSpec[] = [
       "maintenance"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Mutating admin command; serialize with other writes.",
     "examples": [
       {
@@ -1906,6 +1939,7 @@ export const commandRegistry: CommandSpec[] = [
       "revisions"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body; core can issue the canonical document id when one is omitted.",
     "examples": [
       {
@@ -1982,6 +2016,7 @@ export const commandRegistry: CommandSpec[] = [
       "revisions"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2027,6 +2062,7 @@ export const commandRegistry: CommandSpec[] = [
       "lineage"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2070,6 +2106,7 @@ export const commandRegistry: CommandSpec[] = [
       "revisions"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent. Use `thread_id` to focus on one thread's docs and `include_tombstoned=true` when auditing superseded documents.",
     "examples": [
       {
@@ -2111,6 +2148,7 @@ export const commandRegistry: CommandSpec[] = [
       "revisions"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2157,6 +2195,7 @@ export const commandRegistry: CommandSpec[] = [
       "lifecycle"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Idempotent; repeated tombstone calls on the same document are safe.",
     "examples": [
       {
@@ -2219,6 +2258,7 @@ export const commandRegistry: CommandSpec[] = [
       "concurrency"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Set `if_base_revision` from `docs.get` to prevent lost updates.",
     "examples": [
       {
@@ -2299,6 +2339,7 @@ export const commandRegistry: CommandSpec[] = [
       "append-only"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body.",
     "examples": [
       {
@@ -2408,6 +2449,7 @@ export const commandRegistry: CommandSpec[] = [
       "events"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2450,6 +2492,7 @@ export const commandRegistry: CommandSpec[] = [
       "streaming"
     ],
     "stability": "beta",
+    "surface": "canonical",
     "agent_notes": "Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.",
     "examples": [
       {
@@ -2492,7 +2535,8 @@ export const commandRegistry: CommandSpec[] = [
       "events"
     ],
     "stability": "stable",
-    "agent_notes": "Idempotent at semantic level; repeated acks should not duplicate active inbox items.",
+    "surface": "projection",
+    "agent_notes": "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Idempotent at semantic level; repeated acks should not duplicate active inbox items.",
     "examples": [
       {
         "title": "Ack inbox item",
@@ -2551,7 +2595,8 @@ export const commandRegistry: CommandSpec[] = [
       "derived-views"
     ],
     "stability": "stable",
-    "agent_notes": "CLI supports canonical ids, aliases, and unique prefixes.",
+    "surface": "projection",
+    "agent_notes": "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. CLI supports canonical ids, aliases, and unique prefixes.",
     "examples": [
       {
         "title": "Get inbox item by canonical id",
@@ -2592,7 +2637,8 @@ export const commandRegistry: CommandSpec[] = [
       "derived-views"
     ],
     "stability": "stable",
-    "agent_notes": "Safe and idempotent.",
+    "surface": "projection",
+    "agent_notes": "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Safe and idempotent.",
     "examples": [
       {
         "title": "List inbox",
@@ -2633,7 +2679,8 @@ export const commandRegistry: CommandSpec[] = [
       "streaming"
     ],
     "stability": "beta",
-    "agent_notes": "Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.",
+    "surface": "projection",
+    "agent_notes": "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.",
     "examples": [
       {
         "title": "Stream inbox updates",
@@ -2676,6 +2723,7 @@ export const commandRegistry: CommandSpec[] = [
       "introspection"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2720,6 +2768,7 @@ export const commandRegistry: CommandSpec[] = [
       "introspection"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent. Response shape matches committed generated artifacts.",
     "examples": [
       {
@@ -2762,6 +2811,7 @@ export const commandRegistry: CommandSpec[] = [
       "concepts"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2806,6 +2856,7 @@ export const commandRegistry: CommandSpec[] = [
       "concepts"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2843,6 +2894,7 @@ export const commandRegistry: CommandSpec[] = [
       "handshake"
     ],
     "stability": "beta",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent. Use this endpoint to proactively gate incompatible CLI versions.",
     "examples": [
       {
@@ -2883,6 +2935,7 @@ export const commandRegistry: CommandSpec[] = [
       "readiness"
     ],
     "stability": "stable",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent; retry with backoff on transport failures.",
     "examples": [
       {
@@ -2920,6 +2973,7 @@ export const commandRegistry: CommandSpec[] = [
       "schema"
     ],
     "stability": "stable",
+    "surface": "utility",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -2962,6 +3016,7 @@ export const commandRegistry: CommandSpec[] = [
       "receipts"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body. Include evidence refs that satisfy packet conventions.",
     "examples": [
       {
@@ -3046,6 +3101,7 @@ export const commandRegistry: CommandSpec[] = [
       "reviews"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Include refs to both receipt and work order artifacts.",
     "examples": [
       {
@@ -3132,6 +3188,7 @@ export const commandRegistry: CommandSpec[] = [
       "work-orders"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body; packet id fields may be omitted and core will issue the canonical artifact id.",
     "examples": [
       {
@@ -3213,6 +3270,7 @@ export const commandRegistry: CommandSpec[] = [
       "snapshots"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -3252,7 +3310,8 @@ export const commandRegistry: CommandSpec[] = [
       "docs"
     ],
     "stability": "beta",
-    "agent_notes": "Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.",
+    "surface": "projection",
+    "agent_notes": "Derived thread context projection; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.",
     "examples": [
       {
         "title": "Context with defaults",
@@ -3302,6 +3361,7 @@ export const commandRegistry: CommandSpec[] = [
       "snapshots"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Replay-safe when `request_key` is reused with the same body; otherwise core issues a new canonical thread id.",
     "examples": [
       {
@@ -3429,6 +3489,7 @@ export const commandRegistry: CommandSpec[] = [
       "threads"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent. Prefer `oar threads inspect` for operator coordination reads.",
     "examples": [
       {
@@ -3472,6 +3533,7 @@ export const commandRegistry: CommandSpec[] = [
       "filtering"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Safe and idempotent.",
     "examples": [
       {
@@ -3516,6 +3578,7 @@ export const commandRegistry: CommandSpec[] = [
       "patch"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Use `if_updated_at` for optimistic concurrency.",
     "examples": [
       {
@@ -3646,6 +3709,7 @@ export const commandRegistry: CommandSpec[] = [
       "provenance"
     ],
     "stability": "stable",
+    "surface": "canonical",
     "agent_notes": "Events stay time ordered; missing refs are omitted from expansion maps.",
     "examples": [
       {
@@ -3695,7 +3759,8 @@ export const commandRegistry: CommandSpec[] = [
       "inbox"
     ],
     "stability": "beta",
-    "agent_notes": "Prefer this as the single-thread coordination read path. `section_kinds` distinguishes canonical versus derived sections, including additive board membership joins.",
+    "surface": "projection",
+    "agent_notes": "Derived workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Prefer this as the single-thread coordination read path. `section_kinds` distinguishes canonical versus derived sections, including additive board membership joins.",
     "examples": [
       {
         "title": "Workspace with defaults",
