@@ -39,6 +39,7 @@ func TestActorEndpointsRegisterAndListStableOrder(t *testing.T) {
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	defer server.Close()

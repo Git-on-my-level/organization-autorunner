@@ -48,7 +48,8 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - Response: `{ "schema_version": "0.2.2" }`
 
 - `GET /meta/handshake`
-  - Response: `{ "core_version", "api_version", "schema_version", "min_cli_version", "recommended_cli_version", "cli_download_url", "core_instance_id" }`
+  - Response: `{ "core_version", "api_version", "schema_version", "min_cli_version", "recommended_cli_version", "cli_download_url", "core_instance_id", "dev_actor_mode" }`
+  - `dev_actor_mode` is a boolean indicating whether development actor mode is enabled (default: `false`). When `true`, the legacy actor picker/creator UI flow is available. When `false`, authentication is required.
 
 - Compatibility headers emitted on all responses:
   - `X-OAR-Core-Version`
@@ -82,6 +83,7 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 - `POST /actors`
   - Body: `{ "actor": { id, display_name, tags?, created_at } }`
   - Response: `{ "actor": <actor> }`
+  - **Blocked when `dev_actor_mode=false`**: Returns `403 Forbidden` with error code `dev_actor_mode_disabled`. Production deployments should use passkey or public key authentication to create linked actors instead.
 
 - `GET /actors`
   - Response: `{ "actors": [<actor>...] }`

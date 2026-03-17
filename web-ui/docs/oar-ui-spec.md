@@ -40,6 +40,11 @@ oar-ui does **not**:
 - The UI MUST authenticate the current user as an actor ID from the oar-core actor registry.
 - Every write operation MUST include the actor ID.
 - The UI displays actor `display_name` wherever `actor_id` appears.
+- **Auth-first model**: Production deployments require authenticated principals by default.
+  - Passkey registration/login creates a linked actor with `principal_kind=human`, `auth_method=passkey`.
+  - Ed25519 key registration creates a linked actor with `principal_kind=agent`, `auth_method=public_key`.
+  - When `dev_actor_mode=false` (default), the UI MUST NOT show the legacy actor picker/creator flow.
+  - When `dev_actor_mode=true` (development convenience), the legacy actor picker/creator flow MAY be shown, clearly labeled as development-only.
 
 ### 1.5 Provenance visibility
 

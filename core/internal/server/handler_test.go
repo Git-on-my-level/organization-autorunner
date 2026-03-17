@@ -70,7 +70,7 @@ func TestHandshakeIncludesCommandRegistryDigest(t *testing.T) {
 		t.Fatalf("unexpected status: got %d", rr.Code)
 	}
 
-	var payload map[string]string
+	var payload map[string]any
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("failed to decode body: %v", err)
 	}
@@ -79,6 +79,9 @@ func TestHandshakeIncludesCommandRegistryDigest(t *testing.T) {
 	}
 	if payload["command_registry_digest"] == "" {
 		t.Fatalf("expected command registry digest, payload=%#v", payload)
+	}
+	if payload["dev_actor_mode"] != false {
+		t.Fatalf("expected dev_actor_mode=false by default, got %v", payload["dev_actor_mode"])
 	}
 }
 

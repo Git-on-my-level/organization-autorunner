@@ -36,12 +36,14 @@ const (
 type Option func(*Store)
 
 type Agent struct {
-	AgentID   string `json:"agent_id"`
-	Username  string `json:"username"`
-	ActorID   string `json:"actor_id"`
-	Revoked   bool   `json:"revoked"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	AgentID       string  `json:"agent_id"`
+	Username      string  `json:"username"`
+	ActorID       string  `json:"actor_id"`
+	Revoked       bool    `json:"revoked"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+	PrincipalKind *string `json:"principal_kind,omitempty"`
+	AuthMethod    *string `json:"auth_method,omitempty"`
 }
 
 type AgentKey struct {
@@ -231,12 +233,14 @@ func (s *Store) registerAgentOnce(ctx context.Context, username string, publicKe
 	}
 
 	return Agent{
-			AgentID:   agentID,
-			Username:  username,
-			ActorID:   actorID,
-			Revoked:   false,
-			CreatedAt: nowText,
-			UpdatedAt: nowText,
+			AgentID:       agentID,
+			Username:      username,
+			ActorID:       actorID,
+			Revoked:       false,
+			CreatedAt:     nowText,
+			UpdatedAt:     nowText,
+			PrincipalKind: ptrString("agent"),
+			AuthMethod:    ptrString("public_key"),
 		}, AgentKey{
 			KeyID:     keyID,
 			AgentID:   agentID,
@@ -542,6 +546,21 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (Agent, error) {
 	}
 
 	agent.Revoked = revokedRaw.Valid
+
+	var hasPasskeyCredential bool
+	err = s.db.QueryRowContext(
+		ctx,
+		`SELECT EXISTS(SELECT 1 FROM passkey_credentials WHERE agent_id = ? LIMIT 1)`,
+		agentID,
+	).Scan(&hasPasskeyCredential)
+	if err == nil && hasPasskeyCredential {
+		agent.PrincipalKind = ptrString("human")
+		agent.AuthMethod = ptrString("passkey")
+	} else {
+		agent.PrincipalKind = ptrString("agent")
+		agent.AuthMethod = ptrString("public_key")
+	}
+
 	return agent, nil
 }
 

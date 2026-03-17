@@ -89,13 +89,24 @@ contract):
 
 Identity is workspace-scoped.
 
+- **Auth-first model (default)**:
+  - When `dev_actor_mode=false` (default), users MUST authenticate via passkey to access the workspace.
+  - Passkey registration creates a new agent with `principal_kind=human`, `auth_method=passkey`.
+  - Authenticated writes lock to the principal's linked actor.
+  - The legacy actor picker/creator flow is hidden.
+  - Unauthenticated users are redirected to `/login`.
+- **Development actor mode (dev convenience)**:
+  - When `dev_actor_mode=true` (set via `OAR_ENABLE_DEV_ACTOR_MODE=1` on core), the legacy actor selection flow is available.
+  - Selected actor is stored in `localStorage` per workspace.
+  - Useful for local workflows when core allows unauthenticated writes.
+  - Clearly labeled as "development-only" in the UI.
 - Passkey-authenticated mode:
   - Access token stays in memory per workspace.
   - Refresh token is stored in `sessionStorage` per workspace.
   - Authenticated writes lock to that workspace's principal actor.
-- Actor-selection mode:
+- Actor-selection mode (dev only):
   - Selected actor is stored in `localStorage` per workspace.
-  - Useful for local workflows when core allows unauthenticated writes.
+  - Only available when `dev_actor_mode=true`.
 
 Switching from `/dtrinity/...` to `/scalingforever/...` preserves each workspace's
 own auth and actor state independently.

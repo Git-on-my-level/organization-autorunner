@@ -47,6 +47,7 @@ func main() {
 		metaCommandsPath           = envString("OAR_META_COMMANDS_PATH", "")
 		streamPollInterval         = envDuration("OAR_STREAM_POLL_INTERVAL", time.Second)
 		allowUnauthenticatedWrites = envBool("OAR_ALLOW_UNAUTHENTICATED_WRITES", false)
+		enableDevActorMode         = envBool("OAR_ENABLE_DEV_ACTOR_MODE", false)
 		webAuthnRPID               = envString("OAR_WEBAUTHN_RPID", "")
 		webAuthnOrigin             = envString("OAR_WEBAUTHN_ORIGIN", "")
 		webAuthnDisplayName        = envString("OAR_WEBAUTHN_RP_DISPLAY_NAME", "OAR")
@@ -128,6 +129,7 @@ func main() {
 			RPOrigin:      webAuthnOrigin,
 		}),
 		server.WithAllowUnauthenticatedWrites(allowUnauthenticatedWrites),
+		server.WithEnableDevActorMode(enableDevActorMode),
 		server.WithCoreVersion(coreVersion),
 		server.WithAPIVersion(apiVersion),
 		server.WithMinCLIVersion(minCLIVersion),

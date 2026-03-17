@@ -85,6 +85,7 @@ type handlerOptions struct {
 	contract                   *schema.Contract
 	webAuthnConfig             WebAuthnConfig
 	allowUnauthenticatedWrites bool
+	enableDevActorMode         bool
 	inboxRiskHorizon           time.Duration
 	coreVersion                string
 	apiVersion                 string
@@ -142,6 +143,12 @@ func WithWebAuthnConfig(config WebAuthnConfig) HandlerOption {
 func WithAllowUnauthenticatedWrites(allow bool) HandlerOption {
 	return func(opts *handlerOptions) {
 		opts.allowUnauthenticatedWrites = allow
+	}
+}
+
+func WithEnableDevActorMode(enable bool) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.enableDevActorMode = enable
 	}
 }
 
@@ -337,7 +344,7 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 	mux.HandleFunc("/actors", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			handleRegisterActor(w, r, opts.actorRegistry)
+			handleRegisterActor(w, r, opts)
 		case http.MethodGet:
 			handleListActors(w, r, opts.actorRegistry)
 		default:
@@ -949,9 +956,14 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 	})
 }
 
-func handleRegisterActor(w http.ResponseWriter, r *http.Request, actorRegistry ActorRegistry) {
-	if actorRegistry == nil {
+func handleRegisterActor(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
+	if opts.actorRegistry == nil {
 		writeError(w, http.StatusServiceUnavailable, "actor_registry_unavailable", "actor registry is not configured")
+		return
+	}
+
+	if !opts.enableDevActorMode {
+		writeError(w, http.StatusForbidden, "dev_actor_mode_disabled", "actor creation is disabled outside development mode")
 		return
 	}
 
@@ -990,7 +1002,7 @@ func handleRegisterActor(w http.ResponseWriter, r *http.Request, actorRegistry A
 		return
 	}
 
-	registered, err := actorRegistry.Register(r.Context(), actors.Actor{
+	registered, err := opts.actorRegistry.Register(r.Context(), actors.Actor{
 		ID:          req.Actor.ID,
 		DisplayName: req.Actor.DisplayName,
 		Tags:        req.Actor.Tags,

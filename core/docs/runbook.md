@@ -20,6 +20,7 @@ This runbook covers reproducible local and production-like operation for `oar-co
 | Full listen address (overrides host+port) | `--listen-addr` | `OAR_LISTEN_ADDR` | unset |
 | Schema path | `--schema-path` | `OAR_SCHEMA_PATH` | `../contracts/oar-schema.yaml` |
 | Allow unauthenticated writes | n/a | `OAR_ALLOW_UNAUTHENTICATED_WRITES` | `false` |
+| Enable development actor mode | n/a | `OAR_ENABLE_DEV_ACTOR_MODE` | `false` |
 | WebAuthn RP ID | n/a | `OAR_WEBAUTHN_RPID` | derived from browser origin host |
 | WebAuthn origin | n/a | `OAR_WEBAUTHN_ORIGIN` | derived from browser request origin |
 | WebAuthn RP display name | n/a | `OAR_WEBAUTHN_RP_DISPLAY_NAME` | `OAR` |
@@ -76,6 +77,19 @@ If you set either value explicitly, the browser must access the UI on that same
 hostname or WebAuthn ceremonies will be rejected.
 
 `./scripts/dev` defaults `OAR_ALLOW_UNAUTHENTICATED_WRITES=1` so local seed workflows keep working. Production-like runs should leave it unset unless an explicitly open local workflow is required.
+
+## Development actor mode
+
+By default, `OAR_ENABLE_DEV_ACTOR_MODE` is `false`, making production-like deployments **auth-first**:
+- Users must authenticate via passkey to obtain a linked actor
+- `POST /actors` returns `403 Forbidden` with error code `dev_actor_mode_disabled`
+- The web UI hides the legacy actor picker/creator flow and redirects unauthenticated users to `/login`
+
+For local development convenience, set `OAR_ENABLE_DEV_ACTOR_MODE=1` to:
+- Allow `POST /actors` for arbitrary actor creation
+- Show the legacy actor picker/creator UI flow in the web UI
+
+This is a development convenience only and should not be enabled in production.
 
 ## Verify server health
 

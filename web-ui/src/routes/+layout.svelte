@@ -24,7 +24,11 @@
   } from "$lib/authSession";
   import { coreClient } from "$lib/coreClient";
   import { getShellContentConfig, navigationItems } from "$lib/navigation";
-  import { setCurrentWorkspaceSlug } from "$lib/workspaceContext";
+  import {
+    setCurrentWorkspaceSlug,
+    setDevActorMode,
+    devActorMode,
+  } from "$lib/workspaceContext";
   import {
     workspacePath,
     stripBasePath,
@@ -69,6 +73,7 @@
       identityReady &&
       !$authenticatedAgent &&
       !onLoginRoute &&
+      $devActorMode &&
       shouldShowActorGate($actorSessionReady, $selectedActorId),
   );
   let renderLoginOnly = $derived(
@@ -76,6 +81,13 @@
       identityReady &&
       !$authenticatedAgent &&
       onLoginRoute,
+  );
+  let shouldRedirectToLogin = $derived(
+    activeWorkspaceSlug &&
+      identityReady &&
+      !$authenticatedAgent &&
+      !onLoginRoute &&
+      !$devActorMode,
   );
   let selectedActorName = $derived(
     lookupActorDisplayName(activeActorId, $actorRegistry) ||
@@ -109,6 +121,13 @@
   });
 
   $effect(() => {
+    if (!browser || !shouldRedirectToLogin) {
+      return;
+    }
+    goto(workspacePath(activeWorkspaceSlug, "/login"));
+  });
+
+  $effect(() => {
     if (!browser) {
       return;
     }
@@ -134,6 +153,12 @@
       workspaceSlug,
     });
     await refreshActors(workspaceSlug);
+    try {
+      const handshake = await coreClient.getHandshake();
+      setDevActorMode(handshake.dev_actor_mode === true);
+    } catch {
+      setDevActorMode(false);
+    }
   }
 
   async function refreshActors(workspaceSlug = activeWorkspaceSlug) {

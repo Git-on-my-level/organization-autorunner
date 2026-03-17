@@ -66,3 +66,4 @@ Useful `make serve` toggles:
 
 - `SEED_CORE=0`: skip seeding
 - `FORCE_SEED=1`: seed even when marker data is already present
+- `OAR_ENABLE_DEV_ACTOR_MODE=1`: enable development actor mode for legacy actor picker/creator UI (default: `false` / auth-first)

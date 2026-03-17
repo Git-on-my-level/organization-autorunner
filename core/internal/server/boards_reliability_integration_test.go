@@ -60,6 +60,7 @@ func newPrimitivesTestServerWithStore(t *testing.T, workspace *storage.Workspace
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	t.Cleanup(func() {

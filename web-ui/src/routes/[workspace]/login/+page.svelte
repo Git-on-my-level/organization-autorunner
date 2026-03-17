@@ -14,6 +14,7 @@
     getPasskeyAssertion,
   } from "$lib/passkeyBrowser";
   import { workspacePath } from "$lib/workspacePaths";
+  import { devActorMode } from "$lib/workspaceContext";
 
   let registrationName = $state("");
   let registrationError = $state("");
@@ -206,12 +207,14 @@
                 ? "Waiting for passkey..."
                 : "Create passkey and continue"}
             </button>
-            <a
-              class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
-              href={workspacePath(workspaceSlug)}
-            >
-              Back to actor mode
-            </a>
+            {#if $devActorMode}
+              <a
+                class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
+                href={workspacePath(workspaceSlug)}
+              >
+                Back to actor mode
+              </a>
+            {/if}
           </div>
         </form>
       </section>

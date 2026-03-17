@@ -42,7 +42,7 @@ func TestMetaHandshakeAndGeneratedMetaEndpoints(t *testing.T) {
 		t.Fatalf("unexpected /meta/handshake status: %d", handshakeResp.StatusCode)
 	}
 
-	var handshake map[string]string
+	var handshake map[string]any
 	if err := json.NewDecoder(handshakeResp.Body).Decode(&handshake); err != nil {
 		t.Fatalf("decode /meta/handshake response: %v", err)
 	}
@@ -54,6 +54,9 @@ func TestMetaHandshakeAndGeneratedMetaEndpoints(t *testing.T) {
 	}
 	if handshake["cli_download_url"] != "https://example.com/oar-cli" || handshake["core_instance_id"] != "instance-test-1" {
 		t.Fatalf("unexpected handshake values: %#v", handshake)
+	}
+	if handshake["dev_actor_mode"] != true {
+		t.Fatalf("expected dev_actor_mode=true for test harness, got %v", handshake["dev_actor_mode"])
 	}
 
 	commandsResp, err := http.Get(h.baseURL + "/meta/commands")
@@ -439,6 +442,7 @@ func newMetaStreamTestHarness(t *testing.T, options ...HandlerOption) metaStream
 		WithPrimitiveStore(primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
 	}
 	baseOptions = append(baseOptions, options...)
 

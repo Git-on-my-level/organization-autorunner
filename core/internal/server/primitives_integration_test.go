@@ -968,6 +968,7 @@ func newPrimitivesTestServer(t *testing.T) primitivesTestHarness {
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	t.Cleanup(func() {

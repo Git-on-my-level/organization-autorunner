@@ -51,6 +51,7 @@ func TestAgentAuthLifecycleAndActorCompatibility(t *testing.T) {
 		WithHealthCheck(workspace.Ping),
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -309,6 +310,7 @@ func TestWriteAuthToggleRejectsUnauthenticatedWritesWhenDisabled(t *testing.T) {
 		WithPrimitiveStore(primitiveStore),
 		WithSchemaContract(contract),
 		WithAllowUnauthenticatedWrites(false),
+		WithEnableDevActorMode(true),
 	)
 	server := httptest.NewServer(handler)
 	defer server.Close()
