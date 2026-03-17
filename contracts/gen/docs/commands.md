@@ -397,11 +397,11 @@ Generated from `contracts/oar-openapi.yaml`.
 - Stability: `beta`
 - Surface: `projection`
 - Input mode: `none`
-- Why: Load one board's canonical board, primary thread, ordered cards, and aggregated docs/commitments/inbox sections in a single round-trip.
+- Why: Load one board's canonical organizing map plus hydrated backing resources and derived scan sections in a single round-trip.
 - Concepts: `boards`, `planning`, `threads`, `docs`, `commitments`, `inbox`
 - Error codes: `invalid_request`, `not_found`
-- Output: Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, section_kinds, generated_at }`.
-- Agent notes: Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data.
+- Output: Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, projection_freshness, board_summary_freshness, section_kinds, generated_at }`, where each card keeps canonical membership/backing data separate from derived summary/freshness.
+- Agent notes: Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards, board-card membership, and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Card envelopes keep canonical membership/backing refs separate from derived summary/freshness.
 - Examples:
   - Board workspace: `oar boards workspace --board-id board_product_launch --json`
 

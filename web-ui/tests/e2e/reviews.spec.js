@@ -5,6 +5,7 @@ test("create receipt then submit review and see review_completed in timeline", a
 }) => {
   const actorId = "actor-review-e2e";
   const workOrderId = "artifact-work-order-1";
+  const createdReceiptId = "artifact-receipt-created-1";
   let createdReceiptArtifact = null;
   let createdReceiptPacket = null;
   let reviewPayload = null;
@@ -196,9 +197,13 @@ test("create receipt then submit review and see review_completed in timeline", a
 
   await page.route(/\/receipts$/, async (route) => {
     const payload = JSON.parse(route.request().postData() ?? "{}");
-    const receiptId = payload.packet.receipt_id;
+    const receiptId =
+      payload.artifact?.id ?? payload.packet?.receipt_id ?? createdReceiptId;
 
-    createdReceiptPacket = { ...payload.packet };
+    createdReceiptPacket = {
+      ...payload.packet,
+      receipt_id: receiptId,
+    };
     createdReceiptArtifact = {
       id: receiptId,
       kind: "receipt",

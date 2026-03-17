@@ -2837,6 +2837,9 @@ export function updateMockDocument({
   if (docPatch.title) updatedDoc.title = String(docPatch.title).trim();
   if (docPatch.status) updatedDoc.status = String(docPatch.status);
   if (Array.isArray(docPatch.labels)) updatedDoc.labels = docPatch.labels;
+  if (Object.prototype.hasOwnProperty.call(docPatch, "thread_id")) {
+    updatedDoc.thread_id = docPatch.thread_id || null;
+  }
 
   MOCK_DOCUMENTS[docIndex] = updatedDoc;
   MOCK_DOCUMENT_REVISIONS[document_id] = [...revisions, newRevision];
@@ -3425,19 +3428,39 @@ function buildBoardWorkspaceCard(card) {
   ).length;
 
   return {
-    card: { ...card },
-    thread: { ...thread },
-    summary: {
-      open_commitment_count: collaboration.open_commitment_count,
-      decision_request_count: collaboration.decision_request_count,
-      decision_count: collaboration.decision_count,
-      recommendation_count: collaboration.recommendation_count,
-      document_count: documents.length,
-      inbox_count: inboxCount,
-      latest_activity_at: thread.updated_at ?? card.updated_at ?? null,
-      stale: ["stale", "very-stale"].includes(String(thread.staleness ?? "")),
+    membership: { ...card },
+    backing: {
+      thread_ref: `thread:${card.thread_id}`,
+      thread: { ...thread },
+      pinned_document_ref: card.pinned_document_id
+        ? `document:${card.pinned_document_id}`
+        : null,
+      pinned_document: pinnedDocument ? { ...pinnedDocument } : null,
     },
-    pinned_document: pinnedDocument ? { ...pinnedDocument } : null,
+    derived: {
+      summary: {
+        open_commitment_count: collaboration.open_commitment_count,
+        decision_request_count: collaboration.decision_request_count,
+        decision_count: collaboration.decision_count,
+        recommendation_count: collaboration.recommendation_count,
+        document_count: documents.length,
+        inbox_count: inboxCount,
+        latest_activity_at: thread.updated_at ?? card.updated_at ?? null,
+        stale: ["stale", "very-stale"].includes(String(thread.staleness ?? "")),
+      },
+      freshness: {
+        thread_id: card.thread_id,
+        status: "current",
+        generated_at: thread.updated_at ?? card.updated_at ?? null,
+        queued_at: null,
+        started_at: null,
+        completed_at: thread.updated_at ?? card.updated_at ?? null,
+        last_error_at: null,
+        last_error: null,
+        materialized: true,
+        refresh_in_flight: false,
+      },
+    },
   };
 }
 
@@ -3570,6 +3593,18 @@ export function getMockBoardWorkspace(boardId) {
   const documents = listMockBoardWorkspaceDocuments(threadIds);
   const workspaceCommitments = listMockBoardWorkspaceCommitments(threadIds);
   const generatedAt = new Date().toISOString();
+  const freshnessThreads = threadIds.map((threadId) => ({
+    thread_id: threadId,
+    status: "current",
+    generated_at: generatedAt,
+    queued_at: null,
+    started_at: null,
+    completed_at: generatedAt,
+    last_error_at: null,
+    last_error: null,
+    materialized: true,
+    refresh_in_flight: false,
+  }));
 
   return {
     board_id: board.id,
@@ -3594,6 +3629,16 @@ export function getMockBoardWorkspace(boardId) {
       generated_at: generatedAt,
     },
     board_summary: buildBoardSummary(board),
+    projection_freshness: {
+      status: "current",
+      thread_count: freshnessThreads.length,
+      threads: freshnessThreads,
+    },
+    board_summary_freshness: {
+      status: "current",
+      thread_count: freshnessThreads.length,
+      threads: freshnessThreads,
+    },
     warnings: {
       items: [],
       count: 0,

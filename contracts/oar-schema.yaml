@@ -121,7 +121,7 @@ ref_format:
     "event:<id>":     "References an event by ID"
     "thread:<id>":    "References a thread (snapshot) by ID — convenience alias for snapshot:<id> where type=thread"
     "inbox:<id>":     "References a derived inbox item by ID"
-    "document:<id>":  "References a document by ID"
+    "document:<id>":  "References a canonical document lineage by ID"
     "document_revision:<id>": "References a document revision by revision ID"
     "board:<id>":     "References a board by ID"
     "url:<url>":      "References an external URL"
@@ -273,6 +273,24 @@ snapshots:
         requires: "ref to decision event"
 
 # ---------------------------------------------------------------------------
+# Document resources (v1 canonical lineages)
+# ---------------------------------------------------------------------------
+documents:
+
+  document:
+    description: >
+      Canonical long-lived document lineage. A document is not just stored text:
+      it keeps a mutable head pointer for the current working version and an
+      immutable ordered revision history for auditability. Documents complement
+      the underlying canonical threads/events/artifacts model rather than
+      replacing it.
+
+  document_revision:
+    description: >
+      Immutable revision in a document lineage. Revisions are append-only and
+      linked in order, while the document record points at the current head.
+
+# ---------------------------------------------------------------------------
 # Board resources (v1 mutable coordination resources)
 # ---------------------------------------------------------------------------
 boards:
@@ -289,9 +307,13 @@ boards:
 
   board:
     description: >
-      Mutable coordination resource. Unlike docs, boards do not use immutable
-      revision chains in v1. `updated_at` is the optimistic concurrency token
-      for both board metadata and card-surface mutations.
+      Canonical organizational map over work. Boards are durable coordination
+      objects, not disposable UI sugar: they record explicit board metadata and
+      explicit card membership over canonical threads and optional documents.
+      Unlike docs, boards do not use immutable revision chains in v1.
+      `updated_at` is the optimistic concurrency token for both board metadata
+      and card-surface mutations. Boards complement the underlying
+      threads/events/artifacts model rather than replacing it.
     fields:
       id:                 { type: string, required: true }
       title:              { type: string, required: true }
@@ -314,6 +336,8 @@ boards:
     description: >
       Canonical explicit board membership. Membership uniqueness is
       (board_id, thread_id). The board primary thread is never itself a card.
+      Card membership is durable organizational truth; any summary or freshness
+      data attached in workspace projections is derived separately.
     fields:
       board_id:           { type: string, required: true }
       thread_id:          { type: string, required: true }
@@ -518,6 +542,20 @@ derived:
       inbox_count:            { type: integer, required: true }
       latest_activity_at:     { type: datetime, required: false }
       stale:                  { type: boolean, required: true }
+
+  projection_freshness:
+    description: >
+      Derived freshness metadata for projection-backed scan surfaces. This data
+      reports whether a materialized summary is current, pending, missing, or
+      errored; it is not itself canonical organizational truth.
+
+  board_workspace_card:
+    description: >
+      Workspace projection envelope for one board card. The canonical
+      `membership` sub-object holds durable board membership, the canonical
+      `backing` sub-object resolves the referenced thread/document resources,
+      and the `derived` sub-object carries scan summaries plus freshness state.
+      Consumers MUST treat `derived.*` as projection output, not canonical fact.
 
   thread_board_membership:
     description: >

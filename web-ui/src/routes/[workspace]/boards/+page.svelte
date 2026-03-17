@@ -2,6 +2,8 @@
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
+  import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
+  import SearchableMultiEntityPicker from "$lib/components/SearchableMultiEntityPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
@@ -10,6 +12,9 @@
     BOARD_STATUS_LABELS,
     CANONICAL_BOARD_COLUMNS,
     boardSummaryCounts,
+    freshnessStatusLabel,
+    freshnessStatusTone,
+    isFreshnessCurrent,
     parseDelimitedValues,
   } from "$lib/boardUtils";
 
@@ -28,11 +33,40 @@
   let createPrimaryThreadId = $state("");
   let createPrimaryDocumentId = $state("");
   let createLabels = $state("");
-  let createOwners = $state("");
+  let createOwnerIds = $state([]);
   let createPinnedRefs = $state("");
 
   let workspaceSlug = $derived($page.params.workspace);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let threadOptions = $derived(
+    availableThreads.map((thread) => ({
+      id: thread.id,
+      title: thread.title || thread.id,
+      subtitle: [thread.status, thread.priority].filter(Boolean).join(" · "),
+      keywords: [thread.type, ...(thread.tags ?? [])],
+    })),
+  );
+  let documentOptions = $derived(
+    availableDocuments.map((document) => ({
+      id: document.id,
+      title: document.title || document.id,
+      subtitle: [
+        document.status,
+        document.thread_id && `Thread ${document.thread_id}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      keywords: document.labels ?? [],
+    })),
+  );
+  let actorOptions = $derived(
+    $actorRegistry.map((actor) => ({
+      id: actor.id,
+      title: actor.display_name || actor.id,
+      subtitle: actor.id,
+      keywords: actor.tags ?? [],
+    })),
+  );
 
   function workspaceHref(pathname = "/") {
     return workspacePath(workspaceSlug, pathname);
@@ -42,19 +76,18 @@
     goto(workspaceHref(`/boards/${boardId}`));
   }
 
+  function threadTitle(threadId) {
+    return availableThreads.find((item) => item.id === threadId)?.title ?? "";
+  }
+
   function resetCreateForm() {
     createTitle = "";
     createStatus = "active";
     createPrimaryThreadId = "";
     createPrimaryDocumentId = "";
     createLabels = "";
-    createOwners = "";
+    createOwnerIds = [];
     createPinnedRefs = "";
-  }
-
-  function threadHint(threadId) {
-    const thread = availableThreads.find((item) => item.id === threadId);
-    return thread?.title ?? "";
   }
 
   async function loadBoards() {
@@ -104,7 +137,7 @@
       primary_thread_id: primaryThreadId,
     };
     const labels = parseDelimitedValues(createLabels);
-    const owners = parseDelimitedValues(createOwners);
+    const owners = [...createOwnerIds];
     const pinnedRefs = parseDelimitedValues(createPinnedRefs);
 
     if (labels.length > 0) board.labels = labels;
@@ -143,23 +176,12 @@
   });
 </script>
 
-<datalist id="board-create-thread-options">
-  {#each availableThreads as thread}
-    <option value={thread.id}>{thread.title}</option>
-  {/each}
-</datalist>
-
-<datalist id="board-create-document-options">
-  {#each availableDocuments as document}
-    <option value={document.id}>{document.title}</option>
-  {/each}
-</datalist>
-
 <div class="mb-4 flex items-start justify-between gap-4">
   <div>
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">Boards</h1>
     <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
-      Kanban boards for this workspace
+      Canonical visual progress maps over live work. Use them as a trusted scan
+      surface, not a disposable kanban layer.
     </p>
   </div>
 
@@ -231,32 +253,27 @@
           </select>
         </label>
 
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-          Primary thread ID
-          <input
-            bind:value={createPrimaryThreadId}
-            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-            list="board-create-thread-options"
-            placeholder="thread-q2-initiative"
-            type="text"
-          />
-          {#if threadHint(createPrimaryThreadId)}
-            <span class="mt-1 block text-[11px] text-[var(--ui-text-subtle)]">
-              {threadHint(createPrimaryThreadId)}
-            </span>
-          {/if}
-        </label>
+        <SearchableEntityPicker
+          bind:value={createPrimaryThreadId}
+          advancedLabel="Use a manual primary thread ID"
+          helperText="Pick the canonical thread this board organizes around."
+          items={threadOptions}
+          label="Primary thread"
+          manualLabel="Primary thread ID"
+          manualPlaceholder="thread-q2-initiative"
+          placeholder="Search threads by title, ID, or tags"
+        />
 
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-          Primary document ID
-          <input
-            bind:value={createPrimaryDocumentId}
-            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-            list="board-create-document-options"
-            placeholder="product-constitution"
-            type="text"
-          />
-        </label>
+        <SearchableEntityPicker
+          bind:value={createPrimaryDocumentId}
+          advancedLabel="Use a manual primary document ID"
+          helperText="Optional: pin the canonical doc lineage this board should foreground."
+          items={documentOptions}
+          label="Primary document"
+          manualLabel="Primary document ID"
+          manualPlaceholder="product-constitution"
+          placeholder="Search documents by title, ID, or thread"
+        />
       </div>
 
       <div class="grid gap-3 md:grid-cols-2">
@@ -270,15 +287,16 @@
           ></textarea>
         </label>
 
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-          Owners
-          <textarea
-            bind:value={createOwners}
-            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-            placeholder="actor-ops-ai"
-            rows="3"
-          ></textarea>
-        </label>
+        <SearchableMultiEntityPicker
+          bind:values={createOwnerIds}
+          advancedLabel="Add a manual owner ID"
+          helperText="Owners stay visible on the board list and detail scan surfaces."
+          items={actorOptions}
+          label="Owners"
+          manualLabel="Owner ID"
+          manualPlaceholder="actor-ops-ai"
+          placeholder="Search actors by name, ID, or tags"
+        />
       </div>
 
       <div>
@@ -347,7 +365,8 @@
       No boards yet
     </p>
     <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
-      No boards yet. Create one to organize work visually.
+      No boards yet. Create one to give operators a trustworthy visual map of
+      active work.
     </p>
   </div>
 {:else}
@@ -358,6 +377,7 @@
       {@const board = item.board}
       {@const summary = item.summary}
       {@const counts = boardSummaryCounts(summary)}
+      {@const projectionFreshness = item.projection_freshness ?? null}
       <div
         class="block cursor-pointer px-4 py-3 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
         0
@@ -383,6 +403,15 @@
                   )}"
                 >
                   {BOARD_STATUS_LABELS[board.status] ?? board.status}
+                </span>
+              {/if}
+              {#if projectionFreshness}
+                <span
+                  class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium {freshnessStatusTone(
+                    projectionFreshness.status,
+                  )}"
+                >
+                  {freshnessStatusLabel(projectionFreshness.status)}
                 </span>
               {/if}
               {#if summary?.has_primary_document}
@@ -425,37 +454,47 @@
                     `/threads/${encodeURIComponent(board.primary_thread_id)}`,
                   )}
                 >
-                  {threadHint(board.primary_thread_id) ||
+                  {threadTitle(board.primary_thread_id) ||
                     board.primary_thread_id}
                 </a>
               </span>
               <span>
-                Activity {formatTimestamp(summary?.latest_activity_at) ||
-                  formatTimestamp(board.updated_at) ||
-                  "—"}
+                Visual scan updated {formatTimestamp(board.updated_at) || "—"}
               </span>
-              <span>
-                Board updated {formatTimestamp(board.updated_at) || "—"} by {actorName(
-                  board.updated_by,
-                )}
-              </span>
+              {#if isFreshnessCurrent(projectionFreshness)}
+                <span>
+                  Latest derived activity {formatTimestamp(
+                    summary?.latest_activity_at,
+                  ) || "—"}
+                </span>
+              {:else if projectionFreshness}
+                <span>Derived scan details are still catching up</span>
+              {/if}
             </div>
           </div>
 
           <div class="shrink-0 text-[11px] text-[var(--ui-text-subtle)]">
-            <div class="flex gap-1">
-              {#each CANONICAL_BOARD_COLUMNS as column}
-                <span
-                  class="rounded bg-[var(--ui-border)] px-1.5 py-0.5"
-                  title={`${column.title}: ${counts[column.key]} cards`}
-                >
-                  {counts[column.key]}
-                </span>
-              {/each}
-            </div>
-            <p class="mt-1 text-right text-[10px] text-[var(--ui-text-subtle)]">
-              {summary?.card_count ?? 0} cards by column
-            </p>
+            {#if isFreshnessCurrent(projectionFreshness)}
+              <div class="flex gap-1">
+                {#each CANONICAL_BOARD_COLUMNS as column}
+                  <span
+                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5"
+                    title={`${column.title}: ${counts[column.key]} cards`}
+                  >
+                    {counts[column.key]}
+                  </span>
+                {/each}
+              </div>
+              <p
+                class="mt-1 text-right text-[10px] text-[var(--ui-text-subtle)]"
+              >
+                {summary?.card_count ?? 0} cards by column
+              </p>
+            {:else}
+              <p class="text-right text-[10px] text-[var(--ui-text-subtle)]">
+                Waiting for a current derived card scan
+              </p>
+            {/if}
           </div>
         </div>
       </div>

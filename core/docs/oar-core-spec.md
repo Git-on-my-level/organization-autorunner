@@ -7,7 +7,7 @@ oar-core is the canonical state and evidence system for Organization Autorunner 
 OAR is a manager and executive operating system, not a generic work-management tool. The product foundation and architecture decisions are documented in [docs/architecture/foundation.md](../../docs/architecture/foundation.md). oar-core implements the canonical runtime truth (SQLite + filesystem blobs) and owns the institutional memory — the durable truth, the evidence trail, the coordination artifacts. It has no opinion on how actors are instantiated, orchestrated, or upgraded. An actor authenticates with an ID, reads state, does work, writes back. Whether that actor is a human, a Claude agent, an open-source agent framework, or something that doesn't exist yet is outside oar-core's scope.
 
 oar-core:
-- Maintains durable organizational state (events, snapshots, artifacts, documents).
+- Maintains durable organizational state (events, snapshots, artifacts, documents, boards).
 - Stores and validates structured coordination artifacts (work orders, receipts, reviews).
 - Enforces evidence-first grounding rules on restricted state transitions.
 - Computes derived views (inbox, staleness) from canonical data.
@@ -166,7 +166,7 @@ Creating a review MUST emit a `review_completed` event. Per reference convention
 
 ### 5.5 Documents (first-class lifecycle)
 
-Documents are a first-class domain with their own API and storage. They are distinct from the generic artifact model: documents have a mutable head pointer and an ordered revision chain, whereas artifacts are immutable blobs linked only by refs.
+Documents are a first-class canonical domain with their own API and storage. A document is a long-lived lineage, not just stored text: it has a mutable head pointer for the current version and an ordered immutable revision chain for institutional memory. Documents are distinct from the generic artifact model: artifacts are immutable blobs linked only by refs, while documents provide a canonical lineage interface over those immutable revision artifacts.
 
 **Storage model:**
 - `documents` table: document metadata, head_revision_id, tombstone fields.
@@ -176,7 +176,17 @@ Documents are a first-class domain with their own API and storage. They are dist
 
 **API surface:** `GET /docs`, `POST /docs`, `GET /docs/{document_id}`, `PATCH /docs/{document_id}`, `GET /docs/{document_id}/history`, `GET /docs/{document_id}/revisions/{revision_id}`, `POST /docs/{document_id}/tombstone`.
 
-**Relationship to artifacts:** Document revisions use artifacts internally for content storage. The docs API is the canonical interface for documents; clients should not treat documents as `GET /artifacts?kind=doc`.
+**Relationship to artifacts:** Document revisions use artifacts internally for content storage. The docs API is the canonical interface for document lineages; clients should not treat documents as `GET /artifacts?kind=doc`. Documents complement canonical threads/events/artifacts rather than replacing them.
+
+### 5.6 Boards (canonical organizing layers)
+
+Boards are first-class canonical coordination resources. A board is not just UI sugar over threads: it is a durable organizational map over work with canonical board metadata plus canonical card membership over threads, and optional canonical links to document lineages.
+
+**Canonical storage:**
+- `boards` table: durable board metadata, owners, primary thread, optional primary document, and optimistic concurrency token.
+- `board_cards` table: explicit canonical board membership over threads, including column placement, ordering token, and optional pinned document lineage.
+
+**Projection boundary:** `boards.workspace` may hydrate canonical backing resources and derived summaries for operator convenience, but the payload must keep those layers explicit: canonical membership/backing refs stay distinct from derived summary/freshness. Derived board scans remain rebuildable from canonical state.
 
 ---
 
@@ -227,6 +237,7 @@ oar-core MUST expose a programmatic API (protocol: HTTP/JSON for v0). All operat
 - Derived views are asynchronously materialized from canonical writes; GET endpoints remain side-effect free.
 - Canonical writes enqueue affected thread projections for background refresh rather than recomputing projections inline on reads.
 - Get inbox items from the materialized projection layer (respects acknowledgment suppression; uses deterministic IDs; surfaces freshness metadata when projections are pending, missing, or errored).
+- Board workspace projections may include canonical board membership plus derived scan summaries/freshness in one response, but clients must treat the derived portions as convenience output rather than canonical truth.
 - Compute staleness in the projection worker / explicit rebuild path (see §9); reads consume the last materialized state.
 - Rebuild all derived views explicitly and idempotently.
 

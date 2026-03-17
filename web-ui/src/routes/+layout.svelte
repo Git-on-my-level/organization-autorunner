@@ -27,7 +27,9 @@
   import {
     setCurrentWorkspaceSlug,
     setDevActorMode,
+    setDevActorModeReady,
     devActorMode,
+    devActorModeReady,
   } from "$lib/workspaceContext";
   import {
     workspacePath,
@@ -85,9 +87,16 @@
   let shouldRedirectToLogin = $derived(
     activeWorkspaceSlug &&
       identityReady &&
+      $devActorModeReady &&
       !$authenticatedAgent &&
       !onLoginRoute &&
       !$devActorMode,
+  );
+  let awaitingIdentityMode = $derived(
+    activeWorkspaceSlug &&
+      identityReady &&
+      !$authenticatedAgent &&
+      !$devActorModeReady,
   );
   let selectedActorName = $derived(
     lookupActorDisplayName(activeActorId, $actorRegistry) ||
@@ -147,6 +156,7 @@
   });
 
   async function hydrateWorkspace(workspaceSlug) {
+    setDevActorModeReady(false);
     initializeActorSession(localStorage, workspaceSlug);
     await initializeAuthSession({
       fetchFn: globalThis.fetch.bind(globalThis),
@@ -158,6 +168,8 @@
       setDevActorMode(handshake.dev_actor_mode === true);
     } catch {
       setDevActorMode(false);
+    } finally {
+      setDevActorModeReady(true);
     }
   }
 
@@ -319,7 +331,7 @@
 <div class="shell-root">
   {#if !activeWorkspaceSlug}
     {@render children()}
-  {:else if !identityReady}
+  {:else if !identityReady || awaitingIdentityMode}
     <main class="shell-loading" aria-live="polite">
       <div class="shell-loading-card">
         <svg
@@ -352,7 +364,7 @@
       <section class="actor-gate-card">
         <div class="actor-gate-header">
           <p class="actor-gate-eyebrow">Who are you?</p>
-          <h1>Choose your identity</h1>
+          <h1>Select Actor Identity</h1>
           <p>Pick an existing identity or create a new one.</p>
         </div>
 

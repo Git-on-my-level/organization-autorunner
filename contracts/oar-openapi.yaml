@@ -1268,17 +1268,17 @@ paths:
       x-oar-surface: "projection"
       x-oar-command-id: "boards.workspace"
       x-oar-cli-path: "boards workspace"
-      x-oar-why: "Load one board's canonical board, primary thread, ordered cards, and aggregated docs/commitments/inbox sections in a single round-trip."
+      x-oar-why: "Load one board's canonical organizing map plus hydrated backing resources and derived scan sections in a single round-trip."
       x-oar-examples:
         - title: Board workspace
           command: oar boards workspace --board-id board_product_launch --json
       x-oar-input-mode: "none"
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, section_kinds, generated_at }`."
+      x-oar-output-envelope: "Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, projection_freshness, board_summary_freshness, section_kinds, generated_at }`, where each card keeps canonical membership/backing data separate from derived summary/freshness."
       x-oar-error-codes: [invalid_request, not_found]
       x-oar-concepts: [boards, planning, threads, docs, commitments, inbox]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data."
+      x-oar-agent-notes: "Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards, board-card membership, and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Card envelopes keep canonical membership/backing refs separate from derived summary/freshness."
       parameters:
         - $ref: '#/components/parameters/BoardID'
       responses:
@@ -2574,10 +2574,12 @@ components:
 
     Document:
       type: object
+      description: Canonical long-lived document lineage with a mutable head revision and immutable history.
       additionalProperties: true
 
     DocumentRevision:
       type: object
+      description: Immutable revision entry within a document lineage.
       additionalProperties: true
 
     InboxItem:
@@ -2892,6 +2894,7 @@ components:
 
     Board:
       type: object
+      description: Canonical organizational map over work, anchored to a primary thread and optional primary document lineage.
       properties:
         id: { type: string }
         title: { type: string }
@@ -2929,6 +2932,7 @@ components:
 
     BoardCard:
       type: object
+      description: Canonical explicit board membership for one thread within a board.
       properties:
         board_id: { type: string }
         thread_id: { type: string }
@@ -2999,6 +3003,57 @@ components:
         [open_commitment_count, decision_request_count, decision_count, recommendation_count,
          document_count, inbox_count, latest_activity_at, stale]
 
+    ProjectionFreshnessThread:
+      type: object
+      properties:
+        thread_id: { type: string }
+        status: { type: string, enum: [current, pending, error, missing] }
+        generated_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        queued_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        started_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        completed_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        last_error_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        last_error:
+          oneOf:
+            - type: string
+            - type: 'null'
+        materialized: { type: boolean }
+        refresh_in_flight: { type: boolean }
+      required:
+        [thread_id, status, generated_at, queued_at, started_at, completed_at, last_error_at,
+         last_error, materialized, refresh_in_flight]
+
+    ProjectionFreshness:
+      type: object
+      properties:
+        status: { type: string, enum: [current, pending, error, missing] }
+        thread_count: { type: integer }
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectionFreshnessThread'
+      required: [status, thread_count, threads]
+
     BoardListItem:
       type: object
       properties:
@@ -3050,20 +3105,41 @@ components:
           type: integer
       required: [items, count]
 
-    BoardWorkspaceCard:
+    BoardWorkspaceCardBacking:
       type: object
       properties:
-        card:
-          $ref: '#/components/schemas/BoardCard'
+        thread_ref: { type: string }
         thread:
           $ref: '#/components/schemas/Thread'
-        summary:
-          $ref: '#/components/schemas/BoardCardSummary'
+        pinned_document_ref:
+          oneOf:
+            - type: string
+            - type: 'null'
         pinned_document:
           oneOf:
             - $ref: '#/components/schemas/Document'
             - type: 'null'
-      required: [card, thread, summary, pinned_document]
+      required: [thread_ref, thread, pinned_document_ref, pinned_document]
+
+    BoardWorkspaceCardDerived:
+      type: object
+      properties:
+        summary:
+          $ref: '#/components/schemas/BoardCardSummary'
+        freshness:
+          $ref: '#/components/schemas/ProjectionFreshnessThread'
+      required: [summary, freshness]
+
+    BoardWorkspaceCard:
+      type: object
+      properties:
+        membership:
+          $ref: '#/components/schemas/BoardCard'
+        backing:
+          $ref: '#/components/schemas/BoardWorkspaceCardBacking'
+        derived:
+          $ref: '#/components/schemas/BoardWorkspaceCardDerived'
+      required: [membership, backing, derived]
 
     BoardWorkspaceCardsSection:
       type: object
@@ -3440,6 +3516,10 @@ components:
           $ref: '#/components/schemas/BoardWorkspaceInboxSection'
         board_summary:
           $ref: '#/components/schemas/BoardSummary'
+        projection_freshness:
+          $ref: '#/components/schemas/ProjectionFreshness'
+        board_summary_freshness:
+          $ref: '#/components/schemas/ProjectionFreshness'
         warnings:
           $ref: '#/components/schemas/BoardWorkspaceWarningsSection'
         section_kinds:
@@ -3449,7 +3529,8 @@ components:
           format: date-time
       required:
         [board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox,
-         board_summary, warnings, section_kinds, generated_at]
+         board_summary, projection_freshness, board_summary_freshness, warnings, section_kinds,
+         generated_at]
 
     SnapshotResponse:
       type: object

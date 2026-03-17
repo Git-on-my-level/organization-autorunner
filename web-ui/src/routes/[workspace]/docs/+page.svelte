@@ -1,6 +1,7 @@
 <script>
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
+  import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
@@ -11,11 +12,21 @@
   let documents = $state([]);
   let loading = $state(false);
   let error = $state("");
+  let supportError = $state("");
+  let availableThreads = $state([]);
   let workspaceSlug = $derived($page.params.workspace);
   let scopedThreadId = $derived(
     String($page.url.searchParams.get("thread_id") ?? "").trim(),
   );
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let threadOptions = $derived(
+    availableThreads.map((thread) => ({
+      id: thread.id,
+      title: thread.title || thread.id,
+      subtitle: [thread.status, thread.priority].filter(Boolean).join(" · "),
+      keywords: [thread.type, ...(thread.tags ?? [])],
+    })),
+  );
 
   let createOpen = $state(false);
   let creating = $state(false);
@@ -41,6 +52,12 @@
     }
   });
 
+  $effect(() => {
+    if (workspaceSlug) {
+      void loadThreadSupport();
+    }
+  });
+
   async function loadDocuments(threadId = "") {
     loading = true;
     error = "";
@@ -54,6 +71,17 @@
       documents = [];
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadThreadSupport() {
+    supportError = "";
+    try {
+      const response = await coreClient.listThreads({});
+      availableThreads = response.threads ?? [];
+    } catch (e) {
+      supportError = `Failed to load doc linkage options: ${e instanceof Error ? e.message : String(e)}`;
+      availableThreads = [];
     }
   }
 
@@ -134,7 +162,11 @@
 
 <div class="flex items-center justify-between mb-4">
   <div>
-    <h1 class="text-lg font-semibold text-[var(--ui-text)]">Documents</h1>
+    <h1 class="text-lg font-semibold text-[var(--ui-text)]">Docs</h1>
+    <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
+      Canonical document lineages with a mutable head revision and auditable
+      history.
+    </p>
     {#if scopedThreadId}
       <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
         Scoped to thread
@@ -167,7 +199,7 @@
         />
       </svg>
     {/if}
-    {createOpen ? "Cancel" : "New document"}
+    {createOpen ? "Cancel" : "New doc"}
   </button>
 </div>
 
@@ -192,8 +224,11 @@
     class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-4"
   >
     <h2 class="mb-3 text-[13px] font-semibold text-[var(--ui-text)]">
-      New document
+      New doc lineage
     </h2>
+    <p class="mb-3 text-[12px] text-[var(--ui-text-muted)]">
+      Create the lineage metadata and its first head revision together.
+    </p>
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="sm:col-span-2">
         <span class="text-[12px] font-medium text-[var(--ui-text-muted)]"
@@ -240,20 +275,19 @@
           type="text"
         />
       </label>
-      <label>
-        <span class="text-[12px] font-medium text-[var(--ui-text-muted)]"
-          >Thread ID (optional)</span
-        >
-        <input
-          bind:value={draft.thread_id}
-          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg)] px-3 py-1.5 text-[13px] text-[var(--ui-text)] placeholder:text-[var(--ui-text-subtle)]"
-          placeholder="thread-..."
-          type="text"
-        />
-      </label>
+      <SearchableEntityPicker
+        bind:value={draft.thread_id}
+        advancedLabel="Use a manual thread ID"
+        helperText="Optional: link the doc lineage to its primary thread."
+        items={threadOptions}
+        label="Thread linkage"
+        manualLabel="Thread ID"
+        manualPlaceholder="thread-..."
+        placeholder="Search threads by title, ID, or tags"
+      />
       <label class="sm:col-span-2">
         <span class="text-[12px] font-medium text-[var(--ui-text-muted)]"
-          >Content (Markdown) <span class="text-red-400">*</span></span
+          >Head content (Markdown) <span class="text-red-400">*</span></span
         >
         <textarea
           bind:value={draft.content}
@@ -272,6 +306,13 @@
         {createError}
       </div>
     {/if}
+    {#if supportError}
+      <div
+        class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
+      >
+        {supportError}
+      </div>
+    {/if}
 
     <div class="mt-3 flex items-center gap-2">
       <button
@@ -280,7 +321,7 @@
         onclick={handleCreate}
         type="button"
       >
-        {creating ? "Creating…" : "Create document"}
+        {creating ? "Creating…" : "Create doc"}
       </button>
       <button
         class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
@@ -321,10 +362,11 @@
 {:else if documents.length === 0}
   <div class="mt-8 text-center">
     <p class="text-[13px] font-medium text-[var(--ui-text-muted)]">
-      No documents yet
+      No docs yet
     </p>
     <p class="mt-1 text-[13px] text-[var(--ui-text-muted)]">
-      No documents yet. Create one to start tracking content.
+      No doc lineages yet. Create one to start a head revision and revision
+      history.
     </p>
   </div>
 {/if}
@@ -364,13 +406,13 @@
               {doc.title || doc.id}
             </p>
             <p class="text-[11px] text-[var(--ui-text-muted)]">
-              Updated {formatTimestamp(doc.updated_at) || "—"} by {actorName(
-                doc.updated_by,
-              )} · v{doc.head_revision_number}
+              Head v{doc.head_revision_number} · Updated {formatTimestamp(
+                doc.updated_at,
+              ) || "—"} by {actorName(doc.updated_by)}
             </p>
             {#if doc.thread_id && !scopedThreadId}
               <p class="mt-0.5 text-[11px] text-[var(--ui-text-subtle)]">
-                Thread: {doc.thread_id}
+                Linked thread: {doc.thread_id}
               </p>
             {/if}
           </div>

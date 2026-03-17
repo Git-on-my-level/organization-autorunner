@@ -698,11 +698,17 @@ func buildBoardWorkspaceCardsSection(ctx context.Context, opts handlerOptions, c
 		}
 
 		items = append(items, map[string]any{
-			"card":              card,
-			"thread":            thread,
-			"summary":           boardCardSummaryFromProjection(states[threadID].Projection),
-			"summary_freshness": cloneWorkspaceMap(states[threadID].Freshness),
-			"pinned_document":   pinnedDocument,
+			"membership": card,
+			"backing": map[string]any{
+				"thread_ref":          "thread:" + threadID,
+				"thread":              thread,
+				"pinned_document_ref": nullableTypedRef("document", anyString(card["pinned_document_id"])),
+				"pinned_document":     pinnedDocument,
+			},
+			"derived": map[string]any{
+				"summary":   boardCardSummaryFromProjection(states[threadID].Projection),
+				"freshness": cloneWorkspaceMap(states[threadID].Freshness),
+			},
 		})
 	}
 
@@ -996,6 +1002,14 @@ func boardCardSummaryFromProjection(projection primitives.DerivedThreadProjectio
 		"latest_activity_at":     nullableStringValue(projection.LastActivityAt),
 		"stale":                  projection.Stale,
 	}
+}
+
+func nullableTypedRef(prefix string, id string) any {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil
+	}
+	return prefix + ":" + id
 }
 
 func loadBoardWorkspacePrimaryDocument(ctx context.Context, opts handlerOptions, board map[string]any) (any, []map[string]any, error) {

@@ -2,6 +2,7 @@ import { get, writable } from "svelte/store";
 
 export const currentWorkspaceSlug = writable("");
 export const devActorMode = writable(false);
+export const devActorModeReady = writable(false);
 
 export function setCurrentWorkspaceSlug(workspaceSlug) {
   const normalized = String(workspaceSlug ?? "").trim();
@@ -19,6 +20,14 @@ export function setDevActorMode(enabled) {
 
 export function getDevActorMode() {
   return get(devActorMode);
+}
+
+export function setDevActorModeReady(ready) {
+  devActorModeReady.set(Boolean(ready));
+}
+
+export function getDevActorModeReady() {
+  return get(devActorModeReady);
 }
 
 export const currentProjectSlug = currentWorkspaceSlug;

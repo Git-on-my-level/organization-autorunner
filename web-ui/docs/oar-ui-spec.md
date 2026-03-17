@@ -158,6 +158,23 @@ A view for inspecting receipt artifacts.
 
 **Review action:** From a receipt, the user can initiate a review — select outcome (accept / revise / escalate), write notes, attach evidence as typed refs. This creates a review artifact + `review_completed` event (with typed refs per reference conventions). If the outcome is `revise`, the UI SHOULD prompt creation of a follow-up work order.
 
+### 3.6 Boards and docs as canonical operator surfaces
+
+Boards and docs are first-class operator surfaces, but they remain grounded in canonical core state.
+
+**Boards:**
+
+- The UI MUST present boards as canonical organizing layers over work, not disposable kanban widgets.
+- Board detail MUST distinguish canonical board facts (board metadata, card membership, backing thread/doc refs) from derived scan data (counts, inbox aggregates, freshness badges).
+- When board projections are pending, missing, or errored, the UI MUST keep canonical board membership visible while clearly downgrading trust in derived summaries.
+- Primary board workflows (create board, edit board metadata, add card, update pinned document) SHOULD use searchable pickers backed by canonical list endpoints. Manual raw-ID entry MAY exist only as an advanced escape hatch.
+
+**Docs:**
+
+- The UI MUST present docs as canonical long-lived lineages with a mutable head and explicit revision history, not generic stored text blobs.
+- Doc create/edit workflows SHOULD use searchable thread-link pickers for common linkage flows, with manual raw-ID entry hidden behind an advanced path.
+- Doc detail SHOULD make the current head revision versus prior lineage history legible at a glance.
+
 ---
 
 ## 4. Grounding and restricted updates

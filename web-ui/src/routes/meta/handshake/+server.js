@@ -10,6 +10,7 @@ const MOCK_MIN_CLI_VERSION = "0.0.0";
 const MOCK_RECOMMENDED_CLI_VERSION = "0.0.0";
 const MOCK_DOWNLOAD_URL = "https://example.invalid/oar-cli";
 const MOCK_INSTANCE_ID = "web-ui-mock-instance";
+const MOCK_DEV_ACTOR_MODE = true;
 
 export async function GET({ url }) {
   const guardResponse = guardMockRoute(url.pathname);
@@ -27,5 +28,6 @@ export async function GET({ url }) {
     recommended_cli_version: MOCK_RECOMMENDED_CLI_VERSION,
     cli_download_url: MOCK_DOWNLOAD_URL,
     core_instance_id: MOCK_INSTANCE_ID,
+    dev_actor_mode: MOCK_DEV_ACTOR_MODE,
   });
 }

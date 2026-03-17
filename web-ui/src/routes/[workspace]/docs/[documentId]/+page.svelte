@@ -2,6 +2,7 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
+  import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
@@ -21,14 +22,30 @@
   let loading = $state(false);
   let historyLoading = $state(false);
   let loadError = $state("");
+  let supportError = $state("");
+  let availableThreads = $state([]);
   let loadedDocumentId = $state("");
   let historyOpen = $state(false);
 
   let editOpen = $state(false);
-  let editDraft = $state({ content: "", title: "", status: "", labels: "" });
+  let editDraft = $state({
+    content: "",
+    title: "",
+    status: "",
+    labels: "",
+    thread_id: "",
+  });
   let saving = $state(false);
   let saveError = $state("");
   let loadingSelectedRevisionKey = $state("");
+  let threadOptions = $derived(
+    availableThreads.map((thread) => ({
+      id: thread.id,
+      title: thread.title || thread.id,
+      subtitle: [thread.status, thread.priority].filter(Boolean).join(" · "),
+      keywords: [thread.type, ...(thread.tags ?? [])],
+    })),
+  );
 
   let displayedContent = $derived(
     selectedRevision?.content ?? headRevision?.content ?? "",
@@ -71,6 +88,12 @@
   $effect(() => {
     const id = documentId;
     if (id && id !== loadedDocumentId) loadDocument(id);
+  });
+
+  $effect(() => {
+    if (workspaceSlug) {
+      void loadThreadSupport();
+    }
   });
 
   $effect(() => {
@@ -124,6 +147,17 @@
       headRevision = null;
     } finally {
       loading = false;
+    }
+  }
+
+  async function loadThreadSupport() {
+    supportError = "";
+    try {
+      const response = await coreClient.listThreads({});
+      availableThreads = response.threads ?? [];
+    } catch (e) {
+      supportError = `Failed to load doc linkage options: ${e instanceof Error ? e.message : String(e)}`;
+      availableThreads = [];
     }
   }
 
@@ -217,6 +251,7 @@
       title: document?.title ?? "",
       status: document?.status ?? "",
       labels: (document?.labels ?? []).join(", "),
+      thread_id: document?.thread_id ?? "",
     };
     saveError = "";
     editOpen = true;
@@ -262,6 +297,11 @@
         JSON.stringify(labels) !== JSON.stringify(document?.labels ?? []);
       if (labelsChanged) {
         docPatch.labels = labels;
+      }
+      const nextThreadId = editDraft.thread_id.trim();
+      const currentThreadId = String(document?.thread_id ?? "").trim();
+      if (nextThreadId !== currentThreadId) {
+        docPatch.thread_id = nextThreadId || null;
       }
 
       const result = await coreClient.updateDocument(documentId, {
@@ -361,6 +401,10 @@
                   >{document.id}</span
                 >{/if}
             </h1>
+            <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
+              Living doc lineage. The head revision is mutable, and every prior
+              revision stays in the lineage history.
+            </p>
             <div class="mt-1 flex flex-wrap items-center gap-2 text-[12px]">
               {#if document.status}
                 <span
@@ -387,7 +431,7 @@
             </div>
             {#if document.thread_id}
               <div class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
-                <span class="text-[var(--ui-text-subtle)]">Thread</span>
+                <span class="text-[var(--ui-text-subtle)]">Linked thread</span>
                 <a
                   class="ml-1 text-indigo-400 transition-colors hover:text-indigo-300"
                   href={workspaceHref(
@@ -460,7 +504,7 @@
                   d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                 />
               </svg>
-              Version history
+              Revision history
             </button>
           </div>
         </div>
@@ -508,6 +552,16 @@
                 type="text"
               />
             </label>
+            <SearchableEntityPicker
+              bind:value={editDraft.thread_id}
+              advancedLabel="Use a manual thread ID"
+              helperText="Update the canonical thread linkage for this doc lineage."
+              items={threadOptions}
+              label="Thread linkage"
+              manualLabel="Thread ID"
+              manualPlaceholder="thread-..."
+              placeholder="Search threads by title, ID, or tags"
+            />
             <label class="sm:col-span-2">
               <span class="text-[12px] font-medium text-[var(--ui-text-muted)]"
                 >Content (Markdown) <span class="text-red-400">*</span></span
@@ -526,6 +580,13 @@
               role="alert"
             >
               {saveError}
+            </div>
+          {/if}
+          {#if supportError}
+            <div
+              class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
+            >
+              {supportError}
             </div>
           {/if}
 
@@ -653,7 +714,7 @@
             class="flex items-center justify-between border-b border-[var(--ui-border)] px-4 py-2.5"
           >
             <h2 class="text-[13px] font-medium text-[var(--ui-text)]">
-              Version history
+              Revision history
             </h2>
             <button
               class="cursor-pointer text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"
@@ -700,11 +761,11 @@
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              Loading history...
+              Loading revision history...
             </div>
           {:else if revisions.length === 0}
             <p class="px-4 py-4 text-[12px] text-[var(--ui-text-muted)]">
-              No revisions found.
+              No earlier revisions found.
             </p>
           {:else}
             <div class="max-h-[calc(100vh-12rem)] overflow-y-auto">
