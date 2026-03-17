@@ -518,7 +518,7 @@ test("update document conflict — 409 response shows error", async ({
   );
 });
 
-test("documents list redirects through the default project and loads revision history", async ({
+test("documents list redirects through the default workspace and loads revision history", async ({
   page,
 }) => {
   const actorId = "actor-docs-e2e";
