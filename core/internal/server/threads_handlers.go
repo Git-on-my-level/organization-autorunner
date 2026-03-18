@@ -103,8 +103,8 @@ func handleCreateThread(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create thread")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, anyString(result.Snapshot["id"]), time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(result.Snapshot["id"])); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 
@@ -198,8 +198,8 @@ func handlePatchThread(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to patch thread")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, threadID, time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), threadID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 
@@ -237,12 +237,11 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		return
 	}
 
-	now := time.Now().UTC()
 	threadIDs := make([]string, 0, len(threads))
 	for _, thread := range threads {
 		threadIDs = append(threadIDs, anyString(thread["id"]))
 	}
-	projections, err := ensureDerivedThreadProjections(r.Context(), opts, threadIDs, now)
+	projections, err := listDerivedThreadProjections(r.Context(), opts, threadIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to evaluate thread staleness")
 		return

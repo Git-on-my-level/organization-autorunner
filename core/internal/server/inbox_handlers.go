@@ -64,8 +64,8 @@ func handleGetInbox(w http.ResponseWriter, r *http.Request, opts handlerOptions)
 	for _, thread := range threads {
 		threadIDs = append(threadIDs, anyString(thread["id"]))
 	}
-	if _, err := ensureDerivedThreadProjections(r.Context(), opts, threadIDs, now); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived inbox projections")
+	if _, err := listDerivedThreadProjections(r.Context(), opts, threadIDs); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load derived inbox projections")
 		return
 	}
 
@@ -133,8 +133,8 @@ func handleGetInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 	for _, thread := range threads {
 		threadIDs = append(threadIDs, anyString(thread["id"]))
 	}
-	if _, err := ensureDerivedThreadProjections(r.Context(), opts, threadIDs, now); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived inbox projections")
+	if _, err := listDerivedThreadProjections(r.Context(), opts, threadIDs); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load derived inbox projections")
 		return
 	}
 
@@ -240,8 +240,8 @@ func handleAckInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to acknowledge inbox item")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, req.ThreadID, time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), req.ThreadID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 
@@ -249,9 +249,6 @@ func handleAckInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 }
 
 func deriveInboxItems(ctx context.Context, opts handlerOptions, now time.Time, riskHorizon time.Duration) ([]derivedInboxItem, error) {
-	if err := emitStaleThreadExceptions(ctx, opts, now, ""); err != nil {
-		return nil, err
-	}
 	return deriveInboxItemsNoStaleEmission(ctx, opts, now, riskHorizon)
 }
 

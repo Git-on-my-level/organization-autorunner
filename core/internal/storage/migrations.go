@@ -342,7 +342,7 @@ var migrations = []migration{
 		},
 	},
 	{
-		Version: 13,
+		Version: 15,
 		Statements: []string{
 			`CREATE TABLE IF NOT EXISTS boards (
 				id TEXT PRIMARY KEY,
@@ -404,6 +404,16 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_auth_invites_consumed_at ON auth_invites (consumed_at);`,
 			`CREATE INDEX IF NOT EXISTS idx_auth_invites_revoked_at ON auth_invites (revoked_at);`,
 			`CREATE INDEX IF NOT EXISTS idx_auth_invites_expires_at ON auth_invites (expires_at);`,
+		},
+	},
+	{
+		Version: 13,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS derived_thread_dirty_queue (
+				thread_id TEXT PRIMARY KEY,
+				dirty_at TEXT NOT NULL
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_derived_thread_dirty_queue_dirty_at ON derived_thread_dirty_queue (dirty_at ASC, thread_id ASC);`,
 		},
 	},
 }

@@ -92,8 +92,8 @@ func handleCreateCommitment(w http.ResponseWriter, r *http.Request, opts handler
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create commitment")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, anyString(result.Snapshot["thread_id"]), time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(result.Snapshot["thread_id"])); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 
@@ -197,8 +197,8 @@ func handlePatchCommitment(w http.ResponseWriter, r *http.Request, opts handlerO
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to patch commitment")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, anyString(result.Snapshot["thread_id"]), time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(result.Snapshot["thread_id"])); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 

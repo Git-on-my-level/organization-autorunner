@@ -88,7 +88,26 @@ curl -fsS http://127.0.0.1:8000/health
 curl -fsS http://127.0.0.1:8000/version
 ```
 
-`/health` is local-only and fast (workspace storage connectivity check only).
+`/health` is local-only and fast. It performs the workspace storage connectivity
+check and reports projection-maintenance lag/status without rebuilding derived
+state inline.
+
+The health payload also includes projection maintenance status:
+
+- `pending_dirty_count`: thread projections queued for refresh.
+- `oldest_dirty_at` / `oldest_dirty_lag_seconds`: lag indicator for the oldest queued projection refresh.
+- `last_successful_stale_scan_at`: last successful background stale-thread scan.
+- `last_error`: last maintenance failure, if one has occurred since the most recent successful pass.
+
+Background projection maintenance is driven by:
+
+- `OAR_PROJECTION_MAINTENANCE_INTERVAL`
+- `OAR_PROJECTION_STALE_SCAN_INTERVAL`
+- `OAR_PROJECTION_MAINTENANCE_BATCH_SIZE`
+
+Normal operations should allow the worker to catch up asynchronously. `POST /derived/rebuild`
+is still the explicit repair tool when the queue is badly behind, after operator intervention,
+or after a code/data fix that requires a full recompute from canonical state.
 
 ## Board surface quick check
 

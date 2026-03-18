@@ -41,6 +41,10 @@ type PrimitiveStore interface {
 	GetDerivedThreadProjection(ctx context.Context, threadID string) (primitives.DerivedThreadProjection, error)
 	ListDerivedThreadProjections(ctx context.Context, threadIDs []string) (map[string]primitives.DerivedThreadProjection, error)
 	PutDerivedThreadProjection(ctx context.Context, projection primitives.DerivedThreadProjection) error
+	MarkDerivedThreadProjectionDirty(ctx context.Context, threadID string, dirtyAt string) error
+	ClearDerivedThreadProjectionDirty(ctx context.Context, threadID string) error
+	ListDerivedThreadProjectionDirtyEntries(ctx context.Context, limit int) ([]primitives.DerivedThreadProjectionDirtyEntry, error)
+	GetDerivedThreadProjectionQueueStats(ctx context.Context) (primitives.DerivedThreadProjectionQueueStats, error)
 	ListDocuments(ctx context.Context, filter primitives.DocumentListFilter) ([]map[string]any, error)
 	CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
 	GetDocument(ctx context.Context, documentID string) (map[string]any, map[string]any, error)
@@ -96,6 +100,7 @@ type handlerOptions struct {
 	metaCommandsPath           string
 	streamPollInterval         time.Duration
 	corsAllowedOrigins         []string
+	projectionMaintainer       *ProjectionMaintainer
 }
 
 func WithHealthCheck(healthCheck HealthCheckFunc) HandlerOption {
@@ -220,6 +225,12 @@ func WithCORSAllowedOrigins(origins string) HandlerOption {
 				opts.corsAllowedOrigins = append(opts.corsAllowedOrigins, o)
 			}
 		}
+	}
+}
+
+func WithProjectionMaintainer(maintainer *ProjectionMaintainer) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.projectionMaintainer = maintainer
 	}
 }
 
@@ -361,7 +372,11 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			}
 		}
 
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+		payload := map[string]any{"ok": true}
+		if opts.projectionMaintainer != nil {
+			payload["projection_maintenance"] = opts.projectionMaintainer.Snapshot(r.Context(), time.Now().UTC())
+		}
+		writeJSON(w, http.StatusOK, payload)
 	})
 
 	registerRoute("/version", exactRouteAccess(routeAccessAlwaysPublic, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {

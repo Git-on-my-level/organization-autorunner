@@ -293,6 +293,11 @@ requests.
 Staleness computation SHOULD run on a regular interval (implementation-defined)
 or be triggerable on demand.
 
+Derived projection refresh SHOULD run asynchronously from a durable dirty queue.
+Operational health SHOULD expose queue depth/lag and last successful stale-scan
+time so operators can distinguish normal eventual consistency from maintenance
+failure.
+
 ---
 
 ## 10. Reference conventions

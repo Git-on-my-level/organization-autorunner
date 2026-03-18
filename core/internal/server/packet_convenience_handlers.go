@@ -198,8 +198,8 @@ func createPacketArtifactAndEvent(w http.ResponseWriter, r *http.Request, opts h
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create packet artifact and event")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, threadID, time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), threadID); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 

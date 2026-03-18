@@ -123,6 +123,36 @@ func refreshDerivedThreadProjection(ctx context.Context, opts handlerOptions, th
 	})
 }
 
+func markThreadProjectionsDirty(ctx context.Context, opts handlerOptions, now time.Time, threadIDs ...string) error {
+	if opts.primitiveStore == nil {
+		return nil
+	}
+	dirtyAt := now.UTC().Format(time.RFC3339Nano)
+	queued := make([]string, 0, len(threadIDs))
+	for _, threadID := range threadIDs {
+		threadID = strings.TrimSpace(threadID)
+		if threadID == "" {
+			continue
+		}
+		if err := opts.primitiveStore.MarkDerivedThreadProjectionDirty(ctx, threadID, dirtyAt); err != nil {
+			return err
+		}
+		queued = append(queued, threadID)
+	}
+	if opts.projectionMaintainer != nil {
+		return nil
+	}
+	for _, threadID := range queued {
+		if err := refreshDerivedThreadProjection(ctx, opts, threadID, now, ""); err != nil {
+			return err
+		}
+		if err := opts.primitiveStore.ClearDerivedThreadProjectionDirty(ctx, threadID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func deriveThreadInboxItems(ctx context.Context, opts handlerOptions, threadID string, events []map[string]any, now time.Time, riskHorizon time.Duration) ([]derivedInboxItem, error) {
 	ackedAt := latestInboxAcknowledgments(events)
 	latestActivity := latestThreadActivityFromEvents(events)
@@ -164,55 +194,36 @@ func deriveThreadInboxItems(ctx context.Context, opts handlerOptions, threadID s
 	return items, nil
 }
 
-func ensureDerivedThreadProjection(ctx context.Context, opts handlerOptions, threadID string, now time.Time) (primitives.DerivedThreadProjection, error) {
+func loadDerivedThreadProjection(ctx context.Context, opts handlerOptions, threadID string) (primitives.DerivedThreadProjection, error) {
 	projection, err := opts.primitiveStore.GetDerivedThreadProjection(ctx, threadID)
 	if err == nil {
-		if derivedThreadProjectionExpired(projection, now) {
-			if err := refreshDerivedThreadProjection(ctx, opts, threadID, now, ""); err != nil {
-				return primitives.DerivedThreadProjection{}, err
-			}
-			return opts.primitiveStore.GetDerivedThreadProjection(ctx, threadID)
-		}
 		return projection, nil
 	}
 	if !errors.Is(err, primitives.ErrNotFound) {
 		return primitives.DerivedThreadProjection{}, err
 	}
-	if err := refreshDerivedThreadProjection(ctx, opts, threadID, now, ""); err != nil {
-		return primitives.DerivedThreadProjection{}, err
-	}
-	return opts.primitiveStore.GetDerivedThreadProjection(ctx, threadID)
+	return defaultDerivedThreadProjection(threadID), nil
 }
 
-func ensureDerivedThreadProjections(ctx context.Context, opts handlerOptions, threadIDs []string, now time.Time) (map[string]primitives.DerivedThreadProjection, error) {
+func listDerivedThreadProjections(ctx context.Context, opts handlerOptions, threadIDs []string) (map[string]primitives.DerivedThreadProjection, error) {
 	projections, err := opts.primitiveStore.ListDerivedThreadProjections(ctx, threadIDs)
 	if err != nil {
 		return nil, err
 	}
-	refreshIDs := make([]string, 0)
 	for _, threadID := range threadIDs {
 		threadID = strings.TrimSpace(threadID)
 		if threadID == "" {
 			continue
 		}
-		projection, ok := projections[threadID]
-		if !ok || derivedThreadProjectionExpired(projection, now) {
-			refreshIDs = append(refreshIDs, threadID)
+		if _, ok := projections[threadID]; !ok {
+			projections[threadID] = defaultDerivedThreadProjection(threadID)
 		}
 	}
-	for _, threadID := range refreshIDs {
-		if err := refreshDerivedThreadProjection(ctx, opts, threadID, now, ""); err != nil {
-			return nil, err
-		}
-	}
-	if len(refreshIDs) == 0 {
-		return projections, nil
-	}
-	return opts.primitiveStore.ListDerivedThreadProjections(ctx, threadIDs)
+	return projections, nil
 }
 
 func rebuildDerivedProjections(ctx context.Context, opts handlerOptions, now time.Time, actorID string) error {
-	if err := emitStaleThreadExceptions(ctx, opts, now, actorID); err != nil {
+	if _, err := emitStaleThreadExceptions(ctx, opts, now, actorID); err != nil {
 		return err
 	}
 	threads, err := opts.primitiveStore.ListThreads(ctx, primitives.ThreadListFilter{})
@@ -229,6 +240,30 @@ func rebuildDerivedProjections(ctx context.Context, opts handlerOptions, now tim
 		}
 	}
 	return nil
+}
+
+func defaultDerivedThreadProjection(threadID string) primitives.DerivedThreadProjection {
+	threadID = strings.TrimSpace(threadID)
+	generatedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	return primitives.DerivedThreadProjection{
+		ThreadID:    threadID,
+		GeneratedAt: generatedAt,
+		Data: map[string]any{
+			"thread_id":                 threadID,
+			"stale":                     false,
+			"inbox_count":               0,
+			"pending_decision_count":    0,
+			"recommendation_count":      0,
+			"decision_request_count":    0,
+			"decision_count":            0,
+			"artifact_count":            0,
+			"open_commitment_count":     0,
+			"document_count":            0,
+			"last_activity_at":          "",
+			"latest_stale_exception_at": "",
+			"generated_at":              generatedAt,
+		},
+	}
 }
 
 func formatOptionalTime(value time.Time) string {

@@ -629,7 +629,7 @@ func buildBoardWorkspacePayload(ctx context.Context, opts handlerOptions, boardI
 
 	threadIDs := collectBoardWorkspaceThreadIDs(primaryThreadID, cards)
 	now := time.Now().UTC()
-	projections, err := ensureDerivedThreadProjections(ctx, opts, threadIDs, now)
+	projections, err := listDerivedThreadProjections(ctx, opts, threadIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -946,7 +946,7 @@ func emitBoardLifecycleEvent(ctx context.Context, opts handlerOptions, actorID s
 	if err != nil {
 		return err
 	}
-	return refreshDerivedThreadProjection(ctx, opts, anyString(stored["thread_id"]), time.Now().UTC(), actorID)
+	return markThreadProjectionsDirty(ctx, opts, time.Now().UTC(), anyString(stored["thread_id"]))
 }
 
 func emitBoardLifecycleEventBestEffort(ctx context.Context, opts handlerOptions, actorID string, event map[string]any) {

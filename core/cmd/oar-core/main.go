@@ -46,6 +46,9 @@ func main() {
 		coreInstanceID             = envString("OAR_CORE_INSTANCE_ID", defaultInstanceID)
 		metaCommandsPath           = envString("OAR_META_COMMANDS_PATH", "")
 		streamPollInterval         = envDuration("OAR_STREAM_POLL_INTERVAL", time.Second)
+		projectionPollInterval     = envDuration("OAR_PROJECTION_MAINTENANCE_INTERVAL", 5*time.Second)
+		staleScanInterval          = envDuration("OAR_PROJECTION_STALE_SCAN_INTERVAL", 30*time.Second)
+		projectionBatchSize        = envInt("OAR_PROJECTION_MAINTENANCE_BATCH_SIZE", 50)
 		enableDevActorMode         = envBool("OAR_ENABLE_DEV_ACTOR_MODE", false)
 		allowUnauthenticatedWrites = envBool("OAR_ALLOW_UNAUTHENTICATED_WRITES", false)
 		bootstrapToken             = envString("OAR_BOOTSTRAP_TOKEN", "")
@@ -69,6 +72,9 @@ func main() {
 	flag.StringVar(&coreInstanceID, "core-instance-id", coreInstanceID, "stable core instance identifier for handshake metadata")
 	flag.StringVar(&metaCommandsPath, "meta-commands-path", metaCommandsPath, "path to generated commands metadata JSON")
 	flag.DurationVar(&streamPollInterval, "stream-poll-interval", streamPollInterval, "poll interval used by SSE stream endpoints")
+	flag.DurationVar(&projectionPollInterval, "projection-maintenance-interval", projectionPollInterval, "poll interval used by background projection maintenance")
+	flag.DurationVar(&staleScanInterval, "projection-stale-scan-interval", staleScanInterval, "interval used by background stale-thread scanning")
+	flag.IntVar(&projectionBatchSize, "projection-maintenance-batch-size", projectionBatchSize, "max dirty thread projections refreshed per maintenance pass")
 	flag.Parse()
 
 	workspace, err := storage.InitializeWorkspace(context.Background(), workspaceRoot)
@@ -116,6 +122,14 @@ func main() {
 	passkeySessionStore := auth.NewPasskeySessionStore(auth.DefaultPasskeySessionTTL)
 	defer passkeySessionStore.Close()
 	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	projectionMaintainer := server.NewProjectionMaintainer(server.ProjectionMaintainerConfig{
+		PrimitiveStore:    primitiveStore,
+		Contract:          contract,
+		PollInterval:      projectionPollInterval,
+		StaleScanInterval: staleScanInterval,
+		DirtyBatchSize:    projectionBatchSize,
+		SystemActorID:     "oar-core",
+	})
 	handler := server.NewHandler(
 		contract.Version,
 		server.WithHealthCheck(workspace.Ping),
@@ -140,6 +154,7 @@ func main() {
 		server.WithMetaCommandsPath(metaCommandsPath),
 		server.WithStreamPollInterval(streamPollInterval),
 		server.WithCORSAllowedOrigins(corsAllowedOrigins),
+		server.WithProjectionMaintainer(projectionMaintainer),
 	)
 	httpServer := &http.Server{
 		Addr:              addr,
@@ -153,6 +168,9 @@ func main() {
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 
 	serverErr := make(chan error, 1)
+	maintenanceCtx, maintenanceCancel := context.WithCancel(context.Background())
+	defer maintenanceCancel()
+	go projectionMaintainer.Run(maintenanceCtx)
 	go func() {
 		fmt.Printf("oar-core listening on http://%s\n", addr)
 		if enableDevActorMode {
@@ -173,6 +191,7 @@ func main() {
 		os.Exit(1)
 	case sig := <-shutdown:
 		fmt.Printf("\nreceived %s, shutting down gracefully...\n", sig)
+		maintenanceCancel()
 		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := httpServer.Shutdown(ctx); err != nil {

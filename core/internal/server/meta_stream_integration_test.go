@@ -42,7 +42,7 @@ func TestMetaHandshakeAndGeneratedMetaEndpoints(t *testing.T) {
 		t.Fatalf("unexpected /meta/handshake status: %d", handshakeResp.StatusCode)
 	}
 
-	var handshake map[string]string
+	var handshake map[string]any
 	if err := json.NewDecoder(handshakeResp.Body).Decode(&handshake); err != nil {
 		t.Fatalf("decode /meta/handshake response: %v", err)
 	}

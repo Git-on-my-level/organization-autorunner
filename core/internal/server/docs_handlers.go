@@ -137,8 +137,8 @@ func handleCreateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create document")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, anyString(document["thread_id"]), time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(document["thread_id"])); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 
@@ -277,8 +277,8 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		anyString(document["thread_id"]): {},
 	}
 	for threadID := range threadIDsToRefresh {
-		if err := refreshDerivedThreadProjection(r.Context(), opts, threadID, refreshNow, actorID); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+		if err := markThreadProjectionsDirty(r.Context(), opts, refreshNow, threadID); err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 			return
 		}
 	}
@@ -419,8 +419,8 @@ func handleTombstoneDocument(w http.ResponseWriter, r *http.Request, opts handle
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to tombstone document")
 		return
 	}
-	if err := refreshDerivedThreadProjection(r.Context(), opts, anyString(document["thread_id"]), time.Now().UTC(), actorID); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to refresh derived thread views")
+	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(document["thread_id"])); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
 		return
 	}
 

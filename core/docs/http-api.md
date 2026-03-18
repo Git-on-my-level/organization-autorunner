@@ -57,6 +57,11 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 
 ### Version
 
+- `GET /health`
+  - Response:
+    - `{ "ok": true, "projection_maintenance": { "pending_dirty_count", "oldest_dirty_at", "oldest_dirty_lag_seconds", "last_successful_stale_scan_at", "last_error" } }`
+  - `projection_maintenance` is operational metadata only. It reports lag in the background derived-view worker and the last stale-scan outcome.
+
 - `GET /version`
   - Response: `{ "schema_version": "0.2.2" }`
 
@@ -350,6 +355,8 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 - Materialized derived projections used by the common read path:
   - `derived_inbox_items`: incrementally maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
   - `derived_thread_views`: incrementally maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
+  - `derived_thread_dirty_queue`: durable queue of thread IDs awaiting projection refresh. Hosted ops should use `/health` to inspect queue depth and lag rather than relying on synchronous reads.
+  - Normal maintenance runs two jobs: a scheduled stale scan that emits canonical `exception_raised` events for newly stale threads, and a dirty-projection refresh pass that materializes updated inbox/thread views.
   - `POST /derived/rebuild` remains the deterministic repair path: it re-emits any missing canonical stale-thread exceptions from canonical state, then rebuilds both projection tables from current threads/events/commitments/documents.
 
 - Meaningful thread activity for stale-thread clearing:
