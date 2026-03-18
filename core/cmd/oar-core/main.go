@@ -15,6 +15,7 @@ import (
 
 	"organization-autorunner-core/internal/actors"
 	"organization-autorunner-core/internal/auth"
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/server"
@@ -121,7 +122,8 @@ func main() {
 	authStore := auth.NewStore(workspace.DB(), auth.WithBootstrapToken(bootstrapToken))
 	passkeySessionStore := auth.NewPasskeySessionStore(auth.DefaultPasskeySessionTTL)
 	defer passkeySessionStore.Close()
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	blobBackend := blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blobBackend)
 	projectionMaintainer := server.NewProjectionMaintainer(server.ProjectionMaintainerConfig{
 		PrimitiveStore:    primitiveStore,
 		Contract:          contract,

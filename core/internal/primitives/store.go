@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/schedule"
 )
 
@@ -64,8 +64,8 @@ type CommitmentListFilter struct {
 }
 
 type Store struct {
-	db                 *sql.DB
-	artifactContentDir string
+	db          *sql.DB
+	blobBackend blob.Backend
 }
 
 type eventExec interface {
@@ -90,8 +90,8 @@ type PatchSnapshotResult struct {
 	Event    map[string]any
 }
 
-func NewStore(db *sql.DB, artifactContentDir string) *Store {
-	return &Store{db: db, artifactContentDir: artifactContentDir}
+func NewStore(db *sql.DB, blobBackend blob.Backend) *Store {
+	return &Store{db: db, blobBackend: blobBackend}
 }
 
 func (s *Store) AppendEvent(ctx context.Context, actorID string, event map[string]any) (map[string]any, error) {
@@ -174,8 +174,8 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if strings.TrimSpace(s.artifactContentDir) == "" {
-		return nil, fmt.Errorf("artifact content directory is not configured")
+	if s.blobBackend == nil {
+		return nil, fmt.Errorf("blob backend is not configured")
 	}
 
 	kind, ok := artifact["kind"].(string)
@@ -203,16 +203,16 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 	}
 	contentHash := sha256Hex(encodedContent)
 
+	contentPath := s.blobBackend.ContentLocator(contentHash)
 	metadata["id"] = artifactID
 	metadata["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
 	metadata["created_by"] = actorID
 	metadata["content_type"] = contentType
 	metadata["content_hash"] = contentHash
-	metadata["content_path"] = filepath.Join(s.artifactContentDir, contentHash)
+	metadata["content_path"] = contentPath
 	artifactThreadID := firstThreadRefValue(refs)
 
-	contentPath := metadata["content_path"].(string)
-	stagedContent, err := stageContentWrite(contentPath, encodedContent)
+	stagedContent, err := s.blobBackend.StageWrite(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, fmt.Errorf("stage artifact content: %w", err)
 	}
@@ -272,8 +272,8 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if strings.TrimSpace(s.artifactContentDir) == "" {
-		return nil, nil, fmt.Errorf("artifact content directory is not configured")
+	if s.blobBackend == nil {
+		return nil, nil, fmt.Errorf("blob backend is not configured")
 	}
 
 	kind, ok := artifact["kind"].(string)
@@ -301,16 +301,16 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 	}
 	contentHash := sha256Hex(encodedContent)
 
+	contentPath := s.blobBackend.ContentLocator(contentHash)
 	metadata["id"] = artifactID
 	metadata["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
 	metadata["created_by"] = actorID
 	metadata["content_type"] = contentType
 	metadata["content_hash"] = contentHash
-	metadata["content_path"] = filepath.Join(s.artifactContentDir, contentHash)
+	metadata["content_path"] = contentPath
 	artifactThreadID := firstThreadRefValue(artifactRefs)
 
-	contentPath := metadata["content_path"].(string)
-	stagedContent, err := stageContentWrite(contentPath, encodedContent)
+	stagedContent, err := s.blobBackend.StageWrite(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, nil, fmt.Errorf("stage artifact content: %w", err)
 	}
@@ -401,6 +401,9 @@ func (s *Store) GetArtifactContent(ctx context.Context, id string) ([]byte, stri
 	if s == nil || s.db == nil {
 		return nil, "", fmt.Errorf("primitives store database is not initialized")
 	}
+	if s.blobBackend == nil {
+		return nil, "", fmt.Errorf("blob backend is not configured")
+	}
 
 	var contentPath string
 	var contentType string
@@ -412,9 +415,9 @@ func (s *Store) GetArtifactContent(ctx context.Context, id string) ([]byte, stri
 		return nil, "", fmt.Errorf("query artifact content path: %w", err)
 	}
 
-	body, err := os.ReadFile(contentPath)
+	body, err := s.blobBackend.Read(ctx, contentPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, blob.ErrNotFound) {
 			return nil, "", ErrNotFound
 		}
 		return nil, "", fmt.Errorf("read artifact content: %w", err)
@@ -2264,71 +2267,6 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-// writeContentIfAbsent writes data to path only if the file does not already
-// exist, providing atomic content-addressable deduplication.
-type stagedContentWrite struct {
-	tempPath  string
-	finalPath string
-}
-
-func stageContentWrite(path string, data []byte) (*stagedContentWrite, error) {
-	file, err := os.CreateTemp(filepath.Dir(path), ".cas-*")
-	if err != nil {
-		return nil, err
-	}
-	tempPath := file.Name()
-	cleanupOnError := func() {
-		_ = file.Close()
-		_ = os.Remove(tempPath)
-	}
-	if _, err := file.Write(data); err != nil {
-		cleanupOnError()
-		return nil, err
-	}
-	if err := file.Chmod(0o644); err != nil {
-		cleanupOnError()
-		return nil, err
-	}
-	if err := file.Close(); err != nil {
-		_ = os.Remove(tempPath)
-		return nil, err
-	}
-	return &stagedContentWrite{tempPath: tempPath, finalPath: path}, nil
-}
-
-func (w *stagedContentWrite) Promote() error {
-	if w == nil || w.tempPath == "" {
-		return nil
-	}
-	if _, err := os.Stat(w.finalPath); err == nil {
-		return w.Cleanup()
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.Rename(w.tempPath, w.finalPath); err != nil {
-		if _, statErr := os.Stat(w.finalPath); statErr == nil {
-			return w.Cleanup()
-		}
-		return err
-	}
-	w.tempPath = ""
-	return nil
-}
-
-func (w *stagedContentWrite) Cleanup() error {
-	if w == nil || w.tempPath == "" {
-		return nil
-	}
-	err := os.Remove(w.tempPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	w.tempPath = ""
-	return nil
-}
-
-// computeRevisionHash produces a tamper-evident hash for a document revision
-// by chaining content hash, previous revision hash, and revision metadata.
 func computeRevisionHash(contentHash, prevRevisionHash, documentID string, revisionNumber int, createdAt, createdBy string) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "content_hash:%s\n", contentHash)

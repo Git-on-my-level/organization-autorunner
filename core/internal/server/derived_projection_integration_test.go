@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 )
@@ -53,7 +54,7 @@ func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
 	}
 
 	opts := handlerOptions{
-		primitiveStore:   primitives.NewStore(h.workspace.DB(), h.workspace.Layout().ArtifactContentDir),
+		primitiveStore:   primitives.NewStore(h.workspace.DB(), blob.NewFilesystemBackend(h.workspace.Layout().ArtifactContentDir)),
 		contract:         contract,
 		inboxRiskHorizon: defaultInboxRiskHorizon,
 	}
@@ -151,7 +152,7 @@ func TestProjectionMaintainerRefreshesExpiredTimeSensitiveState(t *testing.T) {
 	}
 
 	opts := handlerOptions{
-		primitiveStore:   primitives.NewStore(h.workspace.DB(), h.workspace.Layout().ArtifactContentDir),
+		primitiveStore:   primitives.NewStore(h.workspace.DB(), blob.NewFilesystemBackend(h.workspace.Layout().ArtifactContentDir)),
 		contract:         contract,
 		inboxRiskHorizon: defaultInboxRiskHorizon,
 	}
@@ -279,7 +280,7 @@ func countDerivedInboxItemsForThread(t *testing.T, db *sql.DB, threadID string) 
 func mustLoadDerivedThreadProjection(t *testing.T, db *sql.DB, threadID string) primitives.DerivedThreadProjection {
 	t.Helper()
 
-	store := primitives.NewStore(db, "")
+	store := primitives.NewStore(db, blob.NewFilesystemBackend(""))
 	projection, err := store.GetDerivedThreadProjection(context.Background(), threadID)
 	if err != nil {
 		t.Fatalf("get derived thread projection: %v", err)

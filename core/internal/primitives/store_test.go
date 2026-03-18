@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/storage"
 )
@@ -24,7 +25,7 @@ func TestStoreAppendAndGetEventUnknownTypeAccepted(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	event, err := store.AppendEvent(context.Background(), "actor-1", map[string]any{
 		"type":       "custom_event_type",
@@ -55,7 +56,7 @@ func TestCreateArtifactAcceptsSafeIDAndRejectsUnsafeIDs(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	validIDs := []string{
 		"artifact-123",
@@ -108,7 +109,7 @@ func TestCreateArtifactConflictDoesNotLeakStagedContent(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	artifactID := "artifact-fixed"
 	if _, err := store.CreateArtifact(context.Background(), "actor-1", map[string]any{
@@ -153,7 +154,7 @@ func TestUpdateDocumentWriteFailureDoesNotLeakStagedContent(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	document, revision, err := store.CreateDocument(context.Background(), "actor-1", map[string]any{
 		"id":    "doc-locked",
@@ -201,7 +202,7 @@ func TestPatchSnapshotPreservesUnknownFieldsAndEmitsChangedFields(t *testing.T) 
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	initialBody := map[string]any{
 		"title":         "original title",
@@ -323,7 +324,7 @@ func TestPatchSnapshotOptimisticLockingIfUpdatedAt(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	initialBodyJSON, err := json.Marshal(map[string]any{
 		"title": "original",
@@ -419,7 +420,7 @@ func TestCreateThreadStoresProvenanceOnlyInProvenanceJSON(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":            "Thread provenance create",
@@ -487,7 +488,7 @@ func TestPatchThreadProvenanceRoundTripAndPreserveWhenOmitted(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":            "Thread provenance patch",
@@ -584,7 +585,7 @@ func TestCommitmentOpenCommitmentsMaintenance(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":           "Thread A",
@@ -713,7 +714,7 @@ func TestPatchCommitmentOptimisticLockingIfUpdatedAt(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":           "Thread for lock test",
@@ -820,7 +821,7 @@ func TestPatchCommitmentRestrictedTransitionRequiresEvidence(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 
 	threadResult, err := store.CreateThread(context.Background(), "actor-1", map[string]any{
 		"title":           "Thread A",
@@ -871,7 +872,7 @@ func TestListRecentEventsByThreadLimitAndOrder(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 	threadID := "thread-limit-order"
 
 	insert := func(id string, ts string, eventType string) {
@@ -968,4 +969,129 @@ func countArtifactContentFiles(t *testing.T, dir string) int {
 		t.Fatalf("read artifact content dir: %v", err)
 	}
 	return len(entries)
+}
+
+type mockBlobBackend struct {
+	contentLocatorCalls []string
+	locatorPrefix       string
+	writeData           map[string][]byte
+}
+
+func newMockBlobBackend(locatorPrefix string) *mockBlobBackend {
+	return &mockBlobBackend{
+		locatorPrefix: locatorPrefix,
+		writeData:     make(map[string][]byte),
+	}
+}
+
+func (m *mockBlobBackend) ContentLocator(hash string) string {
+	m.contentLocatorCalls = append(m.contentLocatorCalls, hash)
+	return m.locatorPrefix + "://" + hash
+}
+
+func (m *mockBlobBackend) Write(ctx context.Context, hash string, data []byte) error {
+	m.writeData[hash] = data
+	return nil
+}
+
+func (m *mockBlobBackend) Read(ctx context.Context, locator string) ([]byte, error) {
+	return nil, primitives.ErrNotFound
+}
+
+type mockStagedWrite struct {
+	locator string
+	data    []byte
+	backend *mockBlobBackend
+	hash    string
+}
+
+func (s *mockStagedWrite) Locator() string { return s.locator }
+func (s *mockStagedWrite) Promote() error {
+	s.backend.writeData[s.hash] = s.data
+	return nil
+}
+func (s *mockStagedWrite) Cleanup() error { return nil }
+
+func (m *mockBlobBackend) StageWrite(ctx context.Context, hash string, data []byte) (blob.StagedWrite, error) {
+	return &mockStagedWrite{
+		locator: m.ContentLocator(hash),
+		data:    data,
+		backend: m,
+		hash:    hash,
+	}, nil
+}
+
+func TestCreateArtifactUsesBackendLocator(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	mockBackend := newMockBlobBackend("mockfs")
+	store := primitives.NewStore(workspace.DB(), mockBackend)
+
+	artifact, err := store.CreateArtifact(context.Background(), "actor-1", map[string]any{
+		"kind": "test_artifact",
+		"refs": []string{"thread:thread-1"},
+	}, "test content", "text/plain")
+	if err != nil {
+		t.Fatalf("CreateArtifact: %v", err)
+	}
+
+	if len(mockBackend.contentLocatorCalls) == 0 {
+		t.Fatal("ContentLocator was not called")
+	}
+
+	contentPath, _ := artifact["content_path"].(string)
+	expectedLocator := "mockfs://" + mockBackend.contentLocatorCalls[0]
+	if contentPath != expectedLocator {
+		t.Errorf("content_path = %q, want %q", contentPath, expectedLocator)
+	}
+}
+
+func TestCreateDocumentUsesBackendLocator(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	mockBackend := newMockBlobBackend("mockfs")
+	store := primitives.NewStore(workspace.DB(), mockBackend)
+
+	doc, revision, err := store.CreateDocument(context.Background(), "actor-1", map[string]any{
+		"id":     "doc-locator-test",
+		"title":  "Test Doc",
+		"status": "active",
+	}, "doc content", "text", nil)
+	if err != nil {
+		t.Fatalf("CreateDocument: %v", err)
+	}
+
+	if doc == nil {
+		t.Fatal("document is nil")
+	}
+	if revision == nil {
+		t.Fatal("revision is nil")
+	}
+
+	if len(mockBackend.contentLocatorCalls) == 0 {
+		t.Fatal("ContentLocator was not called")
+	}
+
+	artifact, _ := revision["artifact"].(map[string]any)
+	if artifact == nil {
+		t.Fatal("artifact in revision is nil")
+	}
+
+	contentPath, _ := artifact["content_path"].(string)
+	expectedLocator := "mockfs://" + mockBackend.contentLocatorCalls[0]
+	if contentPath != expectedLocator {
+		t.Errorf("content_path = %q, want %q", contentPath, expectedLocator)
+	}
 }

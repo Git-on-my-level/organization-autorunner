@@ -7,12 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"organization-autorunner-core/internal/blob"
 )
 
 type documentRow struct {
@@ -114,8 +115,8 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if strings.TrimSpace(s.artifactContentDir) == "" {
-		return nil, nil, fmt.Errorf("artifact content directory is not configured")
+	if s.blobBackend == nil {
+		return nil, nil, fmt.Errorf("blob backend is not configured")
 	}
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
@@ -184,6 +185,7 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	sortStringsStable(revisionRefs)
 	threadID = documentLifecycleThreadID(threadID, revisionRefs)
 
+	contentPath := s.blobBackend.ContentLocator(contentHash)
 	artifactMetadata := map[string]any{
 		"id":               artifactID,
 		"kind":             "doc",
@@ -191,7 +193,7 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 		"created_by":       actorID,
 		"content_type":     contentType,
 		"content_hash":     contentHash,
-		"content_path":     filepath.Join(s.artifactContentDir, contentHash),
+		"content_path":     contentPath,
 		"refs":             revisionRefs,
 		"document_id":      documentID,
 		"revision_id":      revisionID,
@@ -201,9 +203,8 @@ func (s *Store) CreateDocument(ctx context.Context, actorID string, document map
 	if title != "" {
 		artifactMetadata["summary"] = title
 	}
-	contentPath := artifactMetadata["content_path"].(string)
 
-	stagedContent, err := stageContentWrite(contentPath, encodedContent)
+	stagedContent, err := s.blobBackend.StageWrite(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, nil, fmt.Errorf("stage document content: %w", err)
 	}
@@ -388,8 +389,8 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if strings.TrimSpace(s.artifactContentDir) == "" {
-		return nil, nil, fmt.Errorf("artifact content directory is not configured")
+	if s.blobBackend == nil {
+		return nil, nil, fmt.Errorf("blob backend is not configured")
 	}
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
@@ -478,6 +479,7 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	sortStringsStable(revisionRefs)
 	nextThreadID = documentLifecycleThreadID(nextThreadID, revisionRefs)
 
+	contentPath := s.blobBackend.ContentLocator(contentHash)
 	artifactMetadata := map[string]any{
 		"id":               artifactID,
 		"kind":             "doc",
@@ -485,7 +487,7 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 		"created_by":       actorID,
 		"content_type":     contentType,
 		"content_hash":     contentHash,
-		"content_path":     filepath.Join(s.artifactContentDir, contentHash),
+		"content_path":     contentPath,
 		"refs":             revisionRefs,
 		"document_id":      documentID,
 		"revision_id":      revisionID,
@@ -495,9 +497,8 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	if nextTitle != "" {
 		artifactMetadata["summary"] = nextTitle
 	}
-	contentPath := artifactMetadata["content_path"].(string)
 
-	stagedContent, err := stageContentWrite(contentPath, encodedContent)
+	stagedContent, err := s.blobBackend.StageWrite(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, nil, fmt.Errorf("stage document content: %w", err)
 	}
@@ -960,9 +961,12 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 	}
 
 	if includeContent {
-		contentBytes, err := os.ReadFile(contentPath)
+		if s.blobBackend == nil {
+			return nil, fmt.Errorf("blob backend is not configured")
+		}
+		contentBytes, err := s.blobBackend.Read(ctx, contentPath)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
+			if errors.Is(err, blob.ErrNotFound) {
 				return nil, ErrNotFound
 			}
 			return nil, fmt.Errorf("read document revision content: %w", err)

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"organization-autorunner-core/internal/actors"
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/storage"
@@ -79,7 +80,7 @@ func TestBoardCreateSucceedsWhenLifecycleEventAppendFails(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	baseStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	baseStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 	h := newPrimitivesTestServerWithStore(t, workspace, &boardLifecycleFailureStore{
 		PrimitiveStore:      baseStore,
 		appendBoardEventErr: errors.New("board event append failed"),
@@ -126,7 +127,7 @@ func TestBoardAddCardSucceedsWhenLifecycleProjectionRefreshFails(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	baseStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	baseStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 	store := &boardLifecycleFailureStore{
 		PrimitiveStore: baseStore,
 	}

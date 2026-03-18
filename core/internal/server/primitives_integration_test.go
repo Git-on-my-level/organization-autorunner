@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"organization-autorunner-core/internal/actors"
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/storage"
@@ -960,7 +961,7 @@ func newPrimitivesTestServer(t *testing.T) primitivesTestHarness {
 	}
 
 	registry := actors.NewStore(workspace.DB())
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 	handler := NewHandler(
 		contract.Version,
 		WithHealthCheck(workspace.Ping),

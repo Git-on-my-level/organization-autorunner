@@ -19,6 +19,7 @@ import (
 
 	"organization-autorunner-core/internal/actors"
 	"organization-autorunner-core/internal/auth"
+	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/storage"
@@ -73,7 +74,7 @@ func newAuthIntegrationEnv(t *testing.T, options authIntegrationOptions) authInt
 		t.Fatalf("load schema contract: %v", err)
 	}
 
-	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
 	handler := NewHandler(
 		"0.2.2",
 		WithActorRegistry(registry),
