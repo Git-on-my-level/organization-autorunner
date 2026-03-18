@@ -378,6 +378,34 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_board_cards_thread_id ON board_cards (thread_id, board_id);`,
 		},
 	},
+	{
+		Version: 14,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS auth_bootstrap_state (
+				id INTEGER PRIMARY KEY CHECK (id = 1),
+				consumed_token_hash TEXT NOT NULL,
+				consumed_at TEXT NOT NULL,
+				consumed_by_agent_id TEXT NOT NULL,
+				consumed_by_actor_id TEXT NOT NULL
+			);`,
+			`CREATE TABLE IF NOT EXISTS auth_invites (
+				id TEXT PRIMARY KEY,
+				token_hash TEXT NOT NULL UNIQUE,
+				kind TEXT NOT NULL,
+				created_by_agent_id TEXT NOT NULL,
+				created_by_actor_id TEXT NOT NULL,
+				note TEXT NOT NULL DEFAULT '',
+				created_at TEXT NOT NULL,
+				expires_at TEXT,
+				consumed_at TEXT,
+				revoked_at TEXT
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_invites_created_at ON auth_invites (created_at DESC, id DESC);`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_invites_consumed_at ON auth_invites (consumed_at);`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_invites_revoked_at ON auth_invites (revoked_at);`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_invites_expires_at ON auth_invites (expires_at);`,
+		},
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

@@ -6,11 +6,20 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 
 ## Conventions
 
+- Workspace read requests require caller identity outside explicit development
+  actor mode:
+  - When `OAR_ENABLE_DEV_ACTOR_MODE=0`, workspace reads require
+    `Authorization: Bearer <access_token>`.
+  - When `OAR_ENABLE_DEV_ACTOR_MODE=1`, anonymous workspace reads remain
+    available for local actor-selection/dev flows.
 - Mutating requests require caller identity:
   - When `OAR_ALLOW_UNAUTHENTICATED_WRITES=1`, unauthenticated callers MUST provide `actor_id`.
   - When `OAR_ALLOW_UNAUTHENTICATED_WRITES=0`, mutating requests require `Authorization: Bearer <access_token>`.
   - Authenticated callers MAY omit `actor_id`; core infers it from the bearer token principal.
   - If authenticated callers provide `actor_id`, it MUST match the authenticated principal mapping.
+- `POST /actors` is a development-only convenience endpoint gated by
+  `OAR_ENABLE_DEV_ACTOR_MODE=1`.
+- `GET /actors` is a protected workspace read outside development actor mode.
 - All timestamps are ISO-8601 strings.
 - Objects MUST preserve unknown fields (additive evolution).
 - `refs` values MUST be typed ref strings per `ref_format`.
@@ -23,9 +32,11 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 ### Agent auth conventions
 
 - Access tokens are passed as `Authorization: Bearer <access_token>`.
-- The current reference build exposes direct registration endpoints, but hosted
-  v1 does not treat them as public signup routes. Managed bootstrap/invite
-  gating is the target state until later tickets land the workflow.
+- Hosted v1 closes public registration:
+  - First principal registration requires a valid bootstrap token.
+  - Bootstrap registration is disabled after the first successful principal is created.
+  - Later human and agent registrations require a valid invite token.
+  - Invite tokens are single-use and may also expire or be revoked.
 - Passkey auth is available via:
   - `POST /auth/passkey/register/options`
   - `POST /auth/passkey/register/verify`
@@ -82,16 +93,21 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 ### Actors
 
 - `POST /actors`
+  - Auth: development-only convenience (`OAR_ENABLE_DEV_ACTOR_MODE=1`)
   - Body: `{ "actor": { id, display_name, tags?, created_at } }`
   - Response: `{ "actor": <actor> }`
 
 - `GET /actors`
+  - Auth: bearer token required outside development actor mode
   - Response: `{ "actors": [<actor>...] }`
 
 ### Agent auth and self-management
 
+- `GET /auth/bootstrap/status`
+  - Response: `{ "bootstrap_registration_available": true|false }`
+
 - `POST /auth/agents/register`
-  - Body: `{ "username": "...", "public_key": "<base64-ed25519-public-key>" }`
+  - Body: `{ "username": "...", "public_key": "<base64-ed25519-public-key>", "bootstrap_token"?: "...", "invite_token"?: "..." }`
   - Response: `{ "agent": <agent_profile>, "key": <agent_key>, "tokens": <token_bundle> }`
 
 - `POST /auth/token`
@@ -99,12 +115,25 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - Refresh grant body: `{ "grant_type": "refresh_token", "refresh_token": "<token>" }`
   - Response: `{ "tokens": <token_bundle> }`
 
+- `GET /auth/invites`
+  - Auth: bearer token required
+  - Response: `{ "invites": [ { "id", "kind", "created_by_agent_id", "created_by_actor_id", "note", "created_at", "expires_at"?, "consumed_at"?, "revoked_at"? } ... ] }`
+
+- `POST /auth/invites`
+  - Auth: bearer token required
+  - Body: `{ "kind": "human"|"agent"|"any", "note"?: "...", "expires_at"?: "<rfc3339>" }`
+  - Response: `{ "invite": <invite_metadata>, "token": "<raw-invite-token>" }`
+
+- `POST /auth/invites/{invite_id}/revoke`
+  - Auth: bearer token required
+  - Response: `{ "invite": <invite_metadata> }`
+
 - `POST /auth/passkey/register/options`
-  - Body: `{ "display_name": "..." }`
+  - Body: `{ "display_name": "...", "bootstrap_token"?: "...", "invite_token"?: "..." }`
   - Response: `{ "session_id": "...", "options": <webauthn-registration-options> }`
 
 - `POST /auth/passkey/register/verify`
-  - Body: `{ "session_id": "...", "credential": <webauthn-attestation-response> }`
+  - Body: `{ "session_id": "...", "bootstrap_token"?: "...", "invite_token"?: "...", "credential": <webauthn-attestation-response> }`
   - Response: `{ "agent": <agent_profile>, "tokens": <token_bundle> }`
 
 - `POST /auth/passkey/login/options`

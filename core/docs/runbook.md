@@ -19,6 +19,7 @@ This runbook covers reproducible local and production-like operation for `oar-co
 | Listen port | `--port` | `OAR_PORT` | `8000` |
 | Full listen address (overrides host+port) | `--listen-addr` | `OAR_LISTEN_ADDR` | unset |
 | Schema path | `--schema-path` | `OAR_SCHEMA_PATH` | `../contracts/oar-schema.yaml` |
+| Enable dev actor mode | n/a | `OAR_ENABLE_DEV_ACTOR_MODE` | `false` |
 | Allow unauthenticated writes | n/a | `OAR_ALLOW_UNAUTHENTICATED_WRITES` | `false` |
 | WebAuthn RP ID | n/a | `OAR_WEBAUTHN_RPID` | derived from browser origin host |
 | WebAuthn origin | n/a | `OAR_WEBAUTHN_ORIGIN` | derived from browser request origin |
@@ -75,7 +76,10 @@ derives them per request from the browser origin forwarded by the UI proxy.
 If you set either value explicitly, the browser must access the UI on that same
 hostname or WebAuthn ceremonies will be rejected.
 
-`./scripts/dev` defaults `OAR_ALLOW_UNAUTHENTICATED_WRITES=1` so local seed workflows keep working. Production-like runs should leave it unset unless an explicitly open local workflow is required.
+`./scripts/dev` defaults `OAR_ENABLE_DEV_ACTOR_MODE=1` and
+`OAR_ALLOW_UNAUTHENTICATED_WRITES=1` so local actor-selection, reads, and seed
+workflows keep working. Production-like runs should leave both unset unless an
+explicitly open local workflow is required.
 
 ## Verify server health
 
@@ -132,8 +136,10 @@ workspace and the primary thread timeline.
 
 ### Auth model
 
-In production, `OAR_ALLOW_UNAUTHENTICATED_WRITES` must be `false` (the default).
-All write operations require a valid Bearer token. Two principal types are supported:
+In production, `OAR_ENABLE_DEV_ACTOR_MODE` and
+`OAR_ALLOW_UNAUTHENTICATED_WRITES` must both be `false` (the defaults).
+Workspace reads and writes require a valid Bearer token, and `POST /actors`
+must remain disabled. Two principal types are supported:
 
 - **Human users** authenticate via WebAuthn passkeys through the web-ui.
   Requires `OAR_WEBAUTHN_RPID` and `OAR_WEBAUTHN_ORIGIN` to match the
@@ -199,6 +205,7 @@ docker run -d --restart unless-stopped \
   -p 8000:8000 \
   -v oar-workspace:/var/lib/oar/workspace \
   -e OAR_LISTEN_ADDR=0.0.0.0:8000 \
+  -e OAR_ENABLE_DEV_ACTOR_MODE=false \
   -e OAR_ALLOW_UNAUTHENTICATED_WRITES=false \
   -e OAR_WEBAUTHN_RPID=oar.example.com \
   -e OAR_WEBAUTHN_ORIGIN=https://oar.example.com \

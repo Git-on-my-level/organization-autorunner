@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.3`
-- Commands: `64`
+- Commands: `68`
 
 ## `actors.list`
 
@@ -166,13 +166,69 @@ Generated from `contracts/oar-openapi.yaml`.
 - HTTP: `POST /auth/agents/register`
 - Stability: `beta`
 - Input mode: `json-body`
-- Why: Bootstrap an authenticated agent identity and obtain initial access + refresh tokens.
+- Why: Register an agent principal with a bootstrap token for the first principal or an invite token for later principals.
 - Concepts: `auth`, `identity`
-- Error codes: `invalid_json`, `invalid_request`, `username_taken`
+- Error codes: `invalid_json`, `invalid_request`, `invalid_token`, `username_taken`
 - Output: Returns `{ agent, key, tokens }`.
-- Agent notes: Hosted-v1 deployments should gate this behind managed bootstrap/invite flows. Public registration is not part of the hosted-v1 target state.
+- Agent notes: Bootstrap is accepted only for the first successful principal registration. Later registrations require an invite token.
 - Examples:
-  - Register agent: `oar auth agents register --username agent.one --public-key <base64-ed25519-pubkey> --json`
+  - Bootstrap first agent: `oar auth agents register --username agent.one --public-key <base64-ed25519-pubkey> --bootstrap-token <token> --json`
+  - Register invited agent: `oar auth agents register --username agent.two --public-key <base64-ed25519-pubkey> --invite-token <token> --json`
+
+## `auth.bootstrap.status`
+
+- CLI path: `auth bootstrap status`
+- HTTP: `GET /auth/bootstrap/status`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Check whether first-principal bootstrap registration is still available for this workspace.
+- Concepts: `auth`, `onboarding`
+- Output: Returns `{ bootstrap_registration_available }` without exposing token material.
+- Agent notes: This endpoint is intentionally non-enumerating beyond the single bootstrap availability boolean.
+- Examples:
+  - Read bootstrap status: `oar auth bootstrap status --json`
+
+## `auth.invites.create`
+
+- CLI path: `auth invites create`
+- HTTP: `POST /auth/invites`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Mint a single-use invite token for a future human or agent registration.
+- Concepts: `auth`, `onboarding`
+- Error codes: `auth_required`, `invalid_json`, `invalid_request`, `invalid_token`, `agent_revoked`
+- Output: Returns `{ invite, token }`. The raw token is returned only once at creation time.
+- Agent notes: Requires Bearer access token. `kind` may be `human`, `agent`, or `any`.
+- Examples:
+  - Create agent invite: `oar auth invites create --kind agent --note 'ops bot' --json`
+
+## `auth.invites.list`
+
+- CLI path: `auth invites list`
+- HTTP: `GET /auth/invites`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Inspect current invite state without exposing token secrets.
+- Concepts: `auth`, `onboarding`
+- Error codes: `auth_required`, `invalid_token`, `agent_revoked`
+- Output: Returns `{ invites }` ordered by create time descending.
+- Agent notes: Requires Bearer access token. Returned invites contain metadata only, never raw tokens.
+- Examples:
+  - List invites: `oar auth invites list --json`
+
+## `auth.invites.revoke`
+
+- CLI path: `auth invites revoke`
+- HTTP: `POST /auth/invites/{invite_id}/revoke`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Invalidate an invite token before it is consumed.
+- Concepts: `auth`, `onboarding`
+- Error codes: `auth_required`, `invalid_token`, `agent_revoked`, `not_found`
+- Output: Returns `{ invite }` with updated revoke metadata.
+- Agent notes: Requires Bearer access token.
+- Examples:
+  - Revoke invite: `oar auth invites revoke --invite-id invite_123 --json`
 
 ## `auth.passkey.login.options`
 
@@ -206,9 +262,9 @@ Generated from `contracts/oar-openapi.yaml`.
 - Input mode: `json-body`
 - Why: Create a WebAuthn registration challenge for a human principal during managed bootstrap or invite acceptance.
 - Concepts: `auth`, `passkey`
-- Error codes: `invalid_json`, `invalid_request`
+- Error codes: `invalid_json`, `invalid_request`, `invalid_token`
 - Output: Returns `{ session_id, options }` where `options` is a WebAuthn registration payload.
-- Agent notes: Intended for browser-based WebAuthn clients.
+- Agent notes: Requires a bootstrap token for the first successful human registration or an invite token for later registrations.
 
 ## `auth.passkey.register.verify`
 
@@ -220,7 +276,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - Concepts: `auth`, `passkey`
 - Error codes: `invalid_json`, `invalid_request`, `invalid_token`
 - Output: Returns `{ agent, tokens }` for the newly registered passkey principal.
-- Agent notes: Session ids are one-time use and expire quickly.
+- Agent notes: Session ids are one-time use and expire quickly. The same bootstrap or invite token used to open the registration flow must be presented again here.
 
 ## `auth.token`
 

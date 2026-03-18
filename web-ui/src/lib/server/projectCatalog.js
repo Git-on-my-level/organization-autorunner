@@ -73,10 +73,14 @@ export function loadProjectCatalog(env = privateEnv) {
     throw new Error("At least one OAR project must be configured.");
   }
 
+  const devActorMode =
+    env.OAR_DEV_ACTOR_MODE === "true" || env.OAR_DEV_ACTOR_MODE === "1";
+
   return {
     defaultProject,
     projects,
     projectBySlug: new Map(projects.map((project) => [project.slug, project])),
+    devActorMode,
   };
 }
 
@@ -93,5 +97,6 @@ export function toPublicProjectCatalog(catalog) {
       label: project.label,
       description: project.description,
     })),
+    devActorMode: catalog.devActorMode ?? false,
   };
 }

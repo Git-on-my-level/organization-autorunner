@@ -46,7 +46,9 @@ func main() {
 		coreInstanceID             = envString("OAR_CORE_INSTANCE_ID", defaultInstanceID)
 		metaCommandsPath           = envString("OAR_META_COMMANDS_PATH", "")
 		streamPollInterval         = envDuration("OAR_STREAM_POLL_INTERVAL", time.Second)
+		enableDevActorMode         = envBool("OAR_ENABLE_DEV_ACTOR_MODE", false)
 		allowUnauthenticatedWrites = envBool("OAR_ALLOW_UNAUTHENTICATED_WRITES", false)
+		bootstrapToken             = envString("OAR_BOOTSTRAP_TOKEN", "")
 		webAuthnRPID               = envString("OAR_WEBAUTHN_RPID", "")
 		webAuthnOrigin             = envString("OAR_WEBAUTHN_ORIGIN", "")
 		webAuthnDisplayName        = envString("OAR_WEBAUTHN_RP_DISPLAY_NAME", "OAR")
@@ -110,7 +112,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to seed system actor: %v\n", err)
 		os.Exit(1)
 	}
-	authStore := auth.NewStore(workspace.DB())
+	authStore := auth.NewStore(workspace.DB(), auth.WithBootstrapToken(bootstrapToken))
 	passkeySessionStore := auth.NewPasskeySessionStore(auth.DefaultPasskeySessionTTL)
 	defer passkeySessionStore.Close()
 	primitiveStore := primitives.NewStore(workspace.DB(), workspace.Layout().ArtifactContentDir)
@@ -127,6 +129,7 @@ func main() {
 			RPID:          webAuthnRPID,
 			RPOrigin:      webAuthnOrigin,
 		}),
+		server.WithEnableDevActorMode(enableDevActorMode),
 		server.WithAllowUnauthenticatedWrites(allowUnauthenticatedWrites),
 		server.WithCoreVersion(coreVersion),
 		server.WithAPIVersion(apiVersion),
@@ -152,6 +155,9 @@ func main() {
 	serverErr := make(chan error, 1)
 	go func() {
 		fmt.Printf("oar-core listening on http://%s\n", addr)
+		if enableDevActorMode {
+			fmt.Println("  WARNING: dev actor mode enabled (anonymous workspace reads and legacy actor flows)")
+		}
 		if allowUnauthenticatedWrites {
 			fmt.Println("  WARNING: unauthenticated writes enabled (dev mode)")
 		}

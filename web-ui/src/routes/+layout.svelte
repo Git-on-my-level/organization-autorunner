@@ -33,6 +33,9 @@
 
   let { children, data } = $props();
 
+  const devActorMode = $derived(data.devActorMode ?? false);
+  const isMultipleWorkspace = $derived((data.projects ?? []).length > 1);
+
   const navIconPathByType = {
     home: "M3 11.5L12 4l9 7.5M5.5 10.5V20h13v-9.5M9.25 20v-5.5h5.5V20",
     inbox:
@@ -69,6 +72,7 @@
       identityReady &&
       !$authenticatedAgent &&
       !onLoginRoute &&
+      devActorMode &&
       shouldShowActorGate($actorSessionReady, $selectedActorId),
   );
   let renderLoginOnly = $derived(
@@ -130,7 +134,9 @@
       fetchFn: globalThis.fetch.bind(globalThis),
       projectSlug,
     });
-    await refreshActors(projectSlug);
+    if (devActorMode) {
+      await refreshActors(projectSlug);
+    }
   }
 
   async function refreshActors(projectSlug = activeProjectSlug) {
@@ -326,7 +332,11 @@
           <p class="actor-gate-eyebrow">Who are you?</p>
           <h1>Choose your identity</h1>
           <p>
-            Pick an existing identity or create a new one.
+            {#if devActorMode}
+              Pick an existing identity or create a new one.
+            {:else}
+              Select your identity to continue.
+            {/if}
           </p>
         </div>
 
@@ -338,7 +348,13 @@
           {#if loadingActors}
             <p class="actor-gate-empty">Loading identities...</p>
           {:else if $actorRegistry.length === 0}
-            <p class="actor-gate-empty">No identities yet. Create one to get started.</p>
+            <p class="actor-gate-empty">
+              {#if devActorMode}
+                No identities yet. Create one to get started.
+              {:else}
+                No identities available. Contact your administrator.
+              {/if}
+            </p>
           {:else}
             {#each $actorRegistry as actor}
               <button
@@ -357,27 +373,29 @@
           {/if}
         </div>
 
-        <form
-          class="actor-gate-create"
-          onsubmit={(event) => {
-            event.preventDefault();
-            createActor();
-          }}
-        >
-          <label for="actor-display-name">Display name</label>
-          <div class="actor-gate-input-row">
-            <input
-              bind:value={newActorName}
-              id="actor-display-name"
-              name="actor-display-name"
-              placeholder="Type a name"
-              type="text"
-            />
-            <button disabled={creatingActor} type="submit">
-              {creatingActor ? "Creating..." : "Create and continue"}
-            </button>
-          </div>
-        </form>
+        {#if devActorMode}
+          <form
+            class="actor-gate-create"
+            onsubmit={(event) => {
+              event.preventDefault();
+              createActor();
+            }}
+          >
+            <label for="actor-display-name">Display name</label>
+            <div class="actor-gate-input-row">
+              <input
+                bind:value={newActorName}
+                id="actor-display-name"
+                name="actor-display-name"
+                placeholder="Type a name"
+                type="text"
+              />
+              <button disabled={creatingActor} type="submit">
+                {creatingActor ? "Creating..." : "Create and continue"}
+              </button>
+            </div>
+          </form>
+        {/if}
 
         <p class="actor-gate-empty">
           Prefer authenticated access? <a href={projectHref("/login")}
@@ -389,84 +407,105 @@
   {:else}
     <div class="shell-frame">
       <aside class="shell-sidebar" aria-label="Primary">
-        <div class="project-switcher" id="project-picker-container">
-          <button
-            class="project-switcher-trigger"
-            onclick={toggleProjectPicker}
-            aria-expanded={projectPickerOpen}
-            aria-haspopup="listbox"
-            type="button"
-          >
-            <span class="project-switcher-icon" aria-hidden="true">
-              {projectInitials(activeProject?.label)}
-            </span>
-            <span class="project-switcher-label">
-              <span class="project-switcher-name"
-                >{activeProject?.label || activeProjectSlug}</span
-              >
-              <span class="project-switcher-sub">OAR Control Surface</span>
-            </span>
-            <svg
-              class="project-switcher-chevron"
-              class:project-switcher-chevron--open={projectPickerOpen}
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              aria-hidden="true"
+        {#if isMultipleWorkspace}
+          <div class="project-switcher" id="project-picker-container">
+            <button
+              class="project-switcher-trigger"
+              onclick={toggleProjectPicker}
+              aria-expanded={projectPickerOpen}
+              aria-haspopup="listbox"
+              type="button"
             >
-              <path
-                fill-rule="evenodd"
-                d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                clip-rule="evenodd"
-              />
-            </svg>
-          </button>
-
-          {#if projectPickerOpen}
-            <div
-              class="project-switcher-dropdown"
-              role="listbox"
-              aria-label="Switch project"
-            >
-              {#each data.projects ?? [] as project}
-                {@const isCurrent = project.slug === activeProjectSlug}
-                <button
-                  class="project-switcher-option"
-                  class:project-switcher-option--active={isCurrent}
-                  role="option"
-                  aria-selected={isCurrent}
-                  onclick={() => pickProject(project.slug)}
-                  type="button"
+              <span class="project-switcher-icon" aria-hidden="true">
+                {projectInitials(activeProject?.label)}
+              </span>
+              <span class="project-switcher-label">
+                <span class="project-switcher-name"
+                  >{activeProject?.label || activeProjectSlug}</span
                 >
-                  <span class="project-switcher-option-icon" aria-hidden="true">
-                    {projectInitials(project.label)}
-                  </span>
-                  <span class="project-switcher-option-label">
-                    <span>{project.label}</span>
-                    {#if project.description}
-                      <span class="project-switcher-option-desc"
-                        >{project.description}</span
-                      >
-                    {/if}
-                  </span>
-                  {#if isCurrent}
-                    <svg
-                      class="project-switcher-check"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
+                <span class="project-switcher-sub">OAR Control Surface</span>
+              </span>
+              <svg
+                class="project-switcher-chevron"
+                class:project-switcher-chevron--open={projectPickerOpen}
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            </button>
+
+            {#if projectPickerOpen}
+              <div
+                class="project-switcher-dropdown"
+                role="listbox"
+                aria-label="Switch project"
+              >
+                {#each data.projects ?? [] as project}
+                  {@const isCurrent = project.slug === activeProjectSlug}
+                  <button
+                    class="project-switcher-option"
+                    class:project-switcher-option--active={isCurrent}
+                    role="option"
+                    aria-selected={isCurrent}
+                    onclick={() => pickProject(project.slug)}
+                    type="button"
+                  >
+                    <span
+                      class="project-switcher-option-icon"
                       aria-hidden="true"
                     >
-                      <path
-                        fill-rule="evenodd"
-                        d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                        clip-rule="evenodd"
-                      />
-                    </svg>
-                  {/if}
-                </button>
-              {/each}
+                      {projectInitials(project.label)}
+                    </span>
+                    <span class="project-switcher-option-label">
+                      <span>{project.label}</span>
+                      {#if project.description}
+                        <span class="project-switcher-option-desc"
+                          >{project.description}</span
+                        >
+                      {/if}
+                    </span>
+                    {#if isCurrent}
+                      <svg
+                        class="project-switcher-check"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fill-rule="evenodd"
+                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                          clip-rule="evenodd"
+                        />
+                      </svg>
+                    {/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div
+            class="project-switcher project-switcher--single"
+            id="project-picker-container"
+          >
+            <div class="project-switcher-trigger">
+              <span class="project-switcher-icon" aria-hidden="true">
+                {projectInitials(activeProject?.label)}
+              </span>
+              <span class="project-switcher-label">
+                <span class="project-switcher-name"
+                  >{activeProject?.label || activeProjectSlug}</span
+                >
+              </span>
             </div>
-          {/if}
-        </div>
+          </div>
+        {/if}
 
         <nav class="shell-nav" aria-label="Primary">
           {#each navigationItems as item}
@@ -511,9 +550,13 @@
               <p>{selectedActorName}</p>
             </div>
           </div>
-          <button onclick={switchIdentity} type="button">
-            {$authenticatedAgent ? "Sign out" : "Switch identity"}
-          </button>
+          {#if $authenticatedAgent}
+            <button onclick={switchIdentity} type="button"> Sign out </button>
+          {:else if devActorMode}
+            <button onclick={switchIdentity} type="button">
+              Switch identity
+            </button>
+          {/if}
         </div>
       </aside>
 
@@ -539,14 +582,16 @@
             </svg>
           </button>
           <p>OAR</p>
-          <button
-            class="shell-mobile-identity"
-            onclick={switchIdentity}
-            type="button"
-          >
-            <span aria-hidden="true">{initials}</span>
-            {$authenticatedAgent ? "Sign out" : "Switch"}
-          </button>
+          {#if $authenticatedAgent || devActorMode}
+            <button
+              class="shell-mobile-identity"
+              onclick={switchIdentity}
+              type="button"
+            >
+              <span aria-hidden="true">{initials}</span>
+              {$authenticatedAgent ? "Sign out" : "Switch"}
+            </button>
+          {/if}
         </header>
 
         {#if mobileNavOpen}
@@ -655,7 +700,11 @@
                 onclick={switchIdentity}
                 type="button"
               >
-                Switch identity
+                {#if $authenticatedAgent}
+                  Sign out
+                {:else}
+                  Switch identity
+                {/if}
               </button>
             </aside>
           </div>

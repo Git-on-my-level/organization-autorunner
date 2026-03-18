@@ -32,6 +32,7 @@ func handshakePayload(opts handlerOptions, schemaVersion string) (map[string]any
 		"recommended_cli_version": strings.TrimSpace(opts.recommendedCLIVersion),
 		"cli_download_url":        strings.TrimSpace(opts.cliDownloadURL),
 		"core_instance_id":        strings.TrimSpace(opts.coreInstanceID),
+		"dev_actor_mode":          opts.enableDevActorMode,
 	}
 	return payload, nil
 }

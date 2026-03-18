@@ -492,6 +492,18 @@ export function createOarCoreClient(options = {}) {
       invokeJSON("auth.passkey.login.verify", () =>
         generated.authPasskeyLoginVerify({ body: payload }),
       ),
+    bootstrapStatus: () =>
+      invokeJSON("auth.bootstrap.status", () => generated.authBootstrapStatus()),
+    listInvites: () =>
+      invokeJSON("auth.invites.list", () => generated.authInvitesList()),
+    createInvite: (payload) =>
+      invokeJSON("auth.invites.create", () =>
+        generated.authInvitesCreate({ body: payload }),
+      ),
+    revokeInvite: (inviteId) =>
+      invokeJSON("auth.invites.revoke", () =>
+        generated.authInvitesRevoke({ invite_id: String(inviteId) }),
+      ),
 
     createThread: (payload) =>
       invokeJSON("threads.create", () =>
