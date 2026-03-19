@@ -557,8 +557,15 @@ test("board UI supports create/edit and card mutation flows", async ({
   ).toBeVisible();
   await page.getByLabel("Board title").fill("Launch Control");
   await page.getByLabel("Status").selectOption("paused");
-  await page.getByLabel("Primary thread ID").fill("thread-primary");
-  await page.getByLabel("Primary document ID").fill("doc-runbook");
+
+  // Use advanced/manual entry mode for thread ID
+  await page.getByText("Or enter thread ID manually:").click();
+  await page.getByPlaceholder("thread-q2-initiative").fill("thread-primary");
+
+  // Use advanced/manual entry mode for document ID
+  await page.getByText("Or enter document ID manually:").click();
+  await page.getByPlaceholder("product-constitution").fill("doc-runbook");
+
   await page.getByRole("button", { name: "Create board", exact: true }).click();
 
   await expect(page).toHaveURL(/\/local\/boards\/board-created$/);
@@ -587,7 +594,13 @@ test("board UI supports create/edit and card mutation flows", async ({
   await page.getByRole("button", { name: "Edit board" }).click();
   await page.getByLabel("Board title").fill("Launch Control v2");
   await page.getByLabel("Status").selectOption("closed");
-  await page.getByLabel("Primary document ID").fill("doc-playbook");
+
+  // Use advanced/manual entry mode for document ID
+  await page.getByText("Or enter document ID manually:").click();
+  await page
+    .getByPlaceholder("incident-response-playbook")
+    .fill("doc-playbook");
+
   await page.getByRole("button", { name: "Save board" }).click();
 
   await expect(
@@ -610,16 +623,28 @@ test("board UI supports create/edit and card mutation flows", async ({
   ]);
 
   await page.getByRole("button", { name: "Add card", exact: true }).click();
-  await page.getByLabel("Thread ID").fill("thread-execution");
+
+  // Use advanced/manual entry mode for thread ID
+  await page.getByText("Or enter thread ID manually:").click();
+  await page.getByPlaceholder("thread-onboarding").fill("thread-execution");
+
   await page.getByLabel("Target column").selectOption("ready");
-  await page.getByLabel("Pinned document ID").fill("doc-playbook");
+
+  // Use advanced/manual entry mode for pinned document ID
+  await page.getByText("Or enter document ID manually:").click();
+  await page.getByPlaceholder("onboarding-guide-v1").fill("doc-playbook");
+
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Execution Track" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Add card", exact: true }).click();
-  await page.getByLabel("Thread ID").fill("thread-review");
+
+  // Use advanced/manual entry mode for thread ID
+  await page.getByText("Or enter thread ID manually:").click();
+  await page.getByPlaceholder("thread-onboarding").fill("thread-review");
+
   await page.getByLabel("Target column").selectOption("ready");
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(page.getByRole("link", { name: "Review Prep" })).toBeVisible();

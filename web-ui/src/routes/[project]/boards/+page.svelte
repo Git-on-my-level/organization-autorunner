@@ -2,6 +2,7 @@
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
+  import DebouncedSearchPicker from "$lib/components/DebouncedSearchPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { projectPath } from "$lib/projectPaths";
@@ -12,16 +13,14 @@
     boardSummaryCounts,
     parseDelimitedValues,
   } from "$lib/boardUtils";
+  import { searchThreads, searchDocuments } from "$lib/searchHelpers.js";
 
   let boards = $state([]);
   let loading = $state(false);
   let error = $state("");
   let creating = $state(false);
   let createError = $state("");
-  let supportError = $state("");
   let showCreateForm = $state(false);
-  let availableThreads = $state([]);
-  let availableDocuments = $state([]);
 
   let createTitle = $state("");
   let createStatus = $state("active");
@@ -52,11 +51,6 @@
     createPinnedRefs = "";
   }
 
-  function threadHint(threadId) {
-    const thread = availableThreads.find((item) => item.id === threadId);
-    return thread?.title ?? "";
-  }
-
   async function loadBoards() {
     loading = true;
     error = "";
@@ -68,22 +62,6 @@
       boards = [];
     } finally {
       loading = false;
-    }
-  }
-
-  async function loadCreateSupport() {
-    supportError = "";
-    try {
-      const [threadData, documentData] = await Promise.all([
-        coreClient.listThreads({}),
-        coreClient.listDocuments({}),
-      ]);
-      availableThreads = threadData.threads ?? [];
-      availableDocuments = documentData.documents ?? [];
-    } catch (e) {
-      supportError = `Failed to load board form options: ${e instanceof Error ? e.message : String(e)}`;
-      availableThreads = [];
-      availableDocuments = [];
     }
   }
 
@@ -138,22 +116,9 @@
   $effect(() => {
     if (projectSlug) {
       void loadBoards();
-      void loadCreateSupport();
     }
   });
 </script>
-
-<datalist id="board-create-thread-options">
-  {#each availableThreads as thread}
-    <option value={thread.id}>{thread.title}</option>
-  {/each}
-</datalist>
-
-<datalist id="board-create-document-options">
-  {#each availableDocuments as document}
-    <option value={document.id}>{document.title}</option>
-  {/each}
-</datalist>
 
 <div class="mb-4 flex items-start justify-between gap-4">
   <div>
@@ -200,14 +165,6 @@
         </div>
       {/if}
 
-      {#if supportError}
-        <div
-          class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
-        >
-          {supportError}
-        </div>
-      {/if}
-
       <div class="grid gap-3 md:grid-cols-2">
         <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
           Board title
@@ -231,32 +188,29 @@
           </select>
         </label>
 
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-          Primary thread ID
-          <input
-            bind:value={createPrimaryThreadId}
-            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-            list="board-create-thread-options"
-            placeholder="thread-q2-initiative"
-            type="text"
-          />
-          {#if threadHint(createPrimaryThreadId)}
-            <span class="mt-1 block text-[11px] text-[var(--ui-text-subtle)]">
-              {threadHint(createPrimaryThreadId)}
-            </span>
-          {/if}
-        </label>
+        <DebouncedSearchPicker
+          bind:value={createPrimaryThreadId}
+          searchFn={searchThreads}
+          placeholder="Search threads..."
+          idField="id"
+          labelField="title"
+          listId="board-create-thread-picker"
+          showAdvanced={true}
+          advancedLabel="Or enter thread ID manually:"
+          advancedPlaceholder="thread-q2-initiative"
+        />
 
-        <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-          Primary document ID
-          <input
-            bind:value={createPrimaryDocumentId}
-            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-            list="board-create-document-options"
-            placeholder="product-constitution"
-            type="text"
-          />
-        </label>
+        <DebouncedSearchPicker
+          bind:value={createPrimaryDocumentId}
+          searchFn={searchDocuments}
+          placeholder="Search documents..."
+          idField="id"
+          labelField="title"
+          listId="board-create-document-picker"
+          showAdvanced={true}
+          advancedLabel="Or enter document ID manually:"
+          advancedPlaceholder="product-constitution"
+        />
       </div>
 
       <div class="grid gap-3 md:grid-cols-2">
@@ -425,7 +379,7 @@
                     `/threads/${encodeURIComponent(board.primary_thread_id)}`,
                   )}
                 >
-                  {threadHint(board.primary_thread_id) || board.primary_thread_id}
+                  {board.primary_thread_id}
                 </a>
               </span>
               <span>

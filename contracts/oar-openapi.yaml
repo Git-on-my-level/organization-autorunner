@@ -275,13 +275,30 @@ paths:
       x-oar-examples:
         - title: List actors
           command: oar actors list --json
+        - title: Search actors by name
+          command: oar actors list --q "bot" --json
+        - title: Paginated actor list
+          command: oar actors list --limit 50 --json
       x-oar-input-mode: "none"
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ actors }` ordered by created time ascending."
+      x-oar-output-envelope: "Returns `{ actors, next_cursor? }` ordered by created time ascending. Pagination is optional and backward-compatible."
       x-oar-error-codes: [actor_registry_unavailable]
       x-oar-concepts: [identity]
       x-oar-stability: "stable"
-      x-oar-agent-notes: "Safe and idempotent."
+      x-oar-agent-notes: "Safe and idempotent. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation."
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: "Optional search query to filter actors by ID or display name using case-insensitive matching."
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000 }
+          description: "Maximum number of results to return. Defaults to returning all results when omitted."
+        - in: query
+          name: cursor
+          schema: { type: string }
+          description: "Opaque pagination cursor from a previous response's `next_cursor` field."
       responses:
         '200':
           description: Actor list
@@ -816,14 +833,30 @@ paths:
       x-oar-examples:
         - title: List active p1 threads
           command: oar threads list --status active --priority p1 --json
+        - title: Search threads by title
+          command: oar threads list --q "launch" --json
+        - title: Paginated thread list
+          command: oar threads list --limit 20 --json
       x-oar-input-mode: "none"
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ threads }`; query filters are additive."
+      x-oar-output-envelope: "Returns `{ threads, next_cursor? }`; query filters are additive. Pagination is optional and backward-compatible."
       x-oar-error-codes: [invalid_request]
       x-oar-concepts: [threads, filtering]
       x-oar-stability: "stable"
-      x-oar-agent-notes: "Safe and idempotent."
+      x-oar-agent-notes: "Safe and idempotent. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation."
       parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: "Optional search query to filter threads by ID or title using case-insensitive matching."
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000 }
+          description: "Maximum number of results to return. Defaults to returning all results when omitted."
+        - in: query
+          name: cursor
+          schema: { type: string }
+          description: "Opaque pagination cursor from a previous response's `next_cursor` field."
         - in: query
           name: status
           schema: { type: string }
@@ -1217,14 +1250,30 @@ paths:
           command: oar boards list --json
         - title: List active boards for an owner
           command: oar boards list --status active --owner actor_ceo --json
+        - title: Search boards by label
+          command: oar boards list --q "launch" --json
+        - title: Paginated board list
+          command: oar boards list --limit 30 --json
       x-oar-input-mode: "none"
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ boards }`, where each item includes canonical board metadata plus a derived summary."
+      x-oar-output-envelope: "Returns `{ boards, next_cursor? }`, where each item includes canonical board metadata plus a derived summary. Pagination is optional and backward-compatible."
       x-oar-error-codes: [invalid_request]
       x-oar-concepts: [boards, planning, summaries]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side."
+      x-oar-agent-notes: "Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation."
       parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: "Optional search query to filter boards by ID or title using case-insensitive matching."
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000 }
+          description: "Maximum number of results to return. Defaults to returning all results when omitted."
+        - in: query
+          name: cursor
+          schema: { type: string }
+          description: "Opaque pagination cursor from a previous response's `next_cursor` field."
         - in: query
           name: status
           schema:
@@ -1595,14 +1644,30 @@ paths:
       x-oar-examples:
         - title: List documents
           command: oar docs list --json
+        - title: Search documents by title
+          command: oar docs list --q "constitution" --json
+        - title: Paginated document list
+          command: oar docs list --limit 50 --json
       x-oar-input-mode: "none"
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ documents }` ordered by `updated_at` descending."
+      x-oar-output-envelope: "Returns `{ documents, next_cursor? }` ordered by `updated_at` descending. Pagination is optional and backward-compatible."
       x-oar-error-codes: [invalid_request]
       x-oar-concepts: [docs, revisions]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Safe and idempotent. Use `thread_id` to focus on one thread's docs and `include_tombstoned=true` when auditing superseded documents."
+      x-oar-agent-notes: "Safe and idempotent. Use `thread_id` to focus on one thread's docs and `include_tombstoned=true` when auditing superseded documents. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation."
       parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: "Optional search query to filter documents by ID or title using case-insensitive matching."
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 1000 }
+          description: "Maximum number of results to return. Defaults to returning all results when omitted."
+        - in: query
+          name: cursor
+          schema: { type: string }
+          description: "Opaque pagination cursor from a previous response's `next_cursor` field."
         - in: query
           name: thread_id
           schema: { type: string }
@@ -2678,6 +2743,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Actor'
+        next_cursor:
+          type: string
+          description: "Opaque pagination cursor for fetching the next page of results. Omitted when there are no more results."
       required: [actors]
 
     Agent:
@@ -2921,6 +2989,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Thread'
+        next_cursor:
+          type: string
+          description: "Opaque pagination cursor for fetching the next page of results. Omitted when there are no more results."
       required: [threads]
 
     ThreadTimelineResponse:
@@ -3470,6 +3541,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/BoardListItem'
+        next_cursor:
+          type: string
+          description: "Opaque pagination cursor for fetching the next page of results. Omitted when there are no more results."
       required: [boards]
 
     BoardCardsResponse:
@@ -3688,6 +3762,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Document'
+        next_cursor:
+          type: string
+          description: "Opaque pagination cursor for fetching the next page of results. Omitted when there are no more results."
       required: [documents]
 
     DocumentHistoryResponse:

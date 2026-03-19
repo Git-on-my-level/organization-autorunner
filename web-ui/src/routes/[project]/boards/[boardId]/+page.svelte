@@ -1,10 +1,12 @@
 <script>
   import { page } from "$app/stores";
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
+  import DebouncedSearchPicker from "$lib/components/DebouncedSearchPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { projectPath } from "$lib/projectPaths";
   import { enrichInboxItem } from "$lib/inboxUtils";
+  import { searchThreads, searchDocuments } from "$lib/searchHelpers.js";
   import {
     BOARD_STATUS_LABELS,
     boardColumnTitle,
@@ -16,12 +18,9 @@
   let workspace = $state(null);
   let loading = $state(false);
   let error = $state("");
-  let supportError = $state("");
   let mutationNotice = $state("");
   let mutationError = $state("");
   let conflictWarning = $state("");
-  let availableThreads = $state([]);
-  let availableDocuments = $state([]);
 
   let showBoardEditForm = $state(false);
   let showAddCardForm = $state(false);
@@ -91,16 +90,6 @@
     mutationError = "";
   }
 
-  function threadHint(threadId) {
-    const thread = availableThreads.find((item) => item.id === threadId);
-    return thread?.title ?? "";
-  }
-
-  function documentHint(documentId) {
-    const document = availableDocuments.find((item) => item.id === documentId);
-    return document?.title ?? "";
-  }
-
   function cardCommitments(threadId) {
     return (workspace?.commitments?.items ?? []).filter(
       (c) => String(c.thread_id ?? "") === String(threadId),
@@ -147,22 +136,6 @@
       workspace = null;
     } finally {
       loading = false;
-    }
-  }
-
-  async function loadSupportData() {
-    supportError = "";
-    try {
-      const [threadData, documentData] = await Promise.all([
-        coreClient.listThreads({}),
-        coreClient.listDocuments({}),
-      ]);
-      availableThreads = threadData.threads ?? [];
-      availableDocuments = documentData.documents ?? [];
-    } catch (e) {
-      supportError = `Failed to load board controls: ${e instanceof Error ? e.message : String(e)}`;
-      availableThreads = [];
-      availableDocuments = [];
     }
   }
 
@@ -382,22 +355,9 @@
   $effect(() => {
     if (projectSlug && boardId) {
       void loadWorkspace();
-      void loadSupportData();
     }
   });
 </script>
-
-<datalist id="board-detail-thread-options">
-  {#each availableThreads as thread}
-    <option value={thread.id}>{thread.title}</option>
-  {/each}
-</datalist>
-
-<datalist id="board-detail-document-options">
-  {#each availableDocuments as document}
-    <option value={document.id}>{document.title}</option>
-  {/each}
-</datalist>
 
 {#if loading}
   <div
@@ -490,9 +450,7 @@
         <span class="text-[var(--ui-text-subtle)]">Thread</span>
         <a
           class="text-indigo-400 transition-colors hover:text-indigo-300"
-          href={projectHref(
-            `/threads/${encodeURIComponent(primaryThread.id)}`,
-          )}
+          href={projectHref(`/threads/${encodeURIComponent(primaryThread.id)}`)}
         >
           {primaryThread.title || primaryThread.id}
         </a>
@@ -507,7 +465,7 @@
   </div>
 
   <!-- Notification alerts -->
-  {#if mutationNotice || conflictWarning || mutationError || supportError}
+  {#if mutationNotice || conflictWarning || mutationError}
     <div class="mb-3 space-y-2">
       {#if mutationNotice}
         <div
@@ -528,13 +486,6 @@
           class="rounded-md bg-red-500/10 px-3 py-2 text-[12px] text-red-400"
         >
           {mutationError}
-        </div>
-      {/if}
-      {#if supportError}
-        <div
-          class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
-        >
-          {supportError}
         </div>
       {/if}
     </div>
@@ -574,21 +525,17 @@
             </select>
           </label>
 
-          <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-            Primary document ID
-            <input
-              bind:value={boardPrimaryDocumentId}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
-              list="board-detail-document-options"
-              placeholder="incident-response-playbook"
-              type="text"
-            />
-            {#if documentHint(boardPrimaryDocumentId)}
-              <span class="mt-1 block text-[11px] text-[var(--ui-text-subtle)]">
-                {documentHint(boardPrimaryDocumentId)}
-              </span>
-            {/if}
-          </label>
+          <DebouncedSearchPicker
+            bind:value={boardPrimaryDocumentId}
+            searchFn={searchDocuments}
+            placeholder="Search documents..."
+            idField="id"
+            labelField="title"
+            listId="board-edit-document-picker"
+            showAdvanced={true}
+            advancedLabel="Or enter document ID manually:"
+            advancedPlaceholder="incident-response-playbook"
+          />
 
           <div
             class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[12px] text-[var(--ui-text-muted)]"
@@ -672,21 +619,17 @@
 
       <div class="space-y-3 px-4 py-3">
         <div class="grid gap-3 md:grid-cols-3">
-          <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-            Thread ID
-            <input
-              bind:value={addCardThreadId}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
-              list="board-detail-thread-options"
-              placeholder="thread-onboarding"
-              type="text"
-            />
-            {#if threadHint(addCardThreadId)}
-              <span class="mt-1 block text-[11px] text-[var(--ui-text-subtle)]">
-                {threadHint(addCardThreadId)}
-              </span>
-            {/if}
-          </label>
+          <DebouncedSearchPicker
+            bind:value={addCardThreadId}
+            searchFn={searchThreads}
+            placeholder="Search threads..."
+            idField="id"
+            labelField="title"
+            listId="add-card-thread-picker"
+            showAdvanced={true}
+            advancedLabel="Or enter thread ID manually:"
+            advancedPlaceholder="thread-onboarding"
+          />
 
           <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
             Target column
@@ -703,21 +646,17 @@
             </select>
           </label>
 
-          <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
-            Pinned document ID
-            <input
-              bind:value={addCardPinnedDocumentId}
-              class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-1.5 text-[13px] text-[var(--ui-text)]"
-              list="board-detail-document-options"
-              placeholder="onboarding-guide-v1"
-              type="text"
-            />
-            {#if documentHint(addCardPinnedDocumentId)}
-              <span class="mt-1 block text-[11px] text-[var(--ui-text-subtle)]">
-                {documentHint(addCardPinnedDocumentId)}
-              </span>
-            {/if}
-          </label>
+          <DebouncedSearchPicker
+            bind:value={addCardPinnedDocumentId}
+            searchFn={searchDocuments}
+            placeholder="Search documents..."
+            idField="id"
+            labelField="title"
+            listId="add-card-document-picker"
+            showAdvanced={true}
+            advancedLabel="Or enter document ID manually:"
+            advancedPlaceholder="onboarding-guide-v1"
+          />
         </div>
 
         <div class="flex flex-wrap gap-2">
@@ -752,14 +691,11 @@
         class="flex min-w-[220px] flex-1 flex-col rounded-md bg-[var(--ui-panel-muted)]"
       >
         <!-- Column header -->
-        <div
-          class="flex items-center justify-between px-3 py-2.5"
-        >
+        <div class="flex items-center justify-between px-3 py-2.5">
           <h3
             class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
           >
-            {column.title ||
-              boardColumnTitle(column.key, board.column_schema)}
+            {column.title || boardColumnTitle(column.key, board.column_schema)}
           </h3>
           <span
             class="min-w-[1.25rem] rounded-full bg-[var(--ui-border)] px-1.5 py-0.5 text-center text-[11px] text-[var(--ui-text-subtle)]"
@@ -812,8 +748,7 @@
                   <div
                     class="mt-1 pl-4 text-[11px] text-[var(--ui-text-muted)]"
                   >
-                    {thread?.status ?? "\u2014"} · {thread?.priority ??
-                      "—"}
+                    {thread?.status ?? "\u2014"} · {thread?.priority ?? "—"}
                     · {formatTimestamp(card.created_at)}
                   </div>
 
@@ -872,9 +807,7 @@
                       onclick={() => openCardManager(cardItem)}
                       type="button"
                     >
-                      {expandedCardId === card.thread_id
-                        ? "Close"
-                        : "Actions"}
+                      {expandedCardId === card.thread_id ? "Close" : "Actions"}
                     </button>
                   </div>
                 </div>
@@ -889,17 +822,26 @@
                   >
                     <!-- Per-card commitments -->
                     {#if thisCommitments.length > 0}
-                      <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                      <div
+                        class="border-b border-[var(--ui-border)] px-2.5 py-1.5"
+                      >
+                        <p
+                          class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
+                        >
                           Commitments
                         </p>
                         {#each thisCommitments as c}
                           <div class="mt-1 text-[11px]">
                             <span class="text-[var(--ui-text)]">
-                              {c.title || ""}{#if !c.title}<span class="font-mono text-[var(--ui-text-subtle)]">{c.id}</span>{/if}
+                              {c.title || ""}{#if !c.title}<span
+                                  class="font-mono text-[var(--ui-text-subtle)]"
+                                  >{c.id}</span
+                                >{/if}
                             </span>
                             <span class="text-[var(--ui-text-subtle)]">
-                              · {c.status ?? "\u2014"} · Due {formatTimestamp(c.due_at) || "—"}
+                              · {c.status ?? "\u2014"} · Due {formatTimestamp(
+                                c.due_at,
+                              ) || "—"}
                             </span>
                           </div>
                         {/each}
@@ -908,13 +850,19 @@
 
                     <!-- Per-card inbox items -->
                     {#if thisInbox.length > 0}
-                      <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                      <div
+                        class="border-b border-[var(--ui-border)] px-2.5 py-1.5"
+                      >
+                        <p
+                          class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
+                        >
                           Inbox
                         </p>
                         {#each thisInbox as item}
                           <div class="mt-1 text-[11px]">
-                            <span class="text-amber-400">{item.urgency_label}</span>
+                            <span class="text-amber-400"
+                              >{item.urgency_label}</span
+                            >
                             <span class="text-[var(--ui-text)]">
                               {item.title || item.summary || item.id}
                             </span>
@@ -925,8 +873,12 @@
 
                     <!-- Per-card documents -->
                     {#if thisDocs.length > 0}
-                      <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
-                        <p class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                      <div
+                        class="border-b border-[var(--ui-border)] px-2.5 py-1.5"
+                      >
+                        <p
+                          class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
+                        >
                           Documents
                         </p>
                         {#each thisDocs as doc}
@@ -982,17 +934,19 @@
                       </div>
 
                       <div class="flex items-end gap-1.5">
-                        <label
-                          class="min-w-0 flex-1 text-[11px] text-[var(--ui-text-muted)]"
-                        >
-                          Pinned doc
-                          <input
+                        <div class="min-w-0 flex-1">
+                          <DebouncedSearchPicker
                             bind:value={managePinnedDocumentId}
-                            class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-                            list="board-detail-document-options"
-                            type="text"
+                            searchFn={searchDocuments}
+                            placeholder="Search..."
+                            idField="id"
+                            labelField="title"
+                            listId="manage-card-document-picker"
+                            showAdvanced={true}
+                            advancedLabel="Manual:"
+                            advancedPlaceholder="doc-id"
                           />
-                        </label>
+                        </div>
                         <button
                           class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
                           disabled={mutatingCardId === card.thread_id}

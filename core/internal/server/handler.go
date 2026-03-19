@@ -21,7 +21,7 @@ type HealthCheckFunc func(ctx context.Context) error
 
 type ActorRegistry interface {
 	Register(ctx context.Context, actor actors.Actor) (actors.Actor, error)
-	List(ctx context.Context) ([]actors.Actor, error)
+	List(ctx context.Context, filter actors.ActorListFilter) ([]actors.Actor, string, error)
 	Exists(ctx context.Context, actorID string) (bool, error)
 }
 
@@ -45,14 +45,14 @@ type PrimitiveStore interface {
 	ClearDerivedThreadProjectionDirty(ctx context.Context, threadID string) error
 	ListDerivedThreadProjectionDirtyEntries(ctx context.Context, limit int) ([]primitives.DerivedThreadProjectionDirtyEntry, error)
 	GetDerivedThreadProjectionQueueStats(ctx context.Context) (primitives.DerivedThreadProjectionQueueStats, error)
-	ListDocuments(ctx context.Context, filter primitives.DocumentListFilter) ([]map[string]any, error)
+	ListDocuments(ctx context.Context, filter primitives.DocumentListFilter) ([]map[string]any, string, error)
 	CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
 	GetDocument(ctx context.Context, documentID string) (map[string]any, map[string]any, error)
 	UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
 	ListDocumentHistory(ctx context.Context, documentID string) ([]map[string]any, error)
 	GetDocumentRevision(ctx context.Context, documentID string, revisionID string) (map[string]any, error)
 	GetDocumentRevisionByID(ctx context.Context, revisionID string) (map[string]any, error)
-	ListBoards(ctx context.Context, filter primitives.BoardListFilter) ([]primitives.BoardListItem, error)
+	ListBoards(ctx context.Context, filter primitives.BoardListFilter) ([]primitives.BoardListItem, string, error)
 	CreateBoard(ctx context.Context, actorID string, board map[string]any) (map[string]any, error)
 	GetBoard(ctx context.Context, boardID string) (map[string]any, error)
 	UpdateBoard(ctx context.Context, actorID string, boardID string, patch map[string]any, ifUpdatedAt *string) (map[string]any, error)
@@ -66,7 +66,7 @@ type PrimitiveStore interface {
 	CreateThread(ctx context.Context, actorID string, thread map[string]any) (primitives.PatchSnapshotResult, error)
 	GetThread(ctx context.Context, id string) (map[string]any, error)
 	PatchThread(ctx context.Context, actorID string, id string, patch map[string]any, ifUpdatedAt *string) (primitives.PatchSnapshotResult, error)
-	ListThreads(ctx context.Context, filter primitives.ThreadListFilter) ([]map[string]any, error)
+	ListThreads(ctx context.Context, filter primitives.ThreadListFilter) ([]map[string]any, string, error)
 	CreateCommitment(ctx context.Context, actorID string, commitment map[string]any) (primitives.PatchSnapshotResult, error)
 	GetCommitment(ctx context.Context, id string) (map[string]any, error)
 	PatchCommitment(ctx context.Context, actorID string, id string, patch map[string]any, refs []string, ifUpdatedAt *string) (primitives.PatchSnapshotResult, error)
@@ -1316,13 +1316,32 @@ func handleListActors(w http.ResponseWriter, r *http.Request, actorRegistry Acto
 		return
 	}
 
-	listed, err := actorRegistry.List(r.Context())
+	var limitFilter *int
+	limitRaw := strings.TrimSpace(r.URL.Query().Get("limit"))
+	if limitRaw != "" {
+		parsed, err := strconv.Atoi(limitRaw)
+		if err != nil || parsed < 1 || parsed > 1000 {
+			writeError(w, http.StatusBadRequest, "invalid_request", "limit must be between 1 and 1000")
+			return
+		}
+		limitFilter = &parsed
+	}
+
+	listed, nextCursor, err := actorRegistry.List(r.Context(), actors.ActorListFilter{
+		Query:  strings.TrimSpace(r.URL.Query().Get("q")),
+		Limit:  limitFilter,
+		Cursor: strings.TrimSpace(r.URL.Query().Get("cursor")),
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list actors")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"actors": listed})
+	response := map[string]any{"actors": listed}
+	if nextCursor != "" {
+		response["next_cursor"] = nextCursor
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func writeError(w http.ResponseWriter, status int, code string, message string) {

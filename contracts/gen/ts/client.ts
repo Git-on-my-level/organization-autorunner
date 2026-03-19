@@ -56,7 +56,7 @@ export const commandRegistry: CommandSpec[] = [
     "streaming": {
       "mode": "none"
     },
-    "output_envelope": "Returns `{ actors }` ordered by created time ascending.",
+    "output_envelope": "Returns `{ actors, next_cursor? }` ordered by created time ascending. Pagination is optional and backward-compatible.",
     "error_codes": [
       "actor_registry_unavailable"
     ],
@@ -64,11 +64,19 @@ export const commandRegistry: CommandSpec[] = [
       "identity"
     ],
     "stability": "stable",
-    "agent_notes": "Safe and idempotent.",
+    "agent_notes": "Safe and idempotent. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.",
     "examples": [
       {
         "title": "List actors",
         "command": "oar actors list --json"
+      },
+      {
+        "title": "Search actors by name",
+        "command": "oar actors list --q \"bot\" --json"
+      },
+      {
+        "title": "Paginated actor list",
+        "command": "oar actors list --limit 50 --json"
       }
     ],
     "adjacent_commands": [
@@ -1649,7 +1657,7 @@ export const commandRegistry: CommandSpec[] = [
     "streaming": {
       "mode": "none"
     },
-    "output_envelope": "Returns `{ boards }`, where each item includes canonical board metadata plus a derived summary.",
+    "output_envelope": "Returns `{ boards, next_cursor? }`, where each item includes canonical board metadata plus a derived summary. Pagination is optional and backward-compatible.",
     "error_codes": [
       "invalid_request"
     ],
@@ -1659,7 +1667,7 @@ export const commandRegistry: CommandSpec[] = [
       "summaries"
     ],
     "stability": "beta",
-    "agent_notes": "Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side.",
+    "agent_notes": "Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.",
     "examples": [
       {
         "title": "List boards",
@@ -1668,6 +1676,14 @@ export const commandRegistry: CommandSpec[] = [
       {
         "title": "List active boards for an owner",
         "command": "oar boards list --status active --owner actor_ceo --json"
+      },
+      {
+        "title": "Search boards by label",
+        "command": "oar boards list --q \"launch\" --json"
+      },
+      {
+        "title": "Paginated board list",
+        "command": "oar boards list --limit 30 --json"
       }
     ],
     "adjacent_commands": [
@@ -2335,7 +2351,7 @@ export const commandRegistry: CommandSpec[] = [
     "streaming": {
       "mode": "none"
     },
-    "output_envelope": "Returns `{ documents }` ordered by `updated_at` descending.",
+    "output_envelope": "Returns `{ documents, next_cursor? }` ordered by `updated_at` descending. Pagination is optional and backward-compatible.",
     "error_codes": [
       "invalid_request"
     ],
@@ -2344,11 +2360,19 @@ export const commandRegistry: CommandSpec[] = [
       "revisions"
     ],
     "stability": "beta",
-    "agent_notes": "Safe and idempotent. Use `thread_id` to focus on one thread's docs and `include_tombstoned=true` when auditing superseded documents.",
+    "agent_notes": "Safe and idempotent. Use `thread_id` to focus on one thread's docs and `include_tombstoned=true` when auditing superseded documents. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.",
     "examples": [
       {
         "title": "List documents",
         "command": "oar docs list --json"
+      },
+      {
+        "title": "Search documents by title",
+        "command": "oar docs list --q \"constitution\" --json"
+      },
+      {
+        "title": "Paginated document list",
+        "command": "oar docs list --limit 50 --json"
       }
     ],
     "adjacent_commands": [
@@ -3737,7 +3761,7 @@ export const commandRegistry: CommandSpec[] = [
     "streaming": {
       "mode": "none"
     },
-    "output_envelope": "Returns `{ threads }`; query filters are additive.",
+    "output_envelope": "Returns `{ threads, next_cursor? }`; query filters are additive. Pagination is optional and backward-compatible.",
     "error_codes": [
       "invalid_request"
     ],
@@ -3746,11 +3770,19 @@ export const commandRegistry: CommandSpec[] = [
       "filtering"
     ],
     "stability": "stable",
-    "agent_notes": "Safe and idempotent.",
+    "agent_notes": "Safe and idempotent. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.",
     "examples": [
       {
         "title": "List active p1 threads",
         "command": "oar threads list --status active --priority p1 --json"
+      },
+      {
+        "title": "Search threads by title",
+        "command": "oar threads list --q \"launch\" --json"
+      },
+      {
+        "title": "Paginated thread list",
+        "command": "oar threads list --limit 20 --json"
       }
     ],
     "adjacent_commands": [

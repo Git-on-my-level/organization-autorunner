@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +41,9 @@ type ArtifactListFilter struct {
 type DocumentListFilter struct {
 	ThreadID          string
 	IncludeTombstoned bool
+	Query             string
+	Limit             *int
+	Cursor            string
 }
 
 type ThreadListFilter struct {
@@ -49,6 +54,9 @@ type ThreadListFilter struct {
 	Cadences []string
 	Stale    *bool
 	Now      time.Time
+	Query    string
+	Limit    *int
+	Cursor   string
 }
 
 type EventListFilter struct {
@@ -865,15 +873,15 @@ func (s *Store) PatchThread(ctx context.Context, actorID string, id string, patc
 	return s.PatchSnapshot(ctx, actorID, id, patch, ifUpdatedAt)
 }
 
-func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map[string]any, error) {
+func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map[string]any, string, error) {
 	if s == nil || s.db == nil {
-		return nil, fmt.Errorf("primitives store database is not initialized")
+		return nil, "", fmt.Errorf("primitives store database is not initialized")
 	}
 
 	query, args := buildListThreadsQuery(filter)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query threads: %w", err)
+		return nil, "", fmt.Errorf("query threads: %w", err)
 	}
 	defer rows.Close()
 
@@ -886,11 +894,11 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 	for rows.Next() {
 		row, err := scanSnapshotRow(rows)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		snapshot, err := row.ToSnapshotMap()
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		if filter.Stale != nil {
@@ -903,10 +911,20 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 		threads = append(threads, snapshot)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate threads: %w", err)
+		return nil, "", fmt.Errorf("iterate threads: %w", err)
 	}
 
-	return threads, nil
+	var nextCursor string
+	if filter.Limit != nil && len(threads) > *filter.Limit {
+		threads = threads[:*filter.Limit]
+		offset := 0
+		if filter.Cursor != "" {
+			offset, _ = decodeCursor(filter.Cursor)
+		}
+		nextCursor = encodeCursor(offset + *filter.Limit)
+	}
+
+	return threads, nextCursor, nil
 }
 
 func (s *Store) ListEventsByThread(ctx context.Context, threadID string) ([]map[string]any, error) {
@@ -1974,7 +1992,22 @@ func buildListThreadsQuery(filter ThreadListFilter) (string, []any) {
 		query += ` AND ` + cadenceClause
 		args = append(args, cadenceArgs...)
 	}
+	if q := strings.TrimSpace(filter.Query); q != "" {
+		searchPattern := "%" + strings.ToLower(q) + "%"
+		query += ` AND (LOWER(id) LIKE ? OR LOWER(json_extract(body_json, '$.title')) LIKE ?)`
+		args = append(args, searchPattern, searchPattern)
+	}
 	query += ` ORDER BY updated_at DESC, id ASC`
+	if filter.Limit != nil && *filter.Limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, *filter.Limit+1)
+		if filter.Cursor != "" {
+			if offset, err := decodeCursor(filter.Cursor); err == nil && offset > 0 {
+				query += ` OFFSET ?`
+				args = append(args, offset)
+			}
+		}
+	}
 	return query, args
 }
 
@@ -2260,6 +2293,33 @@ func validateArtifactID(id string) error {
 		return fmt.Errorf("artifact.id must not contain path separators")
 	}
 	return nil
+}
+
+func encodeCursor(offset int) string {
+	if offset <= 0 {
+		return ""
+	}
+	cursor := fmt.Sprintf("offset:%d", offset)
+	return base64.StdEncoding.EncodeToString([]byte(cursor))
+}
+
+func decodeCursor(cursor string) (int, error) {
+	if cursor == "" {
+		return 0, nil
+	}
+	decoded, err := base64.StdEncoding.DecodeString(cursor)
+	if err != nil {
+		return 0, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+	parts := strings.Split(string(decoded), ":")
+	if len(parts) != 2 || parts[0] != "offset" {
+		return 0, fmt.Errorf("invalid cursor format")
+	}
+	offset, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, fmt.Errorf("invalid cursor offset: %w", err)
+	}
+	return offset, nil
 }
 
 func sha256Hex(data []byte) string {

@@ -47,6 +47,14 @@ var CommandRegistry = []CommandSpec{
 				Title:   "List actors",
 				Command: "oar actors list --json",
 			},
+			{
+				Title:   "Search actors by name",
+				Command: "oar actors list --q \"bot\" --json",
+			},
+			{
+				Title:   "Paginated actor list",
+				Command: "oar actors list --limit 50 --json",
+			},
 		},
 	},
 	{
@@ -521,6 +529,14 @@ var CommandRegistry = []CommandSpec{
 				Title:   "List active boards for an owner",
 				Command: "oar boards list --status active --owner actor_ceo --json",
 			},
+			{
+				Title:   "Search boards by label",
+				Command: "oar boards list --q \"launch\" --json",
+			},
+			{
+				Title:   "Paginated board list",
+				Command: "oar boards list --limit 30 --json",
+			},
 		},
 	},
 	{
@@ -712,6 +728,14 @@ var CommandRegistry = []CommandSpec{
 			{
 				Title:   "List documents",
 				Command: "oar docs list --json",
+			},
+			{
+				Title:   "Search documents by title",
+				Command: "oar docs list --q \"constitution\" --json",
+			},
+			{
+				Title:   "Paginated document list",
+				Command: "oar docs list --limit 50 --json",
 			},
 		},
 	},
@@ -1166,6 +1190,14 @@ var CommandRegistry = []CommandSpec{
 			{
 				Title:   "List active p1 threads",
 				Command: "oar threads list --status active --priority p1 --json",
+			},
+			{
+				Title:   "Search threads by title",
+				Command: "oar threads list --q \"launch\" --json",
+			},
+			{
+				Title:   "Paginated thread list",
+				Command: "oar threads list --limit 20 --json",
 			},
 		},
 	},

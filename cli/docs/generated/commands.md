@@ -15,10 +15,12 @@ Generated from `contracts/oar-openapi.yaml`.
 - Why: Resolve available actor identities for routing writes.
 - Concepts: `identity`
 - Error codes: `actor_registry_unavailable`
-- Output: Returns `{ actors }` ordered by created time ascending.
-- Agent notes: Safe and idempotent.
+- Output: Returns `{ actors, next_cursor? }` ordered by created time ascending. Pagination is optional and backward-compatible.
+- Agent notes: Safe and idempotent. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.
 - Examples:
   - List actors: `oar actors list --json`
+  - Search actors by name: `oar actors list --q "bot" --json`
+  - Paginated actor list: `oar actors list --limit 50 --json`
 
 ## `actors.register`
 
@@ -400,11 +402,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - Why: Discover durable coordination boards with enough summary data for list pages and CLI triage without per-board fan-out.
 - Concepts: `boards`, `planning`, `summaries`
 - Error codes: `invalid_request`
-- Output: Returns `{ boards }`, where each item includes canonical board metadata plus a derived summary.
-- Agent notes: Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side.
+- Output: Returns `{ boards, next_cursor? }`, where each item includes canonical board metadata plus a derived summary. Pagination is optional and backward-compatible.
+- Agent notes: Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.
 - Examples:
   - List boards: `oar boards list --json`
   - List active boards for an owner: `oar boards list --status active --owner actor_ceo --json`
+  - Search boards by label: `oar boards list --q "launch" --json`
+  - Paginated board list: `oar boards list --limit 30 --json`
 
 ## `boards.update`
 
@@ -555,10 +559,12 @@ Generated from `contracts/oar-openapi.yaml`.
 - Why: Discover available documents without resolving each head individually, optionally scoped to a single thread.
 - Concepts: `docs`, `revisions`
 - Error codes: `invalid_request`
-- Output: Returns `{ documents }` ordered by `updated_at` descending.
-- Agent notes: Safe and idempotent. Use `thread_id` to focus on one thread's docs and `include_tombstoned=true` when auditing superseded documents.
+- Output: Returns `{ documents, next_cursor? }` ordered by `updated_at` descending. Pagination is optional and backward-compatible.
+- Agent notes: Safe and idempotent. Use `thread_id` to focus on one thread's docs and `include_tombstoned=true` when auditing superseded documents. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.
 - Examples:
   - List documents: `oar docs list --json`
+  - Search documents by title: `oar docs list --q "constitution" --json`
+  - Paginated document list: `oar docs list --limit 50 --json`
 
 ## `docs.revision.get`
 
@@ -907,10 +913,12 @@ Generated from `contracts/oar-openapi.yaml`.
 - Why: Retrieve current thread state for triage and scheduling decisions.
 - Concepts: `threads`, `filtering`
 - Error codes: `invalid_request`
-- Output: Returns `{ threads }`; query filters are additive.
-- Agent notes: Safe and idempotent.
+- Output: Returns `{ threads, next_cursor? }`; query filters are additive. Pagination is optional and backward-compatible.
+- Agent notes: Safe and idempotent. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.
 - Examples:
   - List active p1 threads: `oar threads list --status active --priority p1 --json`
+  - Search threads by title: `oar threads list --q "launch" --json`
+  - Paginated thread list: `oar threads list --limit 20 --json`
 
 ## `threads.patch`
 

@@ -493,7 +493,9 @@ export function createOarCoreClient(options = {}) {
         generated.authPasskeyLoginVerify({ body: payload }),
       ),
     bootstrapStatus: () =>
-      invokeJSON("auth.bootstrap.status", () => generated.authBootstrapStatus()),
+      invokeJSON("auth.bootstrap.status", () =>
+        generated.authBootstrapStatus(),
+      ),
     listInvites: () =>
       invokeJSON("auth.invites.list", () => generated.authInvitesList()),
     createInvite: (payload) =>

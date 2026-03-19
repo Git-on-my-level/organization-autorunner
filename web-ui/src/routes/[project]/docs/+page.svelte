@@ -1,10 +1,12 @@
 <script>
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
+  import DebouncedSearchPicker from "$lib/components/DebouncedSearchPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import { projectPath } from "$lib/projectPaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import { searchThreads } from "$lib/searchHelpers.js";
 
   const DOC_STATUS_LABELS = { draft: "Draft", active: "Active" };
 
@@ -240,17 +242,17 @@
           type="text"
         />
       </label>
-      <label>
-        <span class="text-[12px] font-medium text-[var(--ui-text-muted)]"
-          >Thread ID (optional)</span
-        >
-        <input
-          bind:value={draft.thread_id}
-          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg)] px-3 py-1.5 text-[13px] text-[var(--ui-text)] placeholder:text-[var(--ui-text-subtle)]"
-          placeholder="thread-..."
-          type="text"
-        />
-      </label>
+      <DebouncedSearchPicker
+        bind:value={draft.thread_id}
+        searchFn={searchThreads}
+        placeholder="Search threads..."
+        idField="id"
+        labelField="title"
+        listId="doc-create-thread-picker"
+        showAdvanced={true}
+        advancedLabel="Or enter thread ID manually:"
+        advancedPlaceholder="thread-..."
+      />
       <label class="sm:col-span-2">
         <span class="text-[12px] font-medium text-[var(--ui-text-muted)]"
           >Content (Markdown) <span class="text-red-400">*</span></span

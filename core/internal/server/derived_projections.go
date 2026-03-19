@@ -49,7 +49,7 @@ func refreshDerivedThreadProjection(ctx context.Context, opts handlerOptions, th
 		return err
 	}
 
-	documents, err := opts.primitiveStore.ListDocuments(ctx, primitives.DocumentListFilter{ThreadID: threadID})
+	documents, _, err := opts.primitiveStore.ListDocuments(ctx, primitives.DocumentListFilter{ThreadID: threadID})
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func rebuildDerivedProjections(ctx context.Context, opts handlerOptions, now tim
 	if _, err := emitStaleThreadExceptions(ctx, opts, now, actorID); err != nil {
 		return err
 	}
-	threads, err := opts.primitiveStore.ListThreads(ctx, primitives.ThreadListFilter{})
+	threads, _, err := opts.primitiveStore.ListThreads(ctx, primitives.ThreadListFilter{})
 	if err != nil {
 		return err
 	}

@@ -237,7 +237,9 @@
               bind:value={registrationToken}
               class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 font-mono text-[13px] text-[var(--ui-text)]"
               id="invite-token"
-              placeholder={bootstrapAvailable ? "Leave empty for bootstrap registration" : "Paste your invite token"}
+              placeholder={bootstrapAvailable
+                ? "Leave empty for bootstrap registration"
+                : "Paste your invite token"}
               type="text"
             />
           </div>
@@ -269,7 +271,8 @@
           <div class="flex flex-wrap gap-2">
             <button
               class="cursor-pointer rounded-md bg-indigo-600 px-3 py-2 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-              disabled={loadingRegistration || (!bootstrapAvailable && !registrationToken.trim())}
+              disabled={loadingRegistration ||
+                (!bootstrapAvailable && !registrationToken.trim())}
               type="submit"
             >
               {loadingRegistration
