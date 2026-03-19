@@ -5,7 +5,7 @@
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
 
   const KIND_LABELS = {
@@ -21,7 +21,7 @@
   let loading = $state(false);
   let error = $state("");
   let filtersOpen = $state(false);
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived($page.params.project);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
   let filters = $state({
     kind: "",
@@ -30,8 +30,8 @@
     created_before: "",
   });
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   onMount(async () => {
@@ -250,7 +250,7 @@
         0
           ? 'border-t border-[var(--ui-border)]'
           : ''}"
-        href={projectHref(`/artifacts/${artifact.id}`)}
+        href={href(`/artifacts/${artifact.id}`)}
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">

@@ -1,11 +1,10 @@
 <script>
-  import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
   import DebouncedSearchPicker from "$lib/components/DebouncedSearchPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
   import {
     BOARD_STATUS_LABELS,
@@ -30,15 +29,15 @@
   let createOwners = $state("");
   let createPinnedRefs = $state("");
 
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   function navigateToBoard(boardId) {
-    goto(projectHref(`/boards/${boardId}`));
+    goto(href(`/boards/${boardId}`));
   }
 
   function resetCreateForm() {
@@ -98,7 +97,7 @@
       await loadBoards();
       resetCreateForm();
       showCreateForm = false;
-      await goto(projectHref(`/boards/${created.board.id}`));
+      await goto(href(`/boards/${created.board.id}`));
     } catch (e) {
       createError = `Failed to create board: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
@@ -114,7 +113,7 @@
   }
 
   $effect(() => {
-    if (projectSlug) {
+    if (workspaceSlug) {
       void loadBoards();
     }
   });
@@ -124,7 +123,7 @@
   <div>
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">Boards</h1>
     <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
-      Kanban boards for this project
+      Kanban boards for this workspace
     </p>
   </div>
 
@@ -375,7 +374,7 @@
                 <span class="text-[var(--ui-text-subtle)]">Thread:</span>
                 <a
                   class="text-indigo-300 transition-colors hover:text-indigo-200"
-                  href={projectHref(
+                  href={href(
                     `/threads/${encodeURIComponent(board.primary_thread_id)}`,
                   )}
                 >

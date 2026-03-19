@@ -4,7 +4,7 @@
   import DebouncedSearchPicker from "$lib/components/DebouncedSearchPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { enrichInboxItem } from "$lib/inboxUtils";
   import { searchThreads, searchDocuments } from "$lib/searchHelpers.js";
   import {
@@ -43,14 +43,14 @@
   let manageMoveColumnKey = $state("backlog");
   let managePinnedDocumentId = $state("");
 
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
   let boardId = $derived($page.params.boardId);
   let enrichedInboxItems = $derived(
     (workspace?.inbox?.items ?? []).map((item) => enrichInboxItem(item)),
   );
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   function syncBoardDrafts(board) {
@@ -353,7 +353,7 @@
   }
 
   $effect(() => {
-    if (projectSlug && boardId) {
+    if (workspaceSlug && boardId) {
       void loadWorkspace();
     }
   });
@@ -398,7 +398,7 @@
     <div class="flex items-center gap-2 text-[12px]">
       <a
         class="text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)]"
-        href={projectHref("/boards")}
+        href={href("/boards")}
       >
         Boards
       </a>
@@ -450,7 +450,7 @@
         <span class="text-[var(--ui-text-subtle)]">Thread</span>
         <a
           class="text-indigo-400 transition-colors hover:text-indigo-300"
-          href={projectHref(`/threads/${encodeURIComponent(primaryThread.id)}`)}
+          href={href(`/threads/${encodeURIComponent(primaryThread.id)}`)}
         >
           {primaryThread.title || primaryThread.id}
         </a>
@@ -736,7 +736,7 @@
                       class="block min-w-0 flex-1 text-[13px] font-medium leading-snug transition-colors hover:text-indigo-300 {threadStatusColor(
                         threadStatus,
                       )}"
-                      href={projectHref(
+                      href={href(
                         `/threads/${encodeURIComponent(card.thread_id)}`,
                       )}
                     >
@@ -789,7 +789,7 @@
                     <div class="mt-1.5 pl-4">
                       <a
                         class="inline-block rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-300 transition-colors hover:text-indigo-200"
-                        href={projectHref(
+                        href={href(
                           `/docs/${encodeURIComponent(cardItem.pinned_document.id)}`,
                         )}
                       >
@@ -885,9 +885,7 @@
                           <div class="mt-1">
                             <a
                               class="text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
-                              href={projectHref(
-                                `/docs/${encodeURIComponent(doc.id)}`,
-                              )}
+                              href={href(`/docs/${encodeURIComponent(doc.id)}`)}
                             >
                               {doc.title || doc.id}
                             </a>
@@ -1010,9 +1008,7 @@
           {#if warning.thread_id}
             <a
               class="ml-1 font-medium text-amber-200 underline transition-colors hover:text-amber-100"
-              href={projectHref(
-                `/threads/${encodeURIComponent(warning.thread_id)}`,
-              )}
+              href={href(`/threads/${encodeURIComponent(warning.thread_id)}`)}
             >
               {warning.thread_id}
             </a>

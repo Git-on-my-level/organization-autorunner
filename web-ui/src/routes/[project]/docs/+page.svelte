@@ -4,7 +4,7 @@
   import DebouncedSearchPicker from "$lib/components/DebouncedSearchPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
   import { searchThreads } from "$lib/searchHelpers.js";
 
@@ -13,7 +13,7 @@
   let documents = $state([]);
   let loading = $state(false);
   let error = $state("");
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
   let scopedThreadId = $derived(
     String($page.url.searchParams.get("thread_id") ?? "").trim(),
   );
@@ -32,13 +32,13 @@
     content: "",
   });
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   $effect(() => {
     const threadId = scopedThreadId;
-    if (projectSlug) {
+    if (workspaceSlug) {
       void loadDocuments(threadId);
     }
   });
@@ -116,7 +116,7 @@
       resetDraft();
 
       if (newDocId) {
-        await goto(projectHref(`/docs/${newDocId}`));
+        await goto(href(`/docs/${newDocId}`));
       } else {
         await loadDocuments(scopedThreadId);
       }
@@ -142,7 +142,7 @@
         Scoped to thread
         <a
           class="text-indigo-300 transition-colors hover:text-indigo-200"
-          href={projectHref(`/threads/${encodeURIComponent(scopedThreadId)}`)}
+          href={href(`/threads/${encodeURIComponent(scopedThreadId)}`)}
         >
           {scopedThreadId}
         </a>
@@ -182,7 +182,7 @@
     </p>
     <a
       class="text-[12px] font-medium text-indigo-300 transition-colors hover:text-indigo-200"
-      href={projectHref("/docs")}
+      href={href("/docs")}
     >
       Clear scope
     </a>
@@ -341,7 +341,7 @@
         0
           ? 'border-t border-[var(--ui-border)]'
           : ''}"
-        href={projectHref(`/docs/${doc.id}`)}
+        href={href(`/docs/${doc.id}`)}
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">

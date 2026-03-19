@@ -1,4 +1,4 @@
-import { redirectToDefaultProject } from "$lib/server/projectRedirect";
+import { redirectToDefaultProject } from "$lib/server/workspaceRedirect";
 
 export function load() {
   redirectToDefaultProject("/docs");

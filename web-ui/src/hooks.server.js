@@ -1,9 +1,10 @@
 import { env } from "$env/dynamic/private";
 import { isProxyableCommand } from "$lib/coreRouteCatalog";
-import { PROJECT_HEADER, stripBasePath } from "$lib/projectPaths";
-import { loadProjectCatalog } from "$lib/server/projectCatalog";
+import { stripBasePath } from "$lib/workspacePaths";
+import { loadWorkspaceCatalog } from "$lib/server/workspaceCatalog";
 import { buildProxyRequestInit } from "$lib/server/coreProxy";
-import { resolveProxyProjectTarget } from "$lib/server/proxyProjectTarget";
+import { resolveProxyWorkspaceTarget } from "$lib/server/proxyWorkspaceTarget";
+import { getWorkspaceHeader } from "$lib/compat/workspaceCompat";
 
 function isDocumentNavigationRequest(request) {
   const method = request.method.toUpperCase();
@@ -20,11 +21,11 @@ function isDocumentNavigationRequest(request) {
   return accept.includes("text/html");
 }
 
-function resolveProjectTarget(event) {
-  const catalog = loadProjectCatalog(env);
-  return resolveProxyProjectTarget({
+function resolveWorkspaceTarget(event) {
+  const catalog = loadWorkspaceCatalog(env);
+  return resolveProxyWorkspaceTarget({
     catalog,
-    projectSlug: event.request.headers.get(PROJECT_HEADER),
+    workspaceSlug: getWorkspaceHeader(event.request.headers),
   });
 }
 
@@ -76,7 +77,7 @@ export async function handle({ event, resolve }) {
     isProxyableCommand(method, pathname) && !documentNavigation;
 
   if (proxyableRequest) {
-    const target = resolveProjectTarget(event);
+    const target = resolveWorkspaceTarget(event);
     if (target.status) {
       return new Response(JSON.stringify(target.payload), {
         status: target.status,

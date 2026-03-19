@@ -5,7 +5,7 @@
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import ProvenanceBadge from "$lib/components/ProvenanceBadge.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { buildReviewPayload } from "$lib/reviewUtils";
@@ -20,7 +20,7 @@
   ]);
 
   let artifactId = $derived($page.params.artifactId);
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived($page.params.project);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
   let artifact = $state(null);
   let artifactContent = $state(null);
@@ -124,8 +124,8 @@
     ]),
   );
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   let reviewOutcomeGuidance = $derived(
@@ -272,7 +272,7 @@
         params.set("compose", "work-order");
         params.append("context_ref", `artifact:${artifact.id}`);
         params.append("context_ref", `artifact:${receiptPacket.work_order_id}`);
-        reviseFollowupLink = projectHref(
+        reviseFollowupLink = href(
           `/threads/${encodeURIComponent(artifact.thread_id)}?${params.toString()}#work-order-composer`,
         );
       }
@@ -353,7 +353,7 @@
 >
   <a
     class="transition-colors hover:text-[var(--ui-text)]"
-    href={projectHref("/artifacts")}>Artifacts</a
+    href={href("/artifacts")}>Artifacts</a
   >
   <span class="text-[var(--ui-text-subtle)]">/</span>
   <span class="truncate text-[var(--ui-text-muted)]"
@@ -438,9 +438,7 @@
         <span class="text-[var(--ui-text-subtle)]">Thread</span>
         <a
           class="ml-1 text-indigo-400 transition-colors hover:text-indigo-300"
-          href={projectHref(
-            `/threads/${encodeURIComponent(artifact.thread_id)}`,
-          )}
+          href={href(`/threads/${encodeURIComponent(artifact.thread_id)}`)}
         >
           {artifact.thread_id}
         </a>
@@ -782,7 +780,7 @@
           <div class="mt-2 text-[12px] text-[var(--ui-text-muted)]">
             Review submitted: <a
               class="font-medium text-indigo-400 hover:text-indigo-400"
-              href={projectHref(`/artifacts/${createdReview.id}`)}
+              href={href(`/artifacts/${createdReview.id}`)}
               >{createdReview.summary || createdReview.id}</a
             >
           </div>

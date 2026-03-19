@@ -2,29 +2,29 @@ import {
   createOarCoreClient,
   verifyCoreSchemaVersion,
 } from "$lib/oarCoreClient";
-import { PROJECT_HEADER } from "$lib/projectPaths";
+import { WORKSPACE_HEADER } from "$lib/workspacePaths";
 
 const schemaCheckPromises = new Map();
 
 export async function load({ fetch, data }) {
-  const projectSlug = data.project?.slug ?? "";
-  if (!projectSlug) {
+  const workspaceSlug = data.project?.slug ?? "";
+  if (!workspaceSlug) {
     return;
   }
 
-  if (!schemaCheckPromises.has(projectSlug)) {
+  if (!schemaCheckPromises.has(workspaceSlug)) {
     const client = createOarCoreClient({
       fetchFn: fetch,
       requestContextHeadersProvider: () => ({
-        [PROJECT_HEADER]: projectSlug,
+        [WORKSPACE_HEADER]: workspaceSlug,
       }),
     });
     const promise = verifyCoreSchemaVersion(client).catch((error) => {
-      schemaCheckPromises.delete(projectSlug);
+      schemaCheckPromises.delete(workspaceSlug);
       throw error;
     });
-    schemaCheckPromises.set(projectSlug, promise);
+    schemaCheckPromises.set(workspaceSlug, promise);
   }
 
-  await schemaCheckPromises.get(projectSlug);
+  await schemaCheckPromises.get(workspaceSlug);
 }

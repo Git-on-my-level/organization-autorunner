@@ -2,21 +2,21 @@
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { coreClient } from "$lib/coreClient";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
 
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
   let revisionId = $derived(String($page.params.revisionId ?? "").trim());
 
   let loading = $state(false);
   let error = $state("");
   let activeLookupKey = $state("");
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   function documentRevisionHref(documentId, targetRevisionId) {
-    const baseHref = projectHref(
+    const baseHref = href(
       `/docs/${encodeURIComponent(String(documentId ?? "").trim())}`,
     );
     const search = new URLSearchParams({ revision: targetRevisionId });
@@ -24,11 +24,11 @@
   }
 
   $effect(() => {
-    if (!projectSlug || !revisionId) {
+    if (!workspaceSlug || !revisionId) {
       return;
     }
 
-    const lookupKey = `${projectSlug}:${revisionId}`;
+    const lookupKey = `${workspaceSlug}:${revisionId}`;
     if (lookupKey === activeLookupKey) {
       return;
     }
@@ -98,7 +98,7 @@
       <p class="text-[13px] text-red-400">{error}</p>
       <a
         class="inline-flex rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border-subtle)]"
-        href={projectHref("/docs")}
+        href={href("/docs")}
       >
         Back to documents
       </a>

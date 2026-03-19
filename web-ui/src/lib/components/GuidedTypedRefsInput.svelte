@@ -66,7 +66,7 @@
   let resolvedRefs = $derived(
     refs.map((refValue) =>
       resolveRefLink(refValue, {
-        projectSlug: $page.params.project,
+        workspaceSlug: $page.params.workspace,
       }),
     ),
   );

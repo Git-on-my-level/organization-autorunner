@@ -1,8 +1,8 @@
 import {
-  loadProjectCatalog,
-  toPublicProjectCatalog,
-} from "$lib/server/projectCatalog";
+  loadWorkspaceCatalog,
+  toPublicWorkspaceCatalog,
+} from "$lib/server/workspaceCatalog";
 
 export function load() {
-  return toPublicProjectCatalog(loadProjectCatalog());
+  return toPublicWorkspaceCatalog(loadWorkspaceCatalog());
 }

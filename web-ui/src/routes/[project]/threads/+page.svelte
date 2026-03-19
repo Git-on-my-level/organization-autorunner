@@ -1,5 +1,4 @@
 <script>
-  import { page } from "$app/stores";
   import { onMount } from "svelte";
 
   import { coreClient } from "$lib/coreClient";
@@ -18,7 +17,7 @@
     parseTagFilterInput,
     validateCadenceSelection,
   } from "$lib/threadFilters";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { describeCron } from "$lib/threadPatch";
 
   const defaultFilters = {
@@ -37,7 +36,7 @@
   let creatingThread = $state(false);
   let createError = $state("");
   let filtersOpen = $state(false);
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
 
   let threadDraft = $state({
     title: "",
@@ -49,8 +48,8 @@
     tagsInput: "",
   });
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   onMount(async () => {
@@ -475,7 +474,7 @@
         0
           ? 'border-t border-[var(--ui-border)]'
           : ''}"
-        href={projectHref(`/threads/${thread.id}`)}
+        href={href(`/threads/${thread.id}`)}
       >
         <span
           class="flex h-2 w-2 shrink-0 rounded-full {priorityDot(

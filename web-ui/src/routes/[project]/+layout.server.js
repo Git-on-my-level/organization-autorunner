@@ -1,22 +1,22 @@
 import { error } from "@sveltejs/kit";
 
-import { normalizeProjectSlug } from "$lib/projectPaths";
-import { loadProjectCatalog } from "$lib/server/projectCatalog";
+import { normalizeWorkspaceSlug } from "$lib/workspacePaths";
+import { loadWorkspaceCatalog } from "$lib/server/workspaceCatalog";
 
 export function load({ params }) {
-  const catalog = loadProjectCatalog();
-  const projectSlug = normalizeProjectSlug(params.project);
-  const project = catalog.projectBySlug.get(projectSlug);
+  const catalog = loadWorkspaceCatalog();
+  const workspaceSlug = normalizeWorkspaceSlug(params.project);
+  const workspace = catalog.workspaceBySlug.get(workspaceSlug);
 
-  if (!project) {
-    throw error(404, `Project '${params.project}' is not configured.`);
+  if (!workspace) {
+    throw error(404, `Workspace '${params.project}' is not configured.`);
   }
 
   return {
     project: {
-      slug: project.slug,
-      label: project.label,
-      description: project.description,
+      slug: workspace.slug,
+      label: workspace.label,
+      description: workspace.description,
     },
   };
 }

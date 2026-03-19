@@ -1,5 +1,5 @@
 import { parseRef, renderRef } from "./typedRefs.js";
-import { appPath, projectPath } from "./projectPaths.js";
+import { appPath, workspacePath } from "./workspacePaths.js";
 
 function asPathSegment(value) {
   return encodeURIComponent(String(value));
@@ -66,8 +66,10 @@ function resolveRefLabels(raw, prefix, value, options = {}) {
   };
 }
 
-function toProjectHref(projectSlug, pathname) {
-  return projectSlug ? projectPath(projectSlug, pathname) : appPath(pathname);
+function toWorkspaceHref(workspaceSlug, pathname) {
+  return workspaceSlug
+    ? workspacePath(workspaceSlug, pathname)
+    : appPath(pathname);
 }
 
 export function resolveRefLink(refValue, options = {}) {
@@ -75,7 +77,7 @@ export function resolveRefLink(refValue, options = {}) {
   const raw = renderRef(parsed);
   const prefix = parsed.prefix;
   const value = parsed.value;
-  const projectSlug = options.projectSlug;
+  const workspaceSlug = options.workspaceSlug;
   const threadId = options.threadId;
   const snapshotIsThread = Boolean(options.snapshotIsThread);
 
@@ -101,7 +103,10 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "artifact",
       ...labels,
-      href: toProjectHref(projectSlug, `/artifacts/${asPathSegment(value)}`),
+      href: toWorkspaceHref(
+        workspaceSlug,
+        `/artifacts/${asPathSegment(value)}`,
+      ),
       isExternal: false,
       isLink: true,
     };
@@ -114,7 +119,7 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "thread",
       ...labels,
-      href: toProjectHref(projectSlug, `/threads/${asPathSegment(value)}`),
+      href: toWorkspaceHref(workspaceSlug, `/threads/${asPathSegment(value)}`),
       isExternal: false,
       isLink: true,
     };
@@ -122,8 +127,8 @@ export function resolveRefLink(refValue, options = {}) {
 
   if (prefix === "snapshot") {
     const href = snapshotIsThread
-      ? toProjectHref(projectSlug, `/threads/${asPathSegment(value)}`)
-      : toProjectHref(projectSlug, `/snapshots/${asPathSegment(value)}`);
+      ? toWorkspaceHref(workspaceSlug, `/threads/${asPathSegment(value)}`)
+      : toWorkspaceHref(workspaceSlug, `/snapshots/${asPathSegment(value)}`);
     return {
       raw,
       prefix,
@@ -155,8 +160,8 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "event",
       ...labels,
-      href: toProjectHref(
-        projectSlug,
+      href: toWorkspaceHref(
+        workspaceSlug,
         `/threads/${asPathSegment(threadId)}#event-${asPathSegment(value)}`,
       ),
       isExternal: false,
@@ -184,7 +189,10 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "inbox",
       ...labels,
-      href: toProjectHref(projectSlug, `/inbox#inbox-${asPathSegment(value)}`),
+      href: toWorkspaceHref(
+        workspaceSlug,
+        `/inbox#inbox-${asPathSegment(value)}`,
+      ),
       isExternal: false,
       isLink: true,
     };
@@ -197,7 +205,7 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "document",
       ...labels,
-      href: toProjectHref(projectSlug, `/docs/${asPathSegment(value)}`),
+      href: toWorkspaceHref(workspaceSlug, `/docs/${asPathSegment(value)}`),
       isExternal: false,
       isLink: true,
     };
@@ -210,8 +218,8 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "document_revision",
       ...labels,
-      href: toProjectHref(
-        projectSlug,
+      href: toWorkspaceHref(
+        workspaceSlug,
         `/docs/revisions/${asPathSegment(value)}`,
       ),
       isExternal: false,
@@ -226,7 +234,7 @@ export function resolveRefLink(refValue, options = {}) {
       value,
       kind: "board",
       ...labels,
-      href: toProjectHref(projectSlug, `/boards/${asPathSegment(value)}`),
+      href: toWorkspaceHref(workspaceSlug, `/boards/${asPathSegment(value)}`),
       isExternal: false,
       isLink: true,
     };

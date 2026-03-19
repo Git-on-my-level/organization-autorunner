@@ -13,7 +13,7 @@
     createPasskeyCredential,
     getPasskeyAssertion,
   } from "$lib/passkeyBrowser";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
 
   let registrationName = $state("");
   let registrationToken = $state("");
@@ -23,11 +23,11 @@
   let loadingLogin = $state(false);
   let loadingBootstrapStatus = $state(true);
   let bootstrapAvailable = $state(false);
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
 
   onMount(async () => {
-    if (isAuthenticated(projectSlug)) {
-      goto(projectPath(projectSlug));
+    if (isAuthenticated(workspaceSlug)) {
+      goto(workspacePath(workspaceSlug));
       return;
     }
 
@@ -82,9 +82,9 @@
         result.agent,
         result.tokens,
         sessionStorage,
-        projectSlug,
+        workspaceSlug,
       );
-      await goto(projectPath(projectSlug));
+      await goto(workspacePath(workspaceSlug));
     } catch (error) {
       registrationError =
         error instanceof Error ? error.message : "Passkey registration failed.";
@@ -109,9 +109,9 @@
         result.agent,
         result.tokens,
         sessionStorage,
-        projectSlug,
+        workspaceSlug,
       );
-      await goto(projectPath(projectSlug));
+      await goto(workspacePath(workspaceSlug));
     } catch (error) {
       loginError =
         error instanceof Error ? error.message : "Passkey sign-in failed.";

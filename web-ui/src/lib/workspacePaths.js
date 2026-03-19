@@ -1,9 +1,9 @@
 import { base } from "$app/paths";
 
-export const DEFAULT_PROJECT_SLUG = "local";
-export const PROJECT_HEADER = "x-oar-project-slug";
+export const DEFAULT_WORKSPACE_SLUG = "local";
+export const WORKSPACE_HEADER = "x-oar-workspace-slug";
 
-export function normalizeProjectSlug(value) {
+export function normalizeWorkspaceSlug(value) {
   return String(value ?? "")
     .trim()
     .toLowerCase()
@@ -57,14 +57,14 @@ export function stripBasePath(pathname = "/", basePath = APP_BASE_PATH) {
   return normalizedPathname;
 }
 
-export function projectPath(
-  projectSlug,
+export function workspacePath(
+  workspaceSlug,
   pathname = "/",
   basePath = APP_BASE_PATH,
 ) {
-  const slug = normalizeProjectSlug(projectSlug);
+  const slug = normalizeWorkspaceSlug(workspaceSlug);
   if (!slug) {
-    throw new Error("project slug is required");
+    throw new Error("workspace slug is required");
   }
 
   const normalizedPathname = normalizeAppPath(pathname);
@@ -73,12 +73,12 @@ export function projectPath(
     : appPath(`/${slug}${normalizedPathname}`, basePath);
 }
 
-export function stripProjectPath(
+export function stripWorkspacePath(
   pathname,
-  projectSlug,
+  workspaceSlug,
   basePath = APP_BASE_PATH,
 ) {
-  const slug = normalizeProjectSlug(projectSlug);
+  const slug = normalizeWorkspaceSlug(workspaceSlug);
   const normalizedPathname = stripBasePath(pathname, basePath);
   if (!slug) {
     return normalizedPathname;
@@ -96,7 +96,7 @@ export function stripProjectPath(
   return normalizedPathname;
 }
 
-export function buildProjectStorageKey(baseKey, projectSlug) {
-  const slug = normalizeProjectSlug(projectSlug) || DEFAULT_PROJECT_SLUG;
+export function buildWorkspaceStorageKey(baseKey, workspaceSlug) {
+  const slug = normalizeWorkspaceSlug(workspaceSlug) || DEFAULT_WORKSPACE_SLUG;
   return `${baseKey}:${slug}`;
 }

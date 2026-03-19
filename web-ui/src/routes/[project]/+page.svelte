@@ -1,5 +1,4 @@
 <script>
-  import { page } from "$app/stores";
   import { onMount, onDestroy } from "svelte";
 
   import { coreClient } from "$lib/coreClient";
@@ -13,7 +12,7 @@
   } from "$lib/dashboardSummary";
   import { formatTimestamp } from "$lib/formatDate";
   import { getInboxCategoryLabel, sortInboxItems } from "$lib/inboxUtils";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { getPriorityLabel } from "$lib/threadFilters";
 
   const emptySectionState = {
@@ -27,7 +26,7 @@
   let inboxState = $state({ ...emptySectionState });
   let threadsState = $state({ ...emptySectionState });
   let artifactsState = $state({ ...emptySectionState });
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
 
   let inboxSummary = $derived(buildInboxCategorySummary(inboxState.items));
   let topInboxItems = $derived(sortInboxItems(inboxState.items).slice(0, 5));
@@ -102,13 +101,13 @@
 
   function inboxItemTarget(item) {
     if (item?.thread_id) {
-      return projectPath(projectSlug, `/threads/${item.thread_id}`);
+      return workspacePath(workspaceSlug, `/threads/${item.thread_id}`);
     }
-    return projectPath(projectSlug, "/inbox");
+    return workspacePath(workspaceSlug, "/inbox");
   }
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   function priorityBadge(priority) {
@@ -144,7 +143,7 @@
       </button>
       <a
         class="rounded-md bg-[var(--ui-panel)] px-3 py-1.5 text-[13px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border)]"
-        href={projectHref("/inbox")}
+        href={href("/inbox")}
       >
         Review inbox
       </a>
@@ -157,7 +156,7 @@
         <h2 class="text-[13px] font-semibold text-[var(--ui-text)]">Inbox</h2>
         <a
           class="text-[12px] font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
-          href={projectHref("/inbox")}>View all</a
+          href={href("/inbox")}>View all</a
         >
       </div>
       {#if inboxState.status === "ready"}
@@ -200,7 +199,7 @@
           {#each inboxSummary as summary}
             <a
               class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-              href={projectHref("/inbox")}
+              href={href("/inbox")}
             >
               <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
                 {summary.label}
@@ -246,7 +245,7 @@
         </h2>
         <a
           class="text-[12px] font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
-          href={projectHref("/threads")}>View all</a
+          href={href("/threads")}>View all</a
         >
       </div>
       {#if threadsState.status === "ready"}
@@ -288,7 +287,7 @@
         <div class="flex gap-2 mb-3">
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={projectHref("/threads")}
+            href={href("/threads")}
           >
             <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
               Open
@@ -299,7 +298,7 @@
           </a>
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={projectHref("/threads")}
+            href={href("/threads")}
           >
             <p
               class="text-[11px] font-medium {threadHealth.staleCount > 0
@@ -318,7 +317,7 @@
           </a>
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={projectHref("/threads")}
+            href={href("/threads")}
           >
             <p
               class="text-[11px] font-medium {threadHealth.highPriorityCount > 0
@@ -337,7 +336,7 @@
           </a>
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={projectHref("/threads")}
+            href={href("/threads")}
           >
             <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
               Total
@@ -357,7 +356,7 @@
               0
                 ? 'border-t border-[var(--ui-border)]'
                 : ''}"
-              href={projectHref(`/threads/${thread.id}`)}
+              href={href(`/threads/${thread.id}`)}
             >
               <div class="min-w-0 flex-1">
                 <p
@@ -387,7 +386,7 @@
       </h2>
       <a
         class="text-[12px] font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
-        href={projectHref("/artifacts")}>View all</a
+        href={href("/artifacts")}>View all</a
       >
     </div>
 
@@ -430,7 +429,7 @@
             0
               ? 'border-t border-[var(--ui-border)]'
               : ''}"
-            href={projectHref(`/artifacts/${artifact.id}`)}
+            href={href(`/artifacts/${artifact.id}`)}
           >
             <span
               class="shrink-0 rounded bg-[var(--ui-panel)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ui-text-muted)]"

@@ -6,7 +6,7 @@
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import {
     enrichInboxItem,
     getInboxCategoryLabel,
@@ -24,7 +24,7 @@
   let decisionFormErrorsById = $state({});
   let postedDecisionByInboxItem = $state({});
   let urgencyFilter = $state("all");
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived($page.params.project);
 
   let totalItems = $derived(items.length);
   let enrichedItems = $derived(items.map((item) => enrichInboxItem(item)));
@@ -44,8 +44,8 @@
   );
   let hasFilteredItems = $derived(filteredItems.length > 0);
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   onMount(async () => {
@@ -443,7 +443,7 @@
                 {#if item.thread_id}
                   <a
                     class="inline-flex items-center gap-1 font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
-                    href={projectHref(`/threads/${item.thread_id}`)}
+                    href={href(`/threads/${item.thread_id}`)}
                   >
                     <span class="text-[var(--ui-text-subtle)]">Thread:</span>
                     {item.thread_id}
@@ -453,12 +453,10 @@
                   <a
                     class="inline-flex items-center gap-1 font-medium text-[var(--ui-text-muted)] hover:text-[var(--ui-text)] transition-colors"
                     href={item.thread_id
-                      ? projectHref(
+                      ? href(
                           `/threads/${item.thread_id}#commitment-card-${item.commitment_id}`,
                         )
-                      : projectHref(
-                          `/threads#commitment-card-${item.commitment_id}`,
-                        )}
+                      : href(`/threads#commitment-card-${item.commitment_id}`)}
                   >
                     <span class="text-[var(--ui-text-subtle)]">Commitment:</span
                     >
@@ -515,7 +513,7 @@
                     Decision recorded &mdash;
                     <a
                       class="font-medium underline hover:text-emerald-300"
-                      href={projectHref(
+                      href={href(
                         `/threads/${item.thread_id}#event-${postedDecisionByInboxItem[item.id].id}`,
                       )}
                     >

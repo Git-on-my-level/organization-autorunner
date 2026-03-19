@@ -4,11 +4,11 @@
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
 
   let documentId = $derived($page.params.documentId);
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived(workspaceSlug);
   let requestedRevisionId = $derived(
     String($page.url.searchParams.get("revision") ?? "").trim(),
   );
@@ -46,8 +46,8 @@
     headContentType === "text" || headContentType === "",
   );
 
-  function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+  function href(pathname = "/") {
+    return workspacePath(workspaceSlug, pathname);
   }
 
   async function setRequestedRevision(revisionId = "") {
@@ -288,9 +288,8 @@
   class="mb-3 flex items-center gap-1.5 text-[12px] text-[var(--ui-text-muted)]"
   aria-label="Breadcrumb"
 >
-  <a
-    class="transition-colors hover:text-[var(--ui-text)]"
-    href={projectHref("/docs")}>Docs</a
+  <a class="transition-colors hover:text-[var(--ui-text)]" href={href("/docs")}
+    >Docs</a
   >
   <span class="text-[var(--ui-text-subtle)]">/</span>
   <span class="truncate text-[var(--ui-text-muted)]"
@@ -390,7 +389,7 @@
                 <span class="text-[var(--ui-text-subtle)]">Thread</span>
                 <a
                   class="ml-1 text-indigo-400 transition-colors hover:text-indigo-300"
-                  href={projectHref(
+                  href={href(
                     `/threads/${encodeURIComponent(document.thread_id)}`,
                   )}
                 >

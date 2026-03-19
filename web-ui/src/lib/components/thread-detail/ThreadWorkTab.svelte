@@ -1,6 +1,6 @@
 <script>
   import { page } from "$app/stores";
-  import { projectPath } from "$lib/projectPaths";
+  import { workspacePath } from "$lib/workspacePaths";
   import { threadDetailStore } from "$lib/threadDetailStore";
   import {
     applyWorkOrderContextPrefill,
@@ -24,7 +24,7 @@
   let workOrderShouldPrefill = $derived(
     $page.url.searchParams.get("compose") === "work-order",
   );
-  let projectSlug = $derived($page.params.project);
+  let workspaceSlug = $derived($page.params.project);
   let workOrderPrefillRefs = $derived(
     $page.url.searchParams
       .getAll("context_ref")
@@ -69,7 +69,7 @@
   );
 
   function projectHref(pathname = "/") {
-    return projectPath(projectSlug, pathname);
+    return workspacePath(workspaceSlug, pathname);
   }
 
   function createRequestKey(prefix) {

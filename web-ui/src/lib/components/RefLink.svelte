@@ -17,7 +17,7 @@
       snapshotIsThread,
       humanize,
       labelHints,
-      projectSlug: $page.params.project,
+      projectSlug: $page.params.workspace,
     }),
   );
 </script>
