@@ -1,4 +1,5 @@
 <script>
+  import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
   import DebouncedSearchPicker from "$lib/components/DebouncedSearchPicker.svelte";
@@ -29,7 +30,7 @@
   let createOwners = $state("");
   let createPinnedRefs = $state("");
 
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
 
   function href(pathname = "/") {

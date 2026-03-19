@@ -23,7 +23,7 @@
   let loadingLogin = $state(false);
   let loadingBootstrapStatus = $state(true);
   let bootstrapAvailable = $state(false);
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
 
   onMount(async () => {
     if (isAuthenticated(workspaceSlug)) {
@@ -52,8 +52,10 @@
       return;
     }
 
-    if (!registrationToken.trim() && !bootstrapAvailable) {
-      registrationError = "An invite token is required for registration.";
+    if (!registrationToken.trim()) {
+      registrationError = bootstrapAvailable
+        ? "A bootstrap token is required for registration."
+        : "An invite token is required for registration.";
       return;
     }
 
@@ -62,11 +64,13 @@
     loginError = "";
 
     try {
+      const registrationTokenValue = registrationToken.trim();
+      const tokenKey = bootstrapAvailable ? "bootstrap_token" : "invite_token";
       const optionsPayload = {
         display_name: registrationName.trim(),
       };
-      if (registrationToken.trim()) {
-        optionsPayload.invite_token = registrationToken.trim();
+      if (registrationTokenValue) {
+        optionsPayload[tokenKey] = registrationTokenValue;
       }
       const options = await coreClient.passkeyRegisterOptions(optionsPayload);
       const credential = await createPasskeyCredential(options.options);
@@ -74,8 +78,8 @@
         session_id: options.session_id,
         credential,
       };
-      if (registrationToken.trim()) {
-        verifyPayload.invite_token = registrationToken.trim();
+      if (registrationTokenValue) {
+        verifyPayload[tokenKey] = registrationTokenValue;
       }
       const result = await coreClient.passkeyRegisterVerify(verifyPayload);
       completeAuthSession(
@@ -228,7 +232,7 @@
               for="invite-token"
             >
               {#if bootstrapAvailable}
-                Bootstrap token (optional)
+                Bootstrap token
               {:else}
                 Invite token
               {/if}
@@ -238,7 +242,7 @@
               class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 font-mono text-[13px] text-[var(--ui-text)]"
               id="invite-token"
               placeholder={bootstrapAvailable
-                ? "Leave empty for bootstrap registration"
+                ? "Paste the bootstrap token"
                 : "Paste your invite token"}
               type="text"
             />
@@ -256,8 +260,9 @@
             <div
               class="rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
             >
-              Bootstrap registration is available for the first principal. After
-              the first registration, new members require an invite token.
+              Bootstrap registration is available for the first principal and
+              requires the workspace bootstrap token. After the first
+              registration, new members require an invite token.
             </div>
           {:else}
             <div
@@ -271,8 +276,7 @@
           <div class="flex flex-wrap gap-2">
             <button
               class="cursor-pointer rounded-md bg-indigo-600 px-3 py-2 text-[12px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-              disabled={loadingRegistration ||
-                (!bootstrapAvailable && !registrationToken.trim())}
+              disabled={loadingRegistration || !registrationToken.trim()}
               type="submit"
             >
               {loadingRegistration

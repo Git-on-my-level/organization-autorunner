@@ -27,6 +27,7 @@ var ErrConflict = errors.New("conflict")
 var ErrInvalidCommitmentTransition = errors.New("invalid commitment transition")
 var ErrInvalidArtifactID = errors.New("invalid artifact id")
 var ErrInvalidDocumentRequest = errors.New("invalid document request")
+var ErrInvalidCursor = errors.New("invalid cursor")
 
 const actorStatementEventIDPlaceholder = "<event_id>"
 
@@ -877,6 +878,11 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 	if s == nil || s.db == nil {
 		return nil, "", fmt.Errorf("primitives store database is not initialized")
 	}
+	if filter.Cursor != "" {
+		if _, err := decodeCursor(filter.Cursor); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", ErrInvalidCursor, err)
+		}
+	}
 
 	query, args := buildListThreadsQuery(filter)
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -884,11 +890,6 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 		return nil, "", fmt.Errorf("query threads: %w", err)
 	}
 	defer rows.Close()
-
-	now := filter.Now
-	if now.IsZero() {
-		now = time.Now().UTC()
-	}
 
 	threads := make([]map[string]any, 0)
 	for rows.Next() {
@@ -899,13 +900,6 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 		snapshot, err := row.ToSnapshotMap()
 		if err != nil {
 			return nil, "", err
-		}
-
-		if filter.Stale != nil {
-			stale := threadIsStale(snapshot, now)
-			if stale != *filter.Stale {
-				continue
-			}
 		}
 
 		threads = append(threads, snapshot)
@@ -1972,10 +1966,10 @@ func buildThreadCadenceFilterClause(filters []string) (string, []any) {
 }
 
 func buildListThreadsQuery(filter ThreadListFilter) (string, []any) {
-	query := `SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json
+	query := `SELECT snapshots.id, snapshots.kind, snapshots.thread_id, snapshots.updated_at, snapshots.updated_by, snapshots.body_json, snapshots.provenance_json
 		 FROM snapshots
-		 WHERE kind = 'thread'`
-	args := make([]any, 0, 8)
+		 WHERE snapshots.kind = 'thread'`
+	args := make([]any, 0, 9)
 	if status := strings.TrimSpace(filter.Status); status != "" {
 		query += ` AND filter_status = ?`
 		args = append(args, status)
@@ -1997,7 +1991,17 @@ func buildListThreadsQuery(filter ThreadListFilter) (string, []any) {
 		query += ` AND (LOWER(id) LIKE ? OR LOWER(json_extract(body_json, '$.title')) LIKE ?)`
 		args = append(args, searchPattern, searchPattern)
 	}
-	query += ` ORDER BY updated_at DESC, id ASC`
+	if filter.Stale != nil {
+		query = strings.Replace(
+			query,
+			"FROM snapshots",
+			"FROM snapshots LEFT JOIN derived_thread_views ON derived_thread_views.thread_id = snapshots.id",
+			1,
+		)
+		query += ` AND COALESCE(derived_thread_views.stale, 0) = ?`
+		args = append(args, boolToInt(*filter.Stale))
+	}
+	query += ` ORDER BY snapshots.updated_at DESC, snapshots.id ASC`
 	if filter.Limit != nil && *filter.Limit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, *filter.Limit+1)
@@ -2318,6 +2322,9 @@ func decodeCursor(cursor string) (int, error) {
 	offset, err := strconv.Atoi(parts[1])
 	if err != nil {
 		return 0, fmt.Errorf("invalid cursor offset: %w", err)
+	}
+	if offset <= 0 {
+		return 0, fmt.Errorf("invalid cursor offset: must be greater than zero")
 	}
 	return offset, nil
 }

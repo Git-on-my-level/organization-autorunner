@@ -1,4 +1,5 @@
 <script>
+  import { page } from "$app/stores";
   import { onMount, onDestroy } from "svelte";
 
   import { coreClient } from "$lib/coreClient";
@@ -26,7 +27,7 @@
   let inboxState = $state({ ...emptySectionState });
   let threadsState = $state({ ...emptySectionState });
   let artifactsState = $state({ ...emptySectionState });
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
 
   let inboxSummary = $derived(buildInboxCategorySummary(inboxState.items));
   let topInboxItems = $derived(sortInboxItems(inboxState.items).slice(0, 5));

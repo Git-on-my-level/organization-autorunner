@@ -4,7 +4,7 @@
   import { coreClient } from "$lib/coreClient";
   import { workspacePath } from "$lib/workspacePaths";
 
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
   let revisionId = $derived(String($page.params.revisionId ?? "").trim());
 
   let loading = $state(false);

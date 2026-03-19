@@ -1,4 +1,5 @@
 <script>
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
 
   import { coreClient } from "$lib/coreClient";
@@ -36,7 +37,7 @@
   let creatingThread = $state(false);
   let createError = $state("");
   let filtersOpen = $state(false);
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
 
   let threadDraft = $state({
     title: "",

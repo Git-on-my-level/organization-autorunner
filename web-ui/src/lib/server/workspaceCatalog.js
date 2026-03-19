@@ -43,10 +43,17 @@ function parseWorkspaceEntries(rawValue) {
 
   const entries = Array.isArray(parsed)
     ? parsed
-    : Object.entries(parsed ?? {}).map(([slug, value]) => ({
-        slug,
-        ...(value ?? {}),
-      }));
+    : Object.entries(parsed ?? {}).map(([slug, value]) =>
+        value && typeof value === "object"
+          ? {
+              slug,
+              ...value,
+            }
+          : {
+              slug,
+              coreBaseUrl: value,
+            },
+      );
 
   return entries.map(normalizeWorkspaceEntry);
 }

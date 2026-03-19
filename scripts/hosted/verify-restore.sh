@@ -68,12 +68,14 @@ if [[ -z "$LISTEN_PORT" ]]; then
 fi
 validate_port "$LISTEN_PORT"
 
+unset OAR_BOOTSTRAP_TOKEN
 load_dotenv_file "$ENV_FILE"
 EXPECTED_ARTIFACT_COUNT="$(manifest_get "$MANIFEST_PATH" ARTIFACT_COUNT)"
 EXPECTED_AGENT_COUNT="$(manifest_get "$MANIFEST_PATH" AGENT_COUNT)"
 EXPECTED_INVITE_COUNT="$(manifest_get "$MANIFEST_PATH" INVITE_COUNT)"
 EXPECTED_BLOB_FILE_COUNT="$(manifest_get "$MANIFEST_PATH" BLOB_FILE_COUNT)"
 EXPECTED_CORE_INSTANCE_ID="$(manifest_get "$MANIFEST_PATH" CORE_INSTANCE_ID || true)"
+EXPECTED_BOOTSTRAP_STATE="$(manifest_get "$MANIFEST_PATH" BOOTSTRAP_STATE || true)"
 
 SERVER_LOG_DIR="${WORKSPACE_ROOT}/logs"
 SERVER_LOG_FILE="${SERVER_LOG_DIR}/restore-verify.log"
@@ -106,11 +108,22 @@ ACTUAL_ARTIFACT_COUNT="$(sqlite_scalar "${WORKSPACE_ROOT}/state.sqlite" "SELECT 
 ACTUAL_AGENT_COUNT="$(sqlite_scalar "${WORKSPACE_ROOT}/state.sqlite" "SELECT COUNT(*) FROM agents;")"
 ACTUAL_INVITE_COUNT="$(sqlite_scalar "${WORKSPACE_ROOT}/state.sqlite" "SELECT COUNT(*) FROM auth_invites;")"
 ACTUAL_BLOB_FILE_COUNT="$(count_files "${WORKSPACE_ROOT}/artifacts/content")"
+ACTUAL_BOOTSTRAP_STATE="disabled"
+if [[ -n "${OAR_BOOTSTRAP_TOKEN:-}" && "${OAR_BOOTSTRAP_TOKEN}" != "$HOSTED_BOOTSTRAP_PLACEHOLDER" ]]; then
+  ACTUAL_BOOTSTRAP_STATE="available"
+  BOOTSTRAP_CONSUMED_AT="$(sqlite_scalar "${WORKSPACE_ROOT}/state.sqlite" "SELECT COALESCE(consumed_at, '') FROM auth_bootstrap_state WHERE id = 1;")"
+  if [[ -n "$BOOTSTRAP_CONSUMED_AT" ]]; then
+    ACTUAL_BOOTSTRAP_STATE="consumed"
+  fi
+fi
 
 [[ "$ACTUAL_ARTIFACT_COUNT" == "$EXPECTED_ARTIFACT_COUNT" ]] || die "artifact count mismatch: expected ${EXPECTED_ARTIFACT_COUNT}, got ${ACTUAL_ARTIFACT_COUNT}"
 [[ "$ACTUAL_AGENT_COUNT" == "$EXPECTED_AGENT_COUNT" ]] || die "agent count mismatch: expected ${EXPECTED_AGENT_COUNT}, got ${ACTUAL_AGENT_COUNT}"
 [[ "$ACTUAL_INVITE_COUNT" == "$EXPECTED_INVITE_COUNT" ]] || die "invite count mismatch: expected ${EXPECTED_INVITE_COUNT}, got ${ACTUAL_INVITE_COUNT}"
 [[ "$ACTUAL_BLOB_FILE_COUNT" == "$EXPECTED_BLOB_FILE_COUNT" ]] || die "blob file count mismatch: expected ${EXPECTED_BLOB_FILE_COUNT}, got ${ACTUAL_BLOB_FILE_COUNT}"
+if [[ -n "$EXPECTED_BOOTSTRAP_STATE" ]]; then
+  [[ "$ACTUAL_BOOTSTRAP_STATE" == "$EXPECTED_BOOTSTRAP_STATE" ]] || die "bootstrap state mismatch: expected ${EXPECTED_BOOTSTRAP_STATE}, got ${ACTUAL_BOOTSTRAP_STATE}"
+fi
 if [[ -n "$EXPECTED_CORE_INSTANCE_ID" && -n "${OAR_CORE_INSTANCE_ID:-}" && "$EXPECTED_CORE_INSTANCE_ID" != "${OAR_CORE_INSTANCE_ID}" ]]; then
   die "core instance id mismatch: manifest=${EXPECTED_CORE_INSTANCE_ID} env=${OAR_CORE_INSTANCE_ID}"
 fi
@@ -121,3 +134,4 @@ log "  artifact count:          ${ACTUAL_ARTIFACT_COUNT}"
 log "  agent count:             ${ACTUAL_AGENT_COUNT}"
 log "  invite count:            ${ACTUAL_INVITE_COUNT}"
 log "  blob file count:         ${ACTUAL_BLOB_FILE_COUNT}"
+log "  bootstrap state:         ${ACTUAL_BOOTSTRAP_STATE}"

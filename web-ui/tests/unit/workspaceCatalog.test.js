@@ -40,6 +40,19 @@ describe("workspaceCatalog", () => {
     expect(catalog.defaultWorkspace.slug).toBe("legacy1");
   });
 
+  it("should parse object-form OAR_WORKSPACES string URL entries", () => {
+    const env = {
+      OAR_WORKSPACES:
+        '{"ws1":"http://localhost:8000","ws2":"http://localhost:8001"}',
+      OAR_DEFAULT_WORKSPACE: "ws2",
+    };
+    const catalog = loadWorkspaceCatalog(env);
+    expect(catalog.workspaces).toHaveLength(2);
+    expect(catalog.workspaces[0].coreBaseUrl).toBe("http://localhost:8000");
+    expect(catalog.workspaces[1].coreBaseUrl).toBe("http://localhost:8001");
+    expect(catalog.defaultWorkspace.slug).toBe("ws2");
+  });
+
   it("should parse legacy OAR_DEFAULT_PROJECT env var", () => {
     const env = {
       OAR_WORKSPACES:

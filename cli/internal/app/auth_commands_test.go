@@ -245,6 +245,24 @@ func TestAuthRegisterInternalErrorIsActionable(t *testing.T) {
 	}
 }
 
+func TestAuthInvitesCreateRequiresKind(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"auth", "invites", "create",
+	})
+	payload := assertEnvelopeError(t, raw)
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || strings.TrimSpace(anyStr(errObj["code"])) != "invite_kind_required" {
+		t.Fatalf("unexpected auth invites create error payload: %#v", payload)
+	}
+	if message := strings.TrimSpace(anyStr(errObj["message"])); !strings.Contains(message, "kind is required") {
+		t.Fatalf("expected kind-required guidance, got %q payload=%#v", message, payload)
+	}
+}
+
 func runCLIForTest(t *testing.T, home string, env map[string]string, stdin io.Reader, args []string) string {
 	t.Helper()
 	if stdin == nil {

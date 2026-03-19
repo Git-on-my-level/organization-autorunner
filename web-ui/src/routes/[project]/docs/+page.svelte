@@ -13,7 +13,7 @@
   let documents = $state([]);
   let loading = $state(false);
   let error = $state("");
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
   let scopedThreadId = $derived(
     String($page.url.searchParams.get("thread_id") ?? "").trim(),
   );

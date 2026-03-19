@@ -111,7 +111,7 @@ func (a *App) runAuthInvitesCreate(ctx context.Context, service *authcli.Service
 	}
 	kind := strings.TrimSpace(kindFlag.value)
 	if kind == "" {
-		kind = "any"
+		return nil, errnorm.Usage("invite_kind_required", "kind is required")
 	}
 	if kind != "human" && kind != "agent" && kind != "any" {
 		return nil, errnorm.Usage("invalid_invite_kind", "kind must be human, agent, or any")

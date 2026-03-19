@@ -1333,6 +1333,10 @@ func handleListActors(w http.ResponseWriter, r *http.Request, actorRegistry Acto
 		Cursor: strings.TrimSpace(r.URL.Query().Get("cursor")),
 	})
 	if err != nil {
+		if errors.Is(err, actors.ErrInvalidCursor) {
+			writeError(w, http.StatusBadRequest, "invalid_request", "cursor is invalid")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list actors")
 		return
 	}

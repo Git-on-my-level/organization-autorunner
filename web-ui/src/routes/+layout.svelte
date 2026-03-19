@@ -34,7 +34,7 @@
   let { children, data } = $props();
 
   const devActorMode = $derived(data.devActorMode ?? false);
-  const isMultipleWorkspace = $derived((data.projects ?? []).length > 1);
+  const isMultipleWorkspace = $derived((data.workspaces ?? []).length > 1);
 
   const navIconPathByType = {
     home: "M3 11.5L12 4l9 7.5M5.5 10.5V20h13v-9.5M9.25 20v-5.5h5.5V20",
@@ -172,7 +172,7 @@
 
     if ($authenticatedAgent) {
       clearAuthSession(undefined, activeWorkspaceSlug, { clearActor: true });
-      window.location.assign(workspacePath("/login"));
+      window.location.assign(workspacePath(activeWorkspaceSlug, "/login"));
       return;
     }
     clearSelectedActor(localStorage, activeWorkspaceSlug);
@@ -397,7 +397,8 @@
         {/if}
 
         <p class="actor-gate-empty">
-          Prefer authenticated access? <a href={workspacePath("/login")}
+          Prefer authenticated access? <a
+            href={workspacePath(activeWorkspaceSlug, "/login")}
             >Sign in with a passkey.</a
           >
         </p>
@@ -445,7 +446,7 @@
                 role="listbox"
                 aria-label="Switch project"
               >
-                {#each data.projects ?? [] as project}
+                {#each data.workspaces ?? [] as project}
                   {@const isCurrent = project.slug === activeWorkspaceSlug}
                   <button
                     class="project-switcher-option"
@@ -630,7 +631,7 @@
               </div>
               <nav class="shell-mobile-nav" aria-label="Primary mobile">
                 <div class="mobile-project-list">
-                  {#each data.projects ?? [] as project}
+                  {#each data.workspaces ?? [] as project}
                     {@const isCurrent = project.slug === activeWorkspaceSlug}
                     <button
                       class="project-switcher-option"

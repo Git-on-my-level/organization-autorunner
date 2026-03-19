@@ -18,30 +18,41 @@
   let searchDebounceTimer = null;
   let searchLoading = $state(false);
   let searchError = $state("");
+  let latestSearchRequestId = 0;
 
   function debounceSearch(query) {
+    const requestId = ++latestSearchRequestId;
     if (searchDebounceTimer) {
       clearTimeout(searchDebounceTimer);
     }
 
-    searchDebounceTimer = setTimeout(async () => {
-      if (!query || query.trim().length === 0) {
-        searchResults = [];
-        searchLoading = false;
-        return;
-      }
+    if (!query || query.trim().length === 0) {
+      searchResults = [];
+      searchLoading = false;
+      searchError = "";
+      return;
+    }
 
+    searchDebounceTimer = setTimeout(async () => {
       searchLoading = true;
       searchError = "";
 
       try {
         const results = await searchFn(query.trim());
+        if (requestId !== latestSearchRequestId) {
+          return;
+        }
         searchResults = results || [];
       } catch (e) {
+        if (requestId !== latestSearchRequestId) {
+          return;
+        }
         searchError = `Search failed: ${e instanceof Error ? e.message : String(e)}`;
         searchResults = [];
       } finally {
-        searchLoading = false;
+        if (requestId === latestSearchRequestId) {
+          searchLoading = false;
+        }
       }
     }, 300);
   }

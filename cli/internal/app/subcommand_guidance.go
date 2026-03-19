@@ -55,6 +55,15 @@ var authBootstrapSubcommandSpec = subcommandSpec{
 	examples: []string{"oar auth bootstrap status"},
 }
 
+var actorsSubcommandSpec = subcommandSpec{
+	command:  "actors",
+	valid:    []string{"list", "register"},
+	examples: []string{"oar actors list --q bot --limit 50", "oar actors register --id bot-1 --display-name \"Bot 1\" --created-at 2026-03-04T10:00:00Z"},
+	aliases: map[string]string{
+		"ls": "list",
+	},
+}
+
 var metaSubcommandSpec = subcommandSpec{
 	command:  "meta",
 	valid:    []string{"commands", "command", "concepts", "concept", "docs", "doc"},

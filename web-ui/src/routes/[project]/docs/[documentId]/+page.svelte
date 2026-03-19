@@ -8,7 +8,7 @@
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
 
   let documentId = $derived($page.params.documentId);
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
   let requestedRevisionId = $derived(
     String($page.url.searchParams.get("revision") ?? "").trim(),
   );

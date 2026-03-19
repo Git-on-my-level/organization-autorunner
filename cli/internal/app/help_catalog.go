@@ -37,6 +37,12 @@ var runtimeHelpManualDocTopics = []runtimeHelpDocTopic{
 	{Path: "onboarding", Kind: "manual", Summary: "Offline quick-start mental model and first command flow."},
 	{Path: "draft", Kind: "manual", Summary: "Local draft staging, listing, commit, and discard workflow."},
 	{Path: "provenance", Kind: "manual", Summary: "Deterministic provenance walk reference and examples."},
+	{Path: "auth whoami", Kind: "manual", Summary: "Validate the active profile and print resolved identity metadata."},
+	{Path: "auth list", Kind: "manual", Summary: "List local CLI profiles and the active profile."},
+	{Path: "auth update-username", Kind: "manual", Summary: "Rename the authenticated agent and sync the local profile."},
+	{Path: "auth rotate", Kind: "manual", Summary: "Rotate the active agent key and refresh stored credentials."},
+	{Path: "auth revoke", Kind: "manual", Summary: "Revoke the active agent and mark the local profile revoked."},
+	{Path: "auth token-status", Kind: "manual", Summary: "Inspect whether the local profile still has refreshable token material."},
 }
 
 func runtimeHelpCatalogSnapshot() runtimeHelpCatalog {

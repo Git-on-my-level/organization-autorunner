@@ -440,6 +440,11 @@ func (s *Store) ListBoards(ctx context.Context, filter BoardListFilter) ([]Board
 	if s == nil || s.db == nil {
 		return nil, "", fmt.Errorf("primitives store database is not initialized")
 	}
+	if filter.Cursor != "" {
+		if _, err := decodeCursor(filter.Cursor); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", ErrInvalidCursor, err)
+		}
+	}
 
 	query, args := buildListBoardsQuery(filter)
 	rows, err := s.db.QueryContext(ctx, query, args...)

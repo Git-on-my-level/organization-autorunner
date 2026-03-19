@@ -43,7 +43,7 @@
   let manageMoveColumnKey = $state("backlog");
   let managePinnedDocumentId = $state("");
 
-  let workspaceSlug = $derived(workspaceSlug);
+  let workspaceSlug = $derived($page.params.project);
   let boardId = $derived($page.params.boardId);
   let enrichedInboxItems = $derived(
     (workspace?.inbox?.items ?? []).map((item) => enrichInboxItem(item)),

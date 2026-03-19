@@ -13,6 +13,7 @@ import (
 )
 
 var ErrAlreadyExists = errors.New("actor already exists")
+var ErrInvalidCursor = errors.New("invalid cursor")
 
 const SystemActorID = "oar-core"
 
@@ -118,6 +119,11 @@ func (s *Store) List(ctx context.Context, filter ActorListFilter) ([]Actor, stri
 	if s == nil || s.db == nil {
 		return nil, "", fmt.Errorf("actor store database is not initialized")
 	}
+	if filter.Cursor != "" {
+		if _, err := decodeActorCursor(filter.Cursor); err != nil {
+			return nil, "", fmt.Errorf("%w: %v", ErrInvalidCursor, err)
+		}
+	}
 
 	query := `SELECT id, display_name, tags_json, created_at FROM actors WHERE 1=1`
 	args := make([]any, 0, 3)
@@ -202,6 +208,9 @@ func decodeActorCursor(cursor string) (int, error) {
 	offset, err := strconv.Atoi(parts[1])
 	if err != nil {
 		return 0, fmt.Errorf("invalid cursor offset: %w", err)
+	}
+	if offset <= 0 {
+		return 0, fmt.Errorf("invalid cursor offset: must be greater than zero")
 	}
 	return offset, nil
 }

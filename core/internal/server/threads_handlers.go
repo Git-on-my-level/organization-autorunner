@@ -242,36 +242,39 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		Priority: strings.TrimSpace(query.Get("priority")),
 		Tags:     tagsFilter,
 		Cadences: cadenceFilter,
+		Stale:    staleFilter,
 		Query:    strings.TrimSpace(query.Get("q")),
 		Limit:    limitFilter,
 		Cursor:   strings.TrimSpace(query.Get("cursor")),
 	})
 	if err != nil {
+		if errors.Is(err, primitives.ErrInvalidCursor) {
+			writeError(w, http.StatusBadRequest, "invalid_request", "cursor is invalid")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list threads")
 		return
 	}
 
-	threadIDs := make([]string, 0, len(threads))
-	for _, thread := range threads {
-		threadIDs = append(threadIDs, anyString(thread["id"]))
-	}
-	projections, err := listDerivedThreadProjections(r.Context(), opts, threadIDs)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to evaluate thread staleness")
-		return
-	}
-
-	withStale := make([]map[string]any, 0, len(threads))
-	for _, thread := range threads {
-		threadID, _ := thread["id"].(string)
-		stale := projections[threadID].Stale
-		thread["stale"] = stale
-		if staleFilter != nil && stale != *staleFilter {
-			continue
+	if staleFilter != nil {
+		for _, thread := range threads {
+			thread["stale"] = *staleFilter
 		}
-		withStale = append(withStale, thread)
+	} else {
+		threadIDs := make([]string, 0, len(threads))
+		for _, thread := range threads {
+			threadIDs = append(threadIDs, anyString(thread["id"]))
+		}
+		projections, err := listDerivedThreadProjections(r.Context(), opts, threadIDs)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to evaluate thread staleness")
+			return
+		}
+		for _, thread := range threads {
+			threadID, _ := thread["id"].(string)
+			thread["stale"] = projections[threadID].Stale
+		}
 	}
-	threads = withStale
 
 	response := map[string]any{"threads": threads}
 	if nextCursor != "" {

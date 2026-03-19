@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -242,6 +243,74 @@ func TestThreadListPaginationLimitParameter(t *testing.T) {
 	}
 	if payload.NextCursor == "" {
 		t.Fatal("expected next_cursor when more results exist")
+	}
+}
+
+func TestThreadListPaginationWithStaleFilter(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	for i := 0; i < 3; i++ {
+		postJSONExpectStatus(t, h.baseURL+"/threads", createThreadJSON("thread-"+string(rune('a'+i)), "Thread "+string(rune('A'+i))), http.StatusCreated)
+	}
+
+	patchJSONExpectStatus(t, h.baseURL+"/threads/thread-a", `{"actor_id":"actor-1","patch":{"title":"Thread A refreshed"}}`, http.StatusOK).Body.Close()
+	postJSONExpectStatus(t, h.baseURL+"/derived/rebuild", `{"actor_id":"actor-1"}`, http.StatusOK).Body.Close()
+
+	var staleIDs []string
+	cursor := ""
+	for {
+		url := h.baseURL + "/threads?stale=true&limit=1"
+		if cursor != "" {
+			url += "&cursor=" + cursor
+		}
+
+		resp, err := http.Get(url)
+		if err != nil {
+			t.Fatalf("GET /threads?stale=true: %v", err)
+		}
+
+		var payload struct {
+			Threads    []map[string]any `json:"threads"`
+			NextCursor string           `json:"next_cursor"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			resp.Body.Close()
+			t.Fatalf("decode stale thread page: %v", err)
+		}
+		resp.Body.Close()
+
+		if len(payload.Threads) == 0 {
+			t.Fatalf("expected stale-filtered page to contain results before cursor exhaustion, cursor=%q", cursor)
+		}
+
+		for _, thread := range payload.Threads {
+			id, ok := thread["id"].(string)
+			if !ok {
+				t.Fatalf("thread id is not a string: %#v", thread["id"])
+			}
+			stale, ok := thread["stale"].(bool)
+			if !ok || !stale {
+				t.Fatalf("expected stale=true thread payload, got %#v", thread)
+			}
+			staleIDs = append(staleIDs, id)
+		}
+
+		if payload.NextCursor == "" {
+			break
+		}
+		cursor = payload.NextCursor
+	}
+
+	if len(staleIDs) != 2 {
+		t.Fatalf("expected 2 stale threads across paginated results, got %d (%v)", len(staleIDs), staleIDs)
+	}
+	for _, id := range staleIDs {
+		if id == "thread-a" {
+			t.Fatalf("did not expect refreshed thread in stale-filtered results: %v", staleIDs)
+		}
 	}
 }
 
@@ -744,5 +813,42 @@ func TestBoardListInvalidLimit(t *testing.T) {
 		if !tc.wantErr && resp.StatusCode != http.StatusOK {
 			t.Errorf("limit=%s: expected status 200, got %d", tc.limit, resp.StatusCode)
 		}
+	}
+}
+
+func TestPaginationInvalidCursor(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+	postJSONExpectStatus(t, h.baseURL+"/threads", createThreadJSON("thread-1", "Thread One"), http.StatusCreated)
+	postJSONExpectStatus(t, h.baseURL+"/docs", `{"actor_id":"actor-1","document":{"document_id":"doc-1","thread_id":"thread-1","title":"Doc"},"content":"content","content_type":"text"}`, http.StatusCreated)
+	postJSONExpectStatus(t, h.baseURL+"/boards", `{"actor_id":"actor-1","board":{"id":"board-1","title":"Board","thread_id":"thread-1","primary_thread_id":"thread-1"}}`, http.StatusCreated)
+
+	testCases := []struct {
+		name string
+		url  string
+	}{
+		{name: "actors", url: h.baseURL + "/actors?limit=2&cursor=not-base64"},
+		{name: "threads", url: h.baseURL + "/threads?limit=2&cursor=not-base64"},
+		{name: "documents", url: h.baseURL + "/docs?limit=2&cursor=not-base64"},
+		{name: "boards", url: h.baseURL + "/boards?limit=2&cursor=not-base64"},
+		{name: "actors-semantic", url: h.baseURL + "/actors?limit=2&cursor=" + base64.StdEncoding.EncodeToString([]byte("offset:0"))},
+		{name: "threads-semantic", url: h.baseURL + "/threads?limit=2&cursor=" + base64.StdEncoding.EncodeToString([]byte("offset:-1"))},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := http.Get(tc.url)
+			if err != nil {
+				t.Fatalf("GET %s: %v", tc.url, err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("expected status 400, got %d", resp.StatusCode)
+			}
+			assertErrorCode(t, resp, "invalid_request")
+		})
 	}
 }

@@ -1,5 +1,5 @@
-import { redirectToDefaultWorkspace } from "$lib/server/projectRedirect";
+import { redirectToDefaultWorkspace } from "$lib/server/workspaceRedirect";
 
-export function load({ params }) {
-  redirectToDefaultWorkspace(`/docs/${params.documentId}`);
+export function load({ params, url }) {
+  redirectToDefaultWorkspace(`/docs/${params.documentId}${url.search}`);
 }

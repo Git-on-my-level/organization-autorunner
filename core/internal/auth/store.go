@@ -25,12 +25,13 @@ var ErrKeyMismatch = errors.New("key_mismatch")
 var ErrAgentNotFound = errors.New("agent_not_found")
 
 const (
-	defaultAccessTokenTTL   = 15 * time.Minute
-	defaultRefreshTokenTTL  = 30 * 24 * time.Hour
-	defaultAssertionSkew    = 5 * time.Minute
-	registerAgentMaxRetries = 8
-	registerAgentRetryBase  = 15 * time.Millisecond
-	registerAgentRetryMax   = 250 * time.Millisecond
+	bootstrapTokenPlaceholder = "REPLACE_WITH_SECURE_BOOTSTRAP_TOKEN"
+	defaultAccessTokenTTL     = 15 * time.Minute
+	defaultRefreshTokenTTL    = 30 * 24 * time.Hour
+	defaultAssertionSkew      = 5 * time.Minute
+	registerAgentMaxRetries   = 8
+	registerAgentRetryBase    = 15 * time.Millisecond
+	registerAgentRetryMax     = 250 * time.Millisecond
 )
 
 type Option func(*Store)
@@ -126,7 +127,7 @@ func WithAssertionSkew(skew time.Duration) Option {
 func WithBootstrapToken(token string) Option {
 	return func(store *Store) {
 		token = strings.TrimSpace(token)
-		if token == "" {
+		if token == "" || token == bootstrapTokenPlaceholder {
 			store.bootstrapTokenHash = ""
 			return
 		}
