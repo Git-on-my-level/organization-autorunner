@@ -569,6 +569,7 @@ export const commandRegistry = [
             ]
         },
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.list",
@@ -577,10 +578,59 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.token"
         ],
         "go_method": "AuthAgentsRegister",
         "ts_method": "authAgentsRegister"
+    },
+    {
+        "command_id": "auth.audit.list",
+        "cli_path": "auth audit list",
+        "group": "auth",
+        "method": "GET",
+        "path": "/auth/audit",
+        "operation_id": "listAuthAudit",
+        "summary": "List auth and onboarding audit events",
+        "why": "Inspect durable auth and onboarding audit facts for principal registration, invite lifecycle, and revocation activity.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ events, next_cursor? }` ordered newest first.",
+        "error_codes": [
+            "auth_required",
+            "invalid_token",
+            "agent_revoked",
+            "invalid_request"
+        ],
+        "concepts": [
+            "auth",
+            "audit"
+        ],
+        "stability": "beta",
+        "agent_notes": "Requires Bearer access token. Pagination is bounded from the start with `limit` and `cursor`.",
+        "examples": [
+            {
+                "title": "List auth audit events",
+                "command": "oar auth audit list --json"
+            }
+        ],
+        "adjacent_commands": [
+            "auth.bootstrap.status",
+            "auth.invites.create",
+            "auth.invites.list",
+            "auth.invites.revoke",
+            "auth.passkey.login.options",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.options",
+            "auth.passkey.register.verify",
+            "auth.principals.list",
+            "auth.agents.register",
+            "auth.token"
+        ],
+        "go_method": "AuthAuditList",
+        "ts_method": "authAuditList"
     },
     {
         "command_id": "auth.bootstrap.status",
@@ -609,6 +659,7 @@ export const commandRegistry = [
             }
         ],
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.invites.create",
             "auth.invites.list",
             "auth.invites.revoke",
@@ -616,6 +667,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
@@ -679,6 +731,7 @@ export const commandRegistry = [
             ]
         },
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.list",
             "auth.invites.revoke",
@@ -686,6 +739,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
@@ -724,6 +778,7 @@ export const commandRegistry = [
             }
         ],
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.revoke",
@@ -731,6 +786,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
@@ -773,6 +829,7 @@ export const commandRegistry = [
             "invite_id"
         ],
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.list",
@@ -780,6 +837,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
@@ -820,6 +878,7 @@ export const commandRegistry = [
             ]
         },
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.list",
@@ -827,6 +886,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
@@ -883,6 +943,7 @@ export const commandRegistry = [
             ]
         },
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.list",
@@ -890,6 +951,7 @@ export const commandRegistry = [
             "auth.passkey.login.options",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
@@ -941,6 +1003,7 @@ export const commandRegistry = [
             ]
         },
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.list",
@@ -948,6 +1011,7 @@ export const commandRegistry = [
             "auth.passkey.login.options",
             "auth.passkey.login.verify",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
@@ -1003,6 +1067,7 @@ export const commandRegistry = [
             ]
         },
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.list",
@@ -1010,11 +1075,60 @@ export const commandRegistry = [
             "auth.passkey.login.options",
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
+            "auth.principals.list",
             "auth.agents.register",
             "auth.token"
         ],
         "go_method": "AuthPasskeyRegisterVerify",
         "ts_method": "authPasskeyRegisterVerify"
+    },
+    {
+        "command_id": "auth.principals.list",
+        "cli_path": "auth principals list",
+        "group": "auth",
+        "method": "GET",
+        "path": "/auth/principals",
+        "operation_id": "listAuthPrincipals",
+        "summary": "List current principals with revoke state",
+        "why": "Inspect the current workspace principal inventory, including revoked principals, without direct database access.",
+        "input_mode": "none",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ principals, next_cursor? }` ordered by create time descending.",
+        "error_codes": [
+            "auth_required",
+            "invalid_token",
+            "agent_revoked",
+            "invalid_request"
+        ],
+        "concepts": [
+            "auth",
+            "identity"
+        ],
+        "stability": "beta",
+        "agent_notes": "Requires Bearer access token. Pagination is bounded from the start with `limit` and `cursor`.",
+        "examples": [
+            {
+                "title": "List principals",
+                "command": "oar auth principals list --json"
+            }
+        ],
+        "adjacent_commands": [
+            "auth.audit.list",
+            "auth.bootstrap.status",
+            "auth.invites.create",
+            "auth.invites.list",
+            "auth.invites.revoke",
+            "auth.passkey.login.options",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.options",
+            "auth.passkey.register.verify",
+            "auth.agents.register",
+            "auth.token"
+        ],
+        "go_method": "AuthPrincipalsList",
+        "ts_method": "authPrincipalsList"
     },
     {
         "command_id": "auth.token",
@@ -1085,6 +1199,7 @@ export const commandRegistry = [
             ]
         },
         "adjacent_commands": [
+            "auth.audit.list",
             "auth.bootstrap.status",
             "auth.invites.create",
             "auth.invites.list",
@@ -1093,6 +1208,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.list",
             "auth.agents.register"
         ],
         "go_method": "AuthToken",
@@ -4145,6 +4261,9 @@ export class OarClient {
     authAgentsRegister(options = {}) {
         return this.invoke("auth.agents.register", {}, options);
     }
+    authAuditList(options = {}) {
+        return this.invoke("auth.audit.list", {}, options);
+    }
     authBootstrapStatus(options = {}) {
         return this.invoke("auth.bootstrap.status", {}, options);
     }
@@ -4168,6 +4287,9 @@ export class OarClient {
     }
     authPasskeyRegisterVerify(options = {}) {
         return this.invoke("auth.passkey.register.verify", {}, options);
+    }
+    authPrincipalsList(options = {}) {
+        return this.invoke("auth.principals.list", {}, options);
     }
     authToken(options = {}) {
         return this.invoke("auth.token", {}, options);

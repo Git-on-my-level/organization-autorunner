@@ -471,6 +471,26 @@ var migrations = []migration{
 		},
 		Apply: scrubLegacyArtifactMetadata,
 	},
+	{
+		Version: 18,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS auth_audit_events (
+				id TEXT PRIMARY KEY,
+				event_type TEXT NOT NULL,
+				occurred_at TEXT NOT NULL,
+				actor_agent_id TEXT,
+				actor_actor_id TEXT,
+				subject_agent_id TEXT,
+				subject_actor_id TEXT,
+				invite_id TEXT,
+				metadata_json TEXT NOT NULL DEFAULT '{}'
+			);`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_audit_events_occurred_at ON auth_audit_events (occurred_at DESC, id DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_audit_events_event_type ON auth_audit_events (event_type, occurred_at DESC, id DESC)`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_audit_events_invite_id ON auth_audit_events (invite_id, occurred_at DESC, id DESC)`,
+		},
+		Apply: applyAuthAuditMigration,
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
@@ -584,6 +604,91 @@ func scrubLegacyArtifactMetadata(ctx context.Context, tx *sql.Tx) error {
 	}
 
 	return nil
+}
+
+func applyAuthAuditMigration(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExistsTx(ctx, tx, "auth_invites")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	columns := []struct {
+		name       string
+		definition string
+	}{
+		{name: "consumed_by_agent_id", definition: "TEXT"},
+		{name: "consumed_by_actor_id", definition: "TEXT"},
+		{name: "revoked_by_agent_id", definition: "TEXT"},
+		{name: "revoked_by_actor_id", definition: "TEXT"},
+	}
+	for _, column := range columns {
+		present, err := columnExistsTx(ctx, tx, "auth_invites", column.name)
+		if err != nil {
+			return err
+		}
+		if present {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, fmt.Sprintf("ALTER TABLE auth_invites ADD COLUMN %s %s", column.name, column.definition)); err != nil {
+			return err
+		}
+	}
+
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_auth_invites_consumed_by_agent_id ON auth_invites (consumed_by_agent_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_auth_invites_revoked_by_agent_id ON auth_invites (revoked_by_agent_id)`,
+	}
+	for _, statement := range indexes {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func tableExistsTx(ctx context.Context, tx *sql.Tx, tableName string) (bool, error) {
+	var exists bool
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)`,
+		tableName,
+	).Scan(&exists); err != nil {
+		return false, fmt.Errorf("check table %s existence: %w", tableName, err)
+	}
+	return exists, nil
+}
+
+func columnExistsTx(ctx context.Context, tx *sql.Tx, tableName string, columnName string) (bool, error) {
+	rows, err := tx.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info(%s)", tableName))
+	if err != nil {
+		return false, fmt.Errorf("describe table %s: %w", tableName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			dataType   string
+			notNull    int
+			defaultVal sql.NullString
+			pk         int
+		)
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultVal, &pk); err != nil {
+			return false, fmt.Errorf("scan table info %s: %w", tableName, err)
+		}
+		if name == columnName {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("iterate table info %s: %w", tableName, err)
+	}
+	return false, nil
 }
 
 func scrubLegacyArtifactMetadataJSON(metadataJSON string) (string, bool, error) {

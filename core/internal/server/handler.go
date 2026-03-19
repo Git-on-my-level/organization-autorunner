@@ -87,27 +87,27 @@ type PrimitiveStore interface {
 type HandlerOption func(*handlerOptions)
 
 type handlerOptions struct {
-	healthCheck                HealthCheckFunc
-	actorRegistry              ActorRegistry
-	authStore                  *auth.Store
-	passkeySessionStore        *auth.PasskeySessionStore
-	primitiveStore             PrimitiveStore
-	contract                   *schema.Contract
-	webAuthnConfig             WebAuthnConfig
-	enableDevActorMode         bool
-	allowUnauthenticatedWrites bool
+	healthCheck                    HealthCheckFunc
+	actorRegistry                  ActorRegistry
+	authStore                      *auth.Store
+	passkeySessionStore            *auth.PasskeySessionStore
+	primitiveStore                 PrimitiveStore
+	contract                       *schema.Contract
+	webAuthnConfig                 WebAuthnConfig
+	enableDevActorMode             bool
+	allowUnauthenticatedWrites     bool
 	allowLoopbackVerificationReads bool
-	inboxRiskHorizon           time.Duration
-	coreVersion                string
-	apiVersion                 string
-	minCLIVersion              string
-	recommendedCLIVersion      string
-	cliDownloadURL             string
-	coreInstanceID             string
-	metaCommandsPath           string
-	streamPollInterval         time.Duration
-	corsAllowedOrigins         []string
-	projectionMaintainer       *ProjectionMaintainer
+	inboxRiskHorizon               time.Duration
+	coreVersion                    string
+	apiVersion                     string
+	minCLIVersion                  string
+	recommendedCLIVersion          string
+	cliDownloadURL                 string
+	coreInstanceID                 string
+	metaCommandsPath               string
+	streamPollInterval             time.Duration
+	corsAllowedOrigins             []string
+	projectionMaintainer           *ProjectionMaintainer
 }
 
 func WithHealthCheck(healthCheck HealthCheckFunc) HandlerOption {
@@ -522,6 +522,22 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and POST are supported")
 		}
+	})
+
+	registerRoute("/auth/principals", exactRouteAccess(routeAccessAuthenticatedPrincipal, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		handleListAuthPrincipals(w, r, opts)
+	})
+
+	registerRoute("/auth/audit", exactRouteAccess(routeAccessAuthenticatedPrincipal, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		handleListAuthAudit(w, r, opts)
 	})
 
 	registerRoute("/auth/invites/", func(r *http.Request) routeAccessRequirement {
