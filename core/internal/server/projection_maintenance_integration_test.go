@@ -37,7 +37,7 @@ func newProjectionMaintenanceTestServer(t *testing.T) projectionMaintenanceTestH
 	}
 
 	registry := actors.NewStore(workspace.DB())
-	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	maintainer := NewProjectionMaintainer(ProjectionMaintainerConfig{
 		PrimitiveStore:    primitiveStore,
 		Contract:          contract,

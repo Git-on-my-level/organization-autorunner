@@ -6,20 +6,11 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 
 ## Conventions
 
-- Workspace read requests require caller identity outside explicit development
-  actor mode:
-  - When `OAR_ENABLE_DEV_ACTOR_MODE=0`, workspace reads require
-    `Authorization: Bearer <access_token>`.
-  - When `OAR_ENABLE_DEV_ACTOR_MODE=1`, anonymous workspace reads remain
-    available for local actor-selection/dev flows.
 - Mutating requests require caller identity:
   - When `OAR_ALLOW_UNAUTHENTICATED_WRITES=1`, unauthenticated callers MUST provide `actor_id`.
   - When `OAR_ALLOW_UNAUTHENTICATED_WRITES=0`, mutating requests require `Authorization: Bearer <access_token>`.
   - Authenticated callers MAY omit `actor_id`; core infers it from the bearer token principal.
   - If authenticated callers provide `actor_id`, it MUST match the authenticated principal mapping.
-- `POST /actors` is a development-only convenience endpoint gated by
-  `OAR_ENABLE_DEV_ACTOR_MODE=1`.
-- `GET /actors` is a protected workspace read outside development actor mode.
 - All timestamps are ISO-8601 strings.
 - Objects MUST preserve unknown fields (additive evolution).
 - `refs` values MUST be typed ref strings per `ref_format`.
@@ -32,11 +23,7 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 ### Agent auth conventions
 
 - Access tokens are passed as `Authorization: Bearer <access_token>`.
-- Hosted v1 closes public registration:
-  - First principal registration requires a valid bootstrap token.
-  - Bootstrap registration is disabled after the first successful principal is created.
-  - Later human and agent registrations require a valid invite token.
-  - Invite tokens are single-use and may also expire or be revoked.
+- Registration is open in v0 via `POST /auth/agents/register`.
 - Passkey auth is available via:
   - `POST /auth/passkey/register/options`
   - `POST /auth/passkey/register/verify`
@@ -53,20 +40,28 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - `agent_revoked`
   - `key_mismatch`
 
+## API Surface Classification
+
+Each endpoint is classified with an `x-oar-surface` extension indicating its role:
+
+- **`canonical`**: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, board cards, events, snapshots, packets). These are the durable substrate for automation.
+
+- **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `threads.context`, `threads.workspace`, `boards.workspace`, `inbox.list/get/stream/ack`. **Do not build durable automation directly on projection payload shapes.** Use canonical APIs or CLI commands for durable substrate.
+
+- **`utility`**: Infrastructure endpoints for health, version, meta discovery, auth bootstrap, and maintenance. Examples: `/health`, `/version`, `/meta/*`, `/auth/*`, `/actors`, `/derived/rebuild`.
+
+Projection endpoints return a `section_kinds` field to distinguish canonical vs derived sections, and a `generated_at` timestamp indicating when the projection was generated.
+
 ## Endpoints
 
 ### Version
-
-- `GET /health`
-  - Response:
-    - `{ "ok": true, "projection_maintenance": { "pending_dirty_count", "oldest_dirty_at", "oldest_dirty_lag_seconds", "last_successful_stale_scan_at", "last_error" } }`
-  - `projection_maintenance` is operational metadata only. It reports lag in the background derived-view worker and the last stale-scan outcome.
 
 - `GET /version`
   - Response: `{ "schema_version": "0.2.2" }`
 
 - `GET /meta/handshake`
-  - Response: `{ "core_version", "api_version", "schema_version", "min_cli_version", "recommended_cli_version", "cli_download_url", "core_instance_id" }`
+  - Response: `{ "core_version", "api_version", "schema_version", "min_cli_version", "recommended_cli_version", "cli_download_url", "core_instance_id", "dev_actor_mode" }`
+  - `dev_actor_mode` is a boolean indicating whether development actor mode is enabled (default: `false`). When `true`, the legacy actor picker/creator UI flow is available. When `false`, authentication is required.
 
 - Compatibility headers emitted on all responses:
   - `X-OAR-Core-Version`
@@ -98,21 +93,17 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 ### Actors
 
 - `POST /actors`
-  - Auth: development-only convenience (`OAR_ENABLE_DEV_ACTOR_MODE=1`)
   - Body: `{ "actor": { id, display_name, tags?, created_at } }`
   - Response: `{ "actor": <actor> }`
+  - **Blocked when `dev_actor_mode=false`**: Returns `403 Forbidden` with error code `dev_actor_mode_disabled`. Production deployments should use passkey or public key authentication to create linked actors instead.
 
 - `GET /actors`
-  - Auth: bearer token required outside development actor mode
   - Response: `{ "actors": [<actor>...] }`
 
 ### Agent auth and self-management
 
-- `GET /auth/bootstrap/status`
-  - Response: `{ "bootstrap_registration_available": true|false }`
-
 - `POST /auth/agents/register`
-  - Body: `{ "username": "...", "public_key": "<base64-ed25519-public-key>", "bootstrap_token"?: "...", "invite_token"?: "..." }`
+  - Body: `{ "username": "...", "public_key": "<base64-ed25519-public-key>" }`
   - Response: `{ "agent": <agent_profile>, "key": <agent_key>, "tokens": <token_bundle> }`
 
 - `POST /auth/token`
@@ -120,25 +111,12 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - Refresh grant body: `{ "grant_type": "refresh_token", "refresh_token": "<token>" }`
   - Response: `{ "tokens": <token_bundle> }`
 
-- `GET /auth/invites`
-  - Auth: bearer token required
-  - Response: `{ "invites": [ { "id", "kind", "created_by_agent_id", "created_by_actor_id", "note", "created_at", "expires_at"?, "consumed_at"?, "revoked_at"? } ... ] }`
-
-- `POST /auth/invites`
-  - Auth: bearer token required
-  - Body: `{ "kind": "human"|"agent"|"any", "note"?: "...", "expires_at"?: "<rfc3339>" }`
-  - Response: `{ "invite": <invite_metadata>, "token": "<raw-invite-token>" }`
-
-- `POST /auth/invites/{invite_id}/revoke`
-  - Auth: bearer token required
-  - Response: `{ "invite": <invite_metadata> }`
-
 - `POST /auth/passkey/register/options`
-  - Body: `{ "display_name": "...", "bootstrap_token"?: "...", "invite_token"?: "..." }`
+  - Body: `{ "display_name": "..." }`
   - Response: `{ "session_id": "...", "options": <webauthn-registration-options> }`
 
 - `POST /auth/passkey/register/verify`
-  - Body: `{ "session_id": "...", "bootstrap_token"?: "...", "invite_token"?: "...", "credential": <webauthn-attestation-response> }`
+  - Body: `{ "session_id": "...", "credential": <webauthn-attestation-response> }`
   - Response: `{ "agent": <agent_profile>, "tokens": <token_bundle> }`
 
 - `POST /auth/passkey/login/options`
@@ -330,11 +308,13 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 ### Inbox and derived views
 
 - `GET /inbox`
-  - Response: `{ "items": [<inbox_item>...], "generated_at": "..." }`
+  - Side-effect free read of materialized inbox rows.
+  - Response: `{ "items": [<inbox_item>...], "generated_at": "...", "projection_freshness": { "status": "current|pending|missing|error", "threads": [...] } }`
   - Optional query: `risk_horizon_days`
 
 - `GET /inbox/{inbox_item_id}`
-  - Response: `{ "item": <inbox_item>, "generated_at": "..." }`
+  - Side-effect free read of materialized inbox rows.
+  - Response: `{ "item": <inbox_item>, "generated_at": "...", "projection_freshness": { ... } }`
   - Optional query: `risk_horizon_days`
 
 - `GET /inbox/stream`
@@ -353,11 +333,11 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
   - Response: `{ "ok": true }`
 
 - Materialized derived projections used by the common read path:
-  - `derived_inbox_items`: incrementally maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
-  - `derived_thread_views`: incrementally maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
-  - `derived_thread_dirty_queue`: durable queue of thread IDs awaiting projection refresh. Hosted ops should use `/health` to inspect queue depth and lag rather than relying on synchronous reads.
-  - Normal maintenance runs two jobs: a scheduled stale scan that emits canonical `exception_raised` events for newly stale threads, and a dirty-projection refresh pass that materializes updated inbox/thread views.
+  - `derived_inbox_items`: asynchronously maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
+  - `derived_thread_views`: asynchronously maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
+  - `thread_projection_refresh_status`: durable per-thread refresh state used to expose `current`, `pending`, `missing`, or `error` freshness metadata without mutating projections inside GET handlers.
   - `POST /derived/rebuild` remains the deterministic repair path: it re-emits any missing canonical stale-thread exceptions from canonical state, then rebuilds both projection tables from current threads/events/commitments/documents.
+  - Standard GET responses never repair or recompute projections inline; they return the best currently materialized data plus freshness metadata.
 
 - Meaningful thread activity for stale-thread clearing:
   - The current activity set is explicit: `actor_statement`, `decision_needed`, `decision_made`, `work_order_created`, `receipt_added`, `review_completed`, `document_created`, `document_updated`, `document_tombstoned`, `commitment_created`, `commitment_status_changed`, plus non-create `snapshot_updated` events from direct user-authored snapshot edits.

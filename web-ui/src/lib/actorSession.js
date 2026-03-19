@@ -7,6 +7,7 @@ import {
 import {
   DEFAULT_WORKSPACE_SLUG,
   buildWorkspaceStorageKey,
+  buildProjectStorageKey,
 } from "./workspacePaths.js";
 
 export const ACTOR_STORAGE_KEY = "oar_ui_actor_id";
@@ -46,6 +47,18 @@ currentWorkspaceSlug.subscribe((workspaceSlug) => {
   syncCurrentWorkspaceStores(workspaceSlug);
 });
 
+function migrateProjectActorStorageKey(storage, workspaceSlug) {
+  const oldKey = buildProjectStorageKey(ACTOR_STORAGE_KEY, workspaceSlug);
+  const newKey = buildWorkspaceStorageKey(ACTOR_STORAGE_KEY, workspaceSlug);
+
+  if (oldKey === newKey) return;
+
+  const oldValue = storage.getItem(oldKey);
+  if (oldValue && !storage.getItem(newKey)) {
+    storage.setItem(newKey, oldValue);
+  }
+}
+
 export function actorStorageKey(workspaceSlug = getCurrentWorkspaceSlug()) {
   return buildWorkspaceStorageKey(ACTOR_STORAGE_KEY, workspaceSlug);
 }
@@ -54,6 +67,8 @@ export function loadStoredActorId(
   storage = localStorage,
   workspaceSlug = getCurrentWorkspaceSlug(),
 ) {
+  migrateProjectActorStorageKey(storage, workspaceSlug);
+
   const scopedActorId = storage.getItem(actorStorageKey(workspaceSlug));
   if (scopedActorId) {
     return scopedActorId;

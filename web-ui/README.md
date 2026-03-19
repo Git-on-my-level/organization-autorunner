@@ -8,7 +8,7 @@ This package contains the SvelteKit web UI for Organization Autorunner.
 
 ## Runtime model
 
-`oar-ui` assumes workspace-aware proxying through the UI server.
+`oar-ui` now assumes workspace-aware proxying through the UI server.
 
 - Canonical config: `OAR_WORKSPACES`
   - JSON array or object mapping `workspace slug -> core base URL`
@@ -21,10 +21,8 @@ This package contains the SvelteKit web UI for Organization Autorunner.
     ]'
     export OAR_DEFAULT_WORKSPACE=local
     ```
-  
-  - Legacy env vars (for backward compatibility):
-    - `OAR_PROJECTS` (equivalent to `OAR_WORKSPACES`)
-    - `OAR_DEFAULT_PROJECT` (equivalent to `OAR_DEFAULT_WORKSPACE`)
+
+  - Legacy aliases (deprecated): `OAR_PROJECTS` and `OAR_DEFAULT_PROJECT` still work if the new names are absent.
 
 - UI routes are workspace-prefixed: `/:workspace/...`
   - Examples: `/local`, `/local/inbox`, `/ops/threads/thread-123`
@@ -94,7 +92,7 @@ Terminal B (ui):
 
 ```bash
 cd ../web-ui
-OAR_PROJECTS='[{"slug":"local","label":"Local","coreBaseUrl":"http://127.0.0.1:8000"}]' \
-OAR_DEFAULT_PROJECT=local \
+OAR_WORKSPACES='[{"slug":"local","label":"Local","coreBaseUrl":"http://127.0.0.1:8000"}]' \
+OAR_DEFAULT_WORKSPACE=local \
 ./scripts/e2e-with-core
 ```

@@ -91,7 +91,6 @@ export function loadWorkspaceCatalog(env = privateEnv) {
 
   const devActorMode =
     env.OAR_DEV_ACTOR_MODE === "true" || env.OAR_DEV_ACTOR_MODE === "1";
-
   return {
     defaultWorkspace,
     workspaces,
@@ -120,3 +119,9 @@ export function toPublicWorkspaceCatalog(catalog) {
     devActorMode: catalog.devActorMode ?? false,
   };
 }
+export const loadProjectCatalog = loadWorkspaceCatalog;
+export const getProjectBySlug = getWorkspaceBySlug;
+export const toPublicProjectCatalog = toPublicWorkspaceCatalog;
+export const normalizeProjectEntry = normalizeWorkspaceEntry;
+export const parseProjectEntries = parseWorkspaceEntries;
+export const fallbackSingleProject = fallbackSingleWorkspace;

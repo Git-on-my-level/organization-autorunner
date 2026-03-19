@@ -20,7 +20,7 @@ func TestWorkspaceListQueriesUseIndexedPlans(t *testing.T) {
 	}
 	defer workspace.Close()
 
-	store := NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
+	store := NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 
 	threadResult, err := store.CreateThread(ctx, "actor-1", map[string]any{
 		"id":               "thread-plan-1",

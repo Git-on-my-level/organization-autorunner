@@ -74,6 +74,7 @@ function buildWorkspace(
   documents,
   commitments,
   inboxItems,
+  options = {},
 ) {
   const sortedCards = sortCards(cards);
   const threadIds = new Set([
@@ -89,6 +90,21 @@ function buildWorkspace(
   const workspaceInbox = inboxItems.filter((item) =>
     threadIds.has(item.thread_id),
   );
+  const projectionStatus = options.projectionStatus ?? "current";
+  const generatedAt = options.generatedAt ?? board.updated_at;
+  const freshnessThreads = [...threadIds].sort().map((threadId) => ({
+    thread_id: threadId,
+    status: projectionStatus,
+    generated_at: generatedAt,
+    queued_at: projectionStatus === "pending" ? generatedAt : null,
+    started_at: null,
+    completed_at: projectionStatus === "current" ? generatedAt : null,
+    last_error_at: projectionStatus === "error" ? generatedAt : null,
+    last_error:
+      projectionStatus === "error" ? "projection refresh failed" : null,
+    materialized: projectionStatus !== "missing",
+    refresh_in_flight: projectionStatus === "pending",
+  }));
 
   return {
     board_id: board.id,
@@ -101,38 +117,49 @@ function buildWorkspace(
       null,
     cards: {
       items: sortedCards.map((card) => ({
-        card,
-        thread: threads.find((thread) => thread.id === card.thread_id),
-        summary: {
-          open_commitment_count:
-            threads.find((thread) => thread.id === card.thread_id)
-              ?.open_commitments?.length ?? 0,
-          decision_request_count: workspaceInbox.filter(
-            (item) =>
-              item.thread_id === card.thread_id &&
-              item.category === "decision_needed",
-          ).length,
-          decision_count: 0,
-          recommendation_count: 0,
-          document_count: workspaceDocuments.filter(
-            (document) => document.thread_id === card.thread_id,
-          ).length,
-          inbox_count: workspaceInbox.filter(
-            (item) => item.thread_id === card.thread_id,
-          ).length,
-          latest_activity_at:
-            threads.find((thread) => thread.id === card.thread_id)
-              ?.updated_at ?? card.updated_at,
-          stale:
-            threads.find((thread) => thread.id === card.thread_id)
-              ?.staleness === "stale" ||
-            threads.find((thread) => thread.id === card.thread_id)
-              ?.staleness === "very-stale",
+        membership: card,
+        backing: {
+          thread_ref: `thread:${card.thread_id}`,
+          thread: threads.find((thread) => thread.id === card.thread_id),
+          pinned_document_ref: card.pinned_document_id
+            ? `document:${card.pinned_document_id}`
+            : null,
+          pinned_document:
+            documents.find(
+              (document) => document.id === card.pinned_document_id,
+            ) ?? null,
         },
-        pinned_document:
-          documents.find(
-            (document) => document.id === card.pinned_document_id,
-          ) ?? null,
+        derived: {
+          summary: {
+            open_commitment_count:
+              threads.find((thread) => thread.id === card.thread_id)
+                ?.open_commitments?.length ?? 0,
+            decision_request_count: workspaceInbox.filter(
+              (item) =>
+                item.thread_id === card.thread_id &&
+                item.category === "decision_needed",
+            ).length,
+            decision_count: 0,
+            recommendation_count: 0,
+            document_count: workspaceDocuments.filter(
+              (document) => document.thread_id === card.thread_id,
+            ).length,
+            inbox_count: workspaceInbox.filter(
+              (item) => item.thread_id === card.thread_id,
+            ).length,
+            latest_activity_at:
+              threads.find((thread) => thread.id === card.thread_id)
+                ?.updated_at ?? card.updated_at,
+            stale:
+              threads.find((thread) => thread.id === card.thread_id)
+                ?.staleness === "stale" ||
+              threads.find((thread) => thread.id === card.thread_id)
+                ?.staleness === "very-stale",
+          },
+          freshness: freshnessThreads.find(
+            (item) => item.thread_id === card.thread_id,
+          ),
+        },
       })),
       count: cards.length,
     },
@@ -150,6 +177,16 @@ function buildWorkspace(
       generated_at: board.updated_at,
     },
     board_summary: buildSummary(board, cards, threads, documents),
+    projection_freshness: {
+      status: projectionStatus,
+      thread_count: freshnessThreads.length,
+      threads: freshnessThreads,
+    },
+    board_summary_freshness: {
+      status: projectionStatus,
+      thread_count: freshnessThreads.length,
+      threads: freshnessThreads,
+    },
     warnings: {
       items: [
         {
@@ -169,7 +206,7 @@ function buildWorkspace(
       inbox: "derived",
       board_summary: "derived",
     },
-    generated_at: board.updated_at,
+    generated_at: generatedAt,
   };
 }
 
@@ -557,15 +594,12 @@ test("board UI supports create/edit and card mutation flows", async ({
   ).toBeVisible();
   await page.getByLabel("Board title").fill("Launch Control");
   await page.getByLabel("Status").selectOption("paused");
-
-  // Use advanced/manual entry mode for thread ID
-  await page.getByText("Or enter thread ID manually:").click();
-  await page.getByPlaceholder("thread-q2-initiative").fill("thread-primary");
-
-  // Use advanced/manual entry mode for document ID
-  await page.getByText("Or enter document ID manually:").click();
-  await page.getByPlaceholder("product-constitution").fill("doc-runbook");
-
+  await page.getByLabel("Primary thread search").fill("Primary Coordination");
+  await page
+    .getByRole("button", { name: /Primary Coordination Thread/ })
+    .click();
+  await page.getByLabel("Primary document search").fill("Launch Runbook");
+  await page.getByRole("button", { name: /Launch Runbook/ }).click();
   await page.getByRole("button", { name: "Create board", exact: true }).click();
 
   await expect(page).toHaveURL(/\/local\/boards\/board-created$/);
@@ -591,16 +625,11 @@ test("board UI supports create/edit and card mutation flows", async ({
     },
   ]);
 
-  await page.getByRole("button", { name: "Edit board" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Board title").fill("Launch Control v2");
   await page.getByLabel("Status").selectOption("closed");
-
-  // Use advanced/manual entry mode for document ID
-  await page.getByText("Or enter document ID manually:").click();
-  await page
-    .getByPlaceholder("incident-response-playbook")
-    .fill("doc-playbook");
-
+  await page.getByLabel("Primary document search").fill("Incident Playbook");
+  await page.getByRole("button", { name: /Incident Playbook/ }).click();
   await page.getByRole("button", { name: "Save board" }).click();
 
   await expect(
@@ -623,32 +652,23 @@ test("board UI supports create/edit and card mutation flows", async ({
   ]);
 
   await page.getByRole("button", { name: "Add card", exact: true }).click();
-
-  // Use advanced/manual entry mode for thread ID
-  await page.getByText("Or enter thread ID manually:").click();
-  await page.getByPlaceholder("thread-onboarding").fill("thread-execution");
-
+  await page.getByLabel("Card thread search").fill("Execution Track");
+  await page.getByRole("button", { name: /Execution Track/ }).click();
   await page.getByLabel("Target column").selectOption("ready");
-
-  // Use advanced/manual entry mode for pinned document ID
-  await page.getByText("Or enter document ID manually:").click();
-  await page.getByPlaceholder("onboarding-guide-v1").fill("doc-playbook");
-
+  await page.getByLabel("Pinned document search").fill("Incident Playbook");
+  await page.getByRole("button", { name: /Incident Playbook/ }).click();
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(
     page.getByRole("link", { name: "Execution Track" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Add card", exact: true }).click();
-
-  // Use advanced/manual entry mode for thread ID
-  await page.getByText("Or enter thread ID manually:").click();
-  await page.getByPlaceholder("thread-onboarding").fill("thread-review");
-
+  await page.getByLabel("Card thread search").fill("Review Prep");
+  await page.getByRole("button", { name: /Review Prep/ }).click();
   await page.getByLabel("Target column").selectOption("ready");
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(page.getByRole("link", { name: "Review Prep" })).toBeVisible();
-  await expect(page.getByText("Stale", { exact: true })).toBeVisible();
+  await expect(page.getByText("Thread stale", { exact: true })).toBeVisible();
   await expect(page.getByText("Need sign-off on review prep")).toBeVisible();
 
   await page.getByRole("button", { name: "Manage Review Prep" }).click();
@@ -675,10 +695,11 @@ test("board UI supports create/edit and card mutation flows", async ({
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Manage Execution Track" }).click();
-  await page.getByLabel("Pinned document ID").fill("doc-playbook");
+  await page.getByLabel("Pinned document search").fill("Incident Playbook");
+  await page.getByRole("button", { name: /Incident Playbook/ }).click();
   await page.getByRole("button", { name: "Save pinned doc" }).click();
   await expect(
-    readySection.getByRole("link", { name: "Incident Playbook" }),
+    readySection.getByRole("link", { name: "Pinned doc Incident Playbook" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Remove card" }).click();
@@ -735,6 +756,141 @@ test("board UI supports create/edit and card mutation flows", async ({
       if_board_updated_at: "2026-03-05T06:00:00.000Z",
     },
   ]);
+});
+
+test("board detail shows pending freshness and hides derived card counts until refreshed", async ({
+  page,
+}) => {
+  const threads = [
+    {
+      id: "thread-primary",
+      type: "process",
+      title: "Primary Coordination Thread",
+      status: "active",
+      priority: "p1",
+      updated_at: "2026-03-04T00:00:00.000Z",
+      updated_by: actorId,
+      open_commitments: ["commitment-primary"],
+    },
+    {
+      id: "thread-execution",
+      type: "process",
+      title: "Execution Track",
+      status: "active",
+      priority: "p2",
+      updated_at: "2026-03-04T01:00:00.000Z",
+      updated_by: actorId,
+      open_commitments: ["commitment-execution"],
+    },
+  ];
+  const documents = [
+    {
+      id: "doc-runbook",
+      title: "Launch Runbook",
+      thread_id: "thread-primary",
+      updated_at: "2026-03-04T00:00:00.000Z",
+      updated_by: actorId,
+      status: "active",
+      labels: [],
+      head_revision_id: "rev-doc-runbook-1",
+      head_revision_number: 1,
+    },
+  ];
+  const commitments = [
+    {
+      id: "commitment-primary",
+      thread_id: "thread-primary",
+      title: "Primary thread follow-up",
+      owner: actorId,
+      due_at: "2026-03-07T12:00:00.000Z",
+      status: "open",
+    },
+  ];
+  const board = {
+    id: "board-pending",
+    title: "Pending Board",
+    status: "active",
+    labels: [],
+    owners: [actorId],
+    primary_thread_id: "thread-primary",
+    primary_document_id: "doc-runbook",
+    column_schema: columns,
+    pinned_refs: [],
+    created_at: "2026-03-04T00:00:00.000Z",
+    created_by: actorId,
+    updated_at: "2026-03-04T00:00:00.000Z",
+    updated_by: actorId,
+  };
+  const cards = [
+    {
+      board_id: "board-pending",
+      thread_id: "thread-execution",
+      column_key: "ready",
+      rank: "0001",
+      pinned_document_id: null,
+      created_at: "2026-03-04T00:00:00.000Z",
+      created_by: actorId,
+      updated_at: "2026-03-04T00:00:00.000Z",
+      updated_by: actorId,
+    },
+  ];
+
+  await page.addInitScript((selectedActorId) => {
+    window.localStorage.setItem("oar_ui_actor_id", selectedActorId);
+  }, actorId);
+
+  await page.route(/\/actors$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        actors: [{ id: actorId, display_name: "Board Tester" }],
+      }),
+    });
+  });
+
+  await page.route(/\/threads(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ threads }),
+    });
+  });
+
+  await page.route(/\/docs(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ documents }),
+    });
+  });
+
+  await page.route(/\/boards\/board-pending\/workspace$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        buildWorkspace(board, cards, threads, documents, commitments, [], {
+          projectionStatus: "pending",
+        }),
+      ),
+    });
+  });
+
+  await page.goto("/local/boards/board-pending");
+
+  await expect(
+    page.getByRole("heading", { name: "Pending Board" }),
+  ).toBeVisible();
+  await expect(page.getByText("Pending refresh", { exact: true })).toHaveCount(
+    2,
+  );
+  await expect(
+    page.getByText("Derived counts hidden until refresh completes", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("1 inbox", { exact: true })).toHaveCount(0);
 });
 
 test("board edit conflict reloads latest state and allows retry", async ({
@@ -870,7 +1026,7 @@ test("board edit conflict reloads latest state and allows retry", async ({
     page.getByRole("heading", { name: "Conflict Board" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Edit board" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Board title").fill("Conflict Board Edited");
   await page.getByRole("button", { name: "Save board" }).click();
 

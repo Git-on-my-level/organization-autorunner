@@ -20,6 +20,7 @@ x-oar-extension-vocabulary:
   x-oar-error-codes: "Stable semantic error codes surfaced by core"
   x-oar-concepts: "Concept tags for docs/help grouping"
   x-oar-stability: "experimental | beta | stable"
+  x-oar-surface: "Surface classification: canonical, projection, or utility"
   x-oar-agent-notes: "Idempotency, retries, and protocol caveats"
 paths:
   /health:
@@ -27,6 +28,7 @@ paths:
       operationId: healthCheck
       summary: Health check
       tags: [meta]
+      x-oar-surface: "utility"
       x-oar-command-id: "meta.health"
       x-oar-cli-path: "meta health"
       x-oar-why: "Probe whether core storage is available before issuing stateful commands."
@@ -55,6 +57,7 @@ paths:
       operationId: getVersion
       summary: Get schema contract version
       tags: [meta]
+      x-oar-surface: "utility"
       x-oar-command-id: "meta.version"
       x-oar-cli-path: "meta version"
       x-oar-why: "Verify compatibility between core and generated clients before performing writes."
@@ -81,6 +84,7 @@ paths:
       operationId: getMetaHandshake
       summary: Get compatibility handshake metadata
       tags: [meta]
+      x-oar-surface: "utility"
       x-oar-command-id: "meta.handshake"
       x-oar-cli-path: "meta handshake"
       x-oar-why: "Discover compatibility, upgrade, and instance identity metadata before command execution."
@@ -107,6 +111,7 @@ paths:
       operationId: listMetaCommands
       summary: List generated command metadata
       tags: [meta]
+      x-oar-surface: "utility"
       x-oar-command-id: "meta.commands.list"
       x-oar-cli-path: "meta commands list"
       x-oar-why: "Load generated command metadata used for help, docs, and agent introspection."
@@ -137,6 +142,7 @@ paths:
       operationId: getMetaCommand
       summary: Get generated metadata for a command id
       tags: [meta]
+      x-oar-surface: "utility"
       x-oar-command-id: "meta.commands.get"
       x-oar-cli-path: "meta commands get"
       x-oar-why: "Resolve a stable command id to full generated metadata and guidance."
@@ -171,6 +177,7 @@ paths:
       operationId: listMetaConcepts
       summary: List generated concept metadata
       tags: [meta]
+      x-oar-surface: "utility"
       x-oar-command-id: "meta.concepts.list"
       x-oar-cli-path: "meta concepts list"
       x-oar-why: "Discover conceptual groupings of commands generated from contract metadata."
@@ -201,6 +208,7 @@ paths:
       operationId: getMetaConcept
       summary: Get generated metadata for one concept
       tags: [meta]
+      x-oar-surface: "utility"
       x-oar-command-id: "meta.concepts.get"
       x-oar-cli-path: "meta concepts get"
       x-oar-why: "Resolve one concept tag to the commands that implement that concept."
@@ -235,6 +243,7 @@ paths:
       operationId: registerActor
       summary: Register actor identity metadata
       tags: [actors]
+      x-oar-surface: "utility"
       x-oar-command-id: "actors.register"
       x-oar-cli-path: "actors register"
       x-oar-why: "Bootstrap an authenticated caller identity before mutating thread state."
@@ -269,6 +278,7 @@ paths:
       operationId: listActors
       summary: List actors
       tags: [actors]
+      x-oar-surface: "utility"
       x-oar-command-id: "actors.list"
       x-oar-cli-path: "actors list"
       x-oar-why: "Resolve available actor identities for routing writes."
@@ -312,6 +322,7 @@ paths:
       operationId: registerAgent
       summary: Register agent principal and initial key
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "auth.agents.register"
       x-oar-cli-path: "auth agents register"
       x-oar-why: "Register an agent principal with a bootstrap token for the first principal or an invite token for later principals."
@@ -378,6 +389,7 @@ paths:
       operationId: issueAuthToken
       summary: Mint or refresh token bundle
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "auth.token"
       x-oar-cli-path: "auth token"
       x-oar-why: "Exchange a refresh token or key assertion for a fresh token bundle."
@@ -418,6 +430,7 @@ paths:
       operationId: passkeyRegisterOptions
       summary: Begin passkey registration ceremony
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "auth.passkey.register.options"
       x-oar-cli-path: "auth passkey register options"
       x-oar-why: "Create a WebAuthn registration challenge for a human principal during managed bootstrap or invite acceptance."
@@ -452,6 +465,7 @@ paths:
       operationId: passkeyRegisterVerify
       summary: Verify passkey registration and issue tokens
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "auth.passkey.register.verify"
       x-oar-cli-path: "auth passkey register verify"
       x-oar-why: "Verify a WebAuthn attestation for managed bootstrap or invite acceptance, create the principal, and issue the initial token bundle."
@@ -589,6 +603,7 @@ paths:
       operationId: passkeyLoginOptions
       summary: Begin passkey login ceremony
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "auth.passkey.login.options"
       x-oar-cli-path: "auth passkey login options"
       x-oar-why: "Create a WebAuthn assertion challenge for passkey authentication."
@@ -623,6 +638,7 @@ paths:
       operationId: passkeyLoginVerify
       summary: Verify passkey login and issue tokens
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "auth.passkey.login.verify"
       x-oar-cli-path: "auth passkey login verify"
       x-oar-why: "Verify a WebAuthn assertion and issue a fresh token bundle."
@@ -659,6 +675,7 @@ paths:
       operationId: getCurrentAgent
       summary: Read authenticated agent profile
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "agents.me.get"
       x-oar-cli-path: "agents me get"
       x-oar-why: "Inspect current principal metadata and active/revoked keys."
@@ -687,6 +704,7 @@ paths:
       operationId: patchCurrentAgent
       summary: Update authenticated agent profile
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "agents.me.patch"
       x-oar-cli-path: "agents me patch"
       x-oar-why: "Rename the authenticated agent without re-registration."
@@ -727,6 +745,7 @@ paths:
       operationId: rotateCurrentAgentKey
       summary: Rotate authenticated agent key
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "agents.me.keys.rotate"
       x-oar-cli-path: "agents me keys rotate"
       x-oar-why: "Replace the assertion key and invalidate the old key path."
@@ -765,6 +784,7 @@ paths:
       operationId: revokeCurrentAgent
       summary: Self-revoke current agent principal
       tags: [auth]
+      x-oar-surface: "utility"
       x-oar-command-id: "agents.me.revoke"
       x-oar-cli-path: "agents me revoke"
       x-oar-why: "Permanently revoke the authenticated agent so future mint/refresh calls fail."
@@ -795,6 +815,7 @@ paths:
       operationId: createThread
       summary: Create thread snapshot
       tags: [threads]
+      x-oar-surface: "canonical"
       x-oar-command-id: "threads.create"
       x-oar-cli-path: "threads create"
       x-oar-why: "Open a new thread for tracking ongoing organizational work."
@@ -827,6 +848,7 @@ paths:
       operationId: listThreads
       summary: List thread snapshots
       tags: [threads]
+      x-oar-surface: "canonical"
       x-oar-command-id: "threads.list"
       x-oar-cli-path: "threads list"
       x-oar-why: "Retrieve current thread state for triage and scheduling decisions."
@@ -889,6 +911,7 @@ paths:
       operationId: getThread
       summary: Get thread snapshot by id
       tags: [threads]
+      x-oar-surface: "canonical"
       x-oar-command-id: "threads.get"
       x-oar-cli-path: "threads get"
       x-oar-why: "Resolve a raw authoritative thread snapshot for low-level reads before patching or composing packets."
@@ -917,6 +940,7 @@ paths:
       operationId: patchThread
       summary: Patch thread snapshot
       tags: [threads]
+      x-oar-surface: "canonical"
       x-oar-command-id: "threads.patch"
       x-oar-cli-path: "threads patch"
       x-oar-why: "Update mutable thread fields while preserving unknown data and auditability."
@@ -957,6 +981,7 @@ paths:
       operationId: getThreadTimeline
       summary: Get thread timeline events and referenced entities
       tags: [threads]
+      x-oar-surface: "canonical"
       x-oar-command-id: "threads.timeline"
       x-oar-cli-path: "threads timeline"
       x-oar-why: "Retrieve narrative event history plus referenced snapshots/artifacts in one call."
@@ -987,6 +1012,7 @@ paths:
       operationId: getThreadContext
       summary: Get bundled thread context for agent callers
       tags: [threads]
+      x-oar-surface: "projection"
       x-oar-command-id: "threads.context"
       x-oar-cli-path: "threads context"
       x-oar-why: "Load one thread's state, recent events, key artifacts, open commitments, and linked documents in a single round-trip; CLI `oar threads context` can aggregate across threads by composing multiple calls."
@@ -1001,7 +1027,7 @@ paths:
       x-oar-error-codes: [invalid_request, not_found]
       x-oar-concepts: [threads, events, artifacts, commitments, docs]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read."
+      x-oar-agent-notes: "Derived thread context projection; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read."
       parameters:
         - $ref: '#/components/parameters/ThreadID'
         - in: query
@@ -1027,6 +1053,7 @@ paths:
       operationId: getThreadWorkspace
       summary: Get canonical thread workspace projection
       tags: [threads]
+      x-oar-surface: "projection"
       x-oar-command-id: "threads.workspace"
       x-oar-cli-path: "threads workspace"
       x-oar-why: "Load one thread workspace projection from the server, including canonical thread context plus derived collaboration and inbox summaries, so CLI and web do not need client-side joins."
@@ -1041,7 +1068,7 @@ paths:
       x-oar-error-codes: [invalid_request, not_found]
       x-oar-concepts: [threads, events, artifacts, commitments, docs, boards, inbox]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Prefer this as the single-thread coordination read path. `section_kinds` distinguishes canonical versus derived sections, including additive board membership joins."
+      x-oar-agent-notes: "Derived workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Prefer this as the single-thread coordination read path. `section_kinds` distinguishes canonical versus derived sections, including additive board membership joins."
       parameters:
         - $ref: '#/components/parameters/ThreadID'
         - in: query
@@ -1070,6 +1097,7 @@ paths:
       operationId: getSnapshot
       summary: Get snapshot by id
       tags: [snapshots]
+      x-oar-surface: "canonical"
       x-oar-command-id: "snapshots.get"
       x-oar-cli-path: "snapshots get"
       x-oar-why: "Resolve arbitrary snapshot references encountered in event refs."
@@ -1100,6 +1128,7 @@ paths:
       operationId: createCommitment
       summary: Create commitment snapshot
       tags: [commitments]
+      x-oar-surface: "canonical"
       x-oar-command-id: "commitments.create"
       x-oar-cli-path: "commitments create"
       x-oar-why: "Track accountable work items tied to a thread."
@@ -1132,6 +1161,7 @@ paths:
       operationId: listCommitments
       summary: List commitments
       tags: [commitments]
+      x-oar-surface: "canonical"
       x-oar-command-id: "commitments.list"
       x-oar-cli-path: "commitments list"
       x-oar-why: "Monitor open/blocked work and due windows."
@@ -1174,6 +1204,7 @@ paths:
       operationId: getCommitment
       summary: Get commitment by id
       tags: [commitments]
+      x-oar-surface: "canonical"
       x-oar-command-id: "commitments.get"
       x-oar-cli-path: "commitments get"
       x-oar-why: "Read commitment status/details before status transitions."
@@ -1202,6 +1233,7 @@ paths:
       operationId: patchCommitment
       summary: Patch commitment snapshot
       tags: [commitments]
+      x-oar-surface: "canonical"
       x-oar-command-id: "commitments.patch"
       x-oar-cli-path: "commitments patch"
       x-oar-why: "Update ownership, due date, or status with evidence-aware transition rules."
@@ -1242,6 +1274,7 @@ paths:
       operationId: listBoards
       summary: List boards with derived summary data
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.list"
       x-oar-cli-path: "boards list"
       x-oar-why: "Discover durable coordination boards with enough summary data for list pages and CLI triage without per-board fan-out."
@@ -1307,6 +1340,7 @@ paths:
       operationId: createBoard
       summary: Create board
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.create"
       x-oar-cli-path: "boards create"
       x-oar-why: "Create a first-class coordination board with a canonical primary thread and optional primary document."
@@ -1343,6 +1377,7 @@ paths:
       operationId: getBoard
       summary: Get board metadata
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.get"
       x-oar-cli-path: "boards get"
       x-oar-why: "Resolve one board's canonical metadata and concurrency token without hydrating the full workspace projection."
@@ -1373,6 +1408,7 @@ paths:
       operationId: updateBoard
       summary: Update board metadata
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.update"
       x-oar-cli-path: "boards update"
       x-oar-why: "Patch mutable board metadata with optimistic concurrency while preserving server-owned identity and timestamps."
@@ -1413,19 +1449,20 @@ paths:
       operationId: getBoardWorkspace
       summary: Get canonical board workspace projection
       tags: [boards]
+      x-oar-surface: "projection"
       x-oar-command-id: "boards.workspace"
       x-oar-cli-path: "boards workspace"
-      x-oar-why: "Load one board's canonical board, primary thread, ordered cards, and aggregated docs/commitments/inbox sections in a single round-trip."
+      x-oar-why: "Load one board's canonical organizing map plus hydrated backing resources and derived scan sections in a single round-trip."
       x-oar-examples:
         - title: Board workspace
           command: oar boards workspace --board-id board_product_launch --json
       x-oar-input-mode: "none"
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, section_kinds, generated_at }`."
+      x-oar-output-envelope: "Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, projection_freshness, board_summary_freshness, section_kinds, generated_at }`, where each card keeps canonical membership/backing data separate from derived summary/freshness."
       x-oar-error-codes: [invalid_request, not_found]
       x-oar-concepts: [boards, planning, threads, docs, commitments, inbox]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data."
+      x-oar-agent-notes: "Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards, board-card membership, and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Card envelopes keep canonical membership/backing refs separate from derived summary/freshness."
       parameters:
         - $ref: '#/components/parameters/BoardID'
       responses:
@@ -1445,6 +1482,7 @@ paths:
       operationId: listBoardCards
       summary: List ordered board cards
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.cards.list"
       x-oar-cli-path: "boards cards list"
       x-oar-why: "Read canonical board membership, column placement, and rank ordering without hydrating the full board workspace."
@@ -1475,6 +1513,7 @@ paths:
       operationId: addBoardCard
       summary: Add existing thread to board as a card
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.cards.add"
       x-oar-cli-path: "boards cards add"
       x-oar-why: "Create explicit board membership for an existing thread with canonical column placement and server-owned rank."
@@ -1515,6 +1554,7 @@ paths:
       operationId: updateBoardCard
       summary: Update board card metadata
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.cards.update"
       x-oar-cli-path: "boards cards update"
       x-oar-why: "Patch mutable board-card metadata, which in v1 is limited to the pinned document convenience link."
@@ -1556,6 +1596,7 @@ paths:
       operationId: moveBoardCard
       summary: Move board card across columns or ranks
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.cards.move"
       x-oar-cli-path: "boards cards move"
       x-oar-why: "Request relative placement for a card while keeping rank tokens opaque and server-owned."
@@ -1597,6 +1638,7 @@ paths:
       operationId: removeBoardCard
       summary: Remove board card membership
       tags: [boards]
+      x-oar-surface: "canonical"
       x-oar-command-id: "boards.cards.remove"
       x-oar-cli-path: "boards cards remove"
       x-oar-why: "Delete canonical board membership for a card without introducing a separate archived-card lifecycle in v1."
@@ -1638,6 +1680,7 @@ paths:
       operationId: listDocuments
       summary: List documents and their current head metadata
       tags: [docs]
+      x-oar-surface: "canonical"
       x-oar-command-id: "docs.list"
       x-oar-cli-path: "docs list"
       x-oar-why: "Discover available documents without resolving each head individually, optionally scoped to a single thread."
@@ -1687,6 +1730,7 @@ paths:
       operationId: createDocument
       summary: Create document with initial immutable revision
       tags: [docs]
+      x-oar-surface: "canonical"
       x-oar-command-id: "docs.create"
       x-oar-cli-path: "docs create"
       x-oar-why: "Bootstrap a first-class document identity and initial revision without manual head-pointer management."
@@ -1723,6 +1767,7 @@ paths:
       operationId: getDocument
       summary: Get document and authoritative head revision
       tags: [docs]
+      x-oar-surface: "canonical"
       x-oar-command-id: "docs.get"
       x-oar-cli-path: "docs get"
       x-oar-why: "Resolve the current authoritative document head without client-side lineage traversal."
@@ -1753,6 +1798,7 @@ paths:
       operationId: updateDocument
       summary: Create a new immutable revision for an existing document
       tags: [docs]
+      x-oar-surface: "canonical"
       x-oar-command-id: "docs.update"
       x-oar-cli-path: "docs update"
       x-oar-why: "Append a revision and atomically advance document head with optimistic concurrency."
@@ -1793,6 +1839,7 @@ paths:
       operationId: listDocumentHistory
       summary: List ordered immutable revisions for a document
       tags: [docs]
+      x-oar-surface: "canonical"
       x-oar-command-id: "docs.history"
       x-oar-cli-path: "docs history"
       x-oar-why: "Traverse full document lineage in canonical revision-number order."
@@ -1825,6 +1872,7 @@ paths:
       operationId: getDocumentRevision
       summary: Get one immutable document revision
       tags: [docs]
+      x-oar-surface: "canonical"
       x-oar-command-id: "docs.revision.get"
       x-oar-cli-path: "docs revision get"
       x-oar-why: "Read a specific historical revision payload without mutating document head."
@@ -1858,6 +1906,7 @@ paths:
       operationId: createEvent
       summary: Append event
       tags: [events]
+      x-oar-surface: "canonical"
       x-oar-command-id: "events.create"
       x-oar-cli-path: "events create"
       x-oar-why: "Record append-only narrative or protocol state changes that complement snapshots."
@@ -1892,6 +1941,7 @@ paths:
       operationId: streamEvents
       summary: Stream events via Server-Sent Events (SSE)
       tags: [events]
+      x-oar-surface: "canonical"
       x-oar-command-id: "events.stream"
       x-oar-cli-path: "events stream"
       x-oar-why: "Follow live event updates with resumable SSE semantics."
@@ -1945,6 +1995,7 @@ paths:
       operationId: getEvent
       summary: Get event by id
       tags: [events]
+      x-oar-surface: "canonical"
       x-oar-command-id: "events.get"
       x-oar-cli-path: "events get"
       x-oar-why: "Resolve event references and evidence links."
@@ -1975,6 +2026,7 @@ paths:
       operationId: createArtifact
       summary: Create artifact
       tags: [artifacts]
+      x-oar-surface: "canonical"
       x-oar-command-id: "artifacts.create"
       x-oar-cli-path: "artifacts create"
       x-oar-why: "Persist immutable evidence blobs and metadata for references and review."
@@ -2007,6 +2059,7 @@ paths:
       operationId: listArtifacts
       summary: List artifact metadata
       tags: [artifacts]
+      x-oar-surface: "canonical"
       x-oar-command-id: "artifacts.list"
       x-oar-cli-path: "artifacts list"
       x-oar-why: "Discover evidence and packets attached to threads."
@@ -2050,6 +2103,7 @@ paths:
       operationId: getArtifact
       summary: Get artifact metadata by id
       tags: [artifacts]
+      x-oar-surface: "canonical"
       x-oar-command-id: "artifacts.get"
       x-oar-cli-path: "artifacts get"
       x-oar-why: "Resolve artifact refs before downloading or rendering content."
@@ -2080,6 +2134,7 @@ paths:
       operationId: getArtifactContent
       summary: Get artifact raw content
       tags: [artifacts]
+      x-oar-surface: "canonical"
       x-oar-command-id: "artifacts.content.get"
       x-oar-cli-path: "artifacts content get"
       x-oar-why: "Fetch opaque artifact bytes for downstream processors."
@@ -2118,6 +2173,7 @@ paths:
       operationId: tombstoneArtifact
       summary: Tombstone an artifact (soft-delete)
       tags: [artifacts]
+      x-oar-surface: "canonical"
       x-oar-command-id: "artifacts.tombstone"
       x-oar-cli-path: "artifacts tombstone"
       x-oar-why: "Mark an artifact as inactive while preserving provenance; tombstoned artifacts are excluded from list by default."
@@ -2156,6 +2212,7 @@ paths:
       operationId: tombstoneDocument
       summary: Tombstone a document (soft-delete)
       tags: [docs]
+      x-oar-surface: "canonical"
       x-oar-command-id: "docs.tombstone"
       x-oar-cli-path: "docs tombstone"
       x-oar-why: "Mark a document as inactive while preserving revision history and provenance."
@@ -2194,6 +2251,7 @@ paths:
       operationId: createWorkOrder
       summary: Create work-order packet artifact
       tags: [packets]
+      x-oar-surface: "canonical"
       x-oar-command-id: "packets.work-orders.create"
       x-oar-cli-path: "packets work-orders create"
       x-oar-why: "Create structured action packets with deterministic schema enforcement."
@@ -2228,6 +2286,7 @@ paths:
       operationId: createReceipt
       summary: Create receipt packet artifact
       tags: [packets]
+      x-oar-surface: "canonical"
       x-oar-command-id: "packets.receipts.create"
       x-oar-cli-path: "packets receipts create"
       x-oar-why: "Record execution output and verification evidence for a work order."
@@ -2262,6 +2321,7 @@ paths:
       operationId: createReview
       summary: Create review packet artifact
       tags: [packets]
+      x-oar-surface: "canonical"
       x-oar-command-id: "packets.reviews.create"
       x-oar-cli-path: "packets reviews create"
       x-oar-why: "Record acceptance/revision decisions over a receipt."
@@ -2296,6 +2356,7 @@ paths:
       operationId: listInbox
       summary: List derived inbox items
       tags: [inbox]
+      x-oar-surface: "projection"
       x-oar-command-id: "inbox.list"
       x-oar-cli-path: "inbox list"
       x-oar-why: "Surface derived actionable risk and decision signals."
@@ -2308,7 +2369,7 @@ paths:
       x-oar-error-codes: []
       x-oar-concepts: [inbox, derived-views]
       x-oar-stability: "stable"
-      x-oar-agent-notes: "Safe and idempotent."
+      x-oar-agent-notes: "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Safe and idempotent."
       parameters:
         - in: query
           name: risk_horizon_days
@@ -2326,6 +2387,7 @@ paths:
       operationId: getInboxItem
       summary: Get derived inbox item detail
       tags: [inbox]
+      x-oar-surface: "projection"
       x-oar-command-id: "inbox.get"
       x-oar-cli-path: "inbox get"
       x-oar-why: "Inspect one inbox item in detail before acting on it."
@@ -2340,7 +2402,7 @@ paths:
       x-oar-error-codes: [not_found]
       x-oar-concepts: [inbox, derived-views]
       x-oar-stability: "stable"
-      x-oar-agent-notes: "CLI supports canonical ids, aliases, and unique prefixes."
+      x-oar-agent-notes: "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. CLI supports canonical ids, aliases, and unique prefixes."
       parameters:
         - in: path
           name: inbox_item_id
@@ -2364,6 +2426,7 @@ paths:
       operationId: streamInbox
       summary: Stream derived inbox items via SSE
       tags: [inbox]
+      x-oar-surface: "projection"
       x-oar-command-id: "inbox.stream"
       x-oar-cli-path: "inbox stream"
       x-oar-why: "Follow live derived inbox updates without repeated polling."
@@ -2381,7 +2444,7 @@ paths:
       x-oar-error-codes: [internal_error, cli_outdated]
       x-oar-concepts: [inbox, derived-views, streaming]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Supports `Last-Event-ID` header or `last_event_id` query for resumable reads."
+      x-oar-agent-notes: "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Supports `Last-Event-ID` header or `last_event_id` query for resumable reads."
       parameters:
         - in: query
           name: risk_horizon_days
@@ -2411,6 +2474,7 @@ paths:
       operationId: ackInboxItem
       summary: Acknowledge an inbox item
       tags: [inbox]
+      x-oar-surface: "projection"
       x-oar-command-id: "inbox.ack"
       x-oar-cli-path: "inbox ack"
       x-oar-why: "Suppress already-acted-on derived inbox signals."
@@ -2425,7 +2489,7 @@ paths:
       x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id]
       x-oar-concepts: [inbox, events]
       x-oar-stability: "stable"
-      x-oar-agent-notes: "Idempotent at semantic level; repeated acks should not duplicate active inbox items."
+      x-oar-agent-notes: "Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Idempotent at semantic level; repeated acks should not duplicate active inbox items."
       requestBody:
         required: true
         content:
@@ -2447,6 +2511,7 @@ paths:
       operationId: rebuildDerivedViews
       summary: Rebuild derived views
       tags: [derived]
+      x-oar-surface: "utility"
       x-oar-command-id: "derived.rebuild"
       x-oar-cli-path: "derived rebuild"
       x-oar-why: "Force deterministic recomputation of derived views after maintenance or migration."
@@ -2712,10 +2777,12 @@ components:
 
     Document:
       type: object
+      description: Canonical long-lived document lineage with a mutable head revision and immutable history.
       additionalProperties: true
 
     DocumentRevision:
       type: object
+      description: Immutable revision entry within a document lineage.
       additionalProperties: true
 
     InboxItem:
@@ -3098,6 +3165,7 @@ components:
 
     Board:
       type: object
+      description: Canonical organizational map over work, anchored to a primary thread and optional primary document lineage.
       properties:
         id: { type: string }
         title: { type: string }
@@ -3135,6 +3203,7 @@ components:
 
     BoardCard:
       type: object
+      description: Canonical explicit board membership for one thread within a board.
       properties:
         board_id: { type: string }
         thread_id: { type: string }
@@ -3205,6 +3274,57 @@ components:
         [open_commitment_count, decision_request_count, decision_count, recommendation_count,
          document_count, inbox_count, latest_activity_at, stale]
 
+    ProjectionFreshnessThread:
+      type: object
+      properties:
+        thread_id: { type: string }
+        status: { type: string, enum: [current, pending, error, missing] }
+        generated_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        queued_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        started_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        completed_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        last_error_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        last_error:
+          oneOf:
+            - type: string
+            - type: 'null'
+        materialized: { type: boolean }
+        refresh_in_flight: { type: boolean }
+      required:
+        [thread_id, status, generated_at, queued_at, started_at, completed_at, last_error_at,
+         last_error, materialized, refresh_in_flight]
+
+    ProjectionFreshness:
+      type: object
+      properties:
+        status: { type: string, enum: [current, pending, error, missing] }
+        thread_count: { type: integer }
+        threads:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectionFreshnessThread'
+      required: [status, thread_count, threads]
+
     BoardListItem:
       type: object
       properties:
@@ -3256,20 +3376,41 @@ components:
           type: integer
       required: [items, count]
 
-    BoardWorkspaceCard:
+    BoardWorkspaceCardBacking:
       type: object
       properties:
-        card:
-          $ref: '#/components/schemas/BoardCard'
+        thread_ref: { type: string }
         thread:
           $ref: '#/components/schemas/Thread'
-        summary:
-          $ref: '#/components/schemas/BoardCardSummary'
+        pinned_document_ref:
+          oneOf:
+            - type: string
+            - type: 'null'
         pinned_document:
           oneOf:
             - $ref: '#/components/schemas/Document'
             - type: 'null'
-      required: [card, thread, summary, pinned_document]
+      required: [thread_ref, thread, pinned_document_ref, pinned_document]
+
+    BoardWorkspaceCardDerived:
+      type: object
+      properties:
+        summary:
+          $ref: '#/components/schemas/BoardCardSummary'
+        freshness:
+          $ref: '#/components/schemas/ProjectionFreshnessThread'
+      required: [summary, freshness]
+
+    BoardWorkspaceCard:
+      type: object
+      properties:
+        membership:
+          $ref: '#/components/schemas/BoardCard'
+        backing:
+          $ref: '#/components/schemas/BoardWorkspaceCardBacking'
+        derived:
+          $ref: '#/components/schemas/BoardWorkspaceCardDerived'
+      required: [membership, backing, derived]
 
     BoardWorkspaceCardsSection:
       type: object
@@ -3649,6 +3790,10 @@ components:
           $ref: '#/components/schemas/BoardWorkspaceInboxSection'
         board_summary:
           $ref: '#/components/schemas/BoardSummary'
+        projection_freshness:
+          $ref: '#/components/schemas/ProjectionFreshness'
+        board_summary_freshness:
+          $ref: '#/components/schemas/ProjectionFreshness'
         warnings:
           $ref: '#/components/schemas/BoardWorkspaceWarningsSection'
         section_kinds:
@@ -3658,7 +3803,8 @@ components:
           format: date-time
       required:
         [board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox,
-         board_summary, warnings, section_kinds, generated_at]
+         board_summary, projection_freshness, board_summary_freshness, warnings, section_kinds,
+         generated_at]
 
     SnapshotResponse:
       type: object

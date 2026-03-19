@@ -119,12 +119,14 @@ func (s *Store) RegisterPasskeyAgent(ctx context.Context, input RegisterPasskeyA
 	}
 
 	return Agent{
-		AgentID:   agentID,
-		Username:  username,
-		ActorID:   actorID,
-		Revoked:   false,
-		CreatedAt: nowText,
-		UpdatedAt: nowText,
+		AgentID:       agentID,
+		Username:      username,
+		ActorID:       actorID,
+		Revoked:       false,
+		CreatedAt:     nowText,
+		UpdatedAt:     nowText,
+		PrincipalKind: ptrString("human"),
+		AuthMethod:    ptrString("passkey"),
 	}, tokens, nil
 }
 
@@ -480,4 +482,8 @@ func maxInt64(value int64, minimum int64) int64 {
 		return minimum
 	}
 	return value
+}
+
+func ptrString(s string) *string {
+	return &s
 }

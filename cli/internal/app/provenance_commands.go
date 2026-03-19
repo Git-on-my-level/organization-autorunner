@@ -592,7 +592,20 @@ func looksLikeTypedRef(raw string) bool {
 }
 
 func provenanceUsageText() string {
-	return strings.TrimSpace(`Provenance navigation
+	return strings.TrimSpace(`Provenance guide
+
+Use ` + "`oar provenance walk`" + ` when you need to answer questions like:
+
+- Why does this object exist?
+- What evidence or earlier object led to it?
+- What thread, artifact, event, or snapshot is this derived from?
+
+Mental model
+
+- Provenance is a graph of typed refs, not just a linear event log.
+- Start from the object you trust most, then walk outward a few hops.
+- Keep walks narrow at first; increase depth only when the first pass is insufficient.
+- Use event-chain expansion when you specifically need event-to-event lineage, not as the default for every investigation.
 
 Usage:
   oar provenance walk --from <typed-ref> [--depth <n>] [--include-event-chain]
@@ -602,6 +615,14 @@ Typed ref roots:
   thread:<id>
   artifact:<id>
   snapshot:<id>
+
+Heuristics
+
+- Start from ` + "`event:<id>`" + ` when explaining one update or mutation.
+- Start from ` + "`thread:<id>`" + ` when explaining a work item's evidence and history.
+- Start from ` + "`artifact:<id>`" + ` when tracing a file or attachment back to its source.
+- Start from ` + "`snapshot:<id>`" + ` when investigating derived or captured state.
+- Prefer shallow depths like 1-3 before broader traversals.
 
 Examples:
   oar --json provenance walk --from event:event_123 --depth 2

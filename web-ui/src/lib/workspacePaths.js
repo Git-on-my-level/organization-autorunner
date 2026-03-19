@@ -2,6 +2,7 @@ import { base } from "$app/paths";
 
 export const DEFAULT_WORKSPACE_SLUG = "local";
 export const WORKSPACE_HEADER = "x-oar-workspace-slug";
+export const PROJECT_HEADER = "x-oar-project-slug";
 
 export function normalizeWorkspaceSlug(value) {
   return String(value ?? "")
@@ -11,6 +12,8 @@ export function normalizeWorkspaceSlug(value) {
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+export const normalizeProjectSlug = normalizeWorkspaceSlug;
 
 export function normalizeAppPath(pathname = "/") {
   const raw = String(pathname ?? "").trim() || "/";
@@ -73,6 +76,7 @@ export function workspacePath(
     : appPath(`/${slug}${normalizedPathname}`, basePath);
 }
 
+export const projectPath = workspacePath;
 export function stripWorkspacePath(
   pathname,
   workspaceSlug,
@@ -96,7 +100,10 @@ export function stripWorkspacePath(
   return normalizedPathname;
 }
 
+export const stripProjectPath = stripWorkspacePath;
 export function buildWorkspaceStorageKey(baseKey, workspaceSlug) {
   const slug = normalizeWorkspaceSlug(workspaceSlug) || DEFAULT_WORKSPACE_SLUG;
   return `${baseKey}:${slug}`;
 }
+
+export const buildProjectStorageKey = buildWorkspaceStorageKey;

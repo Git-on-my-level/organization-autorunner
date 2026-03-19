@@ -4,11 +4,7 @@
 
 oar-ui is the human-facing interface for Organization Autorunner.
 
-It provides visibility into the shared workspace maintained by oar-core and a
-surface for human intervention: decisions, reviews, snapshot edits, and
-message posting. It is one of many possible clients of oar-core. Humans
-interact through this UI; agents should prefer the CLI and generated clients
-over hand-authoring HTTP calls.
+OAR is a manager and executive operating system, not a generic work-management tool. The product foundation and architecture decisions are documented in [docs/architecture/foundation.md](../../docs/architecture/foundation.md). oar-ui provides visibility into the workspace maintained by oar-core and a surface for human intervention: decisions, reviews, snapshot edits, and message posting. It is one of many possible clients of oar-core — agents interact through the API directly; humans interact through this UI.
 
 oar-ui does **not**:
 
@@ -25,9 +21,6 @@ oar-ui does **not**:
 - oar-ui MUST treat oar-core as the system of record.
 - All persistent changes MUST be executed via oar-core API calls.
 - oar-ui MAY cache for performance, but caches MUST be invalidatable and MUST NOT create divergent state.
-- Workspace projection responses exist to support operator views and quick
-  tooling reads. They are convenience reads, not the durable automation
-  substrate.
 
 ### 1.2 Object compatibility
 
@@ -47,15 +40,11 @@ oar-ui does **not**:
 - The UI MUST authenticate the current user as an actor ID from the oar-core actor registry.
 - Every write operation MUST include the actor ID.
 - The UI displays actor `display_name` wherever `actor_id` appears.
-- Hosted-v1 target state requires auth on all workspace data routes outside
-  development mode.
-- Actor-selection mode is development-only and exists only for flows where core
-  explicitly allows unauthenticated writes.
-- Passkey-authenticated humans and Ed25519 key-pair agents are both workspace
-  principals.
-- Fine-grained RBAC is deferred in v1. Any authenticated principal has the same
-  workspace authority, including invite issuance/revocation once that workflow
-  is implemented.
+- **Auth-first model**: Production deployments require authenticated principals by default.
+  - Passkey registration/login creates a linked actor with `principal_kind=human`, `auth_method=passkey`.
+  - Ed25519 key registration creates a linked actor with `principal_kind=agent`, `auth_method=public_key`.
+  - When `dev_actor_mode=false` (default), the UI MUST NOT show the legacy actor picker/creator flow.
+  - When `dev_actor_mode=true` (development convenience), the legacy actor picker/creator flow MAY be shown, clearly labeled as development-only.
 
 ### 1.5 Provenance visibility
 
@@ -165,12 +154,26 @@ A view for inspecting receipt artifacts.
 
 **Must show:** outputs (as navigable typed-ref links), verification evidence (as navigable typed-ref links), changes summary, known gaps.
 
-**Receipt intake:** The UI MUST support at least manual creation of a receipt
-artifact (fill in fields, attach evidence as typed refs, save). Agents should
-typically submit receipts through the CLI or generated clients rather than
-hand-authoring HTTP calls, but humans still need a UI path.
+**Receipt intake:** The UI MUST support at least manual creation of a receipt artifact (fill in fields, attach evidence as typed refs, save). Agents will typically submit receipts via the API directly, but humans need a UI path too.
 
 **Review action:** From a receipt, the user can initiate a review — select outcome (accept / revise / escalate), write notes, attach evidence as typed refs. This creates a review artifact + `review_completed` event (with typed refs per reference conventions). If the outcome is `revise`, the UI SHOULD prompt creation of a follow-up work order.
+
+### 3.6 Boards and docs as canonical operator surfaces
+
+Boards and docs are first-class operator surfaces, but they remain grounded in canonical core state.
+
+**Boards:**
+
+- The UI MUST present boards as canonical organizing layers over work, not disposable kanban widgets.
+- Board detail MUST distinguish canonical board facts (board metadata, card membership, backing thread/doc refs) from derived scan data (counts, inbox aggregates, freshness badges).
+- When board projections are pending, missing, or errored, the UI MUST keep canonical board membership visible while clearly downgrading trust in derived summaries.
+- Primary board workflows (create board, edit board metadata, add card, update pinned document) SHOULD use searchable pickers backed by canonical list endpoints. Manual raw-ID entry MAY exist only as an advanced escape hatch.
+
+**Docs:**
+
+- The UI MUST present docs as canonical long-lived lineages with a mutable head and explicit revision history, not generic stored text blobs.
+- Doc create/edit workflows SHOULD use searchable thread-link pickers for common linkage flows, with manual raw-ID entry hidden behind an advanced path.
+- Doc detail SHOULD make the current head revision versus prior lineage history legible at a glance.
 
 ---
 

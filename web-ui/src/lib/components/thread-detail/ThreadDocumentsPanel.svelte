@@ -12,26 +12,26 @@
   let documents = $derived($threadDetailStore.documents);
   let documentsLoading = $derived($threadDetailStore.documentsLoading);
   let documentsError = $derived($threadDetailStore.documentsError);
-  let workspaceSlug = $derived($page.params.project);
+  let workspaceSlug = $derived($page.params.workspace);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
 
-  function href(pathname = "/") {
+  function workspaceHref(pathname = "/") {
     return workspacePath(workspaceSlug, pathname);
   }
 
   function docsListHref() {
-    return `${href("/docs")}?thread_id=${encodeURIComponent(threadId)}`;
+    return `${workspaceHref("/docs")}?thread_id=${encodeURIComponent(threadId)}`;
   }
 
   function documentHref(doc) {
     const documentId = String(doc?.id ?? "").trim();
     if (!documentId) {
-      return href("/docs");
+      return workspaceHref("/docs");
     }
     const revisionId = String(
       doc?.head_revision?.revision_id ?? doc?.head_revision_id ?? "",
     ).trim();
-    const base = href(`/docs/${encodeURIComponent(documentId)}`);
+    const base = workspaceHref(`/docs/${encodeURIComponent(documentId)}`);
     if (!revisionId) {
       return base;
     }

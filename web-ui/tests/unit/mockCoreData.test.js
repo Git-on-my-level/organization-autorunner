@@ -188,10 +188,10 @@ describe("mockCoreData parity behaviors", () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const workspace = mod.getMockBoardWorkspace("board-summer-menu");
       const pricingCard = workspace?.cards?.items?.find(
-        (item) => item.card?.thread_id === "thread-pricing-glitch",
+        (item) => item.membership?.thread_id === "thread-pricing-glitch",
       );
 
-      expect(pricingCard?.summary).toMatchObject({
+      expect(pricingCard?.derived?.summary).toMatchObject({
         open_commitment_count: 0,
         decision_request_count: 1,
         decision_count: 1,
@@ -200,6 +200,7 @@ describe("mockCoreData parity behaviors", () => {
         inbox_count: 0,
         stale: false,
       });
+      expect(pricingCard?.derived?.freshness?.status).toBe("current");
     });
 
     it("rejects empty board titles on update", async () => {

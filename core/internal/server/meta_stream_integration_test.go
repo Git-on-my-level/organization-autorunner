@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"organization-autorunner-core/internal/blob"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,7 +16,6 @@ import (
 
 	"organization-autorunner-core/internal/actors"
 	"organization-autorunner-core/internal/auth"
-	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/storage"
@@ -55,6 +55,9 @@ func TestMetaHandshakeAndGeneratedMetaEndpoints(t *testing.T) {
 	}
 	if handshake["cli_download_url"] != "https://example.com/oar-cli" || handshake["core_instance_id"] != "instance-test-1" {
 		t.Fatalf("unexpected handshake values: %#v", handshake)
+	}
+	if handshake["dev_actor_mode"] != true {
+		t.Fatalf("expected dev_actor_mode=true for test harness, got %v", handshake["dev_actor_mode"])
 	}
 
 	commandsResp, err := http.Get(h.baseURL + "/meta/commands")
@@ -437,10 +440,10 @@ func newMetaStreamTestHarness(t *testing.T, options ...HandlerOption) metaStream
 		WithHealthCheck(workspace.Ping),
 		WithActorRegistry(registry),
 		WithAuthStore(auth.NewStore(workspace.DB())),
-		WithPrimitiveStore(primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))),
+		WithPrimitiveStore(primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)),
 		WithSchemaContract(contract),
-		WithEnableDevActorMode(true),
 		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
 	}
 	baseOptions = append(baseOptions, options...)
 

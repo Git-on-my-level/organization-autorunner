@@ -160,10 +160,7 @@ func handleCreateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create document")
 		return
 	}
-	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(document["thread_id"])); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
-		return
-	}
+	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
 
 	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "docs.create", actorID, req.RequestKey, req, http.StatusCreated, map[string]any{
 		"document": document,
@@ -299,12 +296,11 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		previousThreadID:                 {},
 		anyString(document["thread_id"]): {},
 	}
+	threadIDs := make([]string, 0, len(threadIDsToRefresh))
 	for threadID := range threadIDsToRefresh {
-		if err := markThreadProjectionsDirty(r.Context(), opts, refreshNow, threadID); err != nil {
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
-			return
-		}
+		threadIDs = append(threadIDs, threadID)
 	}
+	enqueueThreadProjectionsBestEffort(r.Context(), opts, threadIDs, refreshNow)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"document": document,
@@ -442,10 +438,7 @@ func handleTombstoneDocument(w http.ResponseWriter, r *http.Request, opts handle
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to tombstone document")
 		return
 	}
-	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(document["thread_id"])); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
-		return
-	}
+	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"document": document,

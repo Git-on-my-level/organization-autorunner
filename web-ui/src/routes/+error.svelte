@@ -58,12 +58,11 @@
             class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
             >OAR_WORKSPACES='[&#123;"slug":"local","coreBaseUrl":"http://127.0.0.1:8000"&#125;]'</code
           >
-          (or legacy
+          or the compatibility alias
           <code
             class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
-            >OAR_PROJECTS='[...]'</code
+            >OAR_PROJECTS</code
           >
-          for backward compatibility)
         </li>
         <li>Reload this page.</li>
       </ol>

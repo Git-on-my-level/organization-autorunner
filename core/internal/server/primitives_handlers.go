@@ -124,10 +124,7 @@ func handleAppendEvent(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to append event")
 		return
 	}
-	if err := markThreadProjectionsDirty(r.Context(), opts, time.Now().UTC(), anyString(stored["thread_id"])); err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to queue derived thread refresh")
-		return
-	}
+	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(stored["thread_id"])}, time.Now().UTC())
 
 	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "events.create", actorID, req.RequestKey, req, http.StatusCreated, map[string]any{"event": stored})
 	if writeIdempotencyError(w, err) {

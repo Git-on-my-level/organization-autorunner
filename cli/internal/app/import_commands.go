@@ -22,7 +22,7 @@ func init() {
 	runtimeHelpManualDocTopics = append(runtimeHelpManualDocTopics, runtimeHelpDocTopic{
 		Path:    "import",
 		Kind:    "manual",
-		Summary: "Bootstrap an agent-led import with precision-first doctrine, preview-first planning, and graph-aware OAR write conventions.",
+		Summary: "Prescriptive import guide for building low-duplication, discoverable OAR graphs from external material.",
 	})
 	localHelperTopics = append(localHelperTopics,
 		localHelperTopic{
@@ -115,11 +115,16 @@ func (a *App) runImportCommand(ctx context.Context, args []string, cfg config.Re
 }
 
 func importUsageText() string {
-	return strings.TrimSpace(`Import bootstrap
+	return strings.TrimSpace(`Import guide
 
-Purpose
+Use `+"`oar import`"+` to turn external material into a clean OAR graph. The goal is not to dump files into the system. The goal is to create discoverable threads, docs, and artifacts with low duplication, low orphan rates, and clear provenance.
 
-Use `+"`oar import`"+` to start a precision-first import into OAR. The goal is not to dump files into the workspace. The goal is to create a clean graph with low duplication, low orphan rates, and strong discoverability.
+Object model
+
+- `+"`threads`"+` hold ongoing work, collector structures, and discoverable entry points.
+- `+"`docs`"+` hold narrative knowledge, summaries, and hub content.
+- `+"`artifacts`"+` hold raw or attached evidence.
+- Import should create a graph that people and agents can navigate, not just a pile of uploaded files.
 
 Read in this order
 
@@ -137,6 +142,7 @@ Operating stance
 - Imported material should usually get a discoverable entry point: a collector thread, a hub doc, or both.
 - Codebases should not become one OAR object per source file.
 - Binary attachments should be preserved conservatively; if reliable raw upload is not available, keep explicit pending work instead of pretending they were imported cleanly.
+- Prefer preview-first planning over eager execution.
 
 Recommended loop
 

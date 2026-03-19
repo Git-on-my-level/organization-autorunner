@@ -11,6 +11,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `actors list`
 - HTTP: `GET /actors`
 - Stability: `stable`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Resolve available actor identities for routing writes.
 - Concepts: `identity`
@@ -27,6 +28,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `actors register`
 - HTTP: `POST /actors`
 - Stability: `stable`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Bootstrap an authenticated caller identity before mutating thread state.
 - Concepts: `identity`
@@ -41,6 +43,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `agents me get`
 - HTTP: `GET /agents/me`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Inspect current principal metadata and active/revoked keys.
 - Concepts: `auth`, `identity`
@@ -55,6 +58,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `agents me keys rotate`
 - HTTP: `POST /agents/me/keys/rotate`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Replace the assertion key and invalidate the old key path.
 - Concepts: `auth`, `key-management`
@@ -69,6 +73,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `agents me patch`
 - HTTP: `PATCH /agents/me`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Rename the authenticated agent without re-registration.
 - Concepts: `auth`, `identity`
@@ -83,6 +88,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `agents me revoke`
 - HTTP: `POST /agents/me/revoke`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Permanently revoke the authenticated agent so future mint/refresh calls fail.
 - Concepts: `auth`, `revocation`
@@ -97,6 +103,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `artifacts content get`
 - HTTP: `GET /artifacts/{artifact_id}/content`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Fetch opaque artifact bytes for downstream processors.
 - Concepts: `artifacts`, `content`
@@ -111,6 +118,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `artifacts create`
 - HTTP: `POST /artifacts`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `file-and-body`
 - Why: Persist immutable evidence blobs and metadata for references and review.
 - Concepts: `artifacts`, `evidence`
@@ -125,6 +133,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `artifacts get`
 - HTTP: `GET /artifacts/{artifact_id}`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Resolve artifact refs before downloading or rendering content.
 - Concepts: `artifacts`
@@ -139,6 +148,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `artifacts list`
 - HTTP: `GET /artifacts`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Discover evidence and packets attached to threads.
 - Concepts: `artifacts`, `filtering`
@@ -153,6 +163,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `artifacts tombstone`
 - HTTP: `POST /artifacts/{artifact_id}/tombstone`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Mark an artifact as inactive while preserving provenance; tombstoned artifacts are excluded from list by default.
 - Concepts: `artifacts`, `lifecycle`
@@ -167,6 +178,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `auth agents register`
 - HTTP: `POST /auth/agents/register`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Register an agent principal with a bootstrap token for the first principal or an invite token for later principals.
 - Concepts: `auth`, `identity`
@@ -237,6 +249,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `auth passkey login options`
 - HTTP: `POST /auth/passkey/login/options`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Create a WebAuthn assertion challenge for passkey authentication.
 - Concepts: `auth`, `passkey`
@@ -249,6 +262,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `auth passkey login verify`
 - HTTP: `POST /auth/passkey/login/verify`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Verify a WebAuthn assertion and issue a fresh token bundle.
 - Concepts: `auth`, `passkey`
@@ -261,6 +275,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `auth passkey register options`
 - HTTP: `POST /auth/passkey/register/options`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Create a WebAuthn registration challenge for a human principal during managed bootstrap or invite acceptance.
 - Concepts: `auth`, `passkey`
@@ -273,6 +288,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `auth passkey register verify`
 - HTTP: `POST /auth/passkey/register/verify`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Verify a WebAuthn attestation for managed bootstrap or invite acceptance, create the principal, and issue the initial token bundle.
 - Concepts: `auth`, `passkey`
@@ -285,6 +301,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `auth token`
 - HTTP: `POST /auth/token`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Exchange a refresh token or key assertion for a fresh token bundle.
 - Concepts: `auth`, `token-lifecycle`
@@ -300,6 +317,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards cards add`
 - HTTP: `POST /boards/{board_id}/cards`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Create explicit board membership for an existing thread with canonical column placement and server-owned rank.
 - Concepts: `boards`, `planning`, `ordering`, `concurrency`
@@ -314,6 +332,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards cards list`
 - HTTP: `GET /boards/{board_id}/cards`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Read canonical board membership, column placement, and rank ordering without hydrating the full board workspace.
 - Concepts: `boards`, `planning`, `ordering`
@@ -328,6 +347,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards cards move`
 - HTTP: `POST /boards/{board_id}/cards/{thread_id}/move`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Request relative placement for a card while keeping rank tokens opaque and server-owned.
 - Concepts: `boards`, `planning`, `ordering`, `concurrency`
@@ -342,6 +362,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards cards remove`
 - HTTP: `POST /boards/{board_id}/cards/{thread_id}/remove`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Delete canonical board membership for a card without introducing a separate archived-card lifecycle in v1.
 - Concepts: `boards`, `planning`, `concurrency`
@@ -356,6 +377,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards cards update`
 - HTTP: `PATCH /boards/{board_id}/cards/{thread_id}`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Patch mutable board-card metadata, which in v1 is limited to the pinned document convenience link.
 - Concepts: `boards`, `planning`, `docs`, `concurrency`
@@ -370,6 +392,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards create`
 - HTTP: `POST /boards`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Create a first-class coordination board with a canonical primary thread and optional primary document.
 - Concepts: `boards`, `planning`, `concurrency`
@@ -384,6 +407,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards get`
 - HTTP: `GET /boards/{board_id}`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Resolve one board's canonical metadata and concurrency token without hydrating the full workspace projection.
 - Concepts: `boards`, `planning`
@@ -398,6 +422,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards list`
 - HTTP: `GET /boards`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Discover durable coordination boards with enough summary data for list pages and CLI triage without per-board fan-out.
 - Concepts: `boards`, `planning`, `summaries`
@@ -415,6 +440,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards update`
 - HTTP: `PATCH /boards/{board_id}`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Patch mutable board metadata with optimistic concurrency while preserving server-owned identity and timestamps.
 - Concepts: `boards`, `planning`, `concurrency`
@@ -429,12 +455,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `boards workspace`
 - HTTP: `GET /boards/{board_id}/workspace`
 - Stability: `beta`
+- Surface: `projection`
 - Input mode: `none`
-- Why: Load one board's canonical board, primary thread, ordered cards, and aggregated docs/commitments/inbox sections in a single round-trip.
+- Why: Load one board's canonical organizing map plus hydrated backing resources and derived scan sections in a single round-trip.
 - Concepts: `boards`, `planning`, `threads`, `docs`, `commitments`, `inbox`
 - Error codes: `invalid_request`, `not_found`
-- Output: Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, section_kinds, generated_at }`.
-- Agent notes: Prefer this as the canonical board read path for CLI and web. Cards are already hydrated with backing thread and derived summary data.
+- Output: Returns `{ board_id, board, primary_thread, primary_document, cards, documents, commitments, inbox, board_summary, projection_freshness, board_summary_freshness, section_kinds, generated_at }`, where each card keeps canonical membership/backing data separate from derived summary/freshness.
+- Agent notes: Derived board workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical boards, board-card membership, and threads for durable substrate. Prefer this as the canonical board read path for CLI and web. Card envelopes keep canonical membership/backing refs separate from derived summary/freshness.
 - Examples:
   - Board workspace: `oar boards workspace --board-id board_product_launch --json`
 
@@ -443,6 +470,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `commitments create`
 - HTTP: `POST /commitments`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Track accountable work items tied to a thread.
 - Concepts: `commitments`
@@ -457,6 +485,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `commitments get`
 - HTTP: `GET /commitments/{commitment_id}`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Read commitment status/details before status transitions.
 - Concepts: `commitments`
@@ -471,6 +500,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `commitments list`
 - HTTP: `GET /commitments`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Monitor open/blocked work and due windows.
 - Concepts: `commitments`, `filtering`
@@ -485,6 +515,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `commitments patch`
 - HTTP: `PATCH /commitments/{commitment_id}`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Update ownership, due date, or status with evidence-aware transition rules.
 - Concepts: `commitments`, `patch`, `provenance`
@@ -499,6 +530,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `derived rebuild`
 - HTTP: `POST /derived/rebuild`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `json-body`
 - Why: Force deterministic recomputation of derived views after maintenance or migration.
 - Concepts: `derived-views`, `maintenance`
@@ -513,6 +545,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `docs create`
 - HTTP: `POST /docs`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Bootstrap a first-class document identity and initial revision without manual head-pointer management.
 - Concepts: `docs`, `revisions`
@@ -527,6 +560,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `docs get`
 - HTTP: `GET /docs/{document_id}`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Resolve the current authoritative document head without client-side lineage traversal.
 - Concepts: `docs`, `revisions`
@@ -541,6 +575,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `docs history`
 - HTTP: `GET /docs/{document_id}/history`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Traverse full document lineage in canonical revision-number order.
 - Concepts: `docs`, `revisions`, `lineage`
@@ -555,6 +590,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `docs list`
 - HTTP: `GET /docs`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Discover available documents without resolving each head individually, optionally scoped to a single thread.
 - Concepts: `docs`, `revisions`
@@ -571,6 +607,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `docs revision get`
 - HTTP: `GET /docs/{document_id}/revisions/{revision_id}`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Read a specific historical revision payload without mutating document head.
 - Concepts: `docs`, `revisions`
@@ -585,6 +622,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `docs tombstone`
 - HTTP: `POST /docs/{document_id}/tombstone`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Mark a document as inactive while preserving revision history and provenance.
 - Concepts: `docs`, `lifecycle`
@@ -599,6 +637,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `docs update`
 - HTTP: `PATCH /docs/{document_id}`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Append a revision and atomically advance document head with optimistic concurrency.
 - Concepts: `docs`, `revisions`, `concurrency`
@@ -613,6 +652,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `events create`
 - HTTP: `POST /events`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Record append-only narrative or protocol state changes that complement snapshots.
 - Concepts: `events`, `append-only`
@@ -627,6 +667,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `events get`
 - HTTP: `GET /events/{event_id}`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Resolve event references and evidence links.
 - Concepts: `events`
@@ -641,6 +682,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `events stream`
 - HTTP: `GET /events/stream`
 - Stability: `beta`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Follow live event updates with resumable SSE semantics.
 - Concepts: `events`, `streaming`
@@ -656,12 +698,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `inbox ack`
 - HTTP: `POST /inbox/ack`
 - Stability: `stable`
+- Surface: `projection`
 - Input mode: `json-body`
 - Why: Suppress already-acted-on derived inbox signals.
 - Concepts: `inbox`, `events`
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`
 - Output: Returns `{ event }` representing acknowledgment.
-- Agent notes: Idempotent at semantic level; repeated acks should not duplicate active inbox items.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Idempotent at semantic level; repeated acks should not duplicate active inbox items.
 - Examples:
   - Ack inbox item: `oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json`
   - Ack inbox item by id: `oar inbox ack inbox:decision_needed:thread_123:none:event_1 --json`
@@ -671,12 +714,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `inbox get`
 - HTTP: `GET /inbox/{inbox_item_id}`
 - Stability: `stable`
+- Surface: `projection`
 - Input mode: `none`
 - Why: Inspect one inbox item in detail before acting on it.
 - Concepts: `inbox`, `derived-views`
 - Error codes: `not_found`
 - Output: Returns `{ item, generated_at }` for the requested inbox item.
-- Agent notes: CLI supports canonical ids, aliases, and unique prefixes.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. CLI supports canonical ids, aliases, and unique prefixes.
 - Examples:
   - Get inbox item by canonical id: `oar inbox get --id inbox:decision_needed:thread_123:none:event_123 --json`
   - Get inbox item by alias: `oar inbox get --id ibx_abcd1234ef56 --json`
@@ -686,11 +730,12 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `inbox list`
 - HTTP: `GET /inbox`
 - Stability: `stable`
+- Surface: `projection`
 - Input mode: `none`
 - Why: Surface derived actionable risk and decision signals.
 - Concepts: `inbox`, `derived-views`
 - Output: Returns `{ items, generated_at }`.
-- Agent notes: Safe and idempotent.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Safe and idempotent.
 - Examples:
   - List inbox: `oar inbox list --json`
 
@@ -699,12 +744,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `inbox stream`
 - HTTP: `GET /inbox/stream`
 - Stability: `beta`
+- Surface: `projection`
 - Input mode: `none`
 - Why: Follow live derived inbox updates without repeated polling.
 - Concepts: `inbox`, `derived-views`, `streaming`
 - Error codes: `internal_error`, `cli_outdated`
 - Output: SSE stream where each event carries `{ item }` derived inbox metadata.
-- Agent notes: Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.
+- Agent notes: Derived inbox view; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Supports `Last-Event-ID` header or `last_event_id` query for resumable reads.
 - Examples:
   - Stream inbox updates: `oar inbox stream --json`
   - Resume inbox stream: `oar inbox stream --last-event-id <id> --json`
@@ -714,6 +760,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `meta commands get`
 - HTTP: `GET /meta/commands/{command_id}`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Resolve a stable command id to full generated metadata and guidance.
 - Concepts: `meta`, `introspection`
@@ -728,6 +775,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `meta commands list`
 - HTTP: `GET /meta/commands`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Load generated command metadata used for help, docs, and agent introspection.
 - Concepts: `meta`, `introspection`
@@ -742,6 +790,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `meta concepts get`
 - HTTP: `GET /meta/concepts/{concept_name}`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Resolve one concept tag to the commands that implement that concept.
 - Concepts: `meta`, `concepts`
@@ -756,6 +805,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `meta concepts list`
 - HTTP: `GET /meta/concepts`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Discover conceptual groupings of commands generated from contract metadata.
 - Concepts: `meta`, `concepts`
@@ -770,6 +820,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `meta handshake`
 - HTTP: `GET /meta/handshake`
 - Stability: `beta`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Discover compatibility, upgrade, and instance identity metadata before command execution.
 - Concepts: `compatibility`, `handshake`
@@ -783,6 +834,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `meta health`
 - HTTP: `GET /health`
 - Stability: `stable`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Probe whether core storage is available before issuing stateful commands.
 - Concepts: `health`, `readiness`
@@ -797,6 +849,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `meta version`
 - HTTP: `GET /version`
 - Stability: `stable`
+- Surface: `utility`
 - Input mode: `none`
 - Why: Verify compatibility between core and generated clients before performing writes.
 - Concepts: `compatibility`, `schema`
@@ -810,6 +863,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `packets receipts create`
 - HTTP: `POST /receipts`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Record execution output and verification evidence for a work order.
 - Concepts: `packets`, `receipts`
@@ -824,6 +878,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `packets reviews create`
 - HTTP: `POST /reviews`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Record acceptance/revision decisions over a receipt.
 - Concepts: `packets`, `reviews`
@@ -838,6 +893,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `packets work-orders create`
 - HTTP: `POST /work_orders`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Create structured action packets with deterministic schema enforcement.
 - Concepts: `packets`, `work-orders`
@@ -852,6 +908,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `snapshots get`
 - HTTP: `GET /snapshots/{snapshot_id}`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Resolve arbitrary snapshot references encountered in event refs.
 - Concepts: `snapshots`
@@ -866,12 +923,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `threads context`
 - HTTP: `GET /threads/{thread_id}/context`
 - Stability: `beta`
+- Surface: `projection`
 - Input mode: `none`
 - Why: Load one thread's state, recent events, key artifacts, open commitments, and linked documents in a single round-trip; CLI `oar threads context` can aggregate across threads by composing multiple calls.
 - Concepts: `threads`, `events`, `artifacts`, `commitments`, `docs`
 - Error codes: `invalid_request`, `not_found`
 - Output: Returns `{ thread, recent_events, key_artifacts, open_commitments, documents }`.
-- Agent notes: Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.
+- Agent notes: Derived thread context projection; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Use include_artifact_content for prompt-ready previews; default mode keeps payloads lighter. Prefer `oar threads inspect` as the first single-thread coordination read.
 - Examples:
   - Context with defaults: `oar threads context --thread-id thread_123 --json`
   - Context with artifact previews: `oar threads context --thread-id thread_123 --include-artifact-content --max-events 50 --json`
@@ -881,6 +939,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `threads create`
 - HTTP: `POST /threads`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Open a new thread for tracking ongoing organizational work.
 - Concepts: `threads`, `snapshots`
@@ -895,6 +954,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `threads get`
 - HTTP: `GET /threads/{thread_id}`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Resolve a raw authoritative thread snapshot for low-level reads before patching or composing packets.
 - Concepts: `threads`
@@ -909,6 +969,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `threads list`
 - HTTP: `GET /threads`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Retrieve current thread state for triage and scheduling decisions.
 - Concepts: `threads`, `filtering`
@@ -925,6 +986,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `threads patch`
 - HTTP: `PATCH /threads/{thread_id}`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `json-body`
 - Why: Update mutable thread fields while preserving unknown data and auditability.
 - Concepts: `threads`, `patch`
@@ -939,6 +1001,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `threads timeline`
 - HTTP: `GET /threads/{thread_id}/timeline`
 - Stability: `stable`
+- Surface: `canonical`
 - Input mode: `none`
 - Why: Retrieve narrative event history plus referenced snapshots/artifacts in one call.
 - Concepts: `threads`, `events`, `provenance`
@@ -953,12 +1016,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - CLI path: `threads workspace`
 - HTTP: `GET /threads/{thread_id}/workspace`
 - Stability: `beta`
+- Surface: `projection`
 - Input mode: `none`
 - Why: Load one thread workspace projection from the server, including canonical thread context plus derived collaboration and inbox summaries, so CLI and web do not need client-side joins.
 - Concepts: `threads`, `events`, `artifacts`, `commitments`, `docs`, `boards`, `inbox`
 - Error codes: `invalid_request`, `not_found`
 - Output: Returns `{ thread_id, thread, context, collaboration, board_memberships, inbox, pending_decisions, related_threads, follow_up, section_kinds }`, with explicit section classifications.
-- Agent notes: Prefer this as the single-thread coordination read path. `section_kinds` distinguishes canonical versus derived sections, including additive board membership joins.
+- Agent notes: Derived workspace projection; do not build durable automation directly on projection payload shapes. Prefer canonical events and threads for durable substrate. Prefer this as the single-thread coordination read path. `section_kinds` distinguishes canonical versus derived sections, including additive board membership joins.
 - Examples:
   - Workspace with defaults: `oar threads workspace --thread-id thread_123 --json`
   - Workspace with hydrated related review events: `oar threads workspace --thread-id thread_123 --include-related-event-content --include-artifact-content --json`

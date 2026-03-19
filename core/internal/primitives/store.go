@@ -73,8 +73,9 @@ type CommitmentListFilter struct {
 }
 
 type Store struct {
-	db          *sql.DB
-	blobBackend blob.Backend
+	db       *sql.DB
+	blob     blob.Backend
+	blobRoot string
 }
 
 type eventExec interface {
@@ -99,8 +100,8 @@ type PatchSnapshotResult struct {
 	Event    map[string]any
 }
 
-func NewStore(db *sql.DB, blobBackend blob.Backend) *Store {
-	return &Store{db: db, blobBackend: blobBackend}
+func NewStore(db *sql.DB, blobBackend blob.Backend, blobRoot string) *Store {
+	return &Store{db: db, blob: blobBackend, blobRoot: blobRoot}
 }
 
 func (s *Store) AppendEvent(ctx context.Context, actorID string, event map[string]any) (map[string]any, error) {
@@ -183,7 +184,7 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if s.blobBackend == nil {
+	if s.blob == nil {
 		return nil, fmt.Errorf("blob backend is not configured")
 	}
 
@@ -212,16 +213,15 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 	}
 	contentHash := sha256Hex(encodedContent)
 
-	contentPath := s.blobBackend.ContentLocator(contentHash)
 	metadata["id"] = artifactID
 	metadata["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
 	metadata["created_by"] = actorID
 	metadata["content_type"] = contentType
 	metadata["content_hash"] = contentHash
-	metadata["content_path"] = contentPath
+	metadata["content_path"] = filepath.Join(s.blobRoot, contentHash)
 	artifactThreadID := firstThreadRefValue(refs)
 
-	stagedContent, err := s.blobBackend.StageWrite(ctx, contentHash, encodedContent)
+	stagedContent, err := s.blob.Write(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, fmt.Errorf("stage artifact content: %w", err)
 	}
@@ -242,6 +242,7 @@ func (s *Store) CreateArtifact(ctx context.Context, actorID string, artifact map
 		return nil, fmt.Errorf("begin artifact transaction: %w", err)
 	}
 
+	contentPath := metadata["content_path"].(string)
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO artifacts(id, kind, thread_id, created_at, created_by, content_type, content_hash, content_path, refs_json, metadata_json)
@@ -281,7 +282,7 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")
 	}
-	if s.blobBackend == nil {
+	if s.blob == nil {
 		return nil, nil, fmt.Errorf("blob backend is not configured")
 	}
 
@@ -310,21 +311,21 @@ func (s *Store) CreateArtifactAndEvent(ctx context.Context, actorID string, arti
 	}
 	contentHash := sha256Hex(encodedContent)
 
-	contentPath := s.blobBackend.ContentLocator(contentHash)
 	metadata["id"] = artifactID
 	metadata["created_at"] = time.Now().UTC().Format(time.RFC3339Nano)
 	metadata["created_by"] = actorID
 	metadata["content_type"] = contentType
 	metadata["content_hash"] = contentHash
-	metadata["content_path"] = contentPath
+	metadata["content_path"] = filepath.Join(s.blobRoot, contentHash)
 	artifactThreadID := firstThreadRefValue(artifactRefs)
 
-	stagedContent, err := s.blobBackend.StageWrite(ctx, contentHash, encodedContent)
+	stagedContent, err := s.blob.Write(ctx, contentHash, encodedContent)
 	if err != nil {
 		return nil, nil, fmt.Errorf("stage artifact content: %w", err)
 	}
 	defer func() { _ = stagedContent.Cleanup() }()
 
+	contentPath := metadata["content_path"].(string)
 	artifactRefsJSON, err := json.Marshal(artifactRefs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal artifact refs: %w", err)
@@ -410,13 +411,13 @@ func (s *Store) GetArtifactContent(ctx context.Context, id string) ([]byte, stri
 	if s == nil || s.db == nil {
 		return nil, "", fmt.Errorf("primitives store database is not initialized")
 	}
-	if s.blobBackend == nil {
+	if s.blob == nil {
 		return nil, "", fmt.Errorf("blob backend is not configured")
 	}
 
-	var contentPath string
+	var contentHash string
 	var contentType string
-	err := s.db.QueryRowContext(ctx, `SELECT content_path, content_type FROM artifacts WHERE id = ?`, id).Scan(&contentPath, &contentType)
+	err := s.db.QueryRowContext(ctx, `SELECT content_hash, content_type FROM artifacts WHERE id = ?`, id).Scan(&contentHash, &contentType)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", ErrNotFound
 	}
@@ -424,9 +425,9 @@ func (s *Store) GetArtifactContent(ctx context.Context, id string) ([]byte, stri
 		return nil, "", fmt.Errorf("query artifact content path: %w", err)
 	}
 
-	body, err := s.blobBackend.Read(ctx, contentPath)
+	body, err := s.blob.Read(ctx, contentHash)
 	if err != nil {
-		if errors.Is(err, blob.ErrNotFound) {
+		if errors.Is(err, blob.ErrBlobNotFound) {
 			return nil, "", ErrNotFound
 		}
 		return nil, "", fmt.Errorf("read artifact content: %w", err)

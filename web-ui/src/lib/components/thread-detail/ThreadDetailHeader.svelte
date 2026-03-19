@@ -7,7 +7,7 @@
 
   let snapshot = $derived($threadDetailStore.snapshot);
   let staleness = $derived(threadDetailStore.getStaleness(snapshot));
-  let workspaceSlug = $derived($page.params.project);
+  let workspaceSlug = $derived($page.params.workspace);
 </script>
 
 <nav

@@ -74,7 +74,7 @@ func newAuthIntegrationEnv(t *testing.T, options authIntegrationOptions) authInt
 		t.Fatalf("load schema contract: %v", err)
 	}
 
-	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir))
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
 	handler := NewHandler(
 		"0.2.2",
 		WithActorRegistry(registry),

@@ -61,12 +61,37 @@ describe("RefLink model", () => {
     });
   });
 
+  it("scopes internal refs to the active workspace when provided", () => {
+    expect(
+      resolveRefLink("document_revision:rev-1", { workspaceSlug: "local" }),
+    ).toMatchObject({
+      href: "/local/docs/revisions/rev-1",
+      isLink: true,
+    });
+
+    expect(
+      resolveRefLink("thread:thread-1", { workspaceSlug: "local" }),
+    ).toMatchObject({
+      href: "/local/threads/thread-1",
+      isLink: true,
+    });
+  });
+
   it("preserves unknown prefixes and renders raw text without crashing", () => {
     const unknown = resolveRefLink("unknown_prefix:value-1");
     expect(unknown.kind).toBe("unknown");
     expect(unknown.label).toBe("unknown_prefix:value-1");
     expect(unknown.isLink).toBe(false);
     expect(unknown.href).toBe("");
+  });
+
+  it("keeps event refs non-linkable when no thread context is available", () => {
+    expect(resolveRefLink("event:evt-9")).toMatchObject({
+      kind: "event",
+      href: "",
+      isExternal: false,
+      isLink: false,
+    });
   });
 
   it("can humanize labels and keep raw ids as secondary labels", () => {

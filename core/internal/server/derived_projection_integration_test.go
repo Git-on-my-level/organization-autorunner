@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"organization-autorunner-core/internal/blob"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 )
@@ -54,7 +54,7 @@ func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
 	}
 
 	opts := handlerOptions{
-		primitiveStore:   primitives.NewStore(h.workspace.DB(), blob.NewFilesystemBackend(h.workspace.Layout().ArtifactContentDir)),
+		primitiveStore:   primitives.NewStore(h.workspace.DB(), blob.NewFilesystemBackend(h.workspace.Layout().ArtifactContentDir), h.workspace.Layout().ArtifactContentDir),
 		contract:         contract,
 		inboxRiskHorizon: defaultInboxRiskHorizon,
 	}
@@ -110,7 +110,7 @@ func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
 	}
 }
 
-func TestProjectionMaintainerRefreshesExpiredTimeSensitiveState(t *testing.T) {
+func TestEnsureDerivedThreadProjectionRefreshesExpiredTimeSensitiveState(t *testing.T) {
 	t.Parallel()
 
 	h := newPrimitivesTestServer(t)
@@ -152,7 +152,7 @@ func TestProjectionMaintainerRefreshesExpiredTimeSensitiveState(t *testing.T) {
 	}
 
 	opts := handlerOptions{
-		primitiveStore:   primitives.NewStore(h.workspace.DB(), blob.NewFilesystemBackend(h.workspace.Layout().ArtifactContentDir)),
+		primitiveStore:   primitives.NewStore(h.workspace.DB(), blob.NewFilesystemBackend(h.workspace.Layout().ArtifactContentDir), h.workspace.Layout().ArtifactContentDir),
 		contract:         contract,
 		inboxRiskHorizon: defaultInboxRiskHorizon,
 	}
@@ -165,23 +165,21 @@ func TestProjectionMaintainerRefreshesExpiredTimeSensitiveState(t *testing.T) {
 		t.Fatalf("expected fresh projection to start non-stale, got %#v", initialProjection)
 	}
 
-	maintainer := NewProjectionMaintainer(ProjectionMaintainerConfig{
-		PrimitiveStore:    opts.primitiveStore,
-		Contract:          contract,
-		StaleScanInterval: time.Second,
-		DirtyBatchSize:    10,
-		SystemActorID:     "actor-1",
-	})
-	if err := maintainer.Step(context.Background(), baseNow.Add(2*time.Minute)); err != nil {
-		t.Fatalf("maintainer.Step: %v", err)
+	worker := NewProjectionWorker(
+		WithPrimitiveStore(opts.primitiveStore),
+		WithSchemaContract(opts.contract),
+		WithInboxRiskHorizon(opts.inboxRiskHorizon),
+	)
+	worker.now = func() time.Time { return baseNow.Add(2 * time.Minute) }
+	if err := worker.RunUntilIdle(context.Background()); err != nil {
+		t.Fatalf("RunUntilIdle: %v", err)
 	}
-
-	refreshedProjection, err := loadDerivedThreadProjection(context.Background(), opts, threadID)
+	refreshedState, err := loadThreadProjectionState(context.Background(), opts, threadID)
 	if err != nil {
-		t.Fatalf("loadDerivedThreadProjection: %v", err)
+		t.Fatalf("loadThreadProjectionState: %v", err)
 	}
-	if !refreshedProjection.Stale {
-		t.Fatalf("expected expired projection to refresh stale=true after next_check_in_at, got %#v", refreshedProjection)
+	if !refreshedState.Projection.Stale {
+		t.Fatalf("expected expired projection to refresh stale=true after next_check_in_at, got %#v", refreshedState.Projection)
 	}
 }
 
@@ -280,7 +278,7 @@ func countDerivedInboxItemsForThread(t *testing.T, db *sql.DB, threadID string) 
 func mustLoadDerivedThreadProjection(t *testing.T, db *sql.DB, threadID string) primitives.DerivedThreadProjection {
 	t.Helper()
 
-	store := primitives.NewStore(db, blob.NewFilesystemBackend(""))
+	store := primitives.NewStore(db, nil, "")
 	projection, err := store.GetDerivedThreadProjection(context.Background(), threadID)
 	if err != nil {
 		t.Fatalf("get derived thread projection: %v", err)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -443,6 +444,27 @@ func TestRunProvenanceHelpTopic(t *testing.T) {
 	if !strings.Contains(output, "oar provenance walk") || !strings.Contains(output, "--from <typed-ref>") {
 		t.Fatalf("expected provenance help text, got: %s", output)
 	}
+	if !strings.Contains(output, "Why does this object exist?") {
+		t.Fatalf("expected provenance investigation framing, got: %s", output)
+	}
+	if !strings.Contains(output, "Prefer shallow depths like 1-3") {
+		t.Fatalf("expected provenance heuristics, got: %s", output)
+	}
+}
+
+func TestRunDraftHelpTopic(t *testing.T) {
+	t.Parallel()
+
+	output := runHelpCommand(t, "help", "draft")
+	if !strings.Contains(output, "Draft staging") {
+		t.Fatalf("expected draft header output=%s", output)
+	}
+	if !strings.Contains(output, "threads propose-patch") || !strings.Contains(output, "docs propose-update") {
+		t.Fatalf("expected proposal-flow guidance output=%s", output)
+	}
+	if !strings.Contains(output, "oar draft list") || !strings.Contains(output, "oar draft commit") {
+		t.Fatalf("expected draft workflow guidance output=%s", output)
+	}
 }
 
 func TestRunSubcommandHelpToken(t *testing.T) {
@@ -491,6 +513,12 @@ func TestRunRootHelpMentionsOnboardingTopic(t *testing.T) {
 	if !strings.Contains(stdout.String(), "`oar help onboarding`") {
 		t.Fatalf("expected onboarding hint output=%s", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "`oar meta doc agent-guide`") {
+		t.Fatalf("expected agent-guide hint output=%s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "`oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard`") {
+		t.Fatalf("expected skill export hint output=%s", stdout.String())
+	}
 }
 
 func TestRunOnboardingHelpTopic(t *testing.T) {
@@ -513,26 +541,61 @@ func TestRunOnboardingHelpTopic(t *testing.T) {
 		t.Fatalf("unexpected exit code: %d stderr=%s stdout=%s", exitCode, stderr.String(), stdout.String())
 	}
 	output := stdout.String()
-	if !strings.Contains(output, "Onboarding: mental model") {
+	if !strings.Contains(output, "Onboarding: first steps") {
 		t.Fatalf("expected onboarding header output=%s", output)
 	}
-	if !strings.Contains(output, "Work-order loop") {
-		t.Fatalf("expected work-order section output=%s", output)
+	if !strings.Contains(output, "`oar meta doc agent-guide`") {
+		t.Fatalf("expected agent-guide pointer output=%s", output)
 	}
-	if !strings.Contains(output, "First 5 commands to run") {
+	if !strings.Contains(output, "First commands to run") {
 		t.Fatalf("expected first-commands section output=%s", output)
 	}
-	if !strings.Contains(output, "cli/docs/runbook.md") {
-		t.Fatalf("expected offline runbook link output=%s", output)
+	if !strings.Contains(output, "oar meta skill cursor") {
+		t.Fatalf("expected skill export hint output=%s", output)
 	}
-	if !strings.Contains(output, "1. `oar` is a non-interactive CLI") {
-		t.Fatalf("expected mental model sentence output=%s", output)
+	if !strings.Contains(output, "1. Point the CLI at the core API") {
+		t.Fatalf("expected base-url step output=%s", output)
 	}
-	if !strings.Contains(output, "5. The fastest way to stay aligned") {
-		t.Fatalf("expected fifth mental model sentence output=%s", output)
+	if !strings.Contains(output, "Next step") || !strings.Contains(output, "oar meta doc agent-guide") {
+		t.Fatalf("expected follow-up guidance output=%s", output)
 	}
-	if !strings.Contains(output, "oar threads workspace --thread-id <thread-id>") {
-		t.Fatalf("expected canonical thread workspace workflow guidance output=%s", output)
+}
+
+func TestRunMetaSkillCursorRendersBundledSkill(t *testing.T) {
+	t.Parallel()
+
+	output := runHelpCommand(t, "meta", "skill", "cursor")
+	if !strings.Contains(output, "name: oar-cli-onboard") {
+		t.Fatalf("expected skill frontmatter output=%s", output)
+	}
+	if !strings.Contains(output, "# OAR CLI guide for agents") {
+		t.Fatalf("expected skill title output=%s", output)
+	}
+	if !strings.Contains(output, "## Core model") {
+		t.Fatalf("expected core model section output=%s", output)
+	}
+	if !strings.Contains(output, "`boards`") || !strings.Contains(output, "`docs`") {
+		t.Fatalf("expected higher-level abstractions in skill output=%s", output)
+	}
+}
+
+func TestRunMetaSkillCursorWritesSkillFile(t *testing.T) {
+	t.Parallel()
+
+	writeDir := t.TempDir()
+	output := runHelpCommand(t, "meta", "skill", "cursor", "--write-dir", writeDir)
+	if !strings.Contains(output, "name: oar-cli-onboard") {
+		t.Fatalf("expected rendered skill output=%s", output)
+	}
+	content, err := os.ReadFile(filepath.Join(writeDir, "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read written skill: %v", err)
+	}
+	if !strings.Contains(string(content), "# OAR CLI guide for agents") {
+		t.Fatalf("expected written skill title content=%s", string(content))
+	}
+	if !strings.Contains(string(content), "## Maintenance rule") {
+		t.Fatalf("expected written maintenance section content=%s", string(content))
 	}
 	if !strings.Contains(output, "auth bootstrap status") {
 		t.Fatalf("expected bootstrap status onboarding guidance output=%s", output)

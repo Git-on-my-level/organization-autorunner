@@ -1,10 +1,13 @@
 import { env } from "$env/dynamic/private";
 import { isProxyableCommand } from "$lib/coreRouteCatalog";
-import { stripBasePath } from "$lib/workspacePaths";
+import {
+  WORKSPACE_HEADER,
+  PROJECT_HEADER,
+  stripBasePath,
+} from "$lib/workspacePaths";
 import { loadWorkspaceCatalog } from "$lib/server/workspaceCatalog";
 import { buildProxyRequestInit } from "$lib/server/coreProxy";
-import { resolveProxyWorkspaceTarget } from "$lib/server/proxyWorkspaceTarget";
-import { getWorkspaceHeader } from "$lib/compat/workspaceCompat";
+import { resolveProxyTarget } from "$lib/server/proxyWorkspaceTarget";
 
 function isDocumentNavigationRequest(request) {
   const method = request.method.toUpperCase();
@@ -23,9 +26,13 @@ function isDocumentNavigationRequest(request) {
 
 function resolveWorkspaceTarget(event) {
   const catalog = loadWorkspaceCatalog(env);
-  return resolveProxyWorkspaceTarget({
+  const workspaceSlug =
+    event.request.headers.get(WORKSPACE_HEADER) ||
+    event.request.headers.get(PROJECT_HEADER);
+  return resolveProxyTarget({
     catalog,
-    workspaceSlug: getWorkspaceHeader(event.request.headers),
+    workspaceSlug,
+    projectSlug: workspaceSlug,
   });
 }
 

@@ -38,6 +38,12 @@ Architecture references:
 - `docs/architecture/hosted-v1.md`
 - `docs/architecture/hosted-gate.md`
 
+## Architecture / Design Docs
+
+- **Foundation**: [docs/architecture/foundation.md](docs/architecture/foundation.md) — durable product and architecture decisions that define OAR.
+- **Hosted v1**: [docs/architecture/hosted-v1.md](docs/architecture/hosted-v1.md) — architecture for the managed offering.
+- Module-level specs: [core/docs/oar-core-spec.md](core/docs/oar-core-spec.md), [web-ui/docs/oar-ui-spec.md](web-ui/docs/oar-ui-spec.md).
+
 ## Quickstart
 
 ```bash
@@ -94,3 +100,4 @@ Useful `make serve` toggles:
 
 - `SEED_CORE=0`: skip seeding
 - `FORCE_SEED=1`: seed even when marker data is already present
+- `OAR_ENABLE_DEV_ACTOR_MODE=1`: enable development actor mode for legacy actor picker/creator UI (default: `false` / auth-first)

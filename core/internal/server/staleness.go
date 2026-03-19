@@ -33,7 +33,6 @@ func emitStaleThreadExceptions(ctx context.Context, opts handlerOptions, now tim
 	if actor == "" {
 		actor = "oar-core"
 	}
-
 	emittedThreadIDs := make([]string, 0)
 	for _, thread := range threads {
 		threadID, _ := thread["id"].(string)
@@ -67,7 +66,7 @@ func emitStaleThreadExceptions(ctx context.Context, opts handlerOptions, now tim
 		emittedThreadIDs = append(emittedThreadIDs, threadID)
 	}
 
-	return emittedThreadIDs, nil
+	return uniqueServerStrings(emittedThreadIDs), nil
 }
 
 func latestThreadActivityFromEvents(events []map[string]any) map[string]time.Time {

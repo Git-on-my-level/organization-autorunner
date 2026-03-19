@@ -72,6 +72,50 @@ function toWorkspaceHref(workspaceSlug, pathname) {
     : appPath(pathname);
 }
 
+function buildInternalHref(workspaceSlug, pathname) {
+  return toWorkspaceHref(workspaceSlug, pathname);
+}
+
+const LINK_RESOLVERS = {
+  artifact: ({ workspaceSlug, value }) =>
+    buildInternalHref(workspaceSlug, `/artifacts/${asPathSegment(value)}`),
+  thread: ({ workspaceSlug, value }) =>
+    buildInternalHref(workspaceSlug, `/threads/${asPathSegment(value)}`),
+  snapshot: ({ workspaceSlug, snapshotIsThread, value }) =>
+    snapshotIsThread
+      ? buildInternalHref(workspaceSlug, `/threads/${asPathSegment(value)}`)
+      : buildInternalHref(workspaceSlug, `/snapshots/${asPathSegment(value)}`),
+  event: ({ workspaceSlug, threadId, value }) =>
+    threadId
+      ? buildInternalHref(
+          workspaceSlug,
+          `/threads/${asPathSegment(threadId)}#event-${asPathSegment(value)}`,
+        )
+      : "",
+  url: ({ value }) => value,
+  inbox: ({ workspaceSlug, value }) =>
+    buildInternalHref(workspaceSlug, `/inbox#inbox-${asPathSegment(value)}`),
+  document: ({ workspaceSlug, value }) =>
+    buildInternalHref(workspaceSlug, `/docs/${asPathSegment(value)}`),
+  document_revision: ({ workspaceSlug, value }) =>
+    buildInternalHref(workspaceSlug, `/docs/revisions/${asPathSegment(value)}`),
+  board: ({ workspaceSlug, value }) =>
+    buildInternalHref(workspaceSlug, `/boards/${asPathSegment(value)}`),
+};
+
+function createResolvedLink(raw, prefix, value, labels, { href, isExternal }) {
+  return {
+    raw,
+    prefix,
+    value,
+    kind: prefix,
+    ...labels,
+    href,
+    isExternal,
+    isLink: Boolean(href),
+  };
+}
+
 export function resolveRefLink(refValue, options = {}) {
   const parsed = parseRef(refValue);
   const raw = renderRef(parsed);
@@ -95,149 +139,12 @@ export function resolveRefLink(refValue, options = {}) {
   }
 
   const labels = resolveRefLabels(raw, prefix, value, options);
-
-  if (prefix === "artifact") {
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "artifact",
-      ...labels,
-      href: toWorkspaceHref(
-        workspaceSlug,
-        `/artifacts/${asPathSegment(value)}`,
-      ),
-      isExternal: false,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "thread") {
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "thread",
-      ...labels,
-      href: toWorkspaceHref(workspaceSlug, `/threads/${asPathSegment(value)}`),
-      isExternal: false,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "snapshot") {
-    const href = snapshotIsThread
-      ? toWorkspaceHref(workspaceSlug, `/threads/${asPathSegment(value)}`)
-      : toWorkspaceHref(workspaceSlug, `/snapshots/${asPathSegment(value)}`);
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "snapshot",
-      ...labels,
-      href,
-      isExternal: false,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "event") {
-    if (!threadId) {
-      return {
-        raw,
-        prefix,
-        value,
-        kind: "event",
-        ...labels,
-        href: "",
-        isExternal: false,
-        isLink: false,
-      };
-    }
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "event",
-      ...labels,
-      href: toWorkspaceHref(
-        workspaceSlug,
-        `/threads/${asPathSegment(threadId)}#event-${asPathSegment(value)}`,
-      ),
-      isExternal: false,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "url") {
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "url",
-      ...labels,
-      href: value,
-      isExternal: true,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "inbox") {
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "inbox",
-      ...labels,
-      href: toWorkspaceHref(
-        workspaceSlug,
-        `/inbox#inbox-${asPathSegment(value)}`,
-      ),
-      isExternal: false,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "document") {
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "document",
-      ...labels,
-      href: toWorkspaceHref(workspaceSlug, `/docs/${asPathSegment(value)}`),
-      isExternal: false,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "document_revision") {
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "document_revision",
-      ...labels,
-      href: toWorkspaceHref(
-        workspaceSlug,
-        `/docs/revisions/${asPathSegment(value)}`,
-      ),
-      isExternal: false,
-      isLink: true,
-    };
-  }
-
-  if (prefix === "board") {
-    return {
-      raw,
-      prefix,
-      value,
-      kind: "board",
-      ...labels,
-      href: toWorkspaceHref(workspaceSlug, `/boards/${asPathSegment(value)}`),
-      isExternal: false,
-      isLink: true,
-    };
+  const linkResolver = LINK_RESOLVERS[prefix];
+  if (linkResolver) {
+    return createResolvedLink(raw, prefix, value, labels, {
+      href: linkResolver({ workspaceSlug, snapshotIsThread, threadId, value }),
+      isExternal: prefix === "url",
+    });
   }
 
   return {

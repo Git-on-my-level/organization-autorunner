@@ -11,9 +11,11 @@ import {
   appPath,
   buildWorkspaceStorageKey,
   workspacePath,
+  buildProjectStorageKey,
 } from "./workspacePaths.js";
 
 export const REFRESH_TOKEN_STORAGE_KEY = "oar_ui_refresh_token";
+export const LEGACY_REFRESH_TOKEN_KEY = "oar_ui_refresh_token";
 
 export const authSessionReady = writable(false);
 export const authenticatedAgent = writable(null);
@@ -107,6 +109,24 @@ async function requestJSON(
   return payload;
 }
 
+function migrateProjectStorageKey(storage, workspaceSlug) {
+  const oldKey = buildProjectStorageKey(
+    REFRESH_TOKEN_STORAGE_KEY,
+    workspaceSlug,
+  );
+  const newKey = buildWorkspaceStorageKey(
+    REFRESH_TOKEN_STORAGE_KEY,
+    workspaceSlug,
+  );
+
+  if (oldKey === newKey) return;
+
+  const oldValue = storage.getItem(oldKey);
+  if (oldValue && !storage.getItem(newKey)) {
+    storage.setItem(newKey, oldValue);
+  }
+}
+
 export function refreshTokenStorageKey(
   workspaceSlug = getCurrentWorkspaceSlug(),
 ) {
@@ -121,6 +141,8 @@ export function loadStoredRefreshToken(
   storage = sessionStorage,
   workspaceSlug = getCurrentWorkspaceSlug(),
 ) {
+  migrateProjectStorageKey(storage, workspaceSlug);
+
   const scopedRefreshToken = storage.getItem(
     refreshTokenStorageKey(workspaceSlug),
   );
@@ -311,7 +333,9 @@ export async function initializeAuthSession({
 
 export function createAuthTokenProvider(fetchFn, options = {}) {
   const workspaceSlugProvider =
-    options.workspaceSlugProvider ?? (() => getCurrentWorkspaceSlug());
+    options.workspaceSlugProvider ??
+    options.projectSlugProvider ??
+    (() => getCurrentWorkspaceSlug());
   const baseUrl = options.baseUrl ?? "";
 
   return {

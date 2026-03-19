@@ -38,6 +38,9 @@ func (a *App) runMeta(_ context.Context, args []string, _ config.Resolved) (*com
 	case "doc":
 		result, err := a.runMetaDoc(args[1:])
 		return result, "meta doc", err
+	case "skill":
+		result, err := a.runMetaSkill(args[1:])
+		return result, "meta skill", err
 	default:
 		return nil, "meta", metaSubcommandSpec.unknownError(args[0])
 	}
@@ -262,6 +265,73 @@ func (a *App) runMetaDoc(args []string) (*commandResult, error) {
 	}}, nil
 }
 
+func (a *App) runMetaSkill(args []string) (*commandResult, error) {
+	if len(args) > 0 && isHelpToken(args[0]) {
+		return &commandResult{Text: metaSkillUsageText()}, nil
+	}
+
+	fs := newSilentFlagSet("meta skill")
+	var targetFlag trackedString
+	var writeFile trackedString
+	var writeDir trackedString
+	fs.Var(&targetFlag, "target", "Skill target, for example cursor")
+	fs.Var(&writeFile, "write-file", "Write the rendered skill to this exact path")
+	fs.Var(&writeDir, "write-dir", "Write the rendered skill into this directory")
+	if err := fs.Parse(args); err != nil {
+		return nil, errnorm.Usage("invalid_flags", err.Error())
+	}
+	positionals := fs.Args()
+	target := strings.TrimSpace(targetFlag.value)
+	if target == "" && len(positionals) > 0 {
+		target = strings.TrimSpace(positionals[0])
+		positionals = positionals[1:]
+		if len(positionals) > 0 {
+			trailing := newSilentFlagSet("meta skill")
+			trailing.Var(&writeFile, "write-file", "Write the rendered skill to this exact path")
+			trailing.Var(&writeDir, "write-dir", "Write the rendered skill into this directory")
+			if err := trailing.Parse(positionals); err != nil {
+				return nil, errnorm.Usage("invalid_flags", err.Error())
+			}
+			positionals = trailing.Args()
+		}
+	}
+	if target == "" {
+		return nil, errnorm.Usage("invalid_request", "skill target is required for `oar meta skill`")
+	}
+	if len(positionals) > 0 {
+		return nil, errnorm.Usage("invalid_args", "unexpected positional arguments for `oar meta skill`")
+	}
+
+	var (
+		content         string
+		defaultFileName string
+	)
+	switch strings.ToLower(target) {
+	case "cursor":
+		content = renderCursorSkillMarkdown()
+		defaultFileName = "SKILL.md"
+	default:
+		return nil, errnorm.Local("not_found", "unknown skill target")
+	}
+
+	data := map[string]any{
+		"target":       strings.ToLower(target),
+		"content":      content,
+		"default_file": defaultFileName,
+		"source":       "bundled-agent-guide",
+		"guide_topic":  "agent-guide",
+		"skill_name":   agentGuideSkillName,
+	}
+	writtenPath, err := writeRenderedFile(content, writeFile.value, writeDir.value, defaultFileName)
+	if err != nil {
+		return nil, errnorm.Wrap(errnorm.KindLocal, "skill_write_failed", "failed to write rendered skill", err)
+	}
+	if writtenPath != "" {
+		data["written_files"] = []string{writtenPath}
+	}
+	return &commandResult{Text: content, Data: data}, nil
+}
+
 func metaDocsUsageText() string {
 	return strings.TrimSpace(`Shipped runtime docs reference
 
@@ -289,7 +359,30 @@ Usage:
 Print one bundled Markdown topic from the runtime help catalog.
 
 Examples:
-  oar meta doc threads
+  oar meta doc agent-guide
   oar meta doc "docs tombstone"
   oar --json meta doc --topic "threads workspace"`)
+}
+
+func metaSkillUsageText() string {
+	return strings.TrimSpace(`Shipped agent skill export
+
+Usage:
+  oar meta skill <target> [--write-file <path> | --write-dir <dir>]
+  oar meta skill --target <target> [--write-file <path> | --write-dir <dir>]
+
+Render a bundled editor-specific skill file from the canonical agent guide.
+
+Targets:
+  cursor                 Render a Cursor ` + "`SKILL.md`" + ` file for ` + "`oar`" + ` usage.
+
+Options:
+  --write-file <path>    Write the rendered skill to this exact path.
+  --write-dir <dir>      Write the rendered skill into this directory using its default filename.
+
+Examples:
+  oar meta skill cursor
+  oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard
+  oar meta skill --target cursor --write-file ./SKILL.md
+  oar --json meta skill cursor`)
 }

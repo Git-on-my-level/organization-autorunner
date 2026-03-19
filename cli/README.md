@@ -20,7 +20,7 @@ go run ./cmd/oar help threads
 ```
 
 Generated command/concept docs are under `docs/generated/`.
-The shipped runtime reference is available from the binary with `oar meta docs` / `oar meta doc <topic>`, and the checked-in artifact is regenerated with `go run ./cmd/oar-docs-gen`.
+The shipped runtime reference is available from the binary with `oar meta docs` / `oar meta doc <topic>`, including the bundled `agent-guide` topic. Editor-specific agent skill exports are available with `oar meta skill <target>`, for example `oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard`. The checked-in runtime-help artifact is regenerated with `go run ./cmd/oar-docs-gen`.
 
 Human-readable inspection commands now default to payload-first summaries. Use `--verbose` to print the full response body and `--headers` to opt into response status/header framing when debugging.
 

@@ -9,7 +9,17 @@ The schema of objects is defined by `/contracts/oar-schema.yaml`.
 - All requests that mutate state MUST include `actor_id`.
 - All timestamps are ISO-8601 strings.
 - Objects MUST preserve unknown fields (additive evolution).
-- `refs` values MUST be typed ref strings per `ref_format`.
+  - `refs` values MUST be typed ref strings per `ref_format`.
+
+## API Surface Classification
+
+Each endpoint is classified with an `x-oar-surface` extension indicating its role:
+
+- **`canonical`**: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, board cards, events, snapshots, packets). These are the durable substrate.
+
+- **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `threads.context`, `threads.workspace`, `boards.workspace`, `inbox.list/get/stream/ack`. The web UI intentionally uses projection endpoints for workspace/inbox/operator reads.
+
+- **`utility`**: Infrastructure endpoints for health, version, meta discovery, auth bootstrap, and maintenance. Examples: `/health`, `/version`, `/meta/*`, `/auth/*`, `/actors`, `/derived/rebuild`.
 
 ## Endpoints
 
