@@ -57,6 +57,17 @@ validate_port() {
   (( port >= 1 && port <= 65535 )) || die "port must be between 1 and 65535: $port"
 }
 
+validate_bootstrap_token_mode() {
+  local mode="$1"
+  case "$mode" in
+    placeholder|clear|keep-source|replace)
+      ;;
+    *)
+      die "bootstrap token mode must be one of: placeholder, clear, keep-source, replace"
+      ;;
+  esac
+}
+
 validate_origin() {
   local origin="$1"
   [[ "$origin" =~ ^https?://[^/]+$ ]] || die "origin must be an absolute http(s) origin with no path: $origin"
@@ -133,6 +144,19 @@ manifest_get() {
 
 dotenv_get() {
   manifest_get "$1" "$2"
+}
+
+bootstrap_token_configured_state() {
+  local token="${1:-}"
+  if [[ -z "$token" ]]; then
+    printf 'clear\n'
+    return 0
+  fi
+  if [[ "$token" == "$HOSTED_BOOTSTRAP_PLACEHOLDER" ]]; then
+    printf 'placeholder\n'
+    return 0
+  fi
+  printf 'set\n'
 }
 
 load_dotenv_file() {

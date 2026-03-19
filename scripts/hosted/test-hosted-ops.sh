@@ -24,6 +24,32 @@ assert_equals() {
   [[ "$expected" == "$actual" ]] || die "${label}: expected ${expected}, got ${actual}"
 }
 
+assert_not_equals() {
+  local unexpected="$1"
+  local actual="$2"
+  local label="$3"
+  [[ "$unexpected" != "$actual" ]] || die "${label}: did not expect ${unexpected}"
+}
+
+assert_path_only_in_restore_receipts() {
+  local root="$1"
+  local needle="$2"
+  local match
+  local found=0
+  while IFS= read -r match; do
+    found=1
+    case "$match" in
+      "${root}/metadata/restore-receipt.env"|\
+      "${root}/metadata/restore-source-manifest.env")
+        ;;
+      *)
+        die "unexpected source leakage for ${needle}: ${match}"
+        ;;
+    esac
+  done < <(rg -F -l -- "$needle" "$root" || true)
+  [[ "$found" -eq 1 ]] || die "expected to find ${needle} in restore receipt material"
+}
+
 seed_workspace_with_artifact() {
   local workspace_root="$1"
   local core_bin="$2"
@@ -58,10 +84,13 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 CORE_BIN="${REPO_ROOT}/core/.bin/oar-core"
 SCHEMA_PATH="${REPO_ROOT}/contracts/oar-schema.yaml"
 
-INSTANCE_ROOT="${TMP_ROOT}/team-alpha"
+INSTANCE_ROOT="${TMP_ROOT}/source/team-alpha"
 BACKUP_DIR="${TMP_ROOT}/backup-bundle"
-RESTORE_ROOT="${TMP_ROOT}/team-alpha-restored"
-NON_EMPTY_RESTORE_ROOT="${TMP_ROOT}/team-alpha-non-empty"
+RESTORE_ROOT="${TMP_ROOT}/restored/team-beta"
+NON_EMPTY_RESTORE_ROOT="${TMP_ROOT}/restored/non-empty"
+RESTORE_INSTANCE_NAME="team-beta"
+RESTORE_PUBLIC_ORIGIN="https://team-beta.example.test"
+RESTORE_CORE_INSTANCE_ID="team-beta-core"
 SEED_PORT="$(pick_loopback_port)"
 
 "${SCRIPT_DIR}/provision-workspace.sh" \
@@ -69,13 +98,20 @@ SEED_PORT="$(pick_loopback_port)"
   --instance-root "$INSTANCE_ROOT" \
   --public-origin https://team-alpha.example.test \
   --listen-port 8001 \
+  --web-ui-port 3001 \
   --generate-bootstrap-token
+INSTANCE_ROOT="$(cd "$INSTANCE_ROOT" && pwd -P)"
 
 seed_workspace_with_artifact "${INSTANCE_ROOT}/workspace" "$CORE_BIN" "$SCHEMA_PATH" "$SEED_PORT" "${TMP_ROOT}/seed.log"
+
+SOURCE_BOOTSTRAP_TOKEN="$(dotenv_get "${INSTANCE_ROOT}/config/env.production" OAR_BOOTSTRAP_TOKEN || true)"
+[[ -n "$SOURCE_BOOTSTRAP_TOKEN" ]] || die "expected source bootstrap token to be configured"
+assert_not_equals "$HOSTED_BOOTSTRAP_PLACEHOLDER" "$SOURCE_BOOTSTRAP_TOKEN" "source bootstrap token"
 
 "${SCRIPT_DIR}/backup-workspace.sh" \
   --instance-root "$INSTANCE_ROOT" \
   --output-dir "$BACKUP_DIR"
+BACKUP_DIR="$(cd "$BACKUP_DIR" && pwd -P)"
 
 assert_file_exists "${BACKUP_DIR}/manifest.env"
 assert_file_exists "${BACKUP_DIR}/SHA256SUMS"
@@ -92,18 +128,55 @@ grep -q 'workspace/state.sqlite' "${BACKUP_DIR}/SHA256SUMS" || die "expected SHA
 
 mkdir -p "$NON_EMPTY_RESTORE_ROOT"
 echo "occupied" >"${NON_EMPTY_RESTORE_ROOT}/keep.txt"
-if "${SCRIPT_DIR}/restore-workspace.sh" --backup-dir "$BACKUP_DIR" --target-instance-root "$NON_EMPTY_RESTORE_ROOT" >/dev/null 2>&1; then
+if "${SCRIPT_DIR}/restore-workspace.sh" \
+  --backup-dir "$BACKUP_DIR" \
+  --target-instance-root "$NON_EMPTY_RESTORE_ROOT" \
+  --instance "$RESTORE_INSTANCE_NAME" \
+  --public-origin "$RESTORE_PUBLIC_ORIGIN" \
+  --listen-port 8011 \
+  --web-ui-port 3011 \
+  >/dev/null 2>&1; then
   die "restore should have refused non-empty target without --force"
 fi
 
 "${SCRIPT_DIR}/restore-workspace.sh" \
   --backup-dir "$BACKUP_DIR" \
-  --target-instance-root "$RESTORE_ROOT"
+  --target-instance-root "$RESTORE_ROOT" \
+  --instance "$RESTORE_INSTANCE_NAME" \
+  --public-origin "$RESTORE_PUBLIC_ORIGIN" \
+  --listen-port 8011 \
+  --web-ui-port 3011 \
+  --core-instance-id "$RESTORE_CORE_INSTANCE_ID"
+RESTORE_ROOT="$(cd "$RESTORE_ROOT" && pwd -P)"
 
 "${SCRIPT_DIR}/verify-restore.sh" \
   --instance-root "$RESTORE_ROOT" \
   --core-bin "$CORE_BIN" \
   --schema-path "$SCHEMA_PATH"
+
+assert_equals "${RESTORE_ROOT}/workspace" "$(dotenv_get "${RESTORE_ROOT}/config/env.production" HOST_OAR_WORKSPACE_ROOT)" "restored workspace root"
+assert_equals "$RESTORE_PUBLIC_ORIGIN" "$(dotenv_get "${RESTORE_ROOT}/config/env.production" OAR_WEB_UI_ORIGIN)" "restored env public origin"
+assert_equals "$RESTORE_PUBLIC_ORIGIN" "$(dotenv_get "${RESTORE_ROOT}/config/env.production" OAR_WEBAUTHN_ORIGIN)" "restored webauthn origin"
+assert_equals "$RESTORE_CORE_INSTANCE_ID" "$(dotenv_get "${RESTORE_ROOT}/config/env.production" OAR_CORE_INSTANCE_ID)" "restored core instance id"
+assert_equals "$HOSTED_BOOTSTRAP_PLACEHOLDER" "$(dotenv_get "${RESTORE_ROOT}/config/env.production" OAR_BOOTSTRAP_TOKEN)" "restored bootstrap token default"
+assert_equals "$RESTORE_INSTANCE_NAME" "$(dotenv_get "${RESTORE_ROOT}/metadata/instance.env" INSTANCE_NAME)" "restored instance name"
+assert_equals "$RESTORE_ROOT" "$(dotenv_get "${RESTORE_ROOT}/metadata/instance.env" INSTANCE_ROOT)" "restored metadata instance root"
+assert_equals "${RESTORE_ROOT}/workspace" "$(dotenv_get "${RESTORE_ROOT}/metadata/instance.env" WORKSPACE_ROOT)" "restored metadata workspace root"
+assert_equals "$RESTORE_PUBLIC_ORIGIN" "$(dotenv_get "${RESTORE_ROOT}/metadata/instance.env" PUBLIC_ORIGIN)" "restored metadata public origin"
+assert_equals "$RESTORE_CORE_INSTANCE_ID" "$(dotenv_get "${RESTORE_ROOT}/metadata/instance.env" CORE_INSTANCE_ID)" "restored metadata core instance id"
+assert_equals "placeholder" "$(dotenv_get "${RESTORE_ROOT}/metadata/instance.env" BOOTSTRAP_TOKEN_CONFIGURED)" "restored metadata bootstrap state"
+assert_equals "placeholder" "$(dotenv_get "${RESTORE_ROOT}/metadata/restore-receipt.env" BOOTSTRAP_TOKEN_MODE)" "restore receipt bootstrap mode"
+assert_equals "disabled" "$(dotenv_get "${RESTORE_ROOT}/metadata/restore-receipt.env" EXPECTED_ACTIVE_BOOTSTRAP_STATE)" "restore receipt expected bootstrap state"
+assert_equals "$(manifest_get "${BACKUP_DIR}/manifest.env" PUBLIC_ORIGIN)" "$(dotenv_get "${RESTORE_ROOT}/metadata/restore-source-manifest.env" PUBLIC_ORIGIN)" "source manifest preserved"
+
+assert_not_equals "$SOURCE_BOOTSTRAP_TOKEN" "$(dotenv_get "${RESTORE_ROOT}/config/env.production" OAR_BOOTSTRAP_TOKEN)" "restored bootstrap token"
+if rg -F -q -- "$SOURCE_BOOTSTRAP_TOKEN" "$RESTORE_ROOT"; then
+  die "source bootstrap token should not be copied into restored target"
+fi
+
+assert_path_only_in_restore_receipts "$RESTORE_ROOT" "$INSTANCE_ROOT"
+assert_path_only_in_restore_receipts "$RESTORE_ROOT" "${INSTANCE_ROOT}/workspace"
+assert_path_only_in_restore_receipts "$RESTORE_ROOT" "https://team-alpha.example.test"
 
 blob_file="$(find "${RESTORE_ROOT}/workspace/artifacts/content" -type f | head -n 1 || true)"
 [[ -n "$blob_file" ]] || die "expected restored blob file"
