@@ -103,7 +103,9 @@ fi
 if [[ -d "$TARGET_INSTANCE_ROOT" ]]; then
   TARGET_INSTANCE_ROOT="$(cd "$TARGET_INSTANCE_ROOT" && pwd -P)"
 else
-  parent_dir="$(cd "$(dirname "$TARGET_INSTANCE_ROOT")" && pwd -P)"
+  parent_dir="$(dirname "$TARGET_INSTANCE_ROOT")"
+  mkdir -p "$parent_dir"
+  parent_dir="$(cd "$parent_dir" && pwd -P)"
   TARGET_INSTANCE_ROOT="${parent_dir}/$(basename "$TARGET_INSTANCE_ROOT")"
 fi
 ensure_empty_or_forced_target "$TARGET_INSTANCE_ROOT" "$FORCE"

@@ -181,11 +181,26 @@ jobs:
           path: .tmp/e2e-smoke/**
           if-no-files-found: ignore
 
-  hosted-ops-test:
+  hosted-checks:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: ${{ matrix.timeout_minutes }}
     needs: changes
     if: needs.changes.outputs.hosted == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: hosted-ops-test
+            timeout_minutes: 15
+            make_target: hosted-ops-test
+            artifact_name: ""
+            artifact_path: ""
+          - name: hosted-smoke
+            timeout_minutes: 20
+            make_target: hosted-smoke
+            artifact_name: hosted-smoke-artifacts
+            artifact_path: .tmp/hosted-smoke/**
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -195,56 +210,15 @@ jobs:
         with:
           go-version-file: core/go.mod
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run hosted ops test
-        run: make hosted-ops-test
-
-  hosted-smoke:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: changes
-    if: needs.changes.outputs.hosted == 'true'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: core/go.mod
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run hosted smoke
+      - name: Run ${{ matrix.name }}
         env:
           HOSTED_SMOKE_ARTIFACT_DIR: ${{ github.workspace }}/.tmp/hosted-smoke
-        run: make hosted-smoke
+        run: make ${{ matrix.make_target }}
 
-      - name: Upload hosted smoke artifacts
-        if: always()
+      - name: Upload hosted artifacts
+        if: always() && matrix.artifact_path != ''
         uses: actions/upload-artifact@v4
         with:
-          name: hosted-smoke-artifacts
-          path: .tmp/hosted-smoke/**
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
           if-no-files-found: ignore

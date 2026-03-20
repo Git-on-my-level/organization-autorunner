@@ -57,7 +57,7 @@ assert_path_only_in_restore_receipts() {
         die "unexpected source leakage for ${needle}: ${match}"
         ;;
     esac
-  done < <(rg -F -l -- "$needle" "$root" || true)
+  done < <(paths_containing_text "$needle" "$root")
   [[ "$found" -eq 1 ]] || die "expected to find ${needle} in restore receipt material"
 }
 
@@ -310,7 +310,7 @@ assert_equals "disabled" "$(dotenv_get "${RESTORE_ROOT}/metadata/restore-receipt
 assert_equals "$(manifest_get "${BACKUP_DIR}/manifest.env" PUBLIC_ORIGIN)" "$(dotenv_get "${RESTORE_ROOT}/metadata/restore-source-manifest.env" PUBLIC_ORIGIN)" "source manifest preserved"
 
 assert_not_equals "$SOURCE_BOOTSTRAP_TOKEN" "$(dotenv_get "${RESTORE_ROOT}/config/env.production" OAR_BOOTSTRAP_TOKEN)" "restored bootstrap token"
-if rg -F -q -- "$SOURCE_BOOTSTRAP_TOKEN" "$RESTORE_ROOT"; then
+if [[ -n "$(paths_containing_text "$SOURCE_BOOTSTRAP_TOKEN" "$RESTORE_ROOT")" ]]; then
   die "source bootstrap token should not be copied into restored target"
 fi
 

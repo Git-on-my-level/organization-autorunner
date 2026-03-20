@@ -219,6 +219,15 @@ count_files() {
   find "$dir" -type f | wc -l | tr -d ' '
 }
 
+paths_containing_text() {
+  local needle="$1"
+  local root="$2"
+  if [[ ! -e "$root" ]]; then
+    return 0
+  fi
+  grep -R -I -F -l -- "$needle" "$root" 2>/dev/null || true
+}
+
 directory_size_bytes() {
   local dir="$1"
   if [[ ! -d "$dir" ]]; then
