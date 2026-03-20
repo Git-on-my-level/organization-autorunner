@@ -5,7 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"time"
+
+	"organization-autorunner-core/internal/authaudit"
 )
 
 const createMigrationsTableSQL = `
@@ -686,11 +687,11 @@ func applyAuthAuditSortKeyMigration(ctx context.Context, tx *sql.Tx) error {
 		if err := rows.Scan(&row.id, &row.occurredAt); err != nil {
 			return fmt.Errorf("scan auth audit row for sort key backfill: %w", err)
 		}
-		occurredAt, err := parseAuthAuditOccurredAt(row.occurredAt)
+		occurredAt, err := authaudit.ParseOccurredAt(row.occurredAt)
 		if err != nil {
 			return fmt.Errorf("parse auth audit occurred_at for %s: %w", row.id, err)
 		}
-		row.sortKey = formatAuthAuditSortKey(occurredAt)
+		row.sortKey = authaudit.FormatOccurredAtSortKey(occurredAt)
 		pending = append(pending, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -705,15 +706,6 @@ func applyAuthAuditSortKeyMigration(ctx context.Context, tx *sql.Tx) error {
 
 	return nil
 }
-
-func parseAuthAuditOccurredAt(raw string) (time.Time, error) {
-	return time.Parse(time.RFC3339Nano, raw)
-}
-
-func formatAuthAuditSortKey(occurredAt time.Time) string {
-	return occurredAt.UTC().Format("2006-01-02T15:04:05.000000000Z07:00")
-}
-
 func tableExistsTx(ctx context.Context, tx *sql.Tx, tableName string) (bool, error) {
 	var exists bool
 	if err := tx.QueryRowContext(
