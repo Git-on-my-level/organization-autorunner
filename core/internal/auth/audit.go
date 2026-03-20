@@ -17,6 +17,7 @@ import (
 var ErrInvalidCursor = errors.New("invalid_cursor")
 
 const (
+	authAuditSortKeyLayout             = "2006-01-02T15:04:05.000000000Z07:00"
 	AuthAuditEventBootstrapConsumed    = "bootstrap_consumed"
 	AuthAuditEventInviteCreated        = "invite_created"
 	AuthAuditEventInviteRevoked        = "invite_revoked"
@@ -69,6 +70,11 @@ type AuthAuditEventInput struct {
 	SubjectActorID string
 	InviteID       string
 	Metadata       map[string]any
+}
+
+type authAuditCursor struct {
+	SortKey string `json:"sort_key"`
+	EventID string `json:"event_id"`
 }
 
 func (s *Store) ListPrincipals(ctx context.Context, filter AuthPrincipalListFilter) ([]AuthPrincipalSummary, string, error) {
@@ -157,7 +163,7 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 		return nil, "", fmt.Errorf("auth store database is not initialized")
 	}
 
-	offset, err := decodeAuthCursor(strings.TrimSpace(filter.Cursor))
+	keysetCursor, legacyOffset, err := decodeAuthAuditCursor(strings.TrimSpace(filter.Cursor))
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %v", ErrInvalidCursor, err)
 	}
@@ -166,6 +172,7 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 		id,
 		event_type,
 		occurred_at,
+		occurred_at_sort_key,
 		actor_agent_id,
 		actor_actor_id,
 		subject_agent_id,
@@ -173,15 +180,26 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 		invite_id,
 		metadata_json
 	 FROM auth_audit_events
-	 ORDER BY occurred_at DESC, id DESC`
-	args := make([]any, 0, 2)
+	`
+	args := make([]any, 0, 4)
+
+	switch {
+	case keysetCursor != nil:
+		query += ` WHERE (occurred_at_sort_key < ? OR (occurred_at_sort_key = ? AND id < ?))`
+		args = append(args, keysetCursor.SortKey, keysetCursor.SortKey, keysetCursor.EventID)
+	case legacyOffset > 0:
+		// Support in-flight legacy cursors from the pre-keyset implementation.
+	default:
+	}
+
+	query += ` ORDER BY occurred_at_sort_key DESC, id DESC`
 
 	if filter.Limit != nil && *filter.Limit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, *filter.Limit+1)
-		if offset > 0 {
+		if keysetCursor == nil && legacyOffset > 0 {
 			query += ` OFFSET ?`
-			args = append(args, offset)
+			args = append(args, legacyOffset)
 		}
 	}
 
@@ -191,10 +209,16 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 	}
 	defer rows.Close()
 
-	events := make([]AuthAuditEvent, 0)
+	type auditEventRow struct {
+		event   AuthAuditEvent
+		sortKey string
+	}
+
+	rowsOut := make([]auditEventRow, 0)
 	for rows.Next() {
 		var (
 			event        AuthAuditEvent
+			sortKey      string
 			actorAgent   sql.NullString
 			actorActor   sql.NullString
 			subjectAgent sql.NullString
@@ -206,6 +230,7 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 			&event.EventID,
 			&event.EventType,
 			&event.OccurredAt,
+			&sortKey,
 			&actorAgent,
 			&actorActor,
 			&subjectAgent,
@@ -226,16 +251,22 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 		if event.Metadata == nil {
 			event.Metadata = map[string]any{}
 		}
-		events = append(events, event)
+		rowsOut = append(rowsOut, auditEventRow{event: event, sortKey: sortKey})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, "", fmt.Errorf("iterate auth audit rows: %w", err)
 	}
 
 	var nextCursor string
-	if filter.Limit != nil && len(events) > *filter.Limit {
-		events = events[:*filter.Limit]
-		nextCursor = encodeAuthCursor(offset + *filter.Limit)
+	if filter.Limit != nil && len(rowsOut) > *filter.Limit {
+		rowsOut = rowsOut[:*filter.Limit]
+		last := rowsOut[len(rowsOut)-1]
+		nextCursor = encodeAuthAuditCursor(last.sortKey, last.event.EventID)
+	}
+
+	events := make([]AuthAuditEvent, 0, len(rowsOut))
+	for _, row := range rowsOut {
+		events = append(events, row.event)
 	}
 
 	return events, nextCursor, nil
@@ -271,16 +302,18 @@ func (s *Store) recordAuthAuditEventTx(ctx context.Context, tx *sql.Tx, input Au
 			id,
 			event_type,
 			occurred_at,
+			occurred_at_sort_key,
 			actor_agent_id,
 			actor_actor_id,
 			subject_agent_id,
 			subject_actor_id,
 			invite_id,
 			metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"authevt_"+uuid.NewString(),
 		eventType,
 		occurredAt.Format(time.RFC3339Nano),
+		formatAuthAuditSortKey(occurredAt),
 		nullIfEmpty(input.ActorAgentID),
 		nullIfEmpty(input.ActorActorID),
 		nullIfEmpty(input.SubjectAgentID),
@@ -292,6 +325,10 @@ func (s *Store) recordAuthAuditEventTx(ctx context.Context, tx *sql.Tx, input Au
 		return fmt.Errorf("insert auth audit event: %w", err)
 	}
 	return nil
+}
+
+func formatAuthAuditSortKey(occurredAt time.Time) string {
+	return occurredAt.UTC().Format(authAuditSortKeyLayout)
 }
 
 func encodeAuthCursor(offset int) string {
@@ -322,6 +359,47 @@ func decodeAuthCursor(cursor string) (int, error) {
 		return 0, fmt.Errorf("invalid cursor offset: must be greater than zero")
 	}
 	return offset, nil
+}
+
+func encodeAuthAuditCursor(sortKey string, eventID string) string {
+	cursor := authAuditCursor{
+		SortKey: strings.TrimSpace(sortKey),
+		EventID: strings.TrimSpace(eventID),
+	}
+	if cursor.SortKey == "" || cursor.EventID == "" {
+		return ""
+	}
+	encoded, err := json.Marshal(cursor)
+	if err != nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(encoded)
+}
+
+func decodeAuthAuditCursor(cursor string) (*authAuditCursor, int, error) {
+	if cursor == "" {
+		return nil, 0, nil
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(cursor)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+
+	var keyset authAuditCursor
+	if err := json.Unmarshal(decoded, &keyset); err == nil {
+		keyset.SortKey = strings.TrimSpace(keyset.SortKey)
+		keyset.EventID = strings.TrimSpace(keyset.EventID)
+		if keyset.SortKey != "" && keyset.EventID != "" {
+			return &keyset, 0, nil
+		}
+	}
+
+	offset, err := decodeAuthCursor(cursor)
+	if err != nil {
+		return nil, 0, err
+	}
+	return nil, offset, nil
 }
 
 func nullStringPtr(value sql.NullString) *string {

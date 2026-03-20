@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 const createMigrationsTableSQL = `
@@ -491,6 +492,14 @@ var migrations = []migration{
 		},
 		Apply: applyAuthAuditMigration,
 	},
+	{
+		Version: 19,
+		Statements: []string{
+			`ALTER TABLE auth_audit_events ADD COLUMN occurred_at_sort_key TEXT`,
+			`CREATE INDEX IF NOT EXISTS idx_auth_audit_events_sort_key ON auth_audit_events (occurred_at_sort_key DESC, id DESC)`,
+		},
+		Apply: applyAuthAuditSortKeyMigration,
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
@@ -648,6 +657,61 @@ func applyAuthAuditMigration(ctx context.Context, tx *sql.Tx) error {
 	}
 
 	return nil
+}
+
+func applyAuthAuditSortKeyMigration(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExistsTx(ctx, tx, "auth_audit_events")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	rows, err := tx.QueryContext(ctx, `SELECT id, occurred_at FROM auth_audit_events WHERE COALESCE(occurred_at_sort_key, '') = ''`)
+	if err != nil {
+		return fmt.Errorf("query auth audit events for sort key backfill: %w", err)
+	}
+	defer rows.Close()
+
+	type authAuditRow struct {
+		id         string
+		occurredAt string
+		sortKey    string
+	}
+
+	pending := make([]authAuditRow, 0)
+	for rows.Next() {
+		var row authAuditRow
+		if err := rows.Scan(&row.id, &row.occurredAt); err != nil {
+			return fmt.Errorf("scan auth audit row for sort key backfill: %w", err)
+		}
+		occurredAt, err := parseAuthAuditOccurredAt(row.occurredAt)
+		if err != nil {
+			return fmt.Errorf("parse auth audit occurred_at for %s: %w", row.id, err)
+		}
+		row.sortKey = formatAuthAuditSortKey(occurredAt)
+		pending = append(pending, row)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate auth audit rows for sort key backfill: %w", err)
+	}
+
+	for _, row := range pending {
+		if _, err := tx.ExecContext(ctx, `UPDATE auth_audit_events SET occurred_at_sort_key = ? WHERE id = ?`, row.sortKey, row.id); err != nil {
+			return fmt.Errorf("update auth audit sort key for %s: %w", row.id, err)
+		}
+	}
+
+	return nil
+}
+
+func parseAuthAuditOccurredAt(raw string) (time.Time, error) {
+	return time.Parse(time.RFC3339Nano, raw)
+}
+
+func formatAuthAuditSortKey(occurredAt time.Time) string {
+	return occurredAt.UTC().Format("2006-01-02T15:04:05.000000000Z07:00")
 }
 
 func tableExistsTx(ctx context.Context, tx *sql.Tx, tableName string) (bool, error) {
