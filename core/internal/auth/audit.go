@@ -3,13 +3,13 @@ package auth
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
+
+	"organization-autorunner-core/internal/authaudit"
 
 	"github.com/google/uuid"
 )
@@ -17,7 +17,6 @@ import (
 var ErrInvalidCursor = errors.New("invalid_cursor")
 
 const (
-	authAuditSortKeyLayout             = "2006-01-02T15:04:05.000000000Z07:00"
 	AuthAuditEventBootstrapConsumed    = "bootstrap_consumed"
 	AuthAuditEventInviteCreated        = "invite_created"
 	AuthAuditEventInviteRevoked        = "invite_revoked"
@@ -72,17 +71,12 @@ type AuthAuditEventInput struct {
 	Metadata       map[string]any
 }
 
-type authAuditCursor struct {
-	SortKey string `json:"sort_key"`
-	EventID string `json:"event_id"`
-}
-
 func (s *Store) ListPrincipals(ctx context.Context, filter AuthPrincipalListFilter) ([]AuthPrincipalSummary, string, error) {
 	if s == nil || s.db == nil {
 		return nil, "", fmt.Errorf("auth store database is not initialized")
 	}
 
-	offset, err := decodeAuthCursor(strings.TrimSpace(filter.Cursor))
+	offset, err := decodeAuthPrincipalCursor(strings.TrimSpace(filter.Cursor))
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %v", ErrInvalidCursor, err)
 	}
@@ -152,7 +146,7 @@ func (s *Store) ListPrincipals(ctx context.Context, filter AuthPrincipalListFilt
 	var nextCursor string
 	if filter.Limit != nil && len(principals) > *filter.Limit {
 		principals = principals[:*filter.Limit]
-		nextCursor = encodeAuthCursor(offset + *filter.Limit)
+		nextCursor = encodeAuthPrincipalCursor(offset + *filter.Limit)
 	}
 
 	return principals, nextCursor, nil
@@ -163,7 +157,7 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 		return nil, "", fmt.Errorf("auth store database is not initialized")
 	}
 
-	keysetCursor, legacyOffset, err := decodeAuthAuditCursor(strings.TrimSpace(filter.Cursor))
+	keysetCursor, err := decodeAuthAuditCursor(strings.TrimSpace(filter.Cursor))
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %v", ErrInvalidCursor, err)
 	}
@@ -183,13 +177,9 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 	`
 	args := make([]any, 0, 4)
 
-	switch {
-	case keysetCursor != nil:
+	if keysetCursor != nil {
 		query += ` WHERE (occurred_at_sort_key < ? OR (occurred_at_sort_key = ? AND id < ?))`
 		args = append(args, keysetCursor.SortKey, keysetCursor.SortKey, keysetCursor.EventID)
-	case legacyOffset > 0:
-		// Support in-flight legacy cursors from the pre-keyset implementation.
-	default:
 	}
 
 	query += ` ORDER BY occurred_at_sort_key DESC, id DESC`
@@ -197,10 +187,6 @@ func (s *Store) ListAuditEvents(ctx context.Context, filter AuthAuditListFilter)
 	if filter.Limit != nil && *filter.Limit > 0 {
 		query += ` LIMIT ?`
 		args = append(args, *filter.Limit+1)
-		if keysetCursor == nil && legacyOffset > 0 {
-			query += ` OFFSET ?`
-			args = append(args, legacyOffset)
-		}
 	}
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -313,7 +299,7 @@ func (s *Store) recordAuthAuditEventTx(ctx context.Context, tx *sql.Tx, input Au
 		"authevt_"+uuid.NewString(),
 		eventType,
 		occurredAt.Format(time.RFC3339Nano),
-		formatAuthAuditSortKey(occurredAt),
+		authaudit.FormatOccurredAtSortKey(occurredAt),
 		nullIfEmpty(input.ActorAgentID),
 		nullIfEmpty(input.ActorActorID),
 		nullIfEmpty(input.SubjectAgentID),
@@ -325,81 +311,6 @@ func (s *Store) recordAuthAuditEventTx(ctx context.Context, tx *sql.Tx, input Au
 		return fmt.Errorf("insert auth audit event: %w", err)
 	}
 	return nil
-}
-
-func formatAuthAuditSortKey(occurredAt time.Time) string {
-	return occurredAt.UTC().Format(authAuditSortKeyLayout)
-}
-
-func encodeAuthCursor(offset int) string {
-	if offset <= 0 {
-		return ""
-	}
-	cursor := fmt.Sprintf("offset:%d", offset)
-	return base64.StdEncoding.EncodeToString([]byte(cursor))
-}
-
-func decodeAuthCursor(cursor string) (int, error) {
-	if cursor == "" {
-		return 0, nil
-	}
-	decoded, err := base64.StdEncoding.DecodeString(cursor)
-	if err != nil {
-		return 0, fmt.Errorf("invalid cursor encoding: %w", err)
-	}
-	parts := strings.Split(string(decoded), ":")
-	if len(parts) != 2 || parts[0] != "offset" {
-		return 0, fmt.Errorf("invalid cursor format")
-	}
-	offset, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return 0, fmt.Errorf("invalid cursor offset: %w", err)
-	}
-	if offset <= 0 {
-		return 0, fmt.Errorf("invalid cursor offset: must be greater than zero")
-	}
-	return offset, nil
-}
-
-func encodeAuthAuditCursor(sortKey string, eventID string) string {
-	cursor := authAuditCursor{
-		SortKey: strings.TrimSpace(sortKey),
-		EventID: strings.TrimSpace(eventID),
-	}
-	if cursor.SortKey == "" || cursor.EventID == "" {
-		return ""
-	}
-	encoded, err := json.Marshal(cursor)
-	if err != nil {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString(encoded)
-}
-
-func decodeAuthAuditCursor(cursor string) (*authAuditCursor, int, error) {
-	if cursor == "" {
-		return nil, 0, nil
-	}
-
-	decoded, err := base64.StdEncoding.DecodeString(cursor)
-	if err != nil {
-		return nil, 0, fmt.Errorf("invalid cursor encoding: %w", err)
-	}
-
-	var keyset authAuditCursor
-	if err := json.Unmarshal(decoded, &keyset); err == nil {
-		keyset.SortKey = strings.TrimSpace(keyset.SortKey)
-		keyset.EventID = strings.TrimSpace(keyset.EventID)
-		if keyset.SortKey != "" && keyset.EventID != "" {
-			return &keyset, 0, nil
-		}
-	}
-
-	offset, err := decodeAuthCursor(cursor)
-	if err != nil {
-		return nil, 0, err
-	}
-	return nil, offset, nil
 }
 
 func nullStringPtr(value sql.NullString) *string {
