@@ -308,18 +308,19 @@ build_core_binary() {
 }
 
 start_core_server() {
-  local core_bin="$1"
-  local workspace_root="$2"
-  local schema_path="$3"
-  local listen_host="$4"
-  local listen_port="$5"
-  local log_file="$6"
-  local core_instance_id="${7:-}"
-  local bootstrap_token_mode="${8:-unset}"
-  local bootstrap_token="${9:-}"
-  local dev_actor_mode="${10:-false}"
-  local allow_unauthenticated_writes="${11:-false}"
-  local allow_loopback_verification_reads="${12:-false}"
+  local pid_var_name="$1"
+  local core_bin="$2"
+  local workspace_root="$3"
+  local schema_path="$4"
+  local listen_host="$5"
+  local listen_port="$6"
+  local log_file="$7"
+  local core_instance_id="${8:-}"
+  local bootstrap_token_mode="${9:-unset}"
+  local bootstrap_token="${10:-}"
+  local dev_actor_mode="${11:-false}"
+  local allow_unauthenticated_writes="${12:-false}"
+  local allow_loopback_verification_reads="${13:-false}"
   local -a cmd
 
   validate_port "$listen_port"
@@ -353,7 +354,7 @@ start_core_server() {
     exec "${cmd[@]}"
   ) >"$log_file" 2>&1 &
 
-  printf '%s\n' "$!"
+  printf -v "$pid_var_name" '%s' "$!"
 }
 
 stop_background_process() {

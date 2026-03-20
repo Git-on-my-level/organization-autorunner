@@ -181,7 +181,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-SERVER_PID="$(start_core_server \
+start_core_server \
+  SERVER_PID \
   "$CORE_BIN" \
   "$WORKSPACE_ROOT" \
   "$SCHEMA_PATH" \
@@ -193,7 +194,7 @@ SERVER_PID="$(start_core_server \
   "${OAR_BOOTSTRAP_TOKEN-}" \
   false \
   false \
-  true)"
+  true
 
 if ! wait_for_http_ok "http://127.0.0.1:${LISTEN_PORT}/health" "$TIMEOUT_SECONDS"; then
   die "restore verification could not reach /health on 127.0.0.1:${LISTEN_PORT}; see ${SERVER_LOG_FILE}"

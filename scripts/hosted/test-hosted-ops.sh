@@ -123,7 +123,8 @@ seed_workspace_fixture() {
   local listen_port="$4"
   local log_file="$5"
   local server_pid
-  server_pid="$(start_core_server \
+  start_core_server \
+    server_pid \
     "$core_bin" \
     "$workspace_root" \
     "$schema_path" \
@@ -135,7 +136,7 @@ seed_workspace_fixture() {
     "" \
     true \
     true \
-    false)"
+    false
   trap 'stop_background_process "${server_pid:-}"' RETURN
   wait_for_http_ok "http://127.0.0.1:${listen_port}/health" 20 || die "failed to start temporary core for test fixture"
 

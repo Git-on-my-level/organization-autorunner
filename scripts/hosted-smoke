@@ -92,7 +92,8 @@ PUBKEY4=$(echo "$KEYS" | sed -n '4p')
 
 echo "Starting core in hosted mode (no dev flags)..."
 mkdir -p "$WORKSPACE_ROOT"
-CORE_PID="$(start_core_server \
+start_core_server \
+  CORE_PID \
   "$CORE_BIN" \
   "$WORKSPACE_ROOT" \
   "$SCHEMA_PATH" \
@@ -104,7 +105,7 @@ CORE_PID="$(start_core_server \
   "$BOOTSTRAP_TOKEN" \
   false \
   false \
-  false)"
+  false
 
 if ! wait_for_http_ok "$CORE_BASE_URL/health" "$SMOKE_TIMEOUT_SECONDS"; then
   echo "core did not become healthy" >&2
