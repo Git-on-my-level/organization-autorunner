@@ -501,6 +501,11 @@ var migrations = []migration{
 		},
 		Apply: applyAuthAuditSortKeyMigration,
 	},
+	{
+		Version:    20,
+		Statements: nil,
+		Apply:      applyThreadProjectionGenerationMigration,
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
@@ -706,6 +711,200 @@ func applyAuthAuditSortKeyMigration(ctx context.Context, tx *sql.Tx) error {
 
 	return nil
 }
+
+func applyThreadProjectionGenerationMigration(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExistsTx(ctx, tx, "thread_projection_refresh_status")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		if err := createThreadProjectionGenerationTable(ctx, tx); err != nil {
+			return err
+		}
+		return createThreadProjectionGenerationIndex(ctx, tx)
+	}
+
+	alreadyMigrated, err := columnExistsTx(ctx, tx, "thread_projection_refresh_status", "desired_generation")
+	if err != nil {
+		return err
+	}
+	if alreadyMigrated {
+		return createThreadProjectionGenerationIndex(ctx, tx)
+	}
+
+	if _, err := tx.ExecContext(ctx, `ALTER TABLE thread_projection_refresh_status RENAME TO thread_projection_refresh_status_legacy`); err != nil {
+		return fmt.Errorf("rename legacy thread projection refresh status table: %w", err)
+	}
+	if err := createThreadProjectionGenerationTable(ctx, tx); err != nil {
+		return err
+	}
+	if err := createThreadProjectionGenerationIndex(ctx, tx); err != nil {
+		return err
+	}
+
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT
+			s.thread_id,
+			s.is_dirty,
+			s.in_progress,
+			s.queued_at,
+			s.started_at,
+			s.completed_at,
+			s.last_error_at,
+			s.last_error,
+			s.updated_at,
+			EXISTS(SELECT 1 FROM derived_thread_views v WHERE v.thread_id = s.thread_id) AS has_projection
+		FROM thread_projection_refresh_status_legacy s`,
+	)
+	if err != nil {
+		return fmt.Errorf("query legacy thread projection refresh status rows: %w", err)
+	}
+	defer rows.Close()
+
+	type projectionRow struct {
+		threadID             string
+		isDirty              int
+		inProgress           int
+		queuedAt             sql.NullString
+		startedAt            sql.NullString
+		completedAt          sql.NullString
+		lastErrorAt          sql.NullString
+		lastError            sql.NullString
+		updatedAt            string
+		hasProjection        bool
+		desiredGeneration    int64
+		materializedGen      int64
+		inProgressGeneration *int64
+	}
+
+	pending := make([]projectionRow, 0)
+	for rows.Next() {
+		var row projectionRow
+		if err := rows.Scan(
+			&row.threadID,
+			&row.isDirty,
+			&row.inProgress,
+			&row.queuedAt,
+			&row.startedAt,
+			&row.completedAt,
+			&row.lastErrorAt,
+			&row.lastError,
+			&row.updatedAt,
+			&row.hasProjection,
+		); err != nil {
+			return fmt.Errorf("scan legacy thread projection refresh status row: %w", err)
+		}
+
+		switch {
+		case row.isDirty != 0 || row.inProgress != 0:
+			row.desiredGeneration = 1
+			if row.inProgress != 0 {
+				value := int64(1)
+				row.inProgressGeneration = &value
+			}
+		case row.hasProjection:
+			row.desiredGeneration = 1
+			row.materializedGen = 1
+		}
+		pending = append(pending, row)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate legacy thread projection refresh status rows: %w", err)
+	}
+
+	for _, row := range pending {
+		var inProgressGeneration any
+		if row.inProgressGeneration != nil {
+			inProgressGeneration = *row.inProgressGeneration
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			`INSERT INTO thread_projection_refresh_status(
+				thread_id,
+				desired_generation,
+				materialized_generation,
+				in_progress_generation,
+				queued_at,
+				started_at,
+				completed_at,
+				last_error_at,
+				last_error,
+				updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			row.threadID,
+			row.desiredGeneration,
+			row.materializedGen,
+			inProgressGeneration,
+			nullStringValue(row.queuedAt),
+			nullStringValue(row.startedAt),
+			nullStringValue(row.completedAt),
+			nullStringValue(row.lastErrorAt),
+			nullStringValue(row.lastError),
+			row.updatedAt,
+		); err != nil {
+			return fmt.Errorf("insert migrated thread projection refresh status for %s: %w", row.threadID, err)
+		}
+
+		if row.desiredGeneration > row.materializedGen {
+			dirtyAt := firstNonEmptyNullString(row.queuedAt, row.startedAt, row.lastErrorAt)
+			if dirtyAt == "" {
+				dirtyAt = row.updatedAt
+			}
+			if _, err := tx.ExecContext(
+				ctx,
+				`INSERT INTO derived_thread_dirty_queue(thread_id, dirty_at)
+				 VALUES (?, ?)
+				ON CONFLICT(thread_id) DO UPDATE SET
+					dirty_at = CASE
+						WHEN derived_thread_dirty_queue.dirty_at <= excluded.dirty_at THEN derived_thread_dirty_queue.dirty_at
+						ELSE excluded.dirty_at
+					END`,
+				row.threadID,
+				dirtyAt,
+			); err != nil {
+				return fmt.Errorf("requeue migrated thread projection refresh for %s: %w", row.threadID, err)
+			}
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `DROP TABLE thread_projection_refresh_status_legacy`); err != nil {
+		return fmt.Errorf("drop legacy thread projection refresh status table: %w", err)
+	}
+	return nil
+}
+
+func createThreadProjectionGenerationTable(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(
+		ctx,
+		`CREATE TABLE IF NOT EXISTS thread_projection_refresh_status (
+			thread_id TEXT PRIMARY KEY,
+			desired_generation INTEGER NOT NULL DEFAULT 0,
+			materialized_generation INTEGER NOT NULL DEFAULT 0,
+			in_progress_generation INTEGER,
+			queued_at TEXT,
+			started_at TEXT,
+			completed_at TEXT,
+			last_error_at TEXT,
+			last_error TEXT,
+			updated_at TEXT NOT NULL
+		);`,
+	); err != nil {
+		return fmt.Errorf("create thread projection generation table: %w", err)
+	}
+	return nil
+}
+
+func createThreadProjectionGenerationIndex(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(
+		ctx,
+		`CREATE INDEX IF NOT EXISTS idx_thread_projection_refresh_status_generations ON thread_projection_refresh_status (desired_generation, materialized_generation, in_progress_generation, queued_at, thread_id);`,
+	); err != nil {
+		return fmt.Errorf("create thread projection generation index: %w", err)
+	}
+	return nil
+}
+
 func tableExistsTx(ctx context.Context, tx *sql.Tx, tableName string) (bool, error) {
 	var exists bool
 	if err := tx.QueryRowContext(
@@ -745,6 +944,22 @@ func columnExistsTx(ctx context.Context, tx *sql.Tx, tableName string, columnNam
 		return false, fmt.Errorf("iterate table info %s: %w", tableName, err)
 	}
 	return false, nil
+}
+
+func nullStringValue(value sql.NullString) any {
+	if !value.Valid {
+		return nil
+	}
+	return value.String
+}
+
+func firstNonEmptyNullString(values ...sql.NullString) string {
+	for _, value := range values {
+		if value.Valid && value.String != "" {
+			return value.String
+		}
+	}
+	return ""
 }
 
 func scrubLegacyArtifactMetadataJSON(metadataJSON string) (string, bool, error) {

@@ -47,6 +47,7 @@ type ProjectionMaintainer struct {
 	staleScanInterval time.Duration
 	dirtyBatchSize    int
 	systemActorID     string
+	notifyCh          chan struct{}
 
 	stepMu  sync.Mutex
 	stateMu sync.RWMutex
@@ -87,6 +88,7 @@ func NewProjectionMaintainer(config ProjectionMaintainerConfig) *ProjectionMaint
 		staleScanInterval: staleScanInterval,
 		dirtyBatchSize:    dirtyBatchSize,
 		systemActorID:     firstNonEmptyString(strings.TrimSpace(config.SystemActorID), "oar-core"),
+		notifyCh:          make(chan struct{}, 1),
 	}
 }
 
@@ -106,8 +108,19 @@ func (m *ProjectionMaintainer) Run(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
+		case <-m.notifyCh:
 		case <-ticker.C:
 		}
+	}
+}
+
+func (m *ProjectionMaintainer) Notify() {
+	if m == nil || m.notifyCh == nil {
+		return
+	}
+	select {
+	case m.notifyCh <- struct{}{}:
+	default:
 	}
 }
 
@@ -260,7 +273,8 @@ func (m *ProjectionMaintainer) processDirtyQueue(ctx context.Context, now time.T
 		if startedAt.IsZero() {
 			startedAt = time.Now().UTC()
 		}
-		if err := m.opts.primitiveStore.MarkThreadProjectionRefreshStarted(ctx, entry.ThreadID, startedAt); err != nil {
+		startedGeneration, err := m.opts.primitiveStore.MarkThreadProjectionRefreshStarted(ctx, entry.ThreadID, startedAt)
+		if err != nil {
 			m.recordError("start_dirty_projection", startedAt, err)
 			return processed, fmt.Errorf("mark dirty projection %s started: %w", entry.ThreadID, err)
 		}
@@ -268,25 +282,30 @@ func (m *ProjectionMaintainer) processDirtyQueue(ctx context.Context, now time.T
 			m.recordError("clear_dirty_projection", startedAt, err)
 			return processed, fmt.Errorf("clear dirty projection %s: %w", entry.ThreadID, err)
 		}
+		if startedGeneration == 0 {
+			processed++
+			continue
+		}
 		if err := refreshDerivedThreadProjection(ctx, m.opts, entry.ThreadID, startedAt, m.systemActorID); err != nil {
 			failureMessage := fmt.Sprintf("refresh dirty projection %s: %v", entry.ThreadID, err)
 			queuedAt, parseErr := time.Parse(time.RFC3339Nano, strings.TrimSpace(entry.DirtyAt))
 			if parseErr != nil || queuedAt.IsZero() {
 				queuedAt = startedAt
 			}
-			if queueErr := m.opts.primitiveStore.MarkThreadProjectionsDirty(ctx, []string{entry.ThreadID}, queuedAt); queueErr != nil {
+			if queueErr := m.opts.primitiveStore.RequeueThreadProjectionRefresh(ctx, entry.ThreadID, queuedAt); queueErr != nil {
 				m.recordError("requeue_failed_projection", startedAt, queueErr)
 				return processed, fmt.Errorf("%s: %w", failureMessage, queueErr)
 			}
-			if markErr := m.opts.primitiveStore.MarkThreadProjectionRefreshFailed(ctx, entry.ThreadID, startedAt, failureMessage); markErr != nil {
+			if markErr := m.opts.primitiveStore.MarkThreadProjectionRefreshFailed(ctx, entry.ThreadID, startedGeneration, startedAt, failureMessage); markErr != nil {
 				m.recordError("mark_failed_projection", startedAt, markErr)
 				return processed, fmt.Errorf("%s: %w", failureMessage, markErr)
 			}
 			m.recordError("refresh_dirty_projection", startedAt, err)
 			return processed, fmt.Errorf("refresh dirty projection %s: %w", entry.ThreadID, err)
 		}
-		if err := m.opts.primitiveStore.MarkThreadProjectionRefreshSucceeded(ctx, entry.ThreadID, startedAt); err != nil {
-			m.recordError("mark_succeeded_projection", startedAt, err)
+		completedAt := time.Now().UTC()
+		if err := m.opts.primitiveStore.MarkThreadProjectionRefreshSucceeded(ctx, entry.ThreadID, startedGeneration, completedAt); err != nil {
+			m.recordError("mark_succeeded_projection", completedAt, err)
 			return processed, fmt.Errorf("mark dirty projection %s succeeded: %w", entry.ThreadID, err)
 		}
 		processed++

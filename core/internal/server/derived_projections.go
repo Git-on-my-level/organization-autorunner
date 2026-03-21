@@ -305,29 +305,40 @@ func buildThreadProjectionState(threadID string, projection primitives.DerivedTh
 		projection.Data = map[string]any{"thread_id": threadID}
 	}
 
+	isDirty := hasRefresh && refresh.IsDirty()
+	inProgress := hasRefresh && refresh.InProgress()
+	hasError := hasRefresh && strings.TrimSpace(refresh.LastErrorMessage) != "" && isDirty
+
 	status := "missing"
 	switch {
-	case hasRefresh && refresh.InProgress:
-		status = "pending"
-	case hasRefresh && strings.TrimSpace(refresh.LastErrorMessage) != "":
+	case hasError:
 		status = "error"
-	case hasRefresh && refresh.IsDirty:
+	case inProgress || isDirty:
 		status = "pending"
-	case hasProjection:
+	case hasProjection || (hasRefresh && refresh.MaterializedGeneration > 0):
 		status = "current"
 	}
 
 	freshness := map[string]any{
-		"thread_id":         threadID,
-		"status":            status,
-		"generated_at":      nullableStringValue(projection.GeneratedAt),
-		"queued_at":         nullableStringValue(refresh.QueuedAt),
-		"started_at":        nullableStringValue(refresh.StartedAt),
-		"completed_at":      nullableStringValue(refresh.LastCompletedAt),
-		"last_error_at":     nullableStringValue(refresh.LastErrorAt),
-		"last_error":        nullableStringValue(refresh.LastErrorMessage),
-		"materialized":      hasProjection,
-		"refresh_in_flight": hasRefresh && refresh.InProgress,
+		"thread_id":               threadID,
+		"status":                  status,
+		"generated_at":            nullableStringValue(projection.GeneratedAt),
+		"queued_at":               nullableStringValue(refresh.QueuedAt),
+		"started_at":              nullableStringValue(refresh.StartedAt),
+		"completed_at":            nullableStringValue(refresh.LastCompletedAt),
+		"last_error_at":           nullableStringValue(refresh.LastErrorAt),
+		"last_error":              nullableStringValue(refresh.LastErrorMessage),
+		"materialized":            hasProjection,
+		"refresh_in_flight":       inProgress,
+		"is_dirty":                isDirty,
+		"in_progress":             inProgress,
+		"desired_generation":      refresh.DesiredGeneration,
+		"materialized_generation": refresh.MaterializedGeneration,
+	}
+	if refresh.InProgressGeneration != nil {
+		freshness["in_progress_generation"] = *refresh.InProgressGeneration
+	} else {
+		freshness["in_progress_generation"] = nil
 	}
 
 	return threadProjectionState{
@@ -390,7 +401,13 @@ func markThreadProjectionsDirty(ctx context.Context, opts handlerOptions, queued
 	if len(threadIDs) == 0 {
 		return nil
 	}
-	return opts.primitiveStore.MarkThreadProjectionsDirty(ctx, threadIDs, queuedAt)
+	if err := opts.primitiveStore.MarkThreadProjectionsDirty(ctx, threadIDs, queuedAt); err != nil {
+		return err
+	}
+	if opts.projectionMaintainer != nil {
+		opts.projectionMaintainer.Notify()
+	}
+	return nil
 }
 
 func enqueueThreadProjectionsBestEffort(ctx context.Context, opts handlerOptions, threadIDs []string, queuedAt time.Time) {
