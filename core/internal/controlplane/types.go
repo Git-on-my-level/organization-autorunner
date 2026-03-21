@@ -54,29 +54,63 @@ type OrganizationInvite struct {
 }
 
 type Workspace struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	Slug           string `json:"slug"`
-	DisplayName    string `json:"display_name"`
-	Status         string `json:"status"`
-	Region         string `json:"region"`
-	WorkspaceTier  string `json:"workspace_tier"`
-	WorkspacePath  string `json:"workspace_path"`
-	BaseURL        string `json:"base_url"`
-	CreatedAt      string `json:"created_at"`
-	UpdatedAt      string `json:"updated_at"`
+	ID                  string `json:"id"`
+	OrganizationID      string `json:"organization_id"`
+	Slug                string `json:"slug"`
+	DisplayName         string `json:"display_name"`
+	Status              string `json:"status"`
+	Region              string `json:"region"`
+	WorkspaceTier       string `json:"workspace_tier"`
+	WorkspacePath       string `json:"workspace_path"`
+	BaseURL             string `json:"base_url"`
+	PublicOrigin        string `json:"public_origin"`
+	CoreOrigin          string `json:"core_origin"`
+	DeploymentRoot      string `json:"deployment_root"`
+	InstanceID          string `json:"instance_id"`
+	DesiredState        string `json:"desired_state"`
+	QuotaConfigRef      string `json:"quota_config_ref"`
+	QuotaEnvelopeRef    string `json:"quota_envelope_ref"`
+	DeployedVersion     string `json:"deployed_version"`
+	RoutingManifestPath string `json:"routing_manifest_path"`
+	CreatedAt           string `json:"created_at"`
+	UpdatedAt           string `json:"updated_at"`
 }
 
 type ProvisioningJob struct {
-	ID             string  `json:"id"`
-	OrganizationID string  `json:"organization_id"`
-	WorkspaceID    string  `json:"workspace_id"`
-	Kind           string  `json:"kind"`
-	Status         string  `json:"status"`
-	RequestedAt    string  `json:"requested_at"`
-	StartedAt      *string `json:"started_at,omitempty"`
-	FinishedAt     *string `json:"finished_at,omitempty"`
-	FailureReason  *string `json:"failure_reason,omitempty"`
+	ID              string         `json:"id"`
+	OrganizationID  string         `json:"organization_id"`
+	WorkspaceID     string         `json:"workspace_id"`
+	Kind            string         `json:"kind"`
+	Status          string         `json:"status"`
+	RequestedAt     string         `json:"requested_at"`
+	StartedAt       *string        `json:"started_at,omitempty"`
+	FinishedAt      *string        `json:"finished_at,omitempty"`
+	FailureReason   *string        `json:"failure_reason,omitempty"`
+	ProgressMessage string         `json:"progress_message,omitempty"`
+	StdoutTail      string         `json:"stdout_tail,omitempty"`
+	StderrTail      string         `json:"stderr_tail,omitempty"`
+	Retryable       bool           `json:"retryable,omitempty"`
+	Parameters      map[string]any `json:"parameters,omitempty"`
+	Result          map[string]any `json:"result,omitempty"`
+}
+
+type WorkspaceRoutingManifest struct {
+	WorkspaceID         string `json:"workspace_id"`
+	OrganizationID      string `json:"organization_id"`
+	Slug                string `json:"slug"`
+	WorkspacePath       string `json:"workspace_path"`
+	PublicOrigin        string `json:"public_origin"`
+	BaseURL             string `json:"base_url"`
+	CoreOrigin          string `json:"core_origin"`
+	DeploymentRoot      string `json:"deployment_root"`
+	InstanceID          string `json:"instance_id"`
+	CurrentState        string `json:"current_state"`
+	DesiredState        string `json:"desired_state"`
+	QuotaConfigRef      string `json:"quota_config_ref"`
+	QuotaEnvelopeRef    string `json:"quota_envelope_ref"`
+	DeployedVersion     string `json:"deployed_version"`
+	RoutingManifestPath string `json:"routing_manifest_path"`
+	GeneratedAt         string `json:"generated_at"`
 }
 
 type WorkspaceLaunchSession struct {

@@ -39,11 +39,17 @@ Generated from `contracts/oar-control-openapi.yaml`.
 
 ## `workspaces`
 
-- Commands: `5`
+- Commands: `11`
 - Command IDs:
   - `control.workspaces.create` (`workspaces create`)
+  - `control.workspaces.decommission` (`workspaces decommission`)
   - `control.workspaces.get` (`workspaces get`)
   - `control.workspaces.launch-sessions.create` (`workspaces launch-sessions create`)
   - `control.workspaces.list` (`workspaces list`)
+  - `control.workspaces.replace` (`workspaces replace`)
+  - `control.workspaces.restore` (`workspaces restore`)
+  - `control.workspaces.resume` (`workspaces resume`)
+  - `control.workspaces.routing-manifest.get` (`workspaces routing-manifest get`)
   - `control.workspaces.session-exchange.create` (`workspaces session-exchange create`)
+  - `control.workspaces.suspend` (`workspaces suspend`)
 

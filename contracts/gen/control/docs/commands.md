@@ -4,7 +4,7 @@ Generated from `contracts/oar-control-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.1.0`
-- Commands: `21`
+- Commands: `27`
 
 ## `control.accounts.passkeys.register.finish`
 
@@ -261,6 +261,21 @@ Generated from `contracts/oar-control-openapi.yaml`.
 - Examples:
   - Provision workspace: `oar api call --base-url https://control.oar.example --method POST --path /workspaces --body '{"organization_id":"org_123","slug":"ops","display_name":"Ops","region":"us-central1","workspace_tier":"standard"}' --header 'Authorization: Bearer <control-session>'`
 
+## `control.workspaces.decommission`
+
+- CLI path: `workspaces decommission`
+- HTTP: `POST /workspaces/{workspace_id}/decommission`
+- Stability: `beta`
+- Surface: `canonical`
+- Input mode: `none`
+- Why: Retire a workspace deployment while preserving the control-plane registry and job history for later audit and retry decisions.
+- Concepts: `workspaces`, `lifecycle`, `routing`
+- Error codes: `auth_required`, `invalid_token`, `not_found`
+- Output: Returns `{ workspace, provisioning_job }`.
+- Agent notes: Idempotent from a user perspective once the workspace is archived.
+- Examples:
+  - Decommission workspace: `oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/decommission --header 'Authorization: Bearer <control-session>'`
+
 ## `control.workspaces.get`
 
 - CLI path: `workspaces get`
@@ -306,6 +321,66 @@ Generated from `contracts/oar-control-openapi.yaml`.
 - Examples:
   - List workspaces for an organization: `oar api call --base-url https://control.oar.example --method GET --path '/workspaces?organization_id=org_123' --header 'Authorization: Bearer <control-session>'`
 
+## `control.workspaces.replace`
+
+- CLI path: `workspaces replace`
+- HTTP: `POST /workspaces/{workspace_id}/replace`
+- Stability: `beta`
+- Surface: `canonical`
+- Input mode: `json-body`
+- Why: Replace a workspace deployment in place by restoring a backup bundle into its registry-owned instance root.
+- Concepts: `workspaces`, `lifecycle`, `restore`
+- Error codes: `auth_required`, `invalid_token`, `invalid_json`, `invalid_request`, `not_found`, `workspace_not_ready`
+- Output: Returns `{ workspace, provisioning_job }`.
+- Agent notes: The backup bundle must already exist and pass validation. The job is retryable if the prior attempt failed.
+- Examples:
+  - Replace workspace: `oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/replace --body '{"backup_dir":"/var/backups/ws_123-20260321T000000Z"}' --header 'Authorization: Bearer <control-session>'`
+
+## `control.workspaces.restore`
+
+- CLI path: `workspaces restore`
+- HTTP: `POST /workspaces/{workspace_id}/restore`
+- Stability: `beta`
+- Surface: `canonical`
+- Input mode: `json-body`
+- Why: Restore a workspace deployment from a validated backup bundle using the hosted restore workflow.
+- Concepts: `workspaces`, `lifecycle`, `restore`
+- Error codes: `auth_required`, `invalid_token`, `invalid_json`, `invalid_request`, `not_found`, `workspace_not_ready`
+- Output: Returns `{ workspace, provisioning_job }`.
+- Agent notes: The backup bundle must already exist and pass validation. Failed restores must retain the script stderr tail.
+- Examples:
+  - Restore workspace: `oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/restore --body '{"backup_dir":"/var/backups/ws_123-20260321T000000Z"}' --header 'Authorization: Bearer <control-session>'`
+
+## `control.workspaces.resume`
+
+- CLI path: `workspaces resume`
+- HTTP: `POST /workspaces/{workspace_id}/resume`
+- Stability: `beta`
+- Surface: `canonical`
+- Input mode: `none`
+- Why: Return a suspended workspace deployment to the ready state so shared routing can direct traffic to it again.
+- Concepts: `workspaces`, `lifecycle`, `routing`
+- Error codes: `auth_required`, `invalid_token`, `not_found`, `workspace_not_ready`
+- Output: Returns `{ workspace, provisioning_job }`.
+- Agent notes: Safe to retry only after checking the previous job result.
+- Examples:
+  - Resume workspace: `oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/resume --header 'Authorization: Bearer <control-session>'`
+
+## `control.workspaces.routing-manifest.get`
+
+- CLI path: `workspaces routing-manifest get`
+- HTTP: `GET /workspaces/{workspace_id}/routing-manifest`
+- Stability: `beta`
+- Surface: `projection`
+- Input mode: `none`
+- Why: Load machine-readable routing metadata for a single isolated workspace deployment so shared apps and proxies can resolve the correct backend.
+- Concepts: `workspaces`, `registry`, `routing`
+- Error codes: `auth_required`, `invalid_token`, `not_found`
+- Output: Returns `{ routing_manifest }` for the requested workspace.
+- Agent notes: Safe and idempotent. The manifest is derived from registry state and is suitable for proxy consumption.
+- Examples:
+  - Read routing manifest: `oar api call --base-url https://control.oar.example --method GET --path /workspaces/ws_123/routing-manifest --header 'Authorization: Bearer <control-session>'`
+
 ## `control.workspaces.session-exchange.create`
 
 - CLI path: `workspaces session-exchange create`
@@ -320,4 +395,19 @@ Generated from `contracts/oar-control-openapi.yaml`.
 - Agent notes: One-time token exchange. The returned grant is scoped to one workspace and must not be reused across workspaces.
 - Examples:
   - Exchange launch token: `oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/session-exchange --body '{"exchange_token":"<token>"}'`
+
+## `control.workspaces.suspend`
+
+- CLI path: `workspaces suspend`
+- HTTP: `POST /workspaces/{workspace_id}/suspend`
+- Stability: `beta`
+- Surface: `canonical`
+- Input mode: `none`
+- Why: Mark a workspace deployment as suspended and stop routing new launches to it without deleting the registry record.
+- Concepts: `workspaces`, `lifecycle`, `routing`
+- Error codes: `auth_required`, `invalid_token`, `not_found`, `workspace_not_ready`
+- Output: Returns `{ workspace, provisioning_job }`.
+- Agent notes: Safe to retry only after checking the previous job result. Suspension is a registry-level state transition.
+- Examples:
+  - Suspend workspace: `oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/suspend --header 'Authorization: Bearer <control-session>'`
 

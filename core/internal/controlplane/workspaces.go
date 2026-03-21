@@ -19,7 +19,7 @@ func (s *Service) ListWorkspaces(ctx context.Context, identity RequestIdentity, 
 		return Page[Workspace]{}, invalidRequest("cursor is invalid")
 	}
 
-	query := `SELECT w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.created_at, w.updated_at
+	query := `SELECT w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.public_origin, w.core_origin, w.deployment_root, w.instance_id, w.desired_state, w.quota_config_ref, w.quota_envelope_ref, w.deployed_version, w.routing_manifest_path, w.created_at, w.updated_at
 		FROM workspaces w
 		JOIN organization_memberships m ON m.organization_id = w.organization_id
 		WHERE m.account_id = ? AND m.status = 'active'`
@@ -43,8 +43,8 @@ func (s *Service) ListWorkspaces(ctx context.Context, identity RequestIdentity, 
 
 	var workspaces []Workspace
 	for rows.Next() {
-		var workspace Workspace
-		if err := rows.Scan(&workspace.ID, &workspace.OrganizationID, &workspace.Slug, &workspace.DisplayName, &workspace.Status, &workspace.Region, &workspace.WorkspaceTier, &workspace.WorkspacePath, &workspace.BaseURL, &workspace.CreatedAt, &workspace.UpdatedAt); err != nil {
+		workspace, err := scanWorkspaceRow(rows)
+		if err != nil {
 			return Page[Workspace]{}, internalError("failed to scan workspace")
 		}
 		workspaces = append(workspaces, workspace)
@@ -89,29 +89,54 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 	}
 
 	nowText := s.now().Format(time.RFC3339Nano)
+	workspaceID := "ws_" + uuid.NewString()
 	workspacePath := "/" + slug
+	workspaceBaseURL := formatTemplateURL(s.workspaceURLTemplate, strings.TrimPrefix(workspacePath, "/"))
 	workspace := Workspace{
-		ID:             "ws_" + uuid.NewString(),
-		OrganizationID: organizationID,
-		Slug:           slug,
-		DisplayName:    displayName,
-		Status:         "ready",
-		Region:         region,
-		WorkspaceTier:  workspaceTier,
-		WorkspacePath:  workspacePath,
-		BaseURL:        formatTemplateURL(s.workspaceURLTemplate, strings.TrimPrefix(workspacePath, "/")),
-		CreatedAt:      nowText,
-		UpdatedAt:      nowText,
+		ID:               workspaceID,
+		OrganizationID:   organizationID,
+		Slug:             slug,
+		DisplayName:      displayName,
+		Status:           "provisioning",
+		Region:           region,
+		WorkspaceTier:    workspaceTier,
+		WorkspacePath:    workspacePath,
+		BaseURL:          workspaceBaseURL,
+		PublicOrigin:     s.workspacePublicOrigin(Workspace{BaseURL: workspaceBaseURL}),
+		DesiredState:     "ready",
+		QuotaConfigRef:   "plan:" + organization.PlanTier,
+		QuotaEnvelopeRef: "organization:" + organization.ID + ":quota",
+		DeployedVersion:  hostedInstanceVersion,
+		CreatedAt:        nowText,
+		UpdatedAt:        nowText,
+	}
+	workspace.CoreOrigin = s.workspaceCoreOrigin(workspace)
+	workspace.InstanceID = workspace.ID
+	workspace.DeploymentRoot = s.workspaceDeploymentRoot(workspace)
+	workspace.RoutingManifestPath = s.workspaceRoutingManifestPath(workspace)
+	if err := ensureWorkspaceDeploymentDirs(workspace); err != nil {
+		return Workspace{}, ProvisioningJob{}, err
 	}
 	job := ProvisioningJob{
-		ID:             "job_" + uuid.NewString(),
-		OrganizationID: organizationID,
-		WorkspaceID:    workspace.ID,
-		Kind:           "workspace_create",
-		Status:         "succeeded",
-		RequestedAt:    nowText,
-		StartedAt:      stringPtr(nowText),
-		FinishedAt:     stringPtr(nowText),
+		ID:              "job_" + uuid.NewString(),
+		OrganizationID:  organizationID,
+		WorkspaceID:     workspace.ID,
+		Kind:            "workspace_create",
+		Status:          "running",
+		RequestedAt:     nowText,
+		StartedAt:       stringPtr(nowText),
+		ProgressMessage: "provisioning hosted workspace deployment root",
+		Retryable:       true,
+		Parameters: map[string]any{
+			"organization_id":  organizationID,
+			"slug":             slug,
+			"display_name":     displayName,
+			"region":           region,
+			"workspace_tier":   workspaceTier,
+			"instance_root":    workspace.DeploymentRoot,
+			"public_origin":    workspace.PublicOrigin,
+			"core_instance_id": workspace.InstanceID,
+		},
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -122,8 +147,11 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO workspaces(id, organization_id, slug, display_name, status, region, workspace_tier, workspace_path, base_url, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO workspaces(
+			id, organization_id, slug, display_name, status, region, workspace_tier, workspace_path, base_url,
+			public_origin, core_origin, deployment_root, instance_id, desired_state, quota_config_ref, quota_envelope_ref,
+			deployed_version, routing_manifest_path, routing_manifest_json, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workspace.ID,
 		workspace.OrganizationID,
 		workspace.Slug,
@@ -133,6 +161,16 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 		workspace.WorkspaceTier,
 		workspace.WorkspacePath,
 		workspace.BaseURL,
+		workspace.PublicOrigin,
+		workspace.CoreOrigin,
+		workspace.DeploymentRoot,
+		workspace.InstanceID,
+		workspace.DesiredState,
+		workspace.QuotaConfigRef,
+		workspace.QuotaEnvelopeRef,
+		workspace.DeployedVersion,
+		workspace.RoutingManifestPath,
+		"{}",
 		workspace.CreatedAt,
 		workspace.UpdatedAt,
 	); err != nil {
@@ -141,19 +179,7 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 		}
 		return Workspace{}, ProvisioningJob{}, internalError("failed to create workspace")
 	}
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO provisioning_jobs(id, organization_id, workspace_id, kind, status, requested_at, started_at, finished_at, failure_reason)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-		job.ID,
-		job.OrganizationID,
-		job.WorkspaceID,
-		job.Kind,
-		job.Status,
-		job.RequestedAt,
-		*job.StartedAt,
-		*job.FinishedAt,
-	); err != nil {
+	if err := s.insertProvisioningJob(ctx, tx, job); err != nil {
 		return Workspace{}, ProvisioningJob{}, internalError("failed to create provisioning job")
 	}
 	if err := insertAuditEventTx(ctx, tx, AuditEvent{
@@ -191,6 +217,68 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 	if err := tx.Commit(); err != nil {
 		return Workspace{}, ProvisioningJob{}, internalError("failed to commit workspace creation")
 	}
+
+	provisionResult, provisionErr := s.runProvisionWorkspaceScript(ctx, workspace)
+	if provisionErr == nil {
+		workspace.Status = "ready"
+		workspace.UpdatedAt = s.now().Format(time.RFC3339Nano)
+		job.Status = "succeeded"
+		job.FinishedAt = stringPtr(workspace.UpdatedAt)
+		job.ProgressMessage = "workspace provisioning completed"
+		job.StdoutTail = provisionResult.StdoutTail
+		job.StderrTail = provisionResult.StderrTail
+		job.Retryable = false
+		job.Result = map[string]any{
+			"deployment_root":       workspace.DeploymentRoot,
+			"routing_manifest_path": workspace.RoutingManifestPath,
+			"exit_code":             provisionResult.ExitCode,
+		}
+	} else {
+		workspace.Status = "degraded"
+		workspace.UpdatedAt = s.now().Format(time.RFC3339Nano)
+		job.Status = "failed"
+		job.FinishedAt = stringPtr(workspace.UpdatedAt)
+		job.FailureReason = stringPtr(strings.TrimSpace(provisionErr.Error()))
+		job.ProgressMessage = "workspace provisioning failed"
+		job.StdoutTail = provisionResult.StdoutTail
+		job.StderrTail = provisionResult.StderrTail
+		job.Retryable = true
+		job.Result = map[string]any{
+			"deployment_root":       workspace.DeploymentRoot,
+			"routing_manifest_path": workspace.RoutingManifestPath,
+			"exit_code":             provisionResult.ExitCode,
+		}
+	}
+
+	tx, err = s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return Workspace{}, ProvisioningJob{}, internalError("failed to begin workspace finalization")
+	}
+	defer tx.Rollback()
+	if err := s.persistWorkspaceRoutingManifest(ctx, tx, workspace); err != nil {
+		return Workspace{}, ProvisioningJob{}, err
+	}
+	if err := s.updateProvisioningJob(ctx, tx, job); err != nil {
+		return Workspace{}, ProvisioningJob{}, internalError("failed to update provisioning job")
+	}
+	if err := insertAuditEventTx(ctx, tx, AuditEvent{
+		ID:             "audit_" + uuid.NewString(),
+		EventType:      "workspace_provisioning_job_finished",
+		OrganizationID: stringPtr(organization.ID),
+		WorkspaceID:    stringPtr(workspace.ID),
+		TargetType:     "provisioning_job",
+		TargetID:       job.ID,
+		OccurredAt:     workspace.UpdatedAt,
+		Metadata: map[string]any{
+			"status": job.Status,
+			"kind":   job.Kind,
+		},
+	}, stringPtr(identity.Account.ID)); err != nil {
+		return Workspace{}, ProvisioningJob{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return Workspace{}, ProvisioningJob{}, internalError("failed to commit workspace finalization")
+	}
 	return workspace, job, nil
 }
 
@@ -205,25 +293,19 @@ func (s *Service) GetProvisioningJob(ctx context.Context, identity RequestIdenti
 		return ProvisioningJob{}, invalidRequest("job_id is required")
 	}
 
-	var job ProvisioningJob
-	var startedAt sql.NullString
-	var finishedAt sql.NullString
-	var failureReason sql.NullString
-	err := s.db.QueryRowContext(
+	row := s.db.QueryRowContext(
 		ctx,
-		`SELECT id, organization_id, workspace_id, kind, status, requested_at, started_at, finished_at, failure_reason
+		`SELECT id, organization_id, workspace_id, kind, status, requested_at, started_at, finished_at, failure_reason, progress_message, stdout_tail, stderr_tail, retryable, parameters_json, result_json
 		 FROM provisioning_jobs WHERE id = ?`,
 		jobID,
-	).Scan(&job.ID, &job.OrganizationID, &job.WorkspaceID, &job.Kind, &job.Status, &job.RequestedAt, &startedAt, &finishedAt, &failureReason)
+	)
+	job, err := scanProvisioningJobRow(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ProvisioningJob{}, notFound("provisioning job not found")
 		}
 		return ProvisioningJob{}, internalError("failed to load provisioning job")
 	}
-	job.StartedAt = nullableString(startedAt)
-	job.FinishedAt = nullableString(finishedAt)
-	job.FailureReason = nullableString(failureReason)
 
 	if _, _, err := s.requireOrganizationAccess(ctx, identity, job.OrganizationID, false); err != nil {
 		return ProvisioningJob{}, err
@@ -238,7 +320,7 @@ func (s *Service) ListProvisioningJobs(ctx context.Context, identity RequestIden
 		return Page[ProvisioningJob]{}, invalidRequest("cursor is invalid")
 	}
 
-	query := `SELECT j.id, j.organization_id, j.workspace_id, j.kind, j.status, j.requested_at, j.started_at, j.finished_at, j.failure_reason
+	query := `SELECT j.id, j.organization_id, j.workspace_id, j.kind, j.status, j.requested_at, j.started_at, j.finished_at, j.failure_reason, j.progress_message, j.stdout_tail, j.stderr_tail, j.retryable, j.parameters_json, j.result_json
 		FROM provisioning_jobs j
 		JOIN organization_memberships m ON m.organization_id = j.organization_id
 		WHERE m.account_id = ? AND m.status = 'active'`
@@ -266,18 +348,10 @@ func (s *Service) ListProvisioningJobs(ctx context.Context, identity RequestIden
 
 	var jobs []ProvisioningJob
 	for rows.Next() {
-		var (
-			job           ProvisioningJob
-			startedAt     sql.NullString
-			finishedAt    sql.NullString
-			failureReason sql.NullString
-		)
-		if err := rows.Scan(&job.ID, &job.OrganizationID, &job.WorkspaceID, &job.Kind, &job.Status, &job.RequestedAt, &startedAt, &finishedAt, &failureReason); err != nil {
+		job, err := scanProvisioningJobRow(rows)
+		if err != nil {
 			return Page[ProvisioningJob]{}, internalError("failed to scan provisioning job")
 		}
-		job.StartedAt = nullableString(startedAt)
-		job.FinishedAt = nullableString(finishedAt)
-		job.FailureReason = nullableString(failureReason)
 		jobs = append(jobs, job)
 	}
 	if err := rows.Err(); err != nil {
@@ -397,6 +471,15 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 			w.workspace_tier,
 			w.workspace_path,
 			w.base_url,
+			w.public_origin,
+			w.core_origin,
+			w.deployment_root,
+			w.instance_id,
+			w.desired_state,
+			w.quota_config_ref,
+			w.quota_envelope_ref,
+			w.deployed_version,
+			w.routing_manifest_path,
 			w.created_at,
 			w.updated_at
 		 FROM launch_sessions l
@@ -419,6 +502,15 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 		&workspace.WorkspaceTier,
 		&workspace.WorkspacePath,
 		&workspace.BaseURL,
+		&workspace.PublicOrigin,
+		&workspace.CoreOrigin,
+		&workspace.DeploymentRoot,
+		&workspace.InstanceID,
+		&workspace.DesiredState,
+		&workspace.QuotaConfigRef,
+		&workspace.QuotaEnvelopeRef,
+		&workspace.DeployedVersion,
+		&workspace.RoutingManifestPath,
 		&workspace.CreatedAt,
 		&workspace.UpdatedAt,
 	)
@@ -498,7 +590,7 @@ func (s *Service) requireWorkspaceAccess(ctx context.Context, identity RequestId
 	row := s.db.QueryRowContext(
 		ctx,
 		`SELECT
-			w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.created_at, w.updated_at,
+			w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.public_origin, w.core_origin, w.deployment_root, w.instance_id, w.desired_state, w.quota_config_ref, w.quota_envelope_ref, w.deployed_version, w.routing_manifest_path, w.created_at, w.updated_at,
 			m.id, m.account_id, m.role, m.status, m.created_at
 		 FROM workspaces w
 		 JOIN organization_memberships m ON m.organization_id = w.organization_id
@@ -520,6 +612,15 @@ func (s *Service) requireWorkspaceAccess(ctx context.Context, identity RequestId
 		&workspace.WorkspaceTier,
 		&workspace.WorkspacePath,
 		&workspace.BaseURL,
+		&workspace.PublicOrigin,
+		&workspace.CoreOrigin,
+		&workspace.DeploymentRoot,
+		&workspace.InstanceID,
+		&workspace.DesiredState,
+		&workspace.QuotaConfigRef,
+		&workspace.QuotaEnvelopeRef,
+		&workspace.DeployedVersion,
+		&workspace.RoutingManifestPath,
 		&workspace.CreatedAt,
 		&workspace.UpdatedAt,
 		&membership.ID,

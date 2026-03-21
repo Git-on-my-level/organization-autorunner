@@ -176,6 +176,27 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_audit_events_actor_occurred ON audit_events (actor_account_id, occurred_at, id);`,
 		},
 	},
+	{
+		Version: 2,
+		Statements: []string{
+			`ALTER TABLE workspaces ADD COLUMN public_origin TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN core_origin TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN deployment_root TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN instance_id TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN desired_state TEXT NOT NULL DEFAULT 'ready';`,
+			`ALTER TABLE workspaces ADD COLUMN quota_config_ref TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN quota_envelope_ref TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN deployed_version TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN routing_manifest_path TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN routing_manifest_json TEXT NOT NULL DEFAULT '{}';`,
+			`ALTER TABLE provisioning_jobs ADD COLUMN progress_message TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE provisioning_jobs ADD COLUMN stdout_tail TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE provisioning_jobs ADD COLUMN stderr_tail TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE provisioning_jobs ADD COLUMN retryable INTEGER NOT NULL DEFAULT 1;`,
+			`ALTER TABLE provisioning_jobs ADD COLUMN parameters_json TEXT NOT NULL DEFAULT '{}';`,
+			`ALTER TABLE provisioning_jobs ADD COLUMN result_json TEXT NOT NULL DEFAULT '{}';`,
+		},
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

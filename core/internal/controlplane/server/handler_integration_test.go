@@ -8,11 +8,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"organization-autorunner-core/internal/controlplane"
 	cpstorage "organization-autorunner-core/internal/controlplane/storage"
@@ -194,6 +200,184 @@ func TestControlPlaneAccountOrganizationWorkspaceInviteJobAuditFlow(t *testing.T
 	_ = ownerSession
 }
 
+func TestControlPlaneWorkspaceProvisioningProducesReachableDeploymentAndRoutingManifest(t *testing.T) {
+	env := newControlPlaneTestEnv(t, "")
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner2@example.com", "Owner Two", "cred-owner-2")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "route-org",
+		"display_name": "Route Org",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
+		"organization_id": organizationID,
+		"slug":            "route",
+		"display_name":    "Route Workspace",
+		"region":          "us-central1",
+		"workspace_tier":  "standard",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	t.Log("provisioning response received")
+	workspace := asMap(t, createWorkspaceResp["workspace"])
+	deploymentRoot := asString(t, workspace["deployment_root"])
+	if deploymentRoot == "" {
+		t.Fatal("expected deployment_root in workspace response")
+	}
+	if got := asString(t, workspace["routing_manifest_path"]); got == "" {
+		t.Fatal("expected routing_manifest_path in workspace response")
+	}
+
+	manifestResp := requestJSON(t, http.MethodGet, env.server.URL+"/workspaces/"+asString(t, workspace["id"])+"/routing-manifest", nil, http.StatusOK, authHeaders(ownerToken))
+	t.Log("routing manifest response received")
+	manifest := asMap(t, manifestResp["routing_manifest"])
+	if got := asString(t, manifest["deployment_root"]); got != deploymentRoot {
+		t.Fatalf("expected routing manifest deployment_root %q, got %q", deploymentRoot, got)
+	}
+
+	coreWorkspaceRoot := filepath.Join(deploymentRoot, "workspace")
+	t.Log("starting core server")
+	coreCmd, baseURL, cleanup := startCoreServerForTest(t, coreWorkspaceRoot)
+	defer cleanup()
+	t.Log("core server ready")
+
+	readyResp := requestJSON(t, http.MethodGet, baseURL+"/readyz", nil, http.StatusOK, nil)
+	t.Log("readyz response received")
+	if !asBool(t, readyResp["ok"]) {
+		t.Fatal("expected reachable workspace core to report ok=true")
+	}
+
+	_ = coreCmd
+}
+
+func TestControlPlaneProvisionRestoreFailureAndRetrySemantics(t *testing.T) {
+	env := newControlPlaneTestEnv(t, "")
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner3@example.com", "Owner Three", "cred-owner-3")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "retry-org",
+		"display_name": "Retry Org",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
+		"organization_id": organizationID,
+		"slug":            "retry",
+		"display_name":    "Retry Workspace",
+		"region":          "us-central1",
+		"workspace_tier":  "standard",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	workspace := asMap(t, createWorkspaceResp["workspace"])
+	workspaceID := asString(t, workspace["id"])
+	deploymentRoot := asString(t, workspace["deployment_root"])
+	if deploymentRoot == "" {
+		t.Fatal("expected deployment_root in workspace response")
+	}
+
+	coreWorkspaceRoot := filepath.Join(deploymentRoot, "workspace")
+	_, _, cleanup := startCoreServerForTest(t, coreWorkspaceRoot)
+	defer cleanup()
+
+	repoRoot := findRepoRoot(t)
+	backupDir := filepath.Join(t.TempDir(), "backup")
+	runScript(t, filepath.Join(repoRoot, "scripts", "hosted", "backup-workspace.sh"), "--instance-root", deploymentRoot, "--output-dir", backupDir)
+	cleanup()
+
+	badBackupDir := filepath.Join(t.TempDir(), "backup-bad")
+	copyDir(t, backupDir, badBackupDir)
+	tamperManifest(t, filepath.Join(badBackupDir, "manifest.env"))
+
+	restoreFailureResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces/"+workspaceID+"/restore", map[string]any{
+		"backup_dir": badBackupDir,
+	}, http.StatusOK, authHeaders(ownerToken))
+	restoreFailureJob := asMap(t, restoreFailureResp["provisioning_job"])
+	if got := asString(t, restoreFailureJob["status"]); got != "failed" {
+		t.Fatalf("expected failed restore response job, got %q", got)
+	}
+
+	failedJobsResp := requestJSON(t, http.MethodGet, env.server.URL+"/provisioning/jobs?workspace_id="+url.QueryEscape(workspaceID), nil, http.StatusOK, authHeaders(ownerToken))
+	failedJobs := asSlice(t, failedJobsResp["jobs"])
+	if len(failedJobs) != 2 {
+		t.Fatalf("expected 2 jobs after failed restore, got %d", len(failedJobs))
+	}
+	restoreJob := asMap(t, failedJobs[1])
+	if got := asString(t, restoreJob["status"]); got != "failed" {
+		t.Fatalf("expected failed restore job, got %q", got)
+	}
+	if got := asString(t, restoreJob["failure_reason"]); got == "" {
+		t.Fatal("expected failure_reason for failed restore job")
+	}
+	if got := asString(t, restoreJob["stderr_tail"]); got == "" {
+		t.Fatal("expected stderr_tail for failed restore job")
+	}
+
+	requestJSON(t, http.MethodPost, env.server.URL+"/workspaces/"+workspaceID+"/restore", map[string]any{
+		"backup_dir": backupDir,
+	}, http.StatusOK, authHeaders(ownerToken))
+
+	retryJobsResp := requestJSON(t, http.MethodGet, env.server.URL+"/provisioning/jobs?workspace_id="+url.QueryEscape(workspaceID), nil, http.StatusOK, authHeaders(ownerToken))
+	retryJobs := asSlice(t, retryJobsResp["jobs"])
+	if len(retryJobs) != 3 {
+		t.Fatalf("expected 3 jobs after retry, got %d", len(retryJobs))
+	}
+	lastJob := asMap(t, retryJobs[2])
+	t.Logf("retry job payload: %#v", lastJob)
+	if got := asString(t, lastJob["status"]); got != "succeeded" {
+		t.Fatalf("expected succeeded retry job, got %q", got)
+	}
+}
+
+func TestControlPlaneProvisioningFailureIsDurableAndRetryable(t *testing.T) {
+	failingScriptsDir := failingProvisionScriptsDir(t)
+	env := newControlPlaneTestEnvWithScripts(t, "", failingScriptsDir)
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner4@example.com", "Owner Four", "cred-owner-4")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "broken-org",
+		"display_name": "Broken Org",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	provisionFailureResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
+		"organization_id": organizationID,
+		"slug":            "broken",
+		"display_name":    "Broken Workspace",
+		"region":          "us-central1",
+		"workspace_tier":  "standard",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	provisionFailureJob := asMap(t, provisionFailureResp["provisioning_job"])
+	if got := asString(t, provisionFailureJob["status"]); got != "failed" {
+		t.Fatalf("expected failed provisioning response job, got %q", got)
+	}
+
+	jobsResp := requestJSON(t, http.MethodGet, env.server.URL+"/provisioning/jobs?organization_id="+url.QueryEscape(organizationID), nil, http.StatusOK, authHeaders(ownerToken))
+	jobs := asSlice(t, jobsResp["jobs"])
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 failed provisioning job, got %d", len(jobs))
+	}
+	job := asMap(t, jobs[0])
+	if got := asString(t, job["status"]); got != "failed" {
+		t.Fatalf("expected failed job, got %q", got)
+	}
+	if got := asString(t, job["failure_reason"]); got == "" {
+		t.Fatal("expected failure_reason for failed provisioning job")
+	}
+	if got := asString(t, job["stderr_tail"]); got == "" {
+		t.Fatal("expected stderr_tail for failed provisioning job")
+	}
+}
+
 func TestControlPlaneCeremoniesAndSessionsSurviveRestart(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "control-plane")
 
@@ -250,6 +434,10 @@ func TestControlPlaneCeremoniesAndSessionsSurviveRestart(t *testing.T) {
 }
 
 func newControlPlaneTestEnv(t *testing.T, root string) *controlPlaneTestEnv {
+	return newControlPlaneTestEnvWithScripts(t, root, "")
+}
+
+func newControlPlaneTestEnvWithScripts(t *testing.T, root string, hostedScriptsDir string) *controlPlaneTestEnv {
 	t.Helper()
 
 	if root == "" {
@@ -276,6 +464,7 @@ func newControlPlaneTestEnv(t *testing.T, root string) *controlPlaneTestEnv {
 	}
 	service := controlplane.NewService(workspace, controlplane.Config{
 		WorkspaceGrantSigner: grantSigner,
+		HostedScriptsDir:     hostedScriptsDir,
 	})
 	server := httptest.NewServer(NewHandler(service, Config{
 		HealthCheck: workspace.Ping,
@@ -483,4 +672,179 @@ func asFloat(t *testing.T, raw any) float64 {
 		t.Fatalf("expected float64, got %#v", raw)
 	}
 	return value
+}
+
+func startCoreServerForTest(t *testing.T, workspaceRoot string) (*exec.Cmd, string, func()) {
+	t.Helper()
+
+	repoRoot := findRepoRoot(t)
+	schemaPath := filepath.Join(repoRoot, "contracts", "oar-schema.yaml")
+	if _, err := os.Stat(schemaPath); err != nil {
+		t.Fatalf("schema path not found: %v", err)
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("allocate listener: %v", err)
+	}
+	addr := listener.Addr().String()
+	listener.Close()
+
+	cmd := exec.Command("go", "run", "./cmd/oar-core", "--listen-addr", addr, "--workspace-root", workspaceRoot, "--schema-path", schemaPath)
+	cmd.Dir = filepath.Join(repoRoot, "core")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	stdoutStderr := &bytes.Buffer{}
+	cmd.Stdout = stdoutStderr
+	cmd.Stderr = stdoutStderr
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start core server: %v", err)
+	}
+
+	baseURL := "http://" + addr
+	deadline := time.Now().Add(45 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(baseURL + "/readyz")
+		if err == nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				break
+			}
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	resp, err := http.Get(baseURL + "/readyz")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		if resp != nil && resp.Body != nil {
+			_, _ = io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}
+		if cmd.Process != nil {
+			terminateProcessGroup(cmd)
+		}
+		t.Fatalf("core server did not become ready; logs:\n%s", stdoutStderr.String())
+	}
+	if resp != nil && resp.Body != nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
+
+	cleanup := func() {
+		terminateProcessGroup(cmd)
+	}
+	return cmd, baseURL, cleanup
+}
+
+func terminateProcessGroup(cmd *exec.Cmd) {
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	done := make(chan struct{})
+	go func() {
+		_ = cmd.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+	}
+}
+
+func findRepoRoot(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	for {
+		candidate := filepath.Join(dir, "contracts", "oar-schema.yaml")
+		if _, err := os.Stat(candidate); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("repository root not found from %s", dir)
+		}
+		dir = parent
+	}
+}
+
+func runScript(t *testing.T, scriptPath string, args ...string) {
+	t.Helper()
+
+	cmd := exec.Command(scriptPath, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s failed: %v\n%s", scriptPath, err, string(output))
+	}
+}
+
+func copyDir(t *testing.T, sourceDir string, targetDir string) {
+	t.Helper()
+
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		t.Fatalf("create target dir: %v", err)
+	}
+	err := filepath.WalkDir(sourceDir, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		rel, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+		targetPath := filepath.Join(targetDir, rel)
+		if d.IsDir() {
+			return os.MkdirAll(targetPath, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		perm := info.Mode().Perm()
+		if perm == 0 {
+			perm = 0o644
+		}
+		if perm&0o111 != 0 {
+			perm = 0o755
+		}
+		return os.WriteFile(targetPath, data, perm)
+	})
+	if err != nil {
+		t.Fatalf("copy directory: %v", err)
+	}
+}
+
+func tamperManifest(t *testing.T, manifestPath string) {
+	t.Helper()
+
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	updated := strings.ReplaceAll(string(raw), "FORMAT_VERSION=hosted-ops-backup/v1", "FORMAT_VERSION=hosted-ops-backup/v999")
+	if updated == string(raw) {
+		t.Fatalf("expected to update manifest format version in %s", manifestPath)
+	}
+	if err := os.WriteFile(manifestPath, []byte(updated), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+}
+
+func failingProvisionScriptsDir(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	scriptPath := filepath.Join(dir, "provision-workspace.sh")
+	content := []byte("#!/usr/bin/env bash\nset -euo pipefail\nprintf 'simulated provision failure\\n' >&2\nexit 23\n")
+	if err := os.WriteFile(scriptPath, content, 0o755); err != nil {
+		t.Fatalf("write failing provision script: %v", err)
+	}
+	return dir
 }

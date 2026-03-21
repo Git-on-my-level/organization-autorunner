@@ -413,6 +413,19 @@ func NewHandler(service *controlplane.Service, config Config) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"workspace": workspace})
 	})
 
+	mux.HandleFunc("GET /workspaces/{workspace_id}/routing-manifest", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := requireIdentity(w, r, service)
+		if !ok {
+			return
+		}
+		manifest, err := service.GetWorkspaceRoutingManifest(r.Context(), identity, r.PathValue("workspace_id"))
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"routing_manifest": manifest})
+	})
+
 	mux.HandleFunc("GET /provisioning/jobs", func(w http.ResponseWriter, r *http.Request) {
 		identity, ok := requireIdentity(w, r, service)
 		if !ok {
@@ -445,6 +458,83 @@ func NewHandler(service *controlplane.Service, config Config) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"job": job})
+	})
+
+	mux.HandleFunc("POST /workspaces/{workspace_id}/suspend", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := requireIdentity(w, r, service)
+		if !ok {
+			return
+		}
+		workspace, job, err := service.SuspendWorkspace(r.Context(), identity, r.PathValue("workspace_id"))
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"workspace": workspace, "provisioning_job": job})
+	})
+
+	mux.HandleFunc("POST /workspaces/{workspace_id}/resume", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := requireIdentity(w, r, service)
+		if !ok {
+			return
+		}
+		workspace, job, err := service.ResumeWorkspace(r.Context(), identity, r.PathValue("workspace_id"))
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"workspace": workspace, "provisioning_job": job})
+	})
+
+	mux.HandleFunc("POST /workspaces/{workspace_id}/restore", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := requireIdentity(w, r, service)
+		if !ok {
+			return
+		}
+		var body struct {
+			BackupDir string `json:"backup_dir"`
+		}
+		if !decodeJSONBody(w, r, &body) {
+			return
+		}
+		workspace, job, err := service.RestoreWorkspace(r.Context(), identity, r.PathValue("workspace_id"), body.BackupDir)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"workspace": workspace, "provisioning_job": job})
+	})
+
+	mux.HandleFunc("POST /workspaces/{workspace_id}/replace", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := requireIdentity(w, r, service)
+		if !ok {
+			return
+		}
+		var body struct {
+			BackupDir string `json:"backup_dir"`
+		}
+		if !decodeJSONBody(w, r, &body) {
+			return
+		}
+		workspace, job, err := service.ReplaceWorkspace(r.Context(), identity, r.PathValue("workspace_id"), body.BackupDir)
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"workspace": workspace, "provisioning_job": job})
+	})
+
+	mux.HandleFunc("POST /workspaces/{workspace_id}/decommission", func(w http.ResponseWriter, r *http.Request) {
+		identity, ok := requireIdentity(w, r, service)
+		if !ok {
+			return
+		}
+		workspace, job, err := service.DecommissionWorkspace(r.Context(), identity, r.PathValue("workspace_id"))
+		if err != nil {
+			writeServiceError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"workspace": workspace, "provisioning_job": job})
 	})
 
 	mux.HandleFunc("POST /workspaces/{workspace_id}/launch-sessions", func(w http.ResponseWriter, r *http.Request) {

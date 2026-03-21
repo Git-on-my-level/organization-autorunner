@@ -321,11 +321,29 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"workspaces", "provisioning", "registry"},
-		Adjacent:  []string{"control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.session-exchange.create"},
+		Adjacent:  []string{"control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
 		Examples: []Example{
 			{
 				Title:   "Provision workspace",
 				Command: "oar api call --base-url https://control.oar.example --method POST --path /workspaces --body '{\"organization_id\":\"org_123\",\"slug\":\"ops\",\"display_name\":\"Ops\",\"region\":\"us-central1\",\"workspace_tier\":\"standard\"}' --header 'Authorization: Bearer <control-session>'",
+			},
+		},
+	},
+	{
+		CommandID:  "control.workspaces.decommission",
+		CLIPath:    "workspaces decommission",
+		Group:      "workspaces",
+		Method:     "POST",
+		Path:       "/workspaces/{workspace_id}/decommission",
+		PathParams: []string{"workspace_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"workspaces", "lifecycle", "routing"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
+		Examples: []Example{
+			{
+				Title:   "Decommission workspace",
+				Command: "oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/decommission --header 'Authorization: Bearer <control-session>'",
 			},
 		},
 	},
@@ -339,7 +357,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"workspaces", "registry"},
-		Adjacent:   []string{"control.workspaces.create", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.session-exchange.create"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
 		Examples: []Example{
 			{
 				Title:   "Read workspace",
@@ -357,7 +375,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"workspaces", "launch", "grants"},
-		Adjacent:   []string{"control.workspaces.create", "control.workspaces.get", "control.workspaces.list", "control.workspaces.session-exchange.create"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
 		Examples: []Example{
 			{
 				Title:   "Launch workspace UI",
@@ -374,11 +392,83 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"workspaces", "registry", "tenancy"},
-		Adjacent:  []string{"control.workspaces.create", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.session-exchange.create"},
+		Adjacent:  []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
 		Examples: []Example{
 			{
 				Title:   "List workspaces for an organization",
 				Command: "oar api call --base-url https://control.oar.example --method GET --path '/workspaces?organization_id=org_123' --header 'Authorization: Bearer <control-session>'",
+			},
+		},
+	},
+	{
+		CommandID:  "control.workspaces.replace",
+		CLIPath:    "workspaces replace",
+		Group:      "workspaces",
+		Method:     "POST",
+		Path:       "/workspaces/{workspace_id}/replace",
+		PathParams: []string{"workspace_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"workspaces", "lifecycle", "restore"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
+		Examples: []Example{
+			{
+				Title:   "Replace workspace",
+				Command: "oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/replace --body '{\"backup_dir\":\"/var/backups/ws_123-20260321T000000Z\"}' --header 'Authorization: Bearer <control-session>'",
+			},
+		},
+	},
+	{
+		CommandID:  "control.workspaces.restore",
+		CLIPath:    "workspaces restore",
+		Group:      "workspaces",
+		Method:     "POST",
+		Path:       "/workspaces/{workspace_id}/restore",
+		PathParams: []string{"workspace_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"workspaces", "lifecycle", "restore"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
+		Examples: []Example{
+			{
+				Title:   "Restore workspace",
+				Command: "oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/restore --body '{\"backup_dir\":\"/var/backups/ws_123-20260321T000000Z\"}' --header 'Authorization: Bearer <control-session>'",
+			},
+		},
+	},
+	{
+		CommandID:  "control.workspaces.resume",
+		CLIPath:    "workspaces resume",
+		Group:      "workspaces",
+		Method:     "POST",
+		Path:       "/workspaces/{workspace_id}/resume",
+		PathParams: []string{"workspace_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"workspaces", "lifecycle", "routing"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
+		Examples: []Example{
+			{
+				Title:   "Resume workspace",
+				Command: "oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/resume --header 'Authorization: Bearer <control-session>'",
+			},
+		},
+	},
+	{
+		CommandID:  "control.workspaces.routing-manifest.get",
+		CLIPath:    "workspaces routing-manifest get",
+		Group:      "workspaces",
+		Method:     "GET",
+		Path:       "/workspaces/{workspace_id}/routing-manifest",
+		PathParams: []string{"workspace_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"workspaces", "registry", "routing"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.session-exchange.create", "control.workspaces.suspend"},
+		Examples: []Example{
+			{
+				Title:   "Read routing manifest",
+				Command: "oar api call --base-url https://control.oar.example --method GET --path /workspaces/ws_123/routing-manifest --header 'Authorization: Bearer <control-session>'",
 			},
 		},
 	},
@@ -392,11 +482,29 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"workspaces", "grants", "launch"},
-		Adjacent:   []string{"control.workspaces.create", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.suspend"},
 		Examples: []Example{
 			{
 				Title:   "Exchange launch token",
 				Command: "oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/session-exchange --body '{\"exchange_token\":\"<token>\"}'",
+			},
+		},
+	},
+	{
+		CommandID:  "control.workspaces.suspend",
+		CLIPath:    "workspaces suspend",
+		Group:      "workspaces",
+		Method:     "POST",
+		Path:       "/workspaces/{workspace_id}/suspend",
+		PathParams: []string{"workspace_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"workspaces", "lifecycle", "routing"},
+		Adjacent:   []string{"control.workspaces.create", "control.workspaces.decommission", "control.workspaces.get", "control.workspaces.launch-sessions.create", "control.workspaces.list", "control.workspaces.replace", "control.workspaces.restore", "control.workspaces.resume", "control.workspaces.routing-manifest.get", "control.workspaces.session-exchange.create"},
+		Examples: []Example{
+			{
+				Title:   "Suspend workspace",
+				Command: "oar api call --base-url https://control.oar.example --method POST --path /workspaces/ws_123/suspend --header 'Authorization: Bearer <control-session>'",
 			},
 		},
 	},
@@ -586,6 +694,10 @@ func (c *Client) ControlWorkspacesCreate(ctx context.Context, opts RequestOption
 	return c.Invoke(ctx, "control.workspaces.create", nil, opts)
 }
 
+func (c *Client) ControlWorkspacesDecommission(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "control.workspaces.decommission", pathParams, opts)
+}
+
 func (c *Client) ControlWorkspacesGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "control.workspaces.get", pathParams, opts)
 }
@@ -598,6 +710,26 @@ func (c *Client) ControlWorkspacesList(ctx context.Context, opts RequestOptions)
 	return c.Invoke(ctx, "control.workspaces.list", nil, opts)
 }
 
+func (c *Client) ControlWorkspacesReplace(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "control.workspaces.replace", pathParams, opts)
+}
+
+func (c *Client) ControlWorkspacesRestore(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "control.workspaces.restore", pathParams, opts)
+}
+
+func (c *Client) ControlWorkspacesResume(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "control.workspaces.resume", pathParams, opts)
+}
+
+func (c *Client) ControlWorkspacesRoutingManifestGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "control.workspaces.routing-manifest.get", pathParams, opts)
+}
+
 func (c *Client) ControlWorkspacesSessionExchangeCreate(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "control.workspaces.session-exchange.create", pathParams, opts)
+}
+
+func (c *Client) ControlWorkspacesSuspend(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "control.workspaces.suspend", pathParams, opts)
 }

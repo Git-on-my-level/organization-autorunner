@@ -46,11 +46,15 @@ type Config struct {
 	WorkspaceURLTemplate string
 	InviteURLTemplate    string
 	WorkspaceGrantSigner *controlplaneauth.WorkspaceHumanGrantSigner
+	HostedScriptsDir     string
+	VerifyCoreBinaryPath string
+	VerifySchemaPath     string
 	Now                  func() time.Time
 }
 
 type Service struct {
 	db                   *sql.DB
+	workspaceRoot        string
 	sessionTTL           time.Duration
 	ceremonyTTL          time.Duration
 	launchTTL            time.Duration
@@ -58,6 +62,9 @@ type Service struct {
 	workspaceURLTemplate string
 	inviteURLTemplate    string
 	workspaceGrantSigner *controlplaneauth.WorkspaceHumanGrantSigner
+	hostedScriptsDir     string
+	verifyCoreBinaryPath string
+	verifySchemaPath     string
 	now                  func() time.Time
 }
 
@@ -113,8 +120,18 @@ func NewService(workspace *cpstorage.Workspace, config Config) *Service {
 	if inviteURLTemplate == "" {
 		inviteURLTemplate = defaultInviteURL
 	}
+	hostedScriptsDir := strings.TrimSpace(config.HostedScriptsDir)
+	if hostedScriptsDir == "" {
+		hostedScriptsDir = detectHostedScriptsDir()
+	}
+	verifyCoreBinaryPath := strings.TrimSpace(config.VerifyCoreBinaryPath)
+	verifySchemaPath := strings.TrimSpace(config.VerifySchemaPath)
+	if verifySchemaPath == "" {
+		verifySchemaPath = detectSchemaPath()
+	}
 	return &Service{
 		db:                   workspace.DB(),
+		workspaceRoot:        workspace.Layout().RootDir,
 		sessionTTL:           sessionTTL,
 		ceremonyTTL:          ceremonyTTL,
 		launchTTL:            launchTTL,
@@ -122,6 +139,9 @@ func NewService(workspace *cpstorage.Workspace, config Config) *Service {
 		workspaceURLTemplate: workspaceURLTemplate,
 		inviteURLTemplate:    inviteURLTemplate,
 		workspaceGrantSigner: config.WorkspaceGrantSigner,
+		hostedScriptsDir:     hostedScriptsDir,
+		verifyCoreBinaryPath: verifyCoreBinaryPath,
+		verifySchemaPath:     verifySchemaPath,
 		now:                  nowFn,
 	}
 }

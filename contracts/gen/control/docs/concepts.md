@@ -4,7 +4,7 @@ Generated from `contracts/oar-control-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.1.0`
-- Concepts: `19`
+- Concepts: `21`
 
 ## `access`
 
@@ -63,10 +63,15 @@ Generated from `contracts/oar-control-openapi.yaml`.
 
 ## `lifecycle`
 
-- Commands: `2`
+- Commands: `7`
 - Command IDs:
   - `control.organizations.update`
   - `control.provisioning.jobs.get`
+  - `control.workspaces.decommission`
+  - `control.workspaces.replace`
+  - `control.workspaces.restore`
+  - `control.workspaces.resume`
+  - `control.workspaces.suspend`
 
 ## `memberships`
 
@@ -119,11 +124,28 @@ Generated from `contracts/oar-control-openapi.yaml`.
 
 ## `registry`
 
-- Commands: `3`
+- Commands: `4`
 - Command IDs:
   - `control.workspaces.create`
   - `control.workspaces.get`
   - `control.workspaces.list`
+  - `control.workspaces.routing-manifest.get`
+
+## `restore`
+
+- Commands: `2`
+- Command IDs:
+  - `control.workspaces.replace`
+  - `control.workspaces.restore`
+
+## `routing`
+
+- Commands: `4`
+- Command IDs:
+  - `control.workspaces.decommission`
+  - `control.workspaces.resume`
+  - `control.workspaces.routing-manifest.get`
+  - `control.workspaces.suspend`
 
 ## `sessions`
 
@@ -151,12 +173,18 @@ Generated from `contracts/oar-control-openapi.yaml`.
 
 ## `workspaces`
 
-- Commands: `6`
+- Commands: `12`
 - Command IDs:
   - `control.provisioning.jobs.get`
   - `control.workspaces.create`
+  - `control.workspaces.decommission`
   - `control.workspaces.get`
   - `control.workspaces.launch-sessions.create`
   - `control.workspaces.list`
+  - `control.workspaces.replace`
+  - `control.workspaces.restore`
+  - `control.workspaces.resume`
+  - `control.workspaces.routing-manifest.get`
   - `control.workspaces.session-exchange.create`
+  - `control.workspaces.suspend`
 
