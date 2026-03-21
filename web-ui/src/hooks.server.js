@@ -70,6 +70,25 @@ async function proxyToCore(event, coreBaseUrl) {
   });
 }
 
+const CSP_DIRECTIVES = {
+  "default-src": ["'self'"],
+  "script-src": ["'self'"],
+  "style-src": ["'self'", "'unsafe-inline'"],
+  "img-src": ["'self'", "data:", "https:"],
+  "font-src": ["'self'", "data:"],
+  "connect-src": ["'self'"],
+  "frame-ancestors": ["'none'"],
+  "base-uri": ["'self'"],
+  "form-action": ["'self'"],
+  "object-src": ["'none'"],
+};
+
+function buildCSPHeader() {
+  return Object.entries(CSP_DIRECTIVES)
+    .map(([directive, values]) => `${directive} ${values.join(" ")}`)
+    .join("; ");
+}
+
 export async function handle({ event, resolve }) {
   const pathname = stripBasePath(event.url.pathname);
   const method = event.request.method;
@@ -93,5 +112,14 @@ export async function handle({ event, resolve }) {
     }
   }
 
-  return resolve(event);
+  const response = await resolve(event);
+
+  if (documentNavigation) {
+    response.headers.set("Content-Security-Policy", buildCSPHeader());
+    response.headers.set("X-Frame-Options", "DENY");
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  }
+
+  return response;
 }

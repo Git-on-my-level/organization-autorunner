@@ -241,6 +241,81 @@ generate links under the configured base path. The UI server then proxies API
 traffic to the matching `oar-core` from `OAR_WORKSPACES`. Core instances do not
 need to be internet-exposed.
 
+## Content Security Policy and Security Headers
+
+The UI enforces strict security headers on all document navigation responses to
+protect against XSS and injection attacks.
+
+### Headers applied by default
+
+On HTML document responses (not API/JSON responses), the UI sets:
+
+- `Content-Security-Policy`: Restricts resource loading to approved sources
+- `X-Frame-Options: DENY`: Prevents clickjacking via iframes
+- `X-Content-Type-Options: nosniff`: Prevents MIME type sniffing
+- `Referrer-Policy: strict-origin-when-cross-origin`: Limits referrer leakage
+
+### Content Security Policy directives
+
+The CSP is configured in `src/hooks.server.js` with these directives:
+
+```
+default-src 'self';
+script-src 'self';
+style-src 'self' 'unsafe-inline';
+img-src 'self' data: https:;
+font-src 'self' data:;
+connect-src 'self';
+frame-ancestors 'none';
+base-uri 'self';
+form-action 'self';
+object-src 'none';
+```
+
+Key allowances:
+
+- `'unsafe-inline'` in `style-src` is required for Tailwind CSS and dynamic
+  styling. This is a common trade-off for utility-first CSS frameworks.
+- `data:` and `https:` in `img-src` support user-provided images and icons.
+- `connect-src 'self'` permits same-origin API calls to the UI server, which
+  then proxies to `oar-core` instances.
+
+### Reverse proxy considerations
+
+When deploying behind a reverse proxy (Caddy, nginx, Cloudflare, etc.):
+
+1. **Do not strip CSP headers**: The reverse proxy should preserve the
+   `Content-Security-Policy` header set by the UI server.
+
+2. **Avoid header injection**: Configure the proxy to merge rather than replace
+   security headers. For example, in nginx:
+
+   ```nginx
+   # Good: proxy passes headers through
+   proxy_pass http://127.0.0.1:4173;
+
+   # Bad: overwrites UI security headers
+   add_header Content-Security-Policy "...";
+   ```
+
+3. **Do not add additional `'unsafe-*'` directives**: If you must adjust the CSP
+   for organizational requirements, avoid adding `'unsafe-eval'` or additional
+   `'unsafe-inline'` directives, as these significantly weaken XSS protections.
+
+4. **TLS considerations**: The CSP assumes TLS in production. If the proxy
+   terminates TLS, ensure it forwards `https://` URLs to the UI so `connect-src
+   'self'` resolves correctly.
+
+### Testing CSP in production
+
+Use browser developer tools or online CSP evaluators to verify:
+
+1. CSP header is present on HTML responses
+2. No CSP violations appear in browser console
+3. Legitimate resources (scripts, styles, images) load correctly
+
+The e2e test suite includes CSP validation in `tests/e2e/csp.spec.js`.
+
 ## WebAuthn and hostname/origin limits
 
 WebAuthn is host/origin sensitive, not path sensitive.
