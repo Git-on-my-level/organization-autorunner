@@ -16,6 +16,7 @@ import (
 	"time"
 
 	cpstorage "organization-autorunner-core/internal/controlplane/storage"
+	"organization-autorunner-core/internal/controlplaneauth"
 
 	"github.com/google/uuid"
 )
@@ -44,6 +45,7 @@ type Config struct {
 	InviteTTL            time.Duration
 	WorkspaceURLTemplate string
 	InviteURLTemplate    string
+	WorkspaceGrantSigner *controlplaneauth.WorkspaceHumanGrantSigner
 	Now                  func() time.Time
 }
 
@@ -55,6 +57,7 @@ type Service struct {
 	inviteTTL            time.Duration
 	workspaceURLTemplate string
 	inviteURLTemplate    string
+	workspaceGrantSigner *controlplaneauth.WorkspaceHumanGrantSigner
 	now                  func() time.Time
 }
 
@@ -118,6 +121,7 @@ func NewService(workspace *cpstorage.Workspace, config Config) *Service {
 		inviteTTL:            inviteTTL,
 		workspaceURLTemplate: workspaceURLTemplate,
 		inviteURLTemplate:    inviteURLTemplate,
+		workspaceGrantSigner: config.WorkspaceGrantSigner,
 		now:                  nowFn,
 	}
 }

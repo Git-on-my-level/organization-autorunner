@@ -16,6 +16,7 @@ import (
 	"organization-autorunner-core/internal/controlplane"
 	cpserver "organization-autorunner-core/internal/controlplane/server"
 	cpstorage "organization-autorunner-core/internal/controlplane/storage"
+	"organization-autorunner-core/internal/controlplaneauth"
 )
 
 const (
@@ -29,19 +30,22 @@ const (
 
 func main() {
 	var (
-		host                 = envString("OAR_CONTROL_PLANE_HOST", defaultHost)
-		port                 = envInt("OAR_CONTROL_PLANE_PORT", defaultPort)
-		listenAddress        = envString("OAR_CONTROL_PLANE_LISTEN_ADDR", "")
-		workspaceRoot        = envString("OAR_CONTROL_PLANE_WORKSPACE_ROOT", defaultWorkspaceRoot)
-		webAuthnRPID         = envString("OAR_CONTROL_PLANE_WEBAUTHN_RPID", "")
-		webAuthnOrigin       = envString("OAR_CONTROL_PLANE_WEBAUTHN_ORIGIN", "")
-		workspaceURLTemplate = envString("OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE", defaultWorkspaceURLTmpl)
-		inviteURLTemplate    = envString("OAR_CONTROL_PLANE_INVITE_URL_TEMPLATE", defaultInviteURLTmpl)
-		sessionTTL           = envDuration("OAR_CONTROL_PLANE_SESSION_TTL", 12*time.Hour)
-		ceremonyTTL          = envDuration("OAR_CONTROL_PLANE_CEREMONY_TTL", 5*time.Minute)
-		launchTTL            = envDuration("OAR_CONTROL_PLANE_LAUNCH_TTL", 10*time.Minute)
-		inviteTTL            = envDuration("OAR_CONTROL_PLANE_INVITE_TTL", 7*24*time.Hour)
-		shutdownTimeout      = envDuration("OAR_CONTROL_PLANE_SHUTDOWN_TIMEOUT", defaultShutdownTimeout)
+		host                     = envString("OAR_CONTROL_PLANE_HOST", defaultHost)
+		port                     = envInt("OAR_CONTROL_PLANE_PORT", defaultPort)
+		listenAddress            = envString("OAR_CONTROL_PLANE_LISTEN_ADDR", "")
+		workspaceRoot            = envString("OAR_CONTROL_PLANE_WORKSPACE_ROOT", defaultWorkspaceRoot)
+		webAuthnRPID             = envString("OAR_CONTROL_PLANE_WEBAUTHN_RPID", "")
+		webAuthnOrigin           = envString("OAR_CONTROL_PLANE_WEBAUTHN_ORIGIN", "")
+		workspaceURLTemplate     = envString("OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE", defaultWorkspaceURLTmpl)
+		inviteURLTemplate        = envString("OAR_CONTROL_PLANE_INVITE_URL_TEMPLATE", defaultInviteURLTmpl)
+		workspaceGrantIssuer     = envString("OAR_CONTROL_PLANE_WORKSPACE_GRANT_ISSUER", "")
+		workspaceGrantAudience   = envString("OAR_CONTROL_PLANE_WORKSPACE_GRANT_AUDIENCE", "")
+		workspaceGrantSigningKey = envString("OAR_CONTROL_PLANE_WORKSPACE_GRANT_SIGNING_KEY", "")
+		sessionTTL               = envDuration("OAR_CONTROL_PLANE_SESSION_TTL", 12*time.Hour)
+		ceremonyTTL              = envDuration("OAR_CONTROL_PLANE_CEREMONY_TTL", 5*time.Minute)
+		launchTTL                = envDuration("OAR_CONTROL_PLANE_LAUNCH_TTL", 10*time.Minute)
+		inviteTTL                = envDuration("OAR_CONTROL_PLANE_INVITE_TTL", 7*24*time.Hour)
+		shutdownTimeout          = envDuration("OAR_CONTROL_PLANE_SHUTDOWN_TIMEOUT", defaultShutdownTimeout)
 	)
 
 	flag.StringVar(&host, "host", host, "host interface to bind")
@@ -52,6 +56,8 @@ func main() {
 	flag.StringVar(&webAuthnOrigin, "webauthn-origin", webAuthnOrigin, "explicit WebAuthn origin")
 	flag.StringVar(&workspaceURLTemplate, "workspace-url-template", workspaceURLTemplate, "workspace base URL template containing optional %s slug placeholder")
 	flag.StringVar(&inviteURLTemplate, "invite-url-template", inviteURLTemplate, "invite URL template containing optional %s token placeholder")
+	flag.StringVar(&workspaceGrantIssuer, "workspace-grant-issuer", workspaceGrantIssuer, "issuer used for signed workspace grants (defaults to the control-plane listen URL when signing is enabled)")
+	flag.StringVar(&workspaceGrantAudience, "workspace-grant-audience", workspaceGrantAudience, "audience used for signed workspace grants")
 	flag.DurationVar(&sessionTTL, "session-ttl", sessionTTL, "issued control-plane session TTL")
 	flag.DurationVar(&ceremonyTTL, "ceremony-ttl", ceremonyTTL, "passkey ceremony TTL")
 	flag.DurationVar(&launchTTL, "launch-ttl", launchTTL, "workspace launch grant TTL")
@@ -62,6 +68,26 @@ func main() {
 	addr := listenAddress
 	if strings.TrimSpace(addr) == "" {
 		addr = net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	var workspaceGrantSigner *controlplaneauth.WorkspaceHumanGrantSigner
+	if strings.TrimSpace(workspaceGrantSigningKey) != "" || strings.TrimSpace(workspaceGrantAudience) != "" || strings.TrimSpace(workspaceGrantIssuer) != "" {
+		if strings.TrimSpace(workspaceGrantIssuer) == "" {
+			workspaceGrantIssuer = "http://" + addr
+		}
+		privateKey, err := controlplaneauth.ParseEd25519PrivateKeyBase64(workspaceGrantSigningKey)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid OAR_CONTROL_PLANE_WORKSPACE_GRANT_SIGNING_KEY: %v\n", err)
+			os.Exit(1)
+		}
+		workspaceGrantSigner, err = controlplaneauth.NewWorkspaceHumanGrantSigner(controlplaneauth.WorkspaceHumanGrantSignerConfig{
+			Issuer:     workspaceGrantIssuer,
+			Audience:   workspaceGrantAudience,
+			PrivateKey: privateKey,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid workspace grant signer configuration: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	workspace, err := cpstorage.InitializeWorkspace(context.Background(), workspaceRoot)
@@ -78,6 +104,7 @@ func main() {
 		InviteTTL:            inviteTTL,
 		WorkspaceURLTemplate: workspaceURLTemplate,
 		InviteURLTemplate:    inviteURLTemplate,
+		WorkspaceGrantSigner: workspaceGrantSigner,
 	})
 
 	handler := cpserver.NewHandler(service, cpserver.Config{
@@ -102,6 +129,9 @@ func main() {
 	serverErr := make(chan error, 1)
 	go func() {
 		fmt.Printf("oar-control-plane listening on http://%s\n", addr)
+		if workspaceGrantSigner != nil {
+			fmt.Printf("  workspace grant signing enabled (issuer=%s audience=%s)\n", workspaceGrantIssuer, workspaceGrantAudience)
+		}
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErr <- err
 		}

@@ -86,14 +86,8 @@ func (s *Store) ListPrincipals(ctx context.Context, filter AuthPrincipalListFilt
 		a.id,
 		a.actor_id,
 		a.username,
-		CASE
-			WHEN EXISTS(SELECT 1 FROM passkey_credentials pc WHERE pc.agent_id = a.id LIMIT 1) THEN 'human'
-			ELSE 'agent'
-		END,
-		CASE
-			WHEN EXISTS(SELECT 1 FROM passkey_credentials pc WHERE pc.agent_id = a.id LIMIT 1) THEN 'passkey'
-			ELSE 'public_key'
-		END,
+		` + principalKindExpr("a") + `,
+		` + authMethodExpr("a") + `,
 		a.created_at,
 		a.updated_at,
 		a.revoked_at

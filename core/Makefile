@@ -1,4 +1,4 @@
-.PHONY: help serve serve-control-plane build-prod run-prod fmt vet test check lint ci-smoke smoke smoke-control-plane
+.PHONY: help serve serve-control-plane build-prod run-prod fmt vet test check lint ci-smoke smoke smoke-control-plane smoke-control-plane-human
 
 HOST ?= 127.0.0.1
 PORT ?= 8000
@@ -21,6 +21,7 @@ help:
 	@echo "  make ci-smoke   - run CI smoke test script"
 	@echo "  make smoke      - run end-to-end API smoke script"
 	@echo "  make smoke-control-plane - start the control plane and verify /health"
+	@echo "  make smoke-control-plane-human - verify a signed control-plane human workspace request"
 	@echo "  make build-prod - build production binary"
 	@echo "  make run-prod   - build+run production-like binary locally"
 
@@ -77,3 +78,8 @@ smoke-control-plane:
 	PORT="$(PORT)" \
 	CONTROL_PLANE_WORKSPACE_ROOT="$(WORKSPACE_ROOT)" \
 	./scripts/smoke-control-plane
+
+smoke-control-plane-human:
+	@PORT="$(PORT)" \
+	WORKSPACE_ROOT="$(WORKSPACE_ROOT)" \
+	./scripts/smoke-control-plane-human

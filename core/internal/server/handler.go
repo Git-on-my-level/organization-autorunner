@@ -14,6 +14,7 @@ import (
 
 	"organization-autorunner-core/internal/actors"
 	"organization-autorunner-core/internal/auth"
+	"organization-autorunner-core/internal/controlplaneauth"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 )
@@ -112,6 +113,9 @@ type handlerOptions struct {
 	requestBodyLimits              RequestBodyLimits
 	routeRateLimits                RouteRateLimits
 	rateLimiter                    *routeRateLimiter
+	humanAuthMode                  string
+	controlPlaneHumanVerifier      *controlplaneauth.WorkspaceHumanVerifier
+	workspaceServiceIdentity       *controlplaneauth.WorkspaceServiceIdentity
 }
 
 func WithHealthCheck(healthCheck HealthCheckFunc) HandlerOption {
@@ -248,6 +252,24 @@ func WithCORSAllowedOrigins(origins string) HandlerOption {
 func WithProjectionMaintainer(maintainer *ProjectionMaintainer) HandlerOption {
 	return func(opts *handlerOptions) {
 		opts.projectionMaintainer = maintainer
+	}
+}
+
+func WithHumanAuthMode(mode string) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.humanAuthMode = strings.TrimSpace(mode)
+	}
+}
+
+func WithControlPlaneHumanVerifier(verifier *controlplaneauth.WorkspaceHumanVerifier) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.controlPlaneHumanVerifier = verifier
+	}
+}
+
+func WithWorkspaceServiceIdentity(identity *controlplaneauth.WorkspaceServiceIdentity) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.workspaceServiceIdentity = identity
 	}
 }
 
@@ -396,6 +418,7 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		coreInstanceID:             "core-local",
 		streamPollInterval:         time.Second,
 		allowUnauthenticatedWrites: false,
+		humanAuthMode:              controlplaneauth.HumanAuthModeWorkspaceLocal,
 	}
 	for _, option := range options {
 		option(&opts)
@@ -417,6 +440,9 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 	}
 	if opts.streamPollInterval <= 0 {
 		opts.streamPollInterval = time.Second
+	}
+	if opts.humanAuthMode == "" {
+		opts.humanAuthMode = controlplaneauth.HumanAuthModeWorkspaceLocal
 	}
 	opts.requestBodyLimits = opts.requestBodyLimits.normalize()
 	opts.routeRateLimits = opts.routeRateLimits.normalize()

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"organization-autorunner-core/internal/auth"
+	"organization-autorunner-core/internal/controlplaneauth"
 )
 
 type principalContextKey struct{}
@@ -161,6 +162,10 @@ func handlePatchCurrentAgent(w http.ResponseWriter, r *http.Request, opts handle
 	if !ok {
 		return
 	}
+	if principal.AuthMethod == auth.AuthMethodControlPlane {
+		writeError(w, http.StatusForbidden, "access_denied", "control-plane-backed principals cannot modify workspace-local auth state")
+		return
+	}
 
 	var req struct {
 		Username string `json:"username"`
@@ -192,6 +197,10 @@ func handleRotateCurrentAgentKey(w http.ResponseWriter, r *http.Request, opts ha
 	if !ok {
 		return
 	}
+	if principal.AuthMethod == auth.AuthMethodControlPlane {
+		writeError(w, http.StatusForbidden, "access_denied", "control-plane-backed principals cannot rotate workspace-local keys")
+		return
+	}
 
 	var req struct {
 		PublicKey string `json:"public_key"`
@@ -221,6 +230,10 @@ func handleRotateCurrentAgentKey(w http.ResponseWriter, r *http.Request, opts ha
 func handleRevokeCurrentAgent(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
 	principal, ok := requireAuthenticatedPrincipal(w, r, opts)
 	if !ok {
+		return
+	}
+	if principal.AuthMethod == auth.AuthMethodControlPlane {
+		writeError(w, http.StatusForbidden, "access_denied", "control-plane-backed principals cannot be revoked locally")
 		return
 	}
 
@@ -358,6 +371,27 @@ func authenticatePrincipalFromHeader(w http.ResponseWriter, r *http.Request, opt
 
 	principal, err := opts.authStore.AuthenticateAccessToken(r.Context(), token)
 	if err != nil {
+		if errors.Is(err, auth.ErrInvalidToken) && opts.controlPlaneHumanVerifier != nil {
+			identity, verifyErr := opts.controlPlaneHumanVerifier.Verify(token)
+			if verifyErr == nil {
+				hydratedPrincipal, hydrateErr := opts.authStore.EnsureControlPlanePrincipal(r.Context(), auth.EnsureControlPlanePrincipalInput{
+					Issuer:         identity.Issuer,
+					Subject:        identity.Subject,
+					WorkspaceID:    identity.WorkspaceID,
+					OrganizationID: identity.OrganizationID,
+					Email:          identity.Email,
+					DisplayName:    identity.DisplayName,
+					LaunchID:       identity.LaunchID,
+				})
+				if hydrateErr != nil {
+					writeError(w, http.StatusInternalServerError, "internal_error", "failed to hydrate control-plane principal")
+					return nil, false
+				}
+				principalCopy := hydratedPrincipal
+				cacheAuthenticatedPrincipal(r, &principalCopy)
+				return &principalCopy, true
+			}
+		}
 		switch {
 		case errors.Is(err, auth.ErrInvalidToken):
 			writeError(w, http.StatusUnauthorized, "invalid_token", "token is invalid, expired, or revoked")
@@ -393,7 +427,7 @@ func resolveWriteActorID(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		return principal.ActorID, true
 	}
 	if requestedActorID != principal.ActorID {
-		writeError(w, http.StatusForbidden, "key_mismatch", "actor_id does not match authenticated agent principal")
+		writeError(w, http.StatusForbidden, "key_mismatch", "actor_id does not match authenticated principal")
 		return "", false
 	}
 
@@ -471,4 +505,8 @@ func onboardingRequiredMessage(err error) string {
 
 func isOnboardingTokenError(err error) bool {
 	return errors.Is(err, auth.ErrInvalidToken) || errors.Is(err, auth.ErrInviteKindMismatch)
+}
+
+func controlPlaneHumanAuthEnabled(opts handlerOptions) bool {
+	return strings.TrimSpace(opts.humanAuthMode) == controlplaneauth.HumanAuthModeControlPlane
 }

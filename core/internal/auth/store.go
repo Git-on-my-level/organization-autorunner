@@ -65,9 +65,11 @@ type TokenBundle struct {
 }
 
 type Principal struct {
-	AgentID  string
-	ActorID  string
-	Username string
+	AgentID       string
+	ActorID       string
+	Username      string
+	PrincipalKind string
+	AuthMethod    string
 }
 
 type RevocationMode string
@@ -217,15 +219,21 @@ func (s *Store) registerAgentOnce(ctx context.Context, username string, publicKe
 		return Agent{}, AgentKey{}, TokenBundle{}, err
 	}
 
+	agentMetadataJSON, err := principalMetadataJSON(PrincipalKindAgent, AuthMethodPublicKey, nil)
+	if err != nil {
+		_ = tx.Rollback()
+		return Agent{}, AgentKey{}, TokenBundle{}, fmt.Errorf("encode agent metadata: %w", err)
+	}
 	_, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO agents(id, username, actor_id, created_at, updated_at, revoked_at, metadata_json)
-		 VALUES (?, ?, ?, ?, ?, NULL, '{}')`,
+		 VALUES (?, ?, ?, ?, ?, NULL, ?)`,
 		agentID,
 		username,
 		actorID,
 		nowText,
 		nowText,
+		agentMetadataJSON,
 	)
 	if err != nil {
 		_ = tx.Rollback()
@@ -235,14 +243,20 @@ func (s *Store) registerAgentOnce(ctx context.Context, username string, publicKe
 		return Agent{}, AgentKey{}, TokenBundle{}, fmt.Errorf("insert agent: %w", err)
 	}
 
+	actorMetadataValue, err := actorMetadataJSON(PrincipalKindAgent, AuthMethodPublicKey, nil)
+	if err != nil {
+		_ = tx.Rollback()
+		return Agent{}, AgentKey{}, TokenBundle{}, fmt.Errorf("encode agent actor metadata: %w", err)
+	}
 	_, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO actors(id, display_name, tags_json, created_at, metadata_json)
-		 VALUES (?, ?, ?, ?, '{}')`,
+		 VALUES (?, ?, ?, ?, ?)`,
 		actorID,
 		username,
 		`["agent"]`,
 		nowText,
+		actorMetadataValue,
 	)
 	if err != nil {
 		_ = tx.Rollback()
@@ -274,7 +288,7 @@ func (s *Store) registerAgentOnce(ctx context.Context, username string, publicKe
 		Metadata: map[string]any{
 			"username":        username,
 			"principal_kind":  "agent",
-			"auth_method":     "public_key",
+			"auth_method":     AuthMethodPublicKey,
 			"onboarding_mode": string(claim.Mode),
 		},
 	}); err != nil {
@@ -301,7 +315,7 @@ func (s *Store) registerAgentOnce(ctx context.Context, username string, publicKe
 			CreatedAt:     nowText,
 			UpdatedAt:     nowText,
 			PrincipalKind: ptrString("agent"),
-			AuthMethod:    ptrString("public_key"),
+			AuthMethod:    ptrString(AuthMethodPublicKey),
 		}, AgentKey{
 			KeyID:     keyID,
 			AgentID:   agentID,
@@ -537,21 +551,23 @@ func (s *Store) AuthenticateAccessToken(ctx context.Context, accessToken string)
 	}
 
 	var (
-		agentID      string
-		username     string
-		actorID      string
-		agentRevoked sql.NullString
-		expiresAtRaw string
-		tokenRevoked sql.NullString
+		agentID       string
+		username      string
+		actorID       string
+		principalKind string
+		authMethod    string
+		agentRevoked  sql.NullString
+		expiresAtRaw  string
+		tokenRevoked  sql.NullString
 	)
 	err := s.db.QueryRowContext(
 		ctx,
-		`SELECT a.id, a.username, a.actor_id, a.revoked_at, t.expires_at, t.revoked_at
+		fmt.Sprintf(`SELECT a.id, a.username, a.actor_id, %s, %s, a.revoked_at, t.expires_at, t.revoked_at
 		 FROM auth_access_tokens t
 		 JOIN agents a ON a.id = t.agent_id
-		 WHERE t.token_hash = ?`,
+		 WHERE t.token_hash = ?`, principalKindExpr("a"), authMethodExpr("a")),
 		hashToken(accessToken),
-	).Scan(&agentID, &username, &actorID, &agentRevoked, &expiresAtRaw, &tokenRevoked)
+	).Scan(&agentID, &username, &actorID, &principalKind, &authMethod, &agentRevoked, &expiresAtRaw, &tokenRevoked)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Principal{}, ErrInvalidToken
@@ -575,7 +591,13 @@ func (s *Store) AuthenticateAccessToken(ctx context.Context, accessToken string)
 		return Principal{}, ErrAgentRevoked
 	}
 
-	return Principal{AgentID: agentID, ActorID: actorID, Username: username}, nil
+	return Principal{
+		AgentID:       agentID,
+		ActorID:       actorID,
+		Username:      username,
+		PrincipalKind: strings.TrimSpace(principalKind),
+		AuthMethod:    strings.TrimSpace(authMethod),
+	}, nil
 }
 
 func (s *Store) GetAgent(ctx context.Context, agentID string) (Agent, error) {
@@ -589,16 +611,18 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (Agent, error) {
 	}
 
 	var (
-		agent      Agent
-		revokedRaw sql.NullString
+		agent              Agent
+		principalKindValue string
+		authMethodValue    string
+		revokedRaw         sql.NullString
 	)
 	err := s.db.QueryRowContext(
 		ctx,
-		`SELECT id, username, actor_id, created_at, updated_at, revoked_at
+		fmt.Sprintf(`SELECT id, username, actor_id, %s, %s, created_at, updated_at, revoked_at
 		 FROM agents
-		 WHERE id = ?`,
+		 WHERE id = ?`, principalKindExpr("agents"), authMethodExpr("agents")),
 		agentID,
-	).Scan(&agent.AgentID, &agent.Username, &agent.ActorID, &agent.CreatedAt, &agent.UpdatedAt, &revokedRaw)
+	).Scan(&agent.AgentID, &agent.Username, &agent.ActorID, &principalKindValue, &authMethodValue, &agent.CreatedAt, &agent.UpdatedAt, &revokedRaw)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Agent{}, ErrAgentNotFound
@@ -607,20 +631,8 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (Agent, error) {
 	}
 
 	agent.Revoked = revokedRaw.Valid
-
-	var hasPasskeyCredential bool
-	err = s.db.QueryRowContext(
-		ctx,
-		`SELECT EXISTS(SELECT 1 FROM passkey_credentials WHERE agent_id = ? LIMIT 1)`,
-		agentID,
-	).Scan(&hasPasskeyCredential)
-	if err == nil && hasPasskeyCredential {
-		agent.PrincipalKind = ptrString("human")
-		agent.AuthMethod = ptrString("passkey")
-	} else {
-		agent.PrincipalKind = ptrString("agent")
-		agent.AuthMethod = ptrString("public_key")
-	}
+	agent.PrincipalKind = ptrString(strings.TrimSpace(principalKindValue))
+	agent.AuthMethod = ptrString(strings.TrimSpace(authMethodValue))
 
 	return agent, nil
 }
@@ -702,6 +714,19 @@ func (s *Store) UpdateUsername(ctx context.Context, agentID string, username str
 		return Agent{}, fmt.Errorf("begin update username transaction: %w", err)
 	}
 
+	var authMethod string
+	if err := tx.QueryRowContext(ctx, fmt.Sprintf(`SELECT %s FROM agents a WHERE a.id = ?`, authMethodExpr("a")), agentID).Scan(&authMethod); err != nil {
+		_ = tx.Rollback()
+		if errors.Is(err, sql.ErrNoRows) {
+			return Agent{}, ErrAgentNotFound
+		}
+		return Agent{}, fmt.Errorf("query agent auth method before update username: %w", err)
+	}
+	if strings.TrimSpace(authMethod) == AuthMethodControlPlane {
+		_ = tx.Rollback()
+		return Agent{}, fmt.Errorf("%w: control-plane-backed principals cannot be renamed locally", ErrInvalidRequest)
+	}
+
 	result, err := tx.ExecContext(
 		ctx,
 		`UPDATE agents
@@ -773,7 +798,8 @@ func (s *Store) RotateKey(ctx context.Context, agentID string, publicKey string)
 	}
 
 	var revokedAt sql.NullString
-	err = tx.QueryRowContext(ctx, `SELECT revoked_at FROM agents WHERE id = ?`, agentID).Scan(&revokedAt)
+	var authMethod string
+	err = tx.QueryRowContext(ctx, fmt.Sprintf(`SELECT revoked_at, %s FROM agents a WHERE id = ?`, authMethodExpr("a")), agentID).Scan(&revokedAt, &authMethod)
 	if err != nil {
 		_ = tx.Rollback()
 		if errors.Is(err, sql.ErrNoRows) {
@@ -784,6 +810,10 @@ func (s *Store) RotateKey(ctx context.Context, agentID string, publicKey string)
 	if revokedAt.Valid {
 		_ = tx.Rollback()
 		return AgentKey{}, ErrAgentRevoked
+	}
+	if strings.TrimSpace(authMethod) == AuthMethodControlPlane {
+		_ = tx.Rollback()
+		return AgentKey{}, fmt.Errorf("%w: control-plane-backed principals cannot rotate workspace-local keys", ErrInvalidRequest)
 	}
 
 	_, err = tx.ExecContext(
@@ -905,6 +935,10 @@ func (s *Store) RevokeAgent(ctx context.Context, agentID string, input RevokeAge
 		_ = tx.Rollback()
 		return RevokeAgentResult{}, err
 	}
+	if principal.AuthMethod == AuthMethodControlPlane {
+		_ = tx.Rollback()
+		return RevokeAgentResult{}, fmt.Errorf("%w: control-plane-backed principals cannot be revoked locally", ErrInvalidRequest)
+	}
 	activeHumanCount, err := s.countActiveHumanPrincipalsTx(ctx, tx)
 	if err != nil {
 		_ = tx.Rollback()
@@ -996,15 +1030,10 @@ func (s *Store) countActiveHumanPrincipalsTx(ctx context.Context, tx *sql.Tx) (i
 	var count int
 	if err := tx.QueryRowContext(
 		ctx,
-		`SELECT COUNT(1)
+		fmt.Sprintf(`SELECT COUNT(1)
 		 FROM agents a
 		 WHERE a.revoked_at IS NULL
-		   AND EXISTS(
-		       SELECT 1
-		         FROM passkey_credentials pc
-		        WHERE pc.agent_id = a.id
-		        LIMIT 1
-		   )`,
+		   AND %s = 'human'`, principalKindExpr("a")),
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count active human principals: %w", err)
 	}
@@ -1018,15 +1047,10 @@ func (s *Store) CountActiveHumanPrincipals(ctx context.Context) (int, error) {
 	var count int
 	if err := s.db.QueryRowContext(
 		ctx,
-		`SELECT COUNT(1)
+		fmt.Sprintf(`SELECT COUNT(1)
 		 FROM agents a
 		 WHERE a.revoked_at IS NULL
-		   AND EXISTS(
-		       SELECT 1
-		         FROM passkey_credentials pc
-		        WHERE pc.agent_id = a.id
-		        LIMIT 1
-		   )`,
+		   AND %s = 'human'`, principalKindExpr("a")),
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count active human principals: %w", err)
 	}
@@ -1044,23 +1068,17 @@ func (s *Store) getPrincipalSummaryQueryRow(ctx context.Context, queryRow func(c
 	)
 	err := queryRow(
 		ctx,
-		`SELECT
+		fmt.Sprintf(`SELECT
 			a.id,
 			a.actor_id,
 			a.username,
-			CASE
-				WHEN EXISTS(SELECT 1 FROM passkey_credentials pc WHERE pc.agent_id = a.id LIMIT 1) THEN 'human'
-				ELSE 'agent'
-			END,
-			CASE
-				WHEN EXISTS(SELECT 1 FROM passkey_credentials pc WHERE pc.agent_id = a.id LIMIT 1) THEN 'passkey'
-				ELSE 'public_key'
-			END,
+			%s,
+			%s,
 			a.created_at,
 			a.updated_at,
 			a.revoked_at
 		 FROM agents a
-		 WHERE a.id = ?`,
+		 WHERE a.id = ?`, principalKindExpr("a"), authMethodExpr("a")),
 		agentID,
 	).Scan(
 		&item.AgentID,
@@ -1083,6 +1101,20 @@ func (s *Store) getPrincipalSummaryQueryRow(ctx context.Context, queryRow func(c
 		item.RevokedAt = &revokedRaw.String
 	}
 	return item, nil
+}
+
+func (a Agent) PrincipalKindOrDefault() string {
+	if a.PrincipalKind != nil && strings.TrimSpace(*a.PrincipalKind) != "" {
+		return strings.TrimSpace(*a.PrincipalKind)
+	}
+	return string(PrincipalKindAgent)
+}
+
+func (a Agent) AuthMethodOrDefault() string {
+	if a.AuthMethod != nil && strings.TrimSpace(*a.AuthMethod) != "" {
+		return strings.TrimSpace(*a.AuthMethod)
+	}
+	return AuthMethodPublicKey
 }
 
 func (s *Store) issueTokenBundleTx(ctx context.Context, tx *sql.Tx, agentID string, now time.Time) (TokenBundle, string, error) {

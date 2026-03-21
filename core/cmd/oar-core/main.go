@@ -16,6 +16,7 @@ import (
 	"organization-autorunner-core/internal/actors"
 	"organization-autorunner-core/internal/auth"
 	"organization-autorunner-core/internal/blob"
+	"organization-autorunner-core/internal/controlplaneauth"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/server"
@@ -72,6 +73,13 @@ func main() {
 		webAuthnRPID               = envString("OAR_WEBAUTHN_RPID", "")
 		webAuthnOrigin             = envString("OAR_WEBAUTHN_ORIGIN", "")
 		webAuthnDisplayName        = envString("OAR_WEBAUTHN_RP_DISPLAY_NAME", "OAR")
+		humanAuthMode              = envString("OAR_HUMAN_AUTH_MODE", controlplaneauth.HumanAuthModeWorkspaceLocal)
+		controlPlaneTokenIssuer    = envString("OAR_CONTROL_PLANE_TOKEN_ISSUER", "")
+		controlPlaneTokenAudience  = envString("OAR_CONTROL_PLANE_TOKEN_AUDIENCE", "")
+		controlPlaneWorkspaceID    = envString("OAR_CONTROL_PLANE_WORKSPACE_ID", "")
+		controlPlaneTokenPublicKey = envString("OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY", "")
+		workspaceServiceID         = envString("OAR_WORKSPACE_SERVICE_ID", "")
+		workspaceServicePrivateKey = envString("OAR_WORKSPACE_SERVICE_PRIVATE_KEY", "")
 		corsAllowedOrigins         = envString("OAR_CORS_ALLOWED_ORIGINS", "")
 		shutdownTimeout            = envDuration("OAR_SHUTDOWN_TIMEOUT", 15*time.Second)
 		workspaceQuota             = primitives.WorkspaceQuota{
@@ -172,6 +180,45 @@ func main() {
 	authStore := auth.NewStore(workspace.DB(), auth.WithBootstrapToken(bootstrapToken))
 	passkeySessionStore := auth.NewPasskeySessionStore(auth.DefaultPasskeySessionTTL)
 	defer passkeySessionStore.Close()
+	var (
+		controlPlaneVerifier *controlplaneauth.WorkspaceHumanVerifier
+		serviceIdentity      *controlplaneauth.WorkspaceServiceIdentity
+	)
+	switch strings.TrimSpace(humanAuthMode) {
+	case controlplaneauth.HumanAuthModeWorkspaceLocal:
+	case controlplaneauth.HumanAuthModeControlPlane:
+		publicKey, err := controlplaneauth.ParseEd25519PublicKeyBase64(controlPlaneTokenPublicKey)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY: %v\n", err)
+			os.Exit(1)
+		}
+		controlPlaneVerifier, err = controlplaneauth.NewWorkspaceHumanVerifier(controlplaneauth.WorkspaceHumanVerifierConfig{
+			Issuer:      controlPlaneTokenIssuer,
+			Audience:    controlPlaneTokenAudience,
+			WorkspaceID: controlPlaneWorkspaceID,
+			PublicKey:   publicKey,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid control-plane human auth configuration: %v\n", err)
+			os.Exit(1)
+		}
+		servicePrivateKey, err := controlplaneauth.ParseEd25519PrivateKeyBase64(workspaceServicePrivateKey)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid OAR_WORKSPACE_SERVICE_PRIVATE_KEY: %v\n", err)
+			os.Exit(1)
+		}
+		serviceIdentity, err = controlplaneauth.NewWorkspaceServiceIdentity(controlplaneauth.WorkspaceServiceIdentityConfig{
+			ID:         workspaceServiceID,
+			PrivateKey: servicePrivateKey,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid workspace service identity configuration: %v\n", err)
+			os.Exit(1)
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "invalid OAR_HUMAN_AUTH_MODE %q (supported: %s, %s)\n", humanAuthMode, controlplaneauth.HumanAuthModeWorkspaceLocal, controlplaneauth.HumanAuthModeControlPlane)
+		os.Exit(1)
+	}
 	primitiveStore := primitives.NewStore(workspace.DB(), blobBackendImpl, effectiveBlobRoot, primitives.WithWorkspaceQuota(workspaceQuota))
 	projectionMaintainer := server.NewProjectionMaintainer(server.ProjectionMaintainerConfig{
 		PrimitiveStore:    primitiveStore,
@@ -194,6 +241,9 @@ func main() {
 			RPID:          webAuthnRPID,
 			RPOrigin:      webAuthnOrigin,
 		}),
+		server.WithHumanAuthMode(humanAuthMode),
+		server.WithControlPlaneHumanVerifier(controlPlaneVerifier),
+		server.WithWorkspaceServiceIdentity(serviceIdentity),
 		server.WithEnableDevActorMode(enableDevActorMode),
 		server.WithAllowUnauthenticatedWrites(allowUnauthenticatedWrites),
 		server.WithAllowLoopbackVerificationReads(allowLoopbackVerifyReads),
@@ -229,6 +279,9 @@ func main() {
 		fmt.Printf("oar-core listening on http://%s\n", addr)
 		if enableDevActorMode {
 			fmt.Println("  WARNING: dev actor mode enabled (anonymous workspace reads and legacy actor flows)")
+		}
+		if strings.TrimSpace(humanAuthMode) == controlplaneauth.HumanAuthModeControlPlane {
+			fmt.Printf("  human auth mode: %s (workspace_id=%s, service_identity=%s)\n", humanAuthMode, controlPlaneWorkspaceID, serviceIdentity.ID())
 		}
 		if allowUnauthenticatedWrites {
 			fmt.Println("  WARNING: unauthenticated writes enabled (dev mode)")

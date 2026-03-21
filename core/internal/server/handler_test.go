@@ -139,6 +139,9 @@ func TestHandshakeIncludesCommandRegistryDigest(t *testing.T) {
 	if payload["dev_actor_mode"] != false {
 		t.Fatalf("expected dev_actor_mode=false by default, got %v", payload["dev_actor_mode"])
 	}
+	if payload["human_auth_mode"] != "workspace_local" {
+		t.Fatalf("expected human_auth_mode=workspace_local by default, got %#v", payload["human_auth_mode"])
+	}
 }
 
 func TestVersionEndpointReturnsServiceUnavailableWithoutCommandMetadata(t *testing.T) {

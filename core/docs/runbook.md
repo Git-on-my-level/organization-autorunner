@@ -31,6 +31,13 @@ below so it can run alongside the existing core + web-ui development loop.
 | WebAuthn RP ID | n/a | `OAR_WEBAUTHN_RPID` | derived from browser origin host |
 | WebAuthn origin | n/a | `OAR_WEBAUTHN_ORIGIN` | derived from browser request origin |
 | WebAuthn RP display name | n/a | `OAR_WEBAUTHN_RP_DISPLAY_NAME` | `OAR` |
+| Human auth mode | n/a | `OAR_HUMAN_AUTH_MODE` | `workspace_local` |
+| Control-plane token issuer | n/a | `OAR_CONTROL_PLANE_TOKEN_ISSUER` | unset |
+| Control-plane token audience | n/a | `OAR_CONTROL_PLANE_TOKEN_AUDIENCE` | unset |
+| Control-plane workspace identifier | n/a | `OAR_CONTROL_PLANE_WORKSPACE_ID` | unset |
+| Control-plane token public key (base64 Ed25519) | n/a | `OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY` | unset |
+| Workspace service identity id | n/a | `OAR_WORKSPACE_SERVICE_ID` | unset |
+| Workspace service private key (base64 Ed25519) | n/a | `OAR_WORKSPACE_SERVICE_PRIVATE_KEY` | unset |
 | CORS allowed origins | n/a | `OAR_CORS_ALLOWED_ORIGINS` | unset (CORS disabled) |
 | Workspace blob quota | n/a | `OAR_WORKSPACE_MAX_BLOB_BYTES` | `1073741824` |
 | Workspace artifact quota | n/a | `OAR_WORKSPACE_MAX_ARTIFACTS` | `100000` |
@@ -98,6 +105,9 @@ Relevant control-plane configuration:
 | WebAuthn origin | `--webauthn-origin` | `OAR_CONTROL_PLANE_WEBAUTHN_ORIGIN` | derived from browser origin |
 | Workspace URL template | `--workspace-url-template` | `OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE` | `http://127.0.0.1:8000/%s` |
 | Invite URL template | `--invite-url-template` | `OAR_CONTROL_PLANE_INVITE_URL_TEMPLATE` | `http://127.0.0.1:8100/invites/%s` |
+| Workspace grant issuer | `--workspace-grant-issuer` | `OAR_CONTROL_PLANE_WORKSPACE_GRANT_ISSUER` | listen URL when signing is enabled |
+| Workspace grant audience | `--workspace-grant-audience` | `OAR_CONTROL_PLANE_WORKSPACE_GRANT_AUDIENCE` | unset |
+| Workspace grant signing key (base64 Ed25519 private key) | n/a | `OAR_CONTROL_PLANE_WORKSPACE_GRANT_SIGNING_KEY` | unset |
 | Session TTL | `--session-ttl` | `OAR_CONTROL_PLANE_SESSION_TTL` | `12h` |
 | Ceremony TTL | `--ceremony-ttl` | `OAR_CONTROL_PLANE_CEREMONY_TTL` | `5m` |
 | Launch TTL | `--launch-ttl` | `OAR_CONTROL_PLANE_LAUNCH_TTL` | `10m` |
@@ -117,6 +127,12 @@ Basic smoke check:
 
 ```bash
 make smoke-control-plane PORT=18100 WORKSPACE_ROOT="$(mktemp -d)"
+```
+
+Signed control-plane-human workspace smoke check:
+
+```bash
+make smoke-control-plane-human PORT=18102
 ```
 
 Typical local split:
@@ -154,6 +170,11 @@ hostname or WebAuthn ceremonies will be rejected.
 `OAR_ALLOW_UNAUTHENTICATED_WRITES=1` so local actor-selection, reads, and seed
 workflows keep working. Production-like runs should leave both unset unless an
 explicitly open local workflow is required.
+
+`OAR_HUMAN_AUTH_MODE=control_plane` enables the SaaS-v-next split. In that
+mode, workspace-local passkey human auth is disabled, workspace-local Ed25519
+agent auth remains enabled, and startup fails closed unless the
+`OAR_CONTROL_PLANE_TOKEN_*` and `OAR_WORKSPACE_SERVICE_*` settings are valid.
 
 ## Verify server health
 

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"organization-autorunner-core/internal/controlplaneauth"
+
 	"github.com/google/uuid"
 )
 
@@ -365,9 +367,13 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 		return Workspace{}, WorkspaceGrant{}, internalError("failed to begin session exchange")
 	}
 	defer tx.Rollback()
+	if s.workspaceGrantSigner == nil {
+		return Workspace{}, WorkspaceGrant{}, &APIError{Status: http.StatusServiceUnavailable, Code: "service_unavailable", Message: "workspace grant signing is not configured"}
+	}
 
 	var (
 		launchID       string
+		accountID      string
 		returnPath     sql.NullString
 		organizationID string
 		workspace      Workspace
@@ -378,6 +384,7 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 		ctx,
 		`SELECT
 			l.id,
+			l.account_id,
 			l.return_path,
 			l.expires_at,
 			l.consumed_at,
@@ -399,6 +406,7 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 		hashToken(exchangeToken),
 	).Scan(
 		&launchID,
+		&accountID,
 		&returnPath,
 		&expiresAt,
 		&consumedAt,
@@ -436,14 +444,29 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 	if _, err := tx.ExecContext(ctx, `UPDATE launch_sessions SET consumed_at = ? WHERE id = ?`, nowText, launchID); err != nil {
 		return Workspace{}, WorkspaceGrant{}, internalError("failed to consume launch session")
 	}
-	grantToken, err := randomBase64URL(32)
+	account, _, err := loadAccountByIDTx(ctx, tx, accountID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return Workspace{}, WorkspaceGrant{}, notFound("launch account not found")
+		}
+		return Workspace{}, WorkspaceGrant{}, internalError("failed to load launch account")
+	}
+	grantToken, grantExpiresAt, err := s.workspaceGrantSigner.Sign(controlplaneauth.WorkspaceHumanGrantInput{
+		AccountID:      account.ID,
+		WorkspaceID:    workspace.ID,
+		OrganizationID: workspace.OrganizationID,
+		Email:          account.Email,
+		DisplayName:    account.DisplayName,
+		LaunchID:       launchID,
+		TTL:            s.launchTTL,
+	})
 	if err != nil {
 		return Workspace{}, WorkspaceGrant{}, internalError("failed to generate workspace grant")
 	}
 	grant := WorkspaceGrant{
 		Kind:        "human-session",
 		BearerToken: grantToken,
-		ExpiresAt:   now.Add(s.launchTTL).Format(time.RFC3339Nano),
+		ExpiresAt:   grantExpiresAt,
 		Scope:       "workspace:" + workspace.ID,
 	}
 	if err := insertAuditEventTx(ctx, tx, AuditEvent{

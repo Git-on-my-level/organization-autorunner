@@ -3,6 +3,8 @@ package server
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -14,6 +16,7 @@ import (
 
 	"organization-autorunner-core/internal/controlplane"
 	cpstorage "organization-autorunner-core/internal/controlplane/storage"
+	"organization-autorunner-core/internal/controlplaneauth"
 )
 
 const (
@@ -22,10 +25,14 @@ const (
 )
 
 type controlPlaneTestEnv struct {
-	t         *testing.T
-	root      string
-	workspace *cpstorage.Workspace
-	server    *httptest.Server
+	t               *testing.T
+	root            string
+	workspace       *cpstorage.Workspace
+	server          *httptest.Server
+	grantIssuer     string
+	grantAudience   string
+	grantPublicKey  ed25519.PublicKey
+	grantPrivateKey ed25519.PrivateKey
 }
 
 func TestControlPlaneAccountOrganizationWorkspaceInviteJobAuditFlow(t *testing.T) {
@@ -253,7 +260,23 @@ func newControlPlaneTestEnv(t *testing.T, root string) *controlPlaneTestEnv {
 		t.Fatalf("initialize control-plane workspace: %v", err)
 	}
 
-	service := controlplane.NewService(workspace, controlplane.Config{})
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate workspace grant key: %v", err)
+	}
+	grantIssuer := "https://control-plane.example.test"
+	grantAudience := "oar-core"
+	grantSigner, err := controlplaneauth.NewWorkspaceHumanGrantSigner(controlplaneauth.WorkspaceHumanGrantSignerConfig{
+		Issuer:     grantIssuer,
+		Audience:   grantAudience,
+		PrivateKey: privateKey,
+	})
+	if err != nil {
+		t.Fatalf("new workspace grant signer: %v", err)
+	}
+	service := controlplane.NewService(workspace, controlplane.Config{
+		WorkspaceGrantSigner: grantSigner,
+	})
 	server := httptest.NewServer(NewHandler(service, Config{
 		HealthCheck: workspace.Ping,
 		WebAuthnConfig: WebAuthnConfig{
@@ -263,10 +286,14 @@ func newControlPlaneTestEnv(t *testing.T, root string) *controlPlaneTestEnv {
 	}))
 
 	return &controlPlaneTestEnv{
-		t:         t,
-		root:      root,
-		workspace: workspace,
-		server:    server,
+		t:               t,
+		root:            root,
+		workspace:       workspace,
+		server:          server,
+		grantIssuer:     grantIssuer,
+		grantAudience:   grantAudience,
+		grantPublicKey:  publicKey,
+		grantPrivateKey: privateKey,
 	}
 }
 
