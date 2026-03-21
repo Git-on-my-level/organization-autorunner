@@ -235,15 +235,16 @@ export const commandRegistry = [
         "operation_id": "revokeCurrentAgent",
         "summary": "Self-revoke current agent principal",
         "why": "Permanently revoke the authenticated agent so future mint/refresh calls fail.",
-        "input_mode": "none",
+        "input_mode": "json-body",
         "streaming": {
             "mode": "none"
         },
-        "output_envelope": "Returns `{ ok: true }` on first successful revoke.",
+        "output_envelope": "Returns `{ ok, principal, revocation }`; repeated calls after successful self-revoke require a fresh principal because the revoked caller can no longer authenticate.",
         "error_codes": [
             "auth_required",
             "invalid_token",
-            "agent_revoked"
+            "agent_revoked",
+            "last_active_principal"
         ],
         "concepts": [
             "auth",
@@ -251,13 +252,21 @@ export const commandRegistry = [
         ],
         "stability": "beta",
         "surface": "utility",
-        "agent_notes": "Requires Bearer access token.",
+        "agent_notes": "Requires Bearer access token. `force_last_active=true` is an explicit break-glass path that can leave the workspace without an active principal.",
         "examples": [
             {
                 "title": "Revoke self",
                 "command": "oar agents me revoke --json"
             }
         ],
+        "body_schema": {
+            "optional": [
+                {
+                    "name": "force_last_active",
+                    "type": "boolean"
+                }
+            ]
+        },
         "adjacent_commands": [
             "agents.me.get",
             "agents.me.keys.rotate",
@@ -579,6 +588,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.token"
         ],
         "go_method": "AuthAgentsRegister",
@@ -626,6 +636,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -668,6 +679,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -740,6 +752,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -787,6 +800,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -838,6 +852,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -887,6 +902,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -952,6 +968,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -1012,6 +1029,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -1076,6 +1094,7 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
@@ -1124,11 +1143,79 @@ export const commandRegistry = [
             "auth.passkey.login.verify",
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
+            "auth.principals.revoke",
             "auth.agents.register",
             "auth.token"
         ],
         "go_method": "AuthPrincipalsList",
         "ts_method": "authPrincipalsList"
+    },
+    {
+        "command_id": "auth.principals.revoke",
+        "cli_path": "auth principals revoke",
+        "group": "auth",
+        "method": "POST",
+        "path": "/auth/principals/{agent_id}/revoke",
+        "operation_id": "revokePrincipal",
+        "summary": "Revoke a principal by id",
+        "why": "Let a hosted operator revoke another principal through a first-class, audit-safe path.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ ok, principal, revocation }` and is idempotent when the target principal is already revoked.",
+        "error_codes": [
+            "auth_required",
+            "invalid_token",
+            "agent_revoked",
+            "not_found",
+            "last_active_principal"
+        ],
+        "concepts": [
+            "auth",
+            "identity",
+            "revocation"
+        ],
+        "stability": "beta",
+        "surface": "utility",
+        "agent_notes": "Requires Bearer access token. Set `force_last_active=true` only for explicit break-glass recovery work.",
+        "examples": [
+            {
+                "title": "Revoke a principal",
+                "command": "oar auth principals revoke --agent-id agent_123 --json"
+            },
+            {
+                "title": "Force revoke the last active principal",
+                "command": "oar auth principals revoke --agent-id agent_123 --force-last-active --json"
+            }
+        ],
+        "body_schema": {
+            "optional": [
+                {
+                    "name": "force_last_active",
+                    "type": "boolean"
+                }
+            ]
+        },
+        "path_params": [
+            "agent_id"
+        ],
+        "adjacent_commands": [
+            "auth.audit.list",
+            "auth.bootstrap.status",
+            "auth.invites.create",
+            "auth.invites.list",
+            "auth.invites.revoke",
+            "auth.passkey.login.options",
+            "auth.passkey.login.verify",
+            "auth.passkey.register.options",
+            "auth.passkey.register.verify",
+            "auth.principals.list",
+            "auth.agents.register",
+            "auth.token"
+        ],
+        "go_method": "AuthPrincipalsRevoke",
+        "ts_method": "authPrincipalsRevoke"
     },
     {
         "command_id": "auth.token",
@@ -1209,6 +1296,7 @@ export const commandRegistry = [
             "auth.passkey.register.options",
             "auth.passkey.register.verify",
             "auth.principals.list",
+            "auth.principals.revoke",
             "auth.agents.register"
         ],
         "go_method": "AuthToken",
@@ -4290,6 +4378,9 @@ export class OarClient {
     }
     authPrincipalsList(options = {}) {
         return this.invoke("auth.principals.list", {}, options);
+    }
+    authPrincipalsRevoke(pathParams, options = {}) {
+        return this.invoke("auth.principals.revoke", pathParams, options);
     }
     authToken(options = {}) {
         return this.invoke("auth.token", {}, options);

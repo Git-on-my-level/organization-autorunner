@@ -66,6 +66,7 @@ export declare class OarClient {
     authPasskeyRegisterOptions(options?: RequestOptions): Promise<InvokeResult>;
     authPasskeyRegisterVerify(options?: RequestOptions): Promise<InvokeResult>;
     authPrincipalsList(options?: RequestOptions): Promise<InvokeResult>;
+    authPrincipalsRevoke(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     authToken(options?: RequestOptions): Promise<InvokeResult>;
     boardsCardsAdd(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     boardsCardsList(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
