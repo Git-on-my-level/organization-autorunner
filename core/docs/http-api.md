@@ -50,7 +50,7 @@ Each endpoint is classified with an `x-oar-surface` extension indicating its rol
 
 - **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `threads.context`, `threads.workspace`, `boards.workspace`, `inbox.list/get/stream/ack`. **Do not build durable automation directly on projection payload shapes.** Use canonical APIs or CLI commands for durable substrate.
 
-- **`utility`**: Infrastructure endpoints for health, version, meta discovery, auth bootstrap, and maintenance. Examples: `/health`, `/version`, `/meta/*`, `/auth/*`, `/actors`, `/derived/rebuild`.
+- **`utility`**: Infrastructure endpoints for liveness, readiness, version, meta discovery, auth bootstrap, and maintenance. Examples: `/health`, `/livez`, `/readyz`, `/ops/health`, `/version`, `/meta/*`, `/auth/*`, `/actors`, `/derived/rebuild`.
 
 Projection endpoints return a `section_kinds` field to distinguish canonical vs derived sections, and a `generated_at` timestamp indicating when the projection was generated.
 
@@ -74,7 +74,7 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
 
 - CLI version gate:
   - Clients MAY send `X-OAR-CLI-Version`.
-  - When provided and below minimum compatibility (except on `/health`, `/version`, `/meta/handshake`, `/auth/agents/register`, `/auth/token`), response is:
+  - When provided and below minimum compatibility (except on `/health`, `/livez`, `/readyz`, `/ops/health`, `/version`, `/meta/handshake`, `/auth/agents/register`, `/auth/token`), response is:
     - HTTP `426 Upgrade Required`
     - `{ "error": { "code": "cli_outdated", ... }, "upgrade": { "min_cli_version", "recommended_cli_version", "cli_download_url" } }`
 

@@ -27,13 +27,13 @@ go run ./cmd/oar-core \
 SERVER_PID=$!
 
 for _ in $(seq 1 50); do
-  if curl -fsS "http://$LISTEN_ADDR/health" >/dev/null 2>&1; then
+  if curl -fsS "http://$LISTEN_ADDR/readyz" >/dev/null 2>&1; then
     break
   fi
   sleep 0.1
 done
 
-curl -fsS "http://$LISTEN_ADDR/health" >/dev/null
+curl -fsS "http://$LISTEN_ADDR/readyz" >/dev/null
 VERSION_JSON="$(curl -fsS "http://$LISTEN_ADDR/version")"
 printf '%s' "$VERSION_JSON" | grep -q '"schema_version"'
 

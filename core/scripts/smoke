@@ -70,13 +70,13 @@ go run ./cmd/oar-core \
 SERVER_PID=$!
 
 for _ in $(seq 1 80); do
-  if curl -fsS "${BASE_URL}/health" >/dev/null 2>&1; then
+  if curl -fsS "${BASE_URL}/readyz" >/dev/null 2>&1; then
     break
   fi
   sleep 0.1
 done
 
-if ! curl -fsS "${BASE_URL}/health" >/dev/null 2>&1; then
+if ! curl -fsS "${BASE_URL}/readyz" >/dev/null 2>&1; then
   echo "server did not become healthy; log follows:" >&2
   cat "$SERVER_LOG" >&2
   exit 1

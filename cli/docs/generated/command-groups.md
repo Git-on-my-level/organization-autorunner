@@ -111,7 +111,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `meta`
 
-- Commands: `7`
+- Commands: `10`
 - Command IDs:
   - `meta.commands.get` (`meta commands get`)
   - `meta.commands.list` (`meta commands list`)
@@ -119,6 +119,9 @@ Generated from `contracts/oar-openapi.yaml`.
   - `meta.concepts.list` (`meta concepts list`)
   - `meta.handshake` (`meta handshake`)
   - `meta.health` (`meta health`)
+  - `meta.livez` (`meta livez`)
+  - `meta.ops.health` (`meta ops health`)
+  - `meta.readyz` (`meta readyz`)
   - `meta.version` (`meta version`)
 
 ## `packets`

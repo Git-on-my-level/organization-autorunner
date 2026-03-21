@@ -200,7 +200,7 @@ if [[ -n "$INSTANCE" ]]; then
         echo "Loaded com.oar.core.${INSTANCE}"
         echo ""
         echo "Verify:"
-        echo "  curl -fsS http://127.0.0.1:${PORT}/health"
+        echo "  curl -fsS http://127.0.0.1:${PORT}/readyz"
         echo "  tail -f ${LOG_DIR}/oar-core-${INSTANCE}.err.log"
     else
         echo ""

@@ -1135,6 +1135,10 @@ func TestHostedModeProtectsWorkspaceReadsAndBlocksLegacyActorFlows(t *testing.T)
 	defer auditResp.Body.Close()
 	assertErrorCode(t, auditResp, "auth_required")
 
+	opsHealthResp := getJSONExpectStatusWithAuth(t, serverURL+"/ops/health", "", http.StatusUnauthorized)
+	defer opsHealthResp.Body.Close()
+	assertErrorCode(t, opsHealthResp, "auth_required")
+
 	createActorResp := postJSONExpectStatusWithAuth(t, serverURL+"/actors", map[string]any{
 		"actor": map[string]any{
 			"id":           "legacy-actor",
@@ -1167,6 +1171,9 @@ func TestHostedModeProtectsWorkspaceReadsAndBlocksLegacyActorFlows(t *testing.T)
 
 	authedActorsResp := getJSONExpectStatusWithAuth(t, serverURL+"/actors", registerPayload.Tokens.AccessToken, http.StatusOK)
 	authedActorsResp.Body.Close()
+
+	authedOpsHealthResp := getJSONExpectStatusWithAuth(t, serverURL+"/ops/health", registerPayload.Tokens.AccessToken, http.StatusOK)
+	authedOpsHealthResp.Body.Close()
 }
 
 func TestExplicitDevModeKeepsLegacyActorFlowAndAnonymousWorkspaceAccess(t *testing.T) {

@@ -138,7 +138,7 @@ seed_workspace_fixture() {
     true \
     false
   trap 'stop_background_process "${server_pid:-}"' RETURN
-  wait_for_http_ok "http://127.0.0.1:${listen_port}/health" 20 || die "failed to start temporary core for test fixture"
+  wait_for_http_ok "http://127.0.0.1:${listen_port}/readyz" 20 || die "failed to start temporary core for test fixture"
 
   curl -fsS \
     -H 'content-type: application/json' \

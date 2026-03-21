@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.3`
-- Commands: `71`
+- Commands: `74`
 
 ## `actors.list`
 
@@ -880,13 +880,56 @@ Generated from `contracts/oar-openapi.yaml`.
 - Stability: `stable`
 - Surface: `utility`
 - Input mode: `none`
-- Why: Probe whether core storage is available before issuing stateful commands.
-- Concepts: `health`, `readiness`
-- Error codes: `storage_unavailable`
-- Output: Returns `{ ok: true }` when the service and storage are healthy.
+- Why: Probe whether the core process is alive with a minimal public liveness payload.
+- Concepts: `health`, `liveness`
+- Output: Returns `{ ok: true }` when the service process is alive.
 - Agent notes: Safe and idempotent; retry with backoff on transport failures.
 - Examples:
-  - Health check: `oar meta health --json`
+  - Liveness check: `oar meta health --json`
+
+## `meta.livez`
+
+- CLI path: `meta livez`
+- HTTP: `GET /livez`
+- Stability: `stable`
+- Surface: `utility`
+- Input mode: `none`
+- Why: Provide an explicit Kubernetes-style liveness alias for the minimal public probe.
+- Concepts: `health`, `liveness`
+- Output: Returns `{ ok: true }` when the service process is alive.
+- Agent notes: Safe and idempotent.
+- Examples:
+  - Liveness alias: `oar api call --method GET --path /livez`
+
+## `meta.ops.health`
+
+- CLI path: `meta ops health`
+- HTTP: `GET /ops/health`
+- Stability: `stable`
+- Surface: `utility`
+- Input mode: `none`
+- Why: Inspect detailed operator diagnostics such as projection-maintenance lag without exposing them on the public liveness/readiness probes.
+- Concepts: `health`, `readiness`, `operations`
+- Error codes: `auth_required`, `invalid_token`, `agent_revoked`, `storage_unavailable`
+- Output: Returns `{ ok, projection_maintenance? }` after the readiness check passes.
+- Agent notes: Requires an authenticated principal outside development-mode and loopback verification exceptions. Safe and idempotent.
+- Examples:
+  - Authenticated operator diagnostics: `oar api call --method GET --path /ops/health --header 'Authorization: Bearer <access-token>'`
+
+## `meta.readyz`
+
+- CLI path: `meta readyz`
+- HTTP: `GET /readyz`
+- Stability: `stable`
+- Surface: `utility`
+- Input mode: `none`
+- Why: Probe whether core storage is ready before issuing stateful commands or marking the instance ready.
+- Concepts: `health`, `readiness`
+- Error codes: `storage_unavailable`
+- Output: Returns `{ ok: true }` when the service and storage are ready.
+- Agent notes: Safe and idempotent; retry with backoff on transport failures.
+- Examples:
+  - Readiness check: `oar api call --method GET --path /readyz`
 
 ## `meta.version`
 

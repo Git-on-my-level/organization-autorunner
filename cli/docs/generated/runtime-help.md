@@ -2335,7 +2335,7 @@ Generated Help: meta commands
 - Error codes: `meta_unavailable`, `cli_outdated`
 - Concepts: `meta`, `introspection`
 - Agent notes: Safe and idempotent. Response shape matches committed generated artifacts.
-- Adjacent commands: `meta command`, `meta concept`, `meta concepts`, `meta handshake`, `meta health`, `meta version`
+- Adjacent commands: `meta command`, `meta concept`, `meta concepts`, `meta handshake`, `meta health`, `meta livez`, `meta ops health`, `meta readyz`, `meta version`
 - Examples:
   - List command metadata: `oar meta commands --json`
 
@@ -2363,7 +2363,7 @@ Generated Help: meta command
 - Error codes: `not_found`, `meta_unavailable`, `cli_outdated`
 - Concepts: `meta`, `introspection`
 - Agent notes: Safe and idempotent.
-- Adjacent commands: `meta commands`, `meta concept`, `meta concepts`, `meta handshake`, `meta health`, `meta version`
+- Adjacent commands: `meta commands`, `meta concept`, `meta concepts`, `meta handshake`, `meta health`, `meta livez`, `meta ops health`, `meta readyz`, `meta version`
 - Examples:
   - Read command metadata: `oar meta command --command-id threads.list --json`
 
@@ -2391,7 +2391,7 @@ Generated Help: meta concepts
 - Error codes: `meta_unavailable`, `cli_outdated`
 - Concepts: `meta`, `concepts`
 - Agent notes: Safe and idempotent.
-- Adjacent commands: `meta command`, `meta commands`, `meta concept`, `meta handshake`, `meta health`, `meta version`
+- Adjacent commands: `meta command`, `meta commands`, `meta concept`, `meta handshake`, `meta health`, `meta livez`, `meta ops health`, `meta readyz`, `meta version`
 - Examples:
   - List concepts: `oar meta concepts --json`
 
@@ -2419,7 +2419,7 @@ Generated Help: meta concept
 - Error codes: `not_found`, `meta_unavailable`, `cli_outdated`
 - Concepts: `meta`, `concepts`
 - Agent notes: Safe and idempotent.
-- Adjacent commands: `meta command`, `meta commands`, `meta concepts`, `meta handshake`, `meta health`, `meta version`
+- Adjacent commands: `meta command`, `meta commands`, `meta concepts`, `meta handshake`, `meta health`, `meta livez`, `meta ops health`, `meta readyz`, `meta version`
 - Examples:
   - Read one concept: `oar meta concept --concept-name compatibility --json`
 

@@ -18,7 +18,7 @@ type subcommandSpec struct {
 var apiSubcommandSpec = subcommandSpec{
 	command:  "api",
 	valid:    []string{"call"},
-	examples: []string{"oar api call --method GET --path /health"},
+	examples: []string{"oar api call --method GET --path /readyz"},
 }
 
 var authSubcommandSpec = subcommandSpec{

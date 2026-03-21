@@ -309,6 +309,23 @@ func isLoopbackRequest(r *http.Request) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+func writeLivenessOK(w http.ResponseWriter) {
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func checkReadiness(w http.ResponseWriter, r *http.Request, opts handlerOptions) bool {
+	if opts.healthCheck != nil {
+		if err := opts.healthCheck(r.Context()); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+				"ok":    false,
+				"error": errorPayload("storage_unavailable", "storage health check failed"),
+			})
+			return false
+		}
+	}
+	return true
+}
+
 func enforceRouteAccess(w http.ResponseWriter, r *http.Request, opts handlerOptions, requirement routeAccessRequirement) bool {
 	if !requirement.supported {
 		return true
@@ -395,15 +412,35 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
 			return
 		}
+		writeLivenessOK(w)
+	})
 
-		if opts.healthCheck != nil {
-			if err := opts.healthCheck(r.Context()); err != nil {
-				writeJSON(w, http.StatusServiceUnavailable, map[string]any{
-					"ok":    false,
-					"error": errorPayload("storage_unavailable", "storage health check failed"),
-				})
-				return
-			}
+	registerRoute("/livez", exactRouteAccess(routeAccessAlwaysPublic, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		writeLivenessOK(w)
+	})
+
+	registerRoute("/readyz", exactRouteAccess(routeAccessAlwaysPublic, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		if !checkReadiness(w, r, opts) {
+			return
+		}
+		writeLivenessOK(w)
+	})
+
+	registerRoute("/ops/health", exactRouteAccess(routeAccessWorkspaceBusiness, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		if !checkReadiness(w, r, opts) {
+			return
 		}
 
 		payload := map[string]any{"ok": true}
@@ -1480,7 +1517,7 @@ func shouldEnforceCLIVersion(path string) bool {
 		return false
 	}
 	switch path {
-	case "/health", "/version", "/meta/handshake", "/auth/token", "/auth/agents/register", "/auth/bootstrap/status":
+	case "/health", "/livez", "/readyz", "/ops/health", "/version", "/meta/handshake", "/auth/token", "/auth/agents/register", "/auth/bootstrap/status":
 		return false
 	}
 	if strings.HasPrefix(path, "/auth/passkey/") {

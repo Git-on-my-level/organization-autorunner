@@ -26,29 +26,116 @@ paths:
   /health:
     get:
       operationId: healthCheck
-      summary: Health check
+      summary: Liveness check
       tags: [meta]
       x-oar-surface: "utility"
       x-oar-command-id: "meta.health"
       x-oar-cli-path: "meta health"
-      x-oar-why: "Probe whether core storage is available before issuing stateful commands."
+      x-oar-why: "Probe whether the core process is alive with a minimal public liveness payload."
       x-oar-examples:
-        - title: Health check
+        - title: Liveness check
           command: oar meta health --json
       x-oar-input-mode: "none"
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ ok: true }` when the service and storage are healthy."
+      x-oar-output-envelope: "Returns `{ ok: true }` when the service process is alive."
+      x-oar-error-codes: []
+      x-oar-concepts: [health, liveness]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent; retry with backoff on transport failures."
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /livez:
+    get:
+      operationId: livenessCheck
+      summary: Explicit liveness check
+      tags: [meta]
+      x-oar-surface: "utility"
+      x-oar-command-id: "meta.livez"
+      x-oar-cli-path: "meta livez"
+      x-oar-why: "Provide an explicit Kubernetes-style liveness alias for the minimal public probe."
+      x-oar-examples:
+        - title: Liveness alias
+          command: oar api call --method GET --path /livez
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ ok: true }` when the service process is alive."
+      x-oar-error-codes: []
+      x-oar-concepts: [health, liveness]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Safe and idempotent."
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /readyz:
+    get:
+      operationId: readinessCheck
+      summary: Readiness check
+      tags: [meta]
+      x-oar-surface: "utility"
+      x-oar-command-id: "meta.readyz"
+      x-oar-cli-path: "meta readyz"
+      x-oar-why: "Probe whether core storage is ready before issuing stateful commands or marking the instance ready."
+      x-oar-examples:
+        - title: Readiness check
+          command: oar api call --method GET --path /readyz
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ ok: true }` when the service and storage are ready."
       x-oar-error-codes: [storage_unavailable]
       x-oar-concepts: [health, readiness]
       x-oar-stability: "stable"
       x-oar-agent-notes: "Safe and idempotent; retry with backoff on transport failures."
       responses:
         '200':
-          description: Service is healthy
+          description: Service and storage are ready
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
+        '503':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /ops/health:
+    get:
+      operationId: opsHealthCheck
+      summary: Operator diagnostics health
+      tags: [meta]
+      x-oar-surface: "utility"
+      x-oar-command-id: "meta.ops.health"
+      x-oar-cli-path: "meta ops health"
+      x-oar-why: "Inspect detailed operator diagnostics such as projection-maintenance lag without exposing them on the public liveness/readiness probes."
+      x-oar-examples:
+        - title: Authenticated operator diagnostics
+          command: "oar api call --method GET --path /ops/health --header 'Authorization: Bearer <access-token>'"
+      x-oar-input-mode: "none"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ ok, projection_maintenance? }` after the readiness check passes."
+      x-oar-error-codes: [auth_required, invalid_token, agent_revoked, storage_unavailable]
+      x-oar-concepts: [health, readiness, operations]
+      x-oar-stability: "stable"
+      x-oar-agent-notes: "Requires an authenticated principal outside development-mode and loopback verification exceptions. Safe and idempotent."
+      responses:
+        '200':
+          description: Operator diagnostics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpsHealthResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
         '503':
           $ref: '#/components/responses/ErrorResponse'
 
@@ -2755,6 +2842,33 @@ components:
       type: object
       properties:
         ok: { type: boolean }
+      required: [ok]
+
+    ProjectionMaintenanceErrorSnapshot:
+      type: object
+      properties:
+        at: { type: string }
+        message: { type: string }
+        operation: { type: string }
+      required: [at, message, operation]
+
+    ProjectionMaintenanceSnapshot:
+      type: object
+      properties:
+        pending_dirty_count: { type: integer }
+        oldest_dirty_at: { type: string }
+        oldest_dirty_lag_seconds: { type: integer }
+        last_successful_stale_scan_at: { type: string }
+        last_error:
+          $ref: '#/components/schemas/ProjectionMaintenanceErrorSnapshot'
+      required: [pending_dirty_count]
+
+    OpsHealthResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        projection_maintenance:
+          $ref: '#/components/schemas/ProjectionMaintenanceSnapshot'
       required: [ok]
 
     VersionResponse:

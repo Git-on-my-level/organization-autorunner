@@ -234,7 +234,38 @@ func TestProjectionMaintainerSuppressesStaleInboxAfterNewActivity(t *testing.T) 
 	}
 }
 
-func TestHealthEndpointReportsProjectionMaintenanceLag(t *testing.T) {
+func TestPublicHealthEndpointsDoNotExposeProjectionMaintenance(t *testing.T) {
+	t.Parallel()
+
+	h := newProjectionMaintenanceTestServer(t)
+
+	for _, path := range []string{"/health", "/readyz"} {
+		resp, err := http.Get(h.baseURL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			t.Fatalf("unexpected %s status: %d", path, resp.StatusCode)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			resp.Body.Close()
+			t.Fatalf("decode %s response: %v", path, err)
+		}
+		resp.Body.Close()
+
+		if payload["ok"] != true {
+			t.Fatalf("expected ok=true for %s, got %#v", path, payload)
+		}
+		if _, ok := payload["projection_maintenance"]; ok {
+			t.Fatalf("expected %s to omit projection_maintenance, got %#v", path, payload)
+		}
+	}
+}
+
+func TestOpsHealthEndpointReportsProjectionMaintenanceLag(t *testing.T) {
 	t.Parallel()
 
 	h := newProjectionMaintenanceTestServer(t)
@@ -257,7 +288,7 @@ func TestHealthEndpointReportsProjectionMaintenanceLag(t *testing.T) {
 		}
 	}`, http.StatusCreated).Body.Close()
 
-	before := getProjectionMaintenanceHealth(t, h.baseURL)
+	before := getProjectionMaintenanceHealth(t, h.baseURL, "/ops/health")
 	if before.PendingDirtyCount == 0 {
 		t.Fatalf("expected pending dirty count before maintainer step, got %#v", before)
 	}
@@ -267,7 +298,7 @@ func TestHealthEndpointReportsProjectionMaintenanceLag(t *testing.T) {
 
 	h.step(t, time.Date(2026, 3, 18, 10, 0, 0, 0, time.UTC))
 
-	after := getProjectionMaintenanceHealth(t, h.baseURL)
+	after := getProjectionMaintenanceHealth(t, h.baseURL, "/ops/health")
 	if after.PendingDirtyCount != 0 {
 		t.Fatalf("expected pending dirty count to clear after maintainer step, got %#v", after)
 	}
@@ -569,7 +600,7 @@ func (s *projectionMaintenanceFailureStore) PutDerivedThreadProjection(ctx conte
 	return s.PrimitiveStore.PutDerivedThreadProjection(ctx, projection)
 }
 
-func TestHealthEndpointReportsProjectionMaintenanceErrors(t *testing.T) {
+func TestOpsHealthEndpointReportsProjectionMaintenanceErrors(t *testing.T) {
 	t.Parallel()
 
 	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
@@ -634,7 +665,7 @@ func TestHealthEndpointReportsProjectionMaintenanceErrors(t *testing.T) {
 		t.Fatal("expected projection maintainer step to fail")
 	}
 
-	health := getProjectionMaintenanceHealth(t, server.URL)
+	health := getProjectionMaintenanceHealth(t, server.URL, "/ops/health")
 	if health.PendingDirtyCount == 0 {
 		t.Fatalf("expected pending dirty work to remain after failure, got %#v", health)
 	}
@@ -649,23 +680,23 @@ func TestHealthEndpointReportsProjectionMaintenanceErrors(t *testing.T) {
 	}
 }
 
-func getProjectionMaintenanceHealth(t *testing.T, baseURL string) ProjectionMaintenanceSnapshot {
+func getProjectionMaintenanceHealth(t *testing.T, baseURL string, path string) ProjectionMaintenanceSnapshot {
 	t.Helper()
 
-	resp, err := http.Get(baseURL + "/health")
+	resp, err := http.Get(baseURL + path)
 	if err != nil {
-		t.Fatalf("GET /health: %v", err)
+		t.Fatalf("GET %s: %v", path, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected /health status: %d", resp.StatusCode)
+		t.Fatalf("unexpected %s status: %d", path, resp.StatusCode)
 	}
 
 	var payload struct {
 		ProjectionMaintenance ProjectionMaintenanceSnapshot `json:"projection_maintenance"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode /health response: %v", err)
+		t.Fatalf("decode %s response: %v", path, err)
 	}
 	return payload.ProjectionMaintenance
 }

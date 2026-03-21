@@ -87,14 +87,18 @@ explicitly open local workflow is required.
 
 ```bash
 curl -fsS http://127.0.0.1:8000/health
+curl -fsS http://127.0.0.1:8000/readyz
 curl -fsS http://127.0.0.1:8000/version
 ```
 
-`/health` is local-only and fast. It performs the workspace storage connectivity
-check and reports projection-maintenance lag/status without rebuilding derived
-state inline.
+`/health` is the minimal public liveness probe and returns only `{ ok: true }`
+when the process is alive.
 
-The health payload also includes projection maintenance status:
+`/readyz` performs the workspace storage connectivity check before the instance
+is treated as ready.
+
+`/ops/health` is for authenticated or loopback-only operator diagnostics. When
+the readiness check passes, it also includes projection maintenance status:
 
 - `pending_dirty_count`: thread projections queued for refresh.
 - `oldest_dirty_at` / `oldest_dirty_lag_seconds`: lag indicator for the oldest queued projection refresh.
@@ -241,7 +245,7 @@ docker run -d --restart unless-stopped \
 Health checks from host:
 
 ```bash
-curl -fsS http://127.0.0.1:8000/health
+curl -fsS http://127.0.0.1:8000/readyz
 curl -fsS http://127.0.0.1:8000/version
 ```
 
@@ -275,7 +279,7 @@ Run the headless smoke script:
 ./scripts/ci-smoke
 ```
 
-It starts a server in a temporary workspace, checks `/health` and `/version`, then shuts down cleanly.
+It starts a server in a temporary workspace, checks `/readyz` and `/version`, then shuts down cleanly.
 
 For the full repo smoke path, run the root script:
 

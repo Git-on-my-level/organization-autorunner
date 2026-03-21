@@ -3242,6 +3242,9 @@ export const commandRegistry: CommandSpec[] = [
       "meta.concepts.list",
       "meta.handshake",
       "meta.health",
+      "meta.livez",
+      "meta.ops.health",
+      "meta.readyz",
       "meta.version"
     ],
     "go_method": "MetaCommandsGet",
@@ -3284,6 +3287,9 @@ export const commandRegistry: CommandSpec[] = [
       "meta.concepts.list",
       "meta.handshake",
       "meta.health",
+      "meta.livez",
+      "meta.ops.health",
+      "meta.readyz",
       "meta.version"
     ],
     "go_method": "MetaCommandsList",
@@ -3330,6 +3336,9 @@ export const commandRegistry: CommandSpec[] = [
       "meta.concepts.list",
       "meta.handshake",
       "meta.health",
+      "meta.livez",
+      "meta.ops.health",
+      "meta.readyz",
       "meta.version"
     ],
     "go_method": "MetaConceptsGet",
@@ -3372,6 +3381,9 @@ export const commandRegistry: CommandSpec[] = [
       "meta.concepts.get",
       "meta.handshake",
       "meta.health",
+      "meta.livez",
+      "meta.ops.health",
+      "meta.readyz",
       "meta.version"
     ],
     "go_method": "MetaConceptsList",
@@ -3410,6 +3422,9 @@ export const commandRegistry: CommandSpec[] = [
       "meta.concepts.get",
       "meta.concepts.list",
       "meta.health",
+      "meta.livez",
+      "meta.ops.health",
+      "meta.readyz",
       "meta.version"
     ],
     "go_method": "MetaHandshake",
@@ -3422,13 +3437,143 @@ export const commandRegistry: CommandSpec[] = [
     "method": "GET",
     "path": "/health",
     "operation_id": "healthCheck",
-    "summary": "Health check",
-    "why": "Probe whether core storage is available before issuing stateful commands.",
+    "summary": "Liveness check",
+    "why": "Probe whether the core process is alive with a minimal public liveness payload.",
     "input_mode": "none",
     "streaming": {
       "mode": "none"
     },
-    "output_envelope": "Returns `{ ok: true }` when the service and storage are healthy.",
+    "output_envelope": "Returns `{ ok: true }` when the service process is alive.",
+    "concepts": [
+      "health",
+      "liveness"
+    ],
+    "stability": "stable",
+    "surface": "utility",
+    "agent_notes": "Safe and idempotent; retry with backoff on transport failures.",
+    "examples": [
+      {
+        "title": "Liveness check",
+        "command": "oar meta health --json"
+      }
+    ],
+    "adjacent_commands": [
+      "meta.commands.get",
+      "meta.commands.list",
+      "meta.concepts.get",
+      "meta.concepts.list",
+      "meta.handshake",
+      "meta.livez",
+      "meta.ops.health",
+      "meta.readyz",
+      "meta.version"
+    ],
+    "go_method": "MetaHealth",
+    "ts_method": "metaHealth"
+  },
+  {
+    "command_id": "meta.livez",
+    "cli_path": "meta livez",
+    "group": "meta",
+    "method": "GET",
+    "path": "/livez",
+    "operation_id": "livenessCheck",
+    "summary": "Explicit liveness check",
+    "why": "Provide an explicit Kubernetes-style liveness alias for the minimal public probe.",
+    "input_mode": "none",
+    "streaming": {
+      "mode": "none"
+    },
+    "output_envelope": "Returns `{ ok: true }` when the service process is alive.",
+    "concepts": [
+      "health",
+      "liveness"
+    ],
+    "stability": "stable",
+    "surface": "utility",
+    "agent_notes": "Safe and idempotent.",
+    "examples": [
+      {
+        "title": "Liveness alias",
+        "command": "oar api call --method GET --path /livez"
+      }
+    ],
+    "adjacent_commands": [
+      "meta.commands.get",
+      "meta.commands.list",
+      "meta.concepts.get",
+      "meta.concepts.list",
+      "meta.handshake",
+      "meta.health",
+      "meta.ops.health",
+      "meta.readyz",
+      "meta.version"
+    ],
+    "go_method": "MetaLivez",
+    "ts_method": "metaLivez"
+  },
+  {
+    "command_id": "meta.ops.health",
+    "cli_path": "meta ops health",
+    "group": "meta",
+    "method": "GET",
+    "path": "/ops/health",
+    "operation_id": "opsHealthCheck",
+    "summary": "Operator diagnostics health",
+    "why": "Inspect detailed operator diagnostics such as projection-maintenance lag without exposing them on the public liveness/readiness probes.",
+    "input_mode": "none",
+    "streaming": {
+      "mode": "none"
+    },
+    "output_envelope": "Returns `{ ok, projection_maintenance? }` after the readiness check passes.",
+    "error_codes": [
+      "auth_required",
+      "invalid_token",
+      "agent_revoked",
+      "storage_unavailable"
+    ],
+    "concepts": [
+      "health",
+      "readiness",
+      "operations"
+    ],
+    "stability": "stable",
+    "surface": "utility",
+    "agent_notes": "Requires an authenticated principal outside development-mode and loopback verification exceptions. Safe and idempotent.",
+    "examples": [
+      {
+        "title": "Authenticated operator diagnostics",
+        "command": "oar api call --method GET --path /ops/health --header 'Authorization: Bearer \u003caccess-token\u003e'"
+      }
+    ],
+    "adjacent_commands": [
+      "meta.commands.get",
+      "meta.commands.list",
+      "meta.concepts.get",
+      "meta.concepts.list",
+      "meta.handshake",
+      "meta.health",
+      "meta.livez",
+      "meta.readyz",
+      "meta.version"
+    ],
+    "go_method": "MetaOpsHealth",
+    "ts_method": "metaOpsHealth"
+  },
+  {
+    "command_id": "meta.readyz",
+    "cli_path": "meta readyz",
+    "group": "meta",
+    "method": "GET",
+    "path": "/readyz",
+    "operation_id": "readinessCheck",
+    "summary": "Readiness check",
+    "why": "Probe whether core storage is ready before issuing stateful commands or marking the instance ready.",
+    "input_mode": "none",
+    "streaming": {
+      "mode": "none"
+    },
+    "output_envelope": "Returns `{ ok: true }` when the service and storage are ready.",
     "error_codes": [
       "storage_unavailable"
     ],
@@ -3441,8 +3586,8 @@ export const commandRegistry: CommandSpec[] = [
     "agent_notes": "Safe and idempotent; retry with backoff on transport failures.",
     "examples": [
       {
-        "title": "Health check",
-        "command": "oar meta health --json"
+        "title": "Readiness check",
+        "command": "oar api call --method GET --path /readyz"
       }
     ],
     "adjacent_commands": [
@@ -3451,10 +3596,13 @@ export const commandRegistry: CommandSpec[] = [
       "meta.concepts.get",
       "meta.concepts.list",
       "meta.handshake",
+      "meta.health",
+      "meta.livez",
+      "meta.ops.health",
       "meta.version"
     ],
-    "go_method": "MetaHealth",
-    "ts_method": "metaHealth"
+    "go_method": "MetaReadyz",
+    "ts_method": "metaReadyz"
   },
   {
     "command_id": "meta.version",
@@ -3489,7 +3637,10 @@ export const commandRegistry: CommandSpec[] = [
       "meta.concepts.get",
       "meta.concepts.list",
       "meta.handshake",
-      "meta.health"
+      "meta.health",
+      "meta.livez",
+      "meta.ops.health",
+      "meta.readyz"
     ],
     "go_method": "MetaVersion",
     "ts_method": "metaVersion"
@@ -4601,6 +4752,18 @@ export class OarClient {
 
   metaHealth(options: RequestOptions = {}): Promise<InvokeResult> {
     return this.invoke("meta.health", {}, options);
+  }
+
+  metaLivez(options: RequestOptions = {}): Promise<InvokeResult> {
+    return this.invoke("meta.livez", {}, options);
+  }
+
+  metaOpsHealth(options: RequestOptions = {}): Promise<InvokeResult> {
+    return this.invoke("meta.ops.health", {}, options);
+  }
+
+  metaReadyz(options: RequestOptions = {}): Promise<InvokeResult> {
+    return this.invoke("meta.readyz", {}, options);
   }
 
   metaVersion(options: RequestOptions = {}): Promise<InvokeResult> {

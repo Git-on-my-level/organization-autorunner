@@ -31,7 +31,7 @@ seed_workspace_with_artifact() {
     true \
     false
   trap 'stop_background_process "${server_pid:-}"' RETURN
-  wait_for_http_ok "http://127.0.0.1:${listen_port}/health" 20 || die "failed to start temporary seed server"
+  wait_for_http_ok "http://127.0.0.1:${listen_port}/readyz" 20 || die "failed to start temporary seed server"
   curl -fsS \
     -H 'content-type: application/json' \
     -X POST \

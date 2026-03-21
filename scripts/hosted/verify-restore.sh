@@ -11,7 +11,7 @@ usage() {
 Usage: scripts/hosted/verify-restore.sh --instance-root DIR [options]
 
 Starts oar-core against the restored workspace on a loopback port, verifies
-/health, and checks restored metadata counts against the source manifest.
+/readyz, and checks restored metadata counts against the source manifest.
 
 Options:
   --manifest PATH        Manifest to compare against
@@ -19,7 +19,7 @@ Options:
   --core-bin PATH        oar-core binary to use
   --schema-path PATH     Schema path to use
   --listen-port PORT     Explicit loopback verification port
-  --timeout SECONDS      Health wait timeout (default: 20)
+  --timeout SECONDS      Readiness wait timeout (default: 20)
 EOF
 }
 
@@ -196,8 +196,8 @@ start_core_server \
   false \
   true
 
-if ! wait_for_http_ok "http://127.0.0.1:${LISTEN_PORT}/health" "$TIMEOUT_SECONDS"; then
-  die "restore verification could not reach /health on 127.0.0.1:${LISTEN_PORT}; see ${SERVER_LOG_FILE}"
+if ! wait_for_http_ok "http://127.0.0.1:${LISTEN_PORT}/readyz" "$TIMEOUT_SECONDS"; then
+  die "restore verification could not reach /readyz on 127.0.0.1:${LISTEN_PORT}; see ${SERVER_LOG_FILE}"
 fi
 
 ACTUAL_ARTIFACT_COUNT="$(sqlite_scalar "${WORKSPACE_ROOT}/state.sqlite" "SELECT COUNT(*) FROM artifacts;")"
@@ -278,7 +278,7 @@ fi
 verify_referenced_blob_reachability
 
 log "Restore verification succeeded for ${INSTANCE_ROOT}"
-log "  /health:                 ok"
+log "  /readyz:                 ok"
 log "  artifact count:          ${ACTUAL_ARTIFACT_COUNT}"
 log "  agent count:             ${ACTUAL_AGENT_COUNT}"
 log "  invite count:            ${ACTUAL_INVITE_COUNT}"

@@ -16,7 +16,7 @@ The hosted ops bundle lives under `scripts/hosted/`:
   SQLite backup, blob copy, and checksums
 - `restore-workspace.sh`: restore a bundle into an empty target by default
 - `verify-restore.sh`: start `oar-core` against the restored workspace on a
-  loopback port, verify `/health`, and compare restored counts to the manifest
+  loopback port, verify `/readyz`, and compare restored counts to the manifest
 - `smoke-test.sh`: local end-to-end provision → backup → restore → verify path
 
 Minimum operator dependencies:
@@ -93,7 +93,7 @@ For source-run or launchd deployments, use the same values from
 ### 3. Confirm the empty deployment is healthy
 
 ```bash
-curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/readyz
 curl -fsS http://127.0.0.1:8001/auth/bootstrap/status
 ```
 
@@ -199,8 +199,10 @@ Verify the restored workspace before directing real traffic at it:
 
 Verification checks:
 
-- `GET /health` succeeds against a loopback-only temporary server
+- `GET /readyz` succeeds against a loopback-only temporary server
 - artifact, agent, invite, and blob counts still match the backup manifest
+
+Use `GET /ops/health` only for authenticated or loopback-only operator diagnostics such as projection-maintenance lag.
 
 ## Disaster recovery expectations
 

@@ -103,6 +103,9 @@ export declare class OarClient {
     metaConceptsList(options?: RequestOptions): Promise<InvokeResult>;
     metaHandshake(options?: RequestOptions): Promise<InvokeResult>;
     metaHealth(options?: RequestOptions): Promise<InvokeResult>;
+    metaLivez(options?: RequestOptions): Promise<InvokeResult>;
+    metaOpsHealth(options?: RequestOptions): Promise<InvokeResult>;
+    metaReadyz(options?: RequestOptions): Promise<InvokeResult>;
     metaVersion(options?: RequestOptions): Promise<InvokeResult>;
     packetsReceiptsCreate(options?: RequestOptions): Promise<InvokeResult>;
     packetsReviewsCreate(options?: RequestOptions): Promise<InvokeResult>;

@@ -996,7 +996,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"meta", "introspection"},
-		Adjacent:   []string{"meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:   []string{"meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "Read command metadata",
@@ -1013,7 +1013,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"meta", "introspection"},
-		Adjacent:  []string{"meta.commands.get", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:  []string{"meta.commands.get", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "List command metadata",
@@ -1031,7 +1031,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"meta", "concepts"},
-		Adjacent:   []string{"meta.commands.get", "meta.commands.list", "meta.concepts.list", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:   []string{"meta.commands.get", "meta.commands.list", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "Read one concept",
@@ -1048,7 +1048,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"meta", "concepts"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "List concepts",
@@ -1065,7 +1065,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"compatibility", "handshake"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.health", "meta.version"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "Read handshake metadata",
@@ -1081,12 +1081,63 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/health",
 		InputMode: "none",
 		Stability: "stable",
-		Concepts:  []string{"health", "readiness"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.version"},
+		Concepts:  []string{"health", "liveness"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
-				Title:   "Health check",
+				Title:   "Liveness check",
 				Command: "oar meta health --json",
+			},
+		},
+	},
+	{
+		CommandID: "meta.livez",
+		CLIPath:   "meta livez",
+		Group:     "meta",
+		Method:    "GET",
+		Path:      "/livez",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"health", "liveness"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.ops.health", "meta.readyz", "meta.version"},
+		Examples: []Example{
+			{
+				Title:   "Liveness alias",
+				Command: "oar api call --method GET --path /livez",
+			},
+		},
+	},
+	{
+		CommandID: "meta.ops.health",
+		CLIPath:   "meta ops health",
+		Group:     "meta",
+		Method:    "GET",
+		Path:      "/ops/health",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"health", "readiness", "operations"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.readyz", "meta.version"},
+		Examples: []Example{
+			{
+				Title:   "Authenticated operator diagnostics",
+				Command: "oar api call --method GET --path /ops/health --header 'Authorization: Bearer <access-token>'",
+			},
+		},
+	},
+	{
+		CommandID: "meta.readyz",
+		CLIPath:   "meta readyz",
+		Group:     "meta",
+		Method:    "GET",
+		Path:      "/readyz",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"health", "readiness"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.version"},
+		Examples: []Example{
+			{
+				Title:   "Readiness check",
+				Command: "oar api call --method GET --path /readyz",
 			},
 		},
 	},
@@ -1099,7 +1150,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "stable",
 		Concepts:  []string{"compatibility", "schema"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz"},
 		Examples: []Example{
 			{
 				Title:   "Read version",
@@ -1667,6 +1718,18 @@ func (c *Client) MetaHandshake(ctx context.Context, opts RequestOptions) (*http.
 
 func (c *Client) MetaHealth(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "meta.health", nil, opts)
+}
+
+func (c *Client) MetaLivez(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.livez", nil, opts)
+}
+
+func (c *Client) MetaOpsHealth(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.ops.health", nil, opts)
+}
+
+func (c *Client) MetaReadyz(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.readyz", nil, opts)
 }
 
 func (c *Client) MetaVersion(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
