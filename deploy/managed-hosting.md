@@ -166,8 +166,29 @@ The backup bundle contains:
 - `SHA256SUMS`
 - `workspace/state.sqlite`
 - `workspace/artifacts/content/`
-- `config/env.production` if present
 - `metadata/` if present
+
+By default, `config/env.production` is **not** included in the backup bundle. This
+makes the default backup safer to store, transfer, and share because it contains
+no deployment secrets (bootstrap tokens, etc.).
+
+The manifest records whether config was included via `CONFIG_INCLUDED` and
+`CONFIG_ENV_PATH` fields, making it unambiguous whether a bundle contains secrets.
+
+### Secret-inclusive backups
+
+If you need a self-contained bundle that includes deployment secrets:
+
+```bash
+./scripts/hosted/backup-workspace.sh \
+  --instance-root /srv/oar/team-alpha \
+  --output-dir /var/backups/oar/team-alpha-with-secrets-$(date -u +%Y%m%dT%H%M%SZ) \
+  --include-config-secrets
+```
+
+WARNING: This creates a bundle containing `config/env.production` with live
+secrets. Handle secret-inclusive bundles with the same care as the source
+deployment.
 
 The SQLite copy is produced with `sqlite3 .backup`, so online backups remain
 boring and predictable.

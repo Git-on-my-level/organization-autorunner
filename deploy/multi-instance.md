@@ -302,13 +302,17 @@ Provision one deployment root:
   --generate-bootstrap-token
 ```
 
-Back it up:
+Back it up (default: secret-free):
 
 ```bash
 ./scripts/hosted/backup-workspace.sh \
   --instance-root ~/.oar/team-alpha \
   --output-dir /backups/team-alpha-$(date -u +%Y%m%dT%H%M%SZ)
 ```
+
+By default, backup bundles do not include `config/env.production` for security.
+Use `--include-config-secrets` only when you need a self-contained bundle with
+deployment secrets.
 
 Restore it:
 
