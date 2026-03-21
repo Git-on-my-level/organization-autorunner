@@ -16,7 +16,7 @@ The hosted ops bundle lives under `scripts/hosted/`:
   SQLite backup, blob copy, and checksums
 - `restore-workspace.sh`: restore a bundle into an empty target by default
 - `verify-restore.sh`: start `oar-core` against the restored workspace on a
-  loopback port, verify `/health`, and compare restored counts to the manifest
+  loopback port, verify `/readyz`, and compare restored counts to the manifest
 - `smoke-test.sh`: local end-to-end provision → backup → restore → verify path
 
 Minimum operator dependencies:
@@ -93,7 +93,7 @@ For source-run or launchd deployments, use the same values from
 ### 3. Confirm the empty deployment is healthy
 
 ```bash
-curl -fsS http://127.0.0.1:8001/health
+curl -fsS http://127.0.0.1:8001/readyz
 curl -fsS http://127.0.0.1:8001/auth/bootstrap/status
 ```
 
@@ -166,8 +166,29 @@ The backup bundle contains:
 - `SHA256SUMS`
 - `workspace/state.sqlite`
 - `workspace/artifacts/content/`
-- `config/env.production` if present
 - `metadata/` if present
+
+By default, `config/env.production` is **not** included in the backup bundle. This
+makes the default backup safer to store, transfer, and share because it contains
+no deployment secrets (bootstrap tokens, etc.).
+
+The manifest records whether config was included via `CONFIG_INCLUDED` and
+`CONFIG_ENV_PATH` fields, making it unambiguous whether a bundle contains secrets.
+
+### Secret-inclusive backups
+
+If you need a self-contained bundle that includes deployment secrets:
+
+```bash
+./scripts/hosted/backup-workspace.sh \
+  --instance-root /srv/oar/team-alpha \
+  --output-dir /var/backups/oar/team-alpha-with-secrets-$(date -u +%Y%m%dT%H%M%SZ) \
+  --include-config-secrets
+```
+
+WARNING: This creates a bundle containing `config/env.production` with live
+secrets. Handle secret-inclusive bundles with the same care as the source
+deployment.
 
 The SQLite copy is produced with `sqlite3 .backup`, so online backups remain
 boring and predictable.
@@ -199,8 +220,10 @@ Verify the restored workspace before directing real traffic at it:
 
 Verification checks:
 
-- `GET /health` succeeds against a loopback-only temporary server
+- `GET /readyz` succeeds against a loopback-only temporary server
 - artifact, agent, invite, and blob counts still match the backup manifest
+
+Use `GET /ops/health` only for authenticated or loopback-only operator diagnostics such as projection-maintenance lag.
 
 ## Disaster recovery expectations
 

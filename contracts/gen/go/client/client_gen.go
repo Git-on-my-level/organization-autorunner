@@ -131,7 +131,7 @@ var CommandRegistry = []CommandSpec{
 		Group:     "agents",
 		Method:    "POST",
 		Path:      "/agents/me/revoke",
-		InputMode: "none",
+		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "revocation"},
 		Adjacent:  []string{"agents.me.get", "agents.me.keys.rotate", "agents.me.patch"},
@@ -239,7 +239,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "identity"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "Bootstrap first agent",
@@ -260,7 +260,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"auth", "audit"},
-		Adjacent:  []string{"auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "List auth audit events",
@@ -277,7 +277,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"auth", "onboarding"},
-		Adjacent:  []string{"auth.audit.list", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "Read bootstrap status",
@@ -294,7 +294,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "onboarding"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "Create agent invite",
@@ -311,7 +311,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"auth", "onboarding"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "List invites",
@@ -329,7 +329,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"auth", "onboarding"},
-		Adjacent:   []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:   []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "Revoke invite",
@@ -346,7 +346,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 	},
 	{
 		CommandID: "auth.passkey.login.verify",
@@ -357,7 +357,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 	},
 	{
 		CommandID: "auth.passkey.register.options",
@@ -368,7 +368,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 	},
 	{
 		CommandID: "auth.passkey.register.verify",
@@ -379,7 +379,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 	},
 	{
 		CommandID: "auth.principals.list",
@@ -390,11 +390,33 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"auth", "identity"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.agents.register", "auth.token"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.revoke", "auth.agents.register", "auth.token"},
 		Examples: []Example{
 			{
 				Title:   "List principals",
 				Command: "oar auth principals list --json",
+			},
+		},
+	},
+	{
+		CommandID:  "auth.principals.revoke",
+		CLIPath:    "auth principals revoke",
+		Group:      "auth",
+		Method:     "POST",
+		Path:       "/auth/principals/{agent_id}/revoke",
+		PathParams: []string{"agent_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"auth", "identity", "revocation"},
+		Adjacent:   []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
+		Examples: []Example{
+			{
+				Title:   "Revoke a principal",
+				Command: "oar auth principals revoke --agent-id agent_123 --json",
+			},
+			{
+				Title:   "Force revoke the last active principal",
+				Command: "oar auth principals revoke --agent-id agent_123 --force-last-active --json",
 			},
 		},
 	},
@@ -407,7 +429,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"auth", "token-lifecycle"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register"},
+		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register"},
 		Examples: []Example{
 			{
 				Title:   "Refresh token grant",
@@ -974,7 +996,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"meta", "introspection"},
-		Adjacent:   []string{"meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:   []string{"meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "Read command metadata",
@@ -991,7 +1013,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"meta", "introspection"},
-		Adjacent:  []string{"meta.commands.get", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:  []string{"meta.commands.get", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "List command metadata",
@@ -1009,7 +1031,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"meta", "concepts"},
-		Adjacent:   []string{"meta.commands.get", "meta.commands.list", "meta.concepts.list", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:   []string{"meta.commands.get", "meta.commands.list", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "Read one concept",
@@ -1026,7 +1048,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"meta", "concepts"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.handshake", "meta.health", "meta.version"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "List concepts",
@@ -1043,7 +1065,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"compatibility", "handshake"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.health", "meta.version"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
 				Title:   "Read handshake metadata",
@@ -1059,12 +1081,63 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/health",
 		InputMode: "none",
 		Stability: "stable",
-		Concepts:  []string{"health", "readiness"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.version"},
+		Concepts:  []string{"health", "liveness"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
 		Examples: []Example{
 			{
-				Title:   "Health check",
+				Title:   "Liveness check",
 				Command: "oar meta health --json",
+			},
+		},
+	},
+	{
+		CommandID: "meta.livez",
+		CLIPath:   "meta livez",
+		Group:     "meta",
+		Method:    "GET",
+		Path:      "/livez",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"health", "liveness"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.ops.health", "meta.readyz", "meta.version"},
+		Examples: []Example{
+			{
+				Title:   "Liveness alias",
+				Command: "oar api call --method GET --path /livez",
+			},
+		},
+	},
+	{
+		CommandID: "meta.ops.health",
+		CLIPath:   "meta ops health",
+		Group:     "meta",
+		Method:    "GET",
+		Path:      "/ops/health",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"health", "readiness", "operations"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.readyz", "meta.version"},
+		Examples: []Example{
+			{
+				Title:   "Authenticated operator diagnostics",
+				Command: "oar api call --method GET --path /ops/health --header 'Authorization: Bearer <access-token>'",
+			},
+		},
+	},
+	{
+		CommandID: "meta.readyz",
+		CLIPath:   "meta readyz",
+		Group:     "meta",
+		Method:    "GET",
+		Path:      "/readyz",
+		InputMode: "none",
+		Stability: "stable",
+		Concepts:  []string{"health", "readiness"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.version"},
+		Examples: []Example{
+			{
+				Title:   "Readiness check",
+				Command: "oar api call --method GET --path /readyz",
 			},
 		},
 	},
@@ -1077,7 +1150,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "stable",
 		Concepts:  []string{"compatibility", "schema"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health"},
+		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz"},
 		Examples: []Example{
 			{
 				Title:   "Read version",
@@ -1499,6 +1572,10 @@ func (c *Client) AuthPrincipalsList(ctx context.Context, opts RequestOptions) (*
 	return c.Invoke(ctx, "auth.principals.list", nil, opts)
 }
 
+func (c *Client) AuthPrincipalsRevoke(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "auth.principals.revoke", pathParams, opts)
+}
+
 func (c *Client) AuthToken(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "auth.token", nil, opts)
 }
@@ -1641,6 +1718,18 @@ func (c *Client) MetaHandshake(ctx context.Context, opts RequestOptions) (*http.
 
 func (c *Client) MetaHealth(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "meta.health", nil, opts)
+}
+
+func (c *Client) MetaLivez(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.livez", nil, opts)
+}
+
+func (c *Client) MetaOpsHealth(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.ops.health", nil, opts)
+}
+
+func (c *Client) MetaReadyz(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "meta.readyz", nil, opts)
 }
 
 func (c *Client) MetaVersion(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {

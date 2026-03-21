@@ -138,7 +138,7 @@ seed_workspace_fixture() {
     true \
     false
   trap 'stop_background_process "${server_pid:-}"' RETURN
-  wait_for_http_ok "http://127.0.0.1:${listen_port}/health" 20 || die "failed to start temporary core for test fixture"
+  wait_for_http_ok "http://127.0.0.1:${listen_port}/readyz" 20 || die "failed to start temporary core for test fixture"
 
   curl -fsS \
     -H 'content-type: application/json' \
@@ -227,11 +227,13 @@ assert_file_exists "${BACKUP_DIR}/manifest.env"
 assert_file_exists "${BACKUP_DIR}/SHA256SUMS"
 assert_file_exists "${BACKUP_DIR}/workspace/state.sqlite"
 assert_dir_exists "${BACKUP_DIR}/workspace/artifacts/content"
-assert_file_exists "${BACKUP_DIR}/config/env.production"
+assert_path_missing "${BACKUP_DIR}/config/env.production"
 assert_file_exists "${BACKUP_DIR}/metadata/instance.env"
 
 assert_equals "${HOSTED_BACKUP_FORMAT_VERSION}" "$(manifest_get "${BACKUP_DIR}/manifest.env" FORMAT_VERSION)" "manifest format version"
 assert_equals "${HOSTED_INSTANCE_FORMAT_VERSION}" "$(manifest_get "${BACKUP_DIR}/manifest.env" INSTANCE_FORMAT_VERSION)" "manifest instance format version"
+assert_equals "false" "$(manifest_get "${BACKUP_DIR}/manifest.env" CONFIG_INCLUDED)" "manifest config included (default)"
+assert_equals "" "$(manifest_get "${BACKUP_DIR}/manifest.env" CONFIG_ENV_PATH)" "manifest config env path (default)"
 assert_equals "2" "$(manifest_get "${BACKUP_DIR}/manifest.env" ARTIFACT_COUNT)" "artifact count"
 assert_equals "1" "$(manifest_get "${BACKUP_DIR}/manifest.env" DOCUMENT_COUNT)" "document count"
 assert_equals "1" "$(manifest_get "${BACKUP_DIR}/manifest.env" DOCUMENT_REVISION_COUNT)" "document revision count"
@@ -246,6 +248,23 @@ assert_equals "ops-runbook" "$(manifest_get "${BACKUP_DIR}/manifest.env" VERIFY_
 [[ -n "$(manifest_get "${BACKUP_DIR}/manifest.env" VERIFY_DOCUMENT_REVISION_ID)" ]] || die "expected manifest verify document revision id"
 grep -q 'manifest.env' "${BACKUP_DIR}/SHA256SUMS" || die "expected SHA256SUMS to include manifest.env"
 grep -q 'workspace/state.sqlite' "${BACKUP_DIR}/SHA256SUMS" || die "expected SHA256SUMS to include sqlite backup"
+
+BACKUP_WITH_SECRETS_DIR="${TMP_ROOT}/backup-bundle-with-secrets"
+"${SCRIPT_DIR}/backup-workspace.sh" \
+  --instance-root "$INSTANCE_ROOT" \
+  --output-dir "$BACKUP_WITH_SECRETS_DIR" \
+  --include-config-secrets
+BACKUP_WITH_SECRETS_DIR="$(cd "$BACKUP_WITH_SECRETS_DIR" && pwd -P)"
+
+assert_file_exists "${BACKUP_WITH_SECRETS_DIR}/manifest.env"
+assert_file_exists "${BACKUP_WITH_SECRETS_DIR}/SHA256SUMS"
+assert_file_exists "${BACKUP_WITH_SECRETS_DIR}/workspace/state.sqlite"
+assert_dir_exists "${BACKUP_WITH_SECRETS_DIR}/workspace/artifacts/content"
+assert_file_exists "${BACKUP_WITH_SECRETS_DIR}/config/env.production"
+assert_file_exists "${BACKUP_WITH_SECRETS_DIR}/metadata/instance.env"
+
+assert_equals "true" "$(manifest_get "${BACKUP_WITH_SECRETS_DIR}/manifest.env" CONFIG_INCLUDED)" "manifest config included (with secrets)"
+assert_equals "config/env.production" "$(manifest_get "${BACKUP_WITH_SECRETS_DIR}/manifest.env" CONFIG_ENV_PATH)" "manifest config env path (with secrets)"
 
 mkdir -p "$NON_EMPTY_RESTORE_ROOT"
 echo "occupied" >"${NON_EMPTY_RESTORE_ROOT}/keep.txt"
@@ -351,5 +370,39 @@ assert_command_fails "$MISSING_DOC_ERR" \
   --core-bin "$CORE_BIN" \
   --schema-path "$SCHEMA_PATH"
 assert_file_contains "$MISSING_DOC_ERR" "document revision request returned HTTP 404" "missing document revision verification failure"
+
+RESTORE_WITH_SECRETS_ROOT="${TMP_ROOT}/restored/team-gamma"
+"${SCRIPT_DIR}/restore-workspace.sh" \
+  --backup-dir "$BACKUP_WITH_SECRETS_DIR" \
+  --target-instance-root "$RESTORE_WITH_SECRETS_ROOT" \
+  --instance "team-gamma" \
+  --public-origin "https://team-gamma.example.test" \
+  --listen-port 8016 \
+  --web-ui-port 3016 \
+  --core-instance-id "team-gamma-core"
+RESTORE_WITH_SECRETS_ROOT="$(cd "$RESTORE_WITH_SECRETS_ROOT" && pwd -P)"
+
+"${SCRIPT_DIR}/verify-restore.sh" \
+  --instance-root "$RESTORE_WITH_SECRETS_ROOT" \
+  --core-bin "$CORE_BIN" \
+  --schema-path "$SCHEMA_PATH"
+
+assert_equals "${RESTORE_WITH_SECRETS_ROOT}/workspace" "$(dotenv_get "${RESTORE_WITH_SECRETS_ROOT}/config/env.production" HOST_OAR_WORKSPACE_ROOT)" "restore with secrets workspace root"
+assert_equals "team-gamma-core" "$(dotenv_get "${RESTORE_WITH_SECRETS_ROOT}/config/env.production" OAR_CORE_INSTANCE_ID)" "restore with secrets instance id"
+assert_equals "$HOSTED_BOOTSTRAP_PLACEHOLDER" "$(dotenv_get "${RESTORE_WITH_SECRETS_ROOT}/config/env.production" OAR_BOOTSTRAP_TOKEN)" "restore with secrets bootstrap token default"
+
+KEEP_SOURCE_ERR="${TMP_ROOT}/keep-source-err"
+if "${SCRIPT_DIR}/restore-workspace.sh" \
+  --backup-dir "$BACKUP_DIR" \
+  --target-instance-root "${TMP_ROOT}/restored/keep-source-should-fail" \
+  --instance "keep-source-test" \
+  --public-origin "https://keep-source.example.test" \
+  --listen-port 8017 \
+  --web-ui-port 3017 \
+  --bootstrap-token-mode keep-source \
+  >"${KEEP_SOURCE_ERR}.out" 2>"$KEEP_SOURCE_ERR"; then
+  die "keep-source should fail for secret-free bundle"
+fi
+assert_file_contains "$KEEP_SOURCE_ERR" "does not include config secrets" "keep-source failure message"
 
 log "Hosted ops tests passed."

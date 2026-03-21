@@ -48,10 +48,11 @@ type PrimitiveStore interface {
 	GetDerivedThreadProjectionQueueStats(ctx context.Context) (primitives.DerivedThreadProjectionQueueStats, error)
 	ListDocuments(ctx context.Context, filter primitives.DocumentListFilter) ([]map[string]any, string, error)
 	MarkThreadProjectionsDirty(ctx context.Context, threadIDs []string, queuedAt time.Time) error
+	RequeueThreadProjectionRefresh(ctx context.Context, threadID string, queuedAt time.Time) error
 	GetThreadProjectionRefreshStatuses(ctx context.Context, threadIDs []string) (map[string]primitives.ThreadProjectionRefreshStatus, error)
-	MarkThreadProjectionRefreshStarted(ctx context.Context, threadID string, startedAt time.Time) error
-	MarkThreadProjectionRefreshSucceeded(ctx context.Context, threadID string, completedAt time.Time) error
-	MarkThreadProjectionRefreshFailed(ctx context.Context, threadID string, failedAt time.Time, message string) error
+	MarkThreadProjectionRefreshStarted(ctx context.Context, threadID string, startedAt time.Time) (int64, error)
+	MarkThreadProjectionRefreshSucceeded(ctx context.Context, threadID string, completedGeneration int64, completedAt time.Time) error
+	MarkThreadProjectionRefreshFailed(ctx context.Context, threadID string, failedGeneration int64, failedAt time.Time, message string) error
 	CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
 	GetDocument(ctx context.Context, documentID string) (map[string]any, map[string]any, error)
 	UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
@@ -308,6 +309,30 @@ func isLoopbackRequest(r *http.Request) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+func writeLivenessOK(w http.ResponseWriter) {
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func readinessErrorPayload(r *http.Request, opts handlerOptions) map[string]any {
+	if opts.healthCheck != nil {
+		if err := opts.healthCheck(r.Context()); err != nil {
+			return map[string]any{
+				"ok":    false,
+				"error": errorPayload("storage_unavailable", "storage health check failed"),
+			}
+		}
+	}
+	return nil
+}
+
+func checkReadiness(w http.ResponseWriter, r *http.Request, opts handlerOptions) bool {
+	if payload := readinessErrorPayload(r, opts); payload != nil {
+		writeJSON(w, http.StatusServiceUnavailable, payload)
+		return false
+	}
+	return true
+}
+
 func enforceRouteAccess(w http.ResponseWriter, r *http.Request, opts handlerOptions, requirement routeAccessRequirement) bool {
 	if !requirement.supported {
 		return true
@@ -394,20 +419,44 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
 			return
 		}
+		writeLivenessOK(w)
+	})
 
-		if opts.healthCheck != nil {
-			if err := opts.healthCheck(r.Context()); err != nil {
-				writeJSON(w, http.StatusServiceUnavailable, map[string]any{
-					"ok":    false,
-					"error": errorPayload("storage_unavailable", "storage health check failed"),
-				})
-				return
-			}
+	registerRoute("/livez", exactRouteAccess(routeAccessAlwaysPublic, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		writeLivenessOK(w)
+	})
+
+	registerRoute("/readyz", exactRouteAccess(routeAccessAlwaysPublic, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		if !checkReadiness(w, r, opts) {
+			return
+		}
+		writeLivenessOK(w)
+	})
+
+	registerRoute("/ops/health", exactRouteAccess(routeAccessWorkspaceBusiness, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
 		}
 
 		payload := map[string]any{"ok": true}
 		if opts.projectionMaintainer != nil {
 			payload["projection_maintenance"] = opts.projectionMaintainer.Snapshot(r.Context(), time.Now().UTC())
+		}
+		if readinessPayload := readinessErrorPayload(r, opts); readinessPayload != nil {
+			for key, value := range readinessPayload {
+				payload[key] = value
+			}
+			writeJSON(w, http.StatusServiceUnavailable, payload)
+			return
 		}
 		writeJSON(w, http.StatusOK, payload)
 	})
@@ -530,6 +579,34 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return
 		}
 		handleListAuthPrincipals(w, r, opts)
+	})
+
+	registerRoute("/auth/principals/", func(r *http.Request) routeAccessRequirement {
+		remainder := strings.TrimPrefix(r.URL.Path, "/auth/principals/")
+		if remainder == "" {
+			return routeAccessRequirement{}
+		}
+		if strings.Count(remainder, "/") != 1 || !strings.HasSuffix(remainder, "/revoke") {
+			return routeAccessRequirement{}
+		}
+		agentID := strings.TrimSuffix(remainder, "/revoke")
+		agentID = strings.TrimSuffix(agentID, "/")
+		if strings.TrimSpace(agentID) == "" || strings.Contains(agentID, "/") {
+			return routeAccessRequirement{}
+		}
+		return exactRouteAccess(routeAccessAuthenticatedPrincipal, http.MethodPost)(r)
+	}, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+			return
+		}
+		remainder := strings.TrimPrefix(r.URL.Path, "/auth/principals/")
+		agentID := strings.TrimSuffix(strings.TrimSuffix(remainder, "/revoke"), "/")
+		if agentID == "" || strings.Contains(agentID, "/") {
+			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+			return
+		}
+		handleRevokePrincipal(w, r, opts, agentID)
 	})
 
 	registerRoute("/auth/audit", exactRouteAccess(routeAccessAuthenticatedPrincipal, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
@@ -1451,7 +1528,7 @@ func shouldEnforceCLIVersion(path string) bool {
 		return false
 	}
 	switch path {
-	case "/health", "/version", "/meta/handshake", "/auth/token", "/auth/agents/register", "/auth/bootstrap/status":
+	case "/health", "/livez", "/readyz", "/ops/health", "/version", "/meta/handshake", "/auth/token", "/auth/agents/register", "/auth/bootstrap/status":
 		return false
 	}
 	if strings.HasPrefix(path, "/auth/passkey/") {

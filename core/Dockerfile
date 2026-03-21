@@ -39,7 +39,7 @@ VOLUME ["/var/lib/oar/workspace"]
 EXPOSE 8000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=5s --retries=3 \
-  CMD ["curl", "-sf", "http://127.0.0.1:8000/health"]
+  CMD ["curl", "-sf", "http://127.0.0.1:8000/readyz"]
 
 USER oar
 

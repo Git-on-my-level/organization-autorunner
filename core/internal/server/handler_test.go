@@ -13,8 +13,60 @@ import (
 func TestHealthEndpoint(t *testing.T) {
 	t.Parallel()
 
-	handler := NewHandler("0.2.2")
+	handler := NewHandler("0.2.2", WithHealthCheck(func(context.Context) error {
+		return errors.New("database unavailable")
+	}))
 	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode body: %v", err)
+	}
+	if payload["ok"] != true {
+		t.Fatalf("expected ok=true, got %#v", payload)
+	}
+	if len(payload) != 1 {
+		t.Fatalf("expected minimal liveness payload, got %#v", payload)
+	}
+}
+
+func TestLivezEndpoint(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler("0.2.2")
+	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode body: %v", err)
+	}
+	if payload["ok"] != true {
+		t.Fatalf("expected ok=true, got %#v", payload)
+	}
+	if len(payload) != 1 {
+		t.Fatalf("expected minimal liveness payload, got %#v", payload)
+	}
+}
+
+func TestReadyzEndpoint(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler("0.2.2")
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -117,7 +169,7 @@ func TestMethodNotAllowed(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler("0.2.2")
-	req := httptest.NewRequest(http.MethodPost, "/health", nil)
+	req := httptest.NewRequest(http.MethodPost, "/readyz", nil)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -142,13 +194,13 @@ func TestMethodNotAllowed(t *testing.T) {
 	}
 }
 
-func TestHealthEndpointStorageError(t *testing.T) {
+func TestReadyzEndpointStorageError(t *testing.T) {
 	t.Parallel()
 
 	handler := NewHandler("0.2.2", WithHealthCheck(func(context.Context) error {
 		return errors.New("database unavailable")
 	}))
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -188,6 +240,44 @@ func TestLoopbackVerificationReadsAllowReadOnlyWorkspaceRoutes(t *testing.T) {
 
 	if rr.Code != http.StatusServiceUnavailable {
 		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestOpsHealthRejectsUnauthenticatedNonLoopbackRequests(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler("0.2.2")
+	req := httptest.NewRequest(http.MethodGet, "/ops/health", nil)
+	req.RemoteAddr = "192.0.2.10:43123"
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestLoopbackVerificationReadsAllowOpsHealth(t *testing.T) {
+	t.Parallel()
+
+	handler := NewHandler("0.2.2", WithAllowLoopbackVerificationReads(true))
+	req := httptest.NewRequest(http.MethodGet, "/ops/health", nil)
+	req.RemoteAddr = "127.0.0.1:43123"
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("unexpected status: got %d want %d", rr.Code, http.StatusOK)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("failed to decode body: %v", err)
+	}
+	if payload["ok"] != true {
+		t.Fatalf("expected ok=true, got %#v", payload)
 	}
 }
 

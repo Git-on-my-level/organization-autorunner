@@ -200,7 +200,7 @@ func TestProjectionMaintainerStepClearsPendingStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetThreadProjectionRefreshStatuses: %v", err)
 	}
-	if !statuses[threadID].IsDirty {
+	if !statuses[threadID].IsDirty() {
 		t.Fatalf("expected thread %s to be marked dirty before worker runs, got %#v", threadID, statuses[threadID])
 	}
 
@@ -223,7 +223,7 @@ func TestProjectionMaintainerStepClearsPendingStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetThreadProjectionRefreshStatuses after worker: %v", err)
 	}
-	if statuses[threadID].IsDirty || statuses[threadID].InProgress || statuses[threadID].LastErrorMessage != "" {
+	if statuses[threadID].IsDirty() || statuses[threadID].InProgress() || statuses[threadID].LastErrorMessage != "" {
 		t.Fatalf("expected clean refresh status after worker run, got %#v", statuses[threadID])
 	}
 }

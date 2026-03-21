@@ -95,8 +95,9 @@ SOURCE_FORMAT_VERSION="$(manifest_get "$SOURCE_MANIFEST" FORMAT_VERSION || true)
 validate_backup_format_version "$SOURCE_FORMAT_VERSION"
 verify_backup_checksums "$BACKUP_DIR"
 SOURCE_BOOTSTRAP_STATE="$(manifest_get "$SOURCE_MANIFEST" BOOTSTRAP_STATE || true)"
+SOURCE_CONFIG_INCLUDED="$(manifest_get "$SOURCE_MANIFEST" CONFIG_INCLUDED || true)"
 SOURCE_BOOTSTRAP_TOKEN=""
-if [[ -f "$SOURCE_ENV_FILE" ]]; then
+if [[ "$SOURCE_CONFIG_INCLUDED" == "true" && -f "$SOURCE_ENV_FILE" ]]; then
   SOURCE_BOOTSTRAP_TOKEN="$(dotenv_get "$SOURCE_ENV_FILE" OAR_BOOTSTRAP_TOKEN || true)"
 fi
 
@@ -157,6 +158,8 @@ case "$BOOTSTRAP_TOKEN_MODE" in
       provision_args+=(--bootstrap-token "$SOURCE_BOOTSTRAP_TOKEN")
     elif [[ "${SOURCE_BOOTSTRAP_STATE:-disabled}" == "disabled" ]]; then
       provision_args+=(--clear-bootstrap-token)
+    elif [[ "$SOURCE_CONFIG_INCLUDED" != "true" ]]; then
+      die "backup bundle does not include config secrets; cannot use keep-source mode (use placeholder or clear instead)"
     else
       die "backup bundle does not include a reusable source bootstrap token"
     fi

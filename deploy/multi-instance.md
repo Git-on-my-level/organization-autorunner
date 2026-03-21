@@ -92,8 +92,8 @@ Each `--instance` call:
 ### 3. Verify
 
 ```bash
-curl -fsS http://127.0.0.1:8001/health
-curl -fsS http://127.0.0.1:8002/health
+curl -fsS http://127.0.0.1:8001/readyz
+curl -fsS http://127.0.0.1:8002/readyz
 
 # Check handshake metadata (includes core_instance_id)
 curl -fsS http://127.0.0.1:8001/meta/handshake | jq .core_instance_id
@@ -172,7 +172,7 @@ TLS, routing, and public-facing concerns.
 | Forwarded headers | Proxy must set `X-Forwarded-Proto` and `X-Forwarded-Host` |
 | SSE streaming | Do not buffer SSE responses (core sets `X-Accel-Buffering: no`) |
 | WebAuthn | Set `OAR_WEBAUTHN_RPID` / `OAR_WEBAUTHN_ORIGIN` if proxy hostname differs from core listen address |
-| Health checks | Use `GET /health` for upstream health checking |
+| Health checks | Use `GET /readyz` for upstream readiness checks; reserve `GET /ops/health` for operator diagnostics |
 
 ### Routing strategies
 
@@ -203,7 +203,7 @@ team-alpha.oar.example.com {
         flush_interval -1
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
-        health_uri /health
+        health_uri /readyz
         health_interval 30s
     }
 }
@@ -213,7 +213,7 @@ team-beta.oar.example.com {
         flush_interval -1
         header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Host {host}
-        health_uri /health
+        health_uri /readyz
         health_interval 30s
     }
 }
@@ -302,13 +302,17 @@ Provision one deployment root:
   --generate-bootstrap-token
 ```
 
-Back it up:
+Back it up (default: secret-free):
 
 ```bash
 ./scripts/hosted/backup-workspace.sh \
   --instance-root ~/.oar/team-alpha \
   --output-dir /backups/team-alpha-$(date -u +%Y%m%dT%H%M%SZ)
 ```
+
+By default, backup bundles do not include `config/env.production` for security.
+Use `--include-config-secrets` only when you need a self-contained bundle with
+deployment secrets.
 
 Restore it:
 

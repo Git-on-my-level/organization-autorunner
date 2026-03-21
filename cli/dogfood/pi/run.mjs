@@ -552,7 +552,7 @@ async function waitForCore(baseUrl, timeoutMs) {
   let lastError = "unknown";
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${baseUrl}/health`);
+      const response = await fetch(`${baseUrl}/readyz`);
       if (response.ok) {
         return;
       }

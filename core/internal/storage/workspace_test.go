@@ -234,6 +234,180 @@ func TestWorkspaceMigrationRemovesArtifactContentPathAndPreservesHashReads(t *te
 	}
 }
 
+func TestWorkspaceMigrationBackfillsProjectionGenerationsConservatively(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	workspaceRoot := t.TempDir()
+	layout := storage.NewLayout(workspaceRoot)
+	if err := os.MkdirAll(layout.RootDir, 0o755); err != nil {
+		t.Fatalf("create workspace root: %v", err)
+	}
+
+	legacyDB, err := sql.Open("sqlite", "file:"+layout.DatabasePath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite database: %v", err)
+	}
+
+	statements := []string{
+		`CREATE TABLE schema_migrations (
+			version INTEGER PRIMARY KEY,
+			applied_at TEXT NOT NULL
+		);`,
+		`CREATE TABLE derived_thread_dirty_queue (
+			thread_id TEXT PRIMARY KEY,
+			dirty_at TEXT NOT NULL
+		);`,
+		`CREATE TABLE derived_thread_views (
+			thread_id TEXT PRIMARY KEY
+		);`,
+		`CREATE TABLE thread_projection_refresh_status (
+			thread_id TEXT PRIMARY KEY,
+			is_dirty INTEGER NOT NULL DEFAULT 0,
+			in_progress INTEGER NOT NULL DEFAULT 0,
+			queued_at TEXT,
+			started_at TEXT,
+			completed_at TEXT,
+			last_error_at TEXT,
+			last_error TEXT,
+			updated_at TEXT NOT NULL
+		);`,
+	}
+	for _, statement := range statements {
+		if _, err := legacyDB.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("seed legacy schema: %v", err)
+		}
+	}
+	for version := 1; version <= 19; version++ {
+		if _, err := legacyDB.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`, version, "2026-03-04T00:00:00Z"); err != nil {
+			t.Fatalf("seed schema_migrations: %v", err)
+		}
+	}
+
+	for _, threadID := range []string{"current-thread", "dirty-thread", "inflight-thread"} {
+		if _, err := legacyDB.ExecContext(ctx, `INSERT INTO derived_thread_views(thread_id) VALUES (?)`, threadID); err != nil {
+			t.Fatalf("seed derived_thread_views: %v", err)
+		}
+	}
+
+	if _, err := legacyDB.ExecContext(
+		ctx,
+		`INSERT INTO thread_projection_refresh_status(
+			thread_id, is_dirty, in_progress, queued_at, started_at, completed_at, updated_at
+		) VALUES
+			('current-thread', 0, 0, NULL, '2026-03-04T10:00:00Z', '2026-03-04T10:01:00Z', '2026-03-04T10:01:00Z'),
+			('dirty-thread', 1, 0, '2026-03-04T10:02:00Z', NULL, '2026-03-04T10:01:00Z', '2026-03-04T10:02:00Z'),
+			('inflight-thread', 0, 1, NULL, '2026-03-04T10:03:00Z', '2026-03-04T10:01:00Z', '2026-03-04T10:03:00Z')`,
+	); err != nil {
+		t.Fatalf("seed legacy thread projection refresh status: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite database: %v", err)
+	}
+
+	workspace, err := storage.InitializeWorkspace(ctx, workspaceRoot)
+	if err != nil {
+		t.Fatalf("initialize migrated workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	statuses := primitives.NewStore(
+		workspace.DB(),
+		blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir),
+		workspace.Layout().ArtifactContentDir,
+	)
+	got, err := statuses.GetThreadProjectionRefreshStatuses(ctx, []string{"current-thread", "dirty-thread", "inflight-thread"})
+	if err != nil {
+		t.Fatalf("load migrated refresh statuses: %v", err)
+	}
+
+	if status := got["current-thread"]; status.DesiredGeneration != 1 || status.MaterializedGeneration != 1 || status.IsDirty() {
+		t.Fatalf("expected current-thread to remain current after migration, got %#v", status)
+	}
+
+	if status := got["dirty-thread"]; status.DesiredGeneration != 1 || status.MaterializedGeneration != 0 || !status.IsDirty() || status.InProgressGeneration != nil {
+		t.Fatalf("expected dirty-thread to remain pending after migration, got %#v", status)
+	}
+
+	if status := got["inflight-thread"]; status.DesiredGeneration != 1 || status.MaterializedGeneration != 0 || !status.IsDirty() || status.InProgressGeneration == nil || *status.InProgressGeneration != 1 {
+		t.Fatalf("expected inflight-thread to remain pending after migration, got %#v", status)
+	}
+
+	var queueEntries int
+	if err := workspace.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM derived_thread_dirty_queue WHERE thread_id IN ('dirty-thread', 'inflight-thread')`).Scan(&queueEntries); err != nil {
+		t.Fatalf("count migrated dirty queue entries: %v", err)
+	}
+	if queueEntries != 2 {
+		t.Fatalf("expected dirty/inflight threads to be requeued after migration, got %d entries", queueEntries)
+	}
+
+	assertColumnPresent(t, workspace.DB(), "thread_projection_refresh_status", "desired_generation")
+	assertColumnPresent(t, workspace.DB(), "thread_projection_refresh_status", "materialized_generation")
+	assertColumnPresent(t, workspace.DB(), "thread_projection_refresh_status", "in_progress_generation")
+	assertColumnAbsent(t, workspace.DB(), "thread_projection_refresh_status", "is_dirty")
+	assertColumnAbsent(t, workspace.DB(), "thread_projection_refresh_status", "in_progress")
+}
+
+func TestProjectionQueueStatsAndListingRecoverStrandedGenerationRows(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	workspace, err := storage.InitializeWorkspace(ctx, t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(
+		workspace.DB(),
+		blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir),
+		workspace.Layout().ArtifactContentDir,
+	)
+
+	if _, err := workspace.DB().ExecContext(
+		ctx,
+		`INSERT INTO thread_projection_refresh_status(
+			thread_id,
+			desired_generation,
+			materialized_generation,
+			in_progress_generation,
+			queued_at,
+			started_at,
+			updated_at
+		) VALUES (?, 3, 2, 3, NULL, ?, ?)`,
+		"stranded-thread",
+		"2026-03-21T10:00:00Z",
+		"2026-03-21T10:00:00Z",
+	); err != nil {
+		t.Fatalf("seed stranded projection status: %v", err)
+	}
+
+	entries, err := store.ListDerivedThreadProjectionDirtyEntries(ctx, 10)
+	if err != nil {
+		t.Fatalf("list dirty projection entries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected one recoverable dirty entry, got %#v", entries)
+	}
+	if entries[0].ThreadID != "stranded-thread" {
+		t.Fatalf("expected stranded thread to be returned, got %#v", entries[0])
+	}
+	if entries[0].DirtyAt != "2026-03-21T10:00:00Z" {
+		t.Fatalf("expected stranded dirty_at to come from status timestamps, got %#v", entries[0])
+	}
+
+	stats, err := store.GetDerivedThreadProjectionQueueStats(ctx)
+	if err != nil {
+		t.Fatalf("load queue stats: %v", err)
+	}
+	if stats.PendingCount != 1 {
+		t.Fatalf("expected pending count to include stranded status rows, got %#v", stats)
+	}
+	if stats.OldestDirtyAt != "2026-03-21T10:00:00Z" {
+		t.Fatalf("expected oldest dirty timestamp from stranded status row, got %#v", stats)
+	}
+}
+
 func assertHealthOK(t *testing.T, workspace *storage.Workspace) {
 	t.Helper()
 
@@ -258,6 +432,51 @@ func assertHealthOK(t *testing.T, workspace *storage.Workspace) {
 	if body["ok"] != true {
 		t.Fatalf("expected ok=true, got %#v", body["ok"])
 	}
+}
+
+func assertColumnPresent(t *testing.T, db *sql.DB, tableName string, columnName string) {
+	t.Helper()
+	if !columnExists(t, db, tableName, columnName) {
+		t.Fatalf("expected column %s.%s to exist", tableName, columnName)
+	}
+}
+
+func assertColumnAbsent(t *testing.T, db *sql.DB, tableName string, columnName string) {
+	t.Helper()
+	if columnExists(t, db, tableName, columnName) {
+		t.Fatalf("expected column %s.%s to be absent", tableName, columnName)
+	}
+}
+
+func columnExists(t *testing.T, db *sql.DB, tableName string, columnName string) bool {
+	t.Helper()
+
+	rows, err := db.QueryContext(context.Background(), "PRAGMA table_info("+tableName+")")
+	if err != nil {
+		t.Fatalf("describe table %s: %v", tableName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			cid        int
+			name       string
+			dataType   string
+			notNull    int
+			defaultVal sql.NullString
+			pk         int
+		)
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultVal, &pk); err != nil {
+			t.Fatalf("scan table info %s: %v", tableName, err)
+		}
+		if name == columnName {
+			return true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate table info %s: %v", tableName, err)
+	}
+	return false
 }
 
 func seedLegacyWorkspace(ctx context.Context, db *sql.DB, evidenceHash string, evidencePath string, documentHash string, documentPath string) error {

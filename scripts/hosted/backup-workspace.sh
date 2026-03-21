@@ -8,25 +8,34 @@ source "${SCRIPT_DIR}/common.sh"
 
 usage() {
   cat <<'EOF'
-Usage: scripts/hosted/backup-workspace.sh --instance-root DIR [--output-dir DIR]
+Usage: scripts/hosted/backup-workspace.sh --instance-root DIR [--output-dir DIR] [--include-config-secrets]
 
 Create a portable hosted-v1 backup bundle containing:
   - manifest.env
   - SHA256SUMS
   - workspace/state.sqlite
   - workspace/artifacts/content/
-  - config/env.production (if present)
   - metadata/ (if present)
+
+By default, config/env.production is NOT included in the backup bundle for
+security. Use --include-config-secrets to include it when you need a
+self-contained bundle with deployment secrets.
+
+Options:
+  --include-config-secrets  Include config/env.production in the backup bundle
+                            (WARNING: bundle will contain secrets)
 EOF
 }
 
 INSTANCE_ROOT=""
 OUTPUT_DIR=""
+INCLUDE_CONFIG_SECRETS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --instance-root) INSTANCE_ROOT="$2"; shift 2 ;;
     --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
+    --include-config-secrets) INCLUDE_CONFIG_SECRETS=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *)
       usage >&2
@@ -70,7 +79,11 @@ mkdir -p "$BACKUP_DB_DIR" "$BACKUP_BLOB_DIR" "$BACKUP_CONFIG_DIR" "$BACKUP_METAD
 
 sqlite3 "$DB_PATH" ".timeout 5000" ".backup '${BACKUP_DB_DIR}/state.sqlite'"
 copy_tree_contents "$BLOB_DIR" "$BACKUP_BLOB_DIR"
-if [[ -f "$ENV_FILE" ]]; then
+if [[ "$INCLUDE_CONFIG_SECRETS" -eq 1 && ! -f "$ENV_FILE" ]]; then
+  die "--include-config-secrets requires ${ENV_FILE} to exist"
+fi
+if [[ "$INCLUDE_CONFIG_SECRETS" -eq 1 ]]; then
+  warn "--include-config-secrets specified: backup bundle will contain config/env.production with deployment secrets"
   cp "$ENV_FILE" "${BACKUP_CONFIG_DIR}/env.production"
   chmod 600 "${BACKUP_CONFIG_DIR}/env.production"
 fi
@@ -105,6 +118,14 @@ VERIFY_ARTIFACT_ID="$(sqlite_scalar "$DB_PATH" "SELECT COALESCE(id, '') FROM art
 VERIFY_DOCUMENT_ID="$(sqlite_scalar "$DB_PATH" "SELECT COALESCE(id, '') FROM documents ORDER BY created_at ASC, id ASC LIMIT 1;")"
 VERIFY_DOCUMENT_REVISION_ID="$(sqlite_scalar "$DB_PATH" "SELECT COALESCE(head_revision_id, '') FROM documents ORDER BY created_at ASC, id ASC LIMIT 1;")"
 
+if [[ "$INCLUDE_CONFIG_SECRETS" -eq 1 && -f "$ENV_FILE" ]]; then
+  CONFIG_INCLUDED="true"
+  CONFIG_ENV_PATH="config/env.production"
+else
+  CONFIG_INCLUDED="false"
+  CONFIG_ENV_PATH=""
+fi
+
 cat >"$MANIFEST_FILE" <<EOF
 FORMAT_VERSION=${HOSTED_BACKUP_FORMAT_VERSION}
 CREATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -122,7 +143,8 @@ SQLITE_USER_VERSION=${SQLITE_USER_VERSION}
 BLOB_DIR_PATH=workspace/artifacts/content
 BLOB_BACKEND=filesystem
 BLOB_KEY_FORMAT=sha256-hex-filename
-CONFIG_ENV_PATH=config/env.production
+CONFIG_INCLUDED=${CONFIG_INCLUDED}
+CONFIG_ENV_PATH=${CONFIG_ENV_PATH}
 METADATA_DIR_PATH=metadata
 ARTIFACT_COUNT=${ARTIFACT_COUNT}
 AGENT_COUNT=${AGENT_COUNT}

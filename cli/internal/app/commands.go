@@ -168,7 +168,7 @@ func (a *App) runDoctor(ctx context.Context, cfg config.Resolved) (*commandResul
 	addCheck("core_health", func() (bool, string, error) {
 		callCtx, cancel := httpclient.WithTimeout(ctx, cfg.Timeout)
 		defer cancel()
-		resp, callErr := client.RawCall(callCtx, httpclient.RawRequest{Method: http.MethodGet, Path: "/health"})
+		resp, callErr := client.RawCall(callCtx, httpclient.RawRequest{Method: http.MethodGet, Path: "/readyz"})
 		if callErr != nil {
 			return false, "", callErr
 		}
@@ -418,7 +418,7 @@ func shouldAutoAttachAuth(requestPath string) bool {
 		requestPath = "/" + requestPath
 	}
 	switch requestPath {
-	case "/health", "/version", "/meta/handshake", "/auth/agents/register", "/auth/token":
+	case "/health", "/livez", "/readyz", "/version", "/meta/handshake", "/auth/agents/register", "/auth/token":
 		return false
 	}
 	return true

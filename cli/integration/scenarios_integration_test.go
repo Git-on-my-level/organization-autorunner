@@ -626,7 +626,7 @@ func waitForHealthy(t *testing.T, baseURL string, logPath string) {
 	t.Helper()
 	client := &http.Client{Timeout: 500 * time.Millisecond}
 	deadline := time.Now().Add(10 * time.Second)
-	healthURL := baseURL + "/health"
+	healthURL := baseURL + "/readyz"
 	for time.Now().Before(deadline) {
 		resp, err := client.Get(healthURL)
 		if err == nil {

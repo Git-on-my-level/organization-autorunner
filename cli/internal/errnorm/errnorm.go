@@ -166,7 +166,7 @@ type Metadata struct {
 var defaultMetadataByCode = map[string]Metadata{
 	"actor_exists":                  {Recoverable: true, Hint: "Use a different actor id or load the existing actor with `oar actors list`."},
 	"agent_revoked":                 {Recoverable: false, Hint: "Create/register a new agent profile; revoked agents cannot be reactivated."},
-	"auth_registration_unavailable": {Recoverable: true, Hint: "Core auth may still be starting. Retry `oar auth register` in a few seconds, or run `oar api call --path /health` to confirm readiness."},
+	"auth_registration_unavailable": {Recoverable: true, Hint: "Core auth may still be starting. Retry `oar auth register` in a few seconds, or run `oar api call --path /readyz` to confirm readiness."},
 	"auth_required":                 {Recoverable: true, Hint: "Run `oar --agent <agent> auth whoami` to refresh credentials, then retry."},
 	"cli_outdated":                  {Recoverable: true, Hint: "Upgrade the CLI to the minimum compatible version from `/meta/handshake`."},
 	"conflict":                      {Recoverable: true, Hint: "Reload current state and retry with a fresh `if_updated_at` value."},
@@ -180,6 +180,7 @@ var defaultMetadataByCode = map[string]Metadata{
 	"invalid_request":               {Recoverable: true, Hint: "Review required fields and request shape, then retry."},
 	"invalid_token":                 {Recoverable: true, Hint: "Run `oar --agent <agent> auth token-status` then `oar --agent <agent> auth rotate` if needed."},
 	"key_mismatch":                  {Recoverable: true, Hint: "Rotate the agent key (`oar --agent <agent> auth rotate`) and retry token minting."},
+	"last_active_principal":         {Recoverable: true, Hint: "Retry only with `--force-last-active` for explicit break-glass recovery; it can leave the workspace without any active principal."},
 	"method_not_allowed":            {Recoverable: true, Hint: "Use the HTTP method documented for this endpoint."},
 	"network_error":                 {Recoverable: true, Hint: "Check network/core availability and retry with backoff."},
 	"not_found":                     {Recoverable: true, Hint: "Verify the target id/path exists and retry."},

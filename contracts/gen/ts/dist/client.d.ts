@@ -66,6 +66,7 @@ export declare class OarClient {
     authPasskeyRegisterOptions(options?: RequestOptions): Promise<InvokeResult>;
     authPasskeyRegisterVerify(options?: RequestOptions): Promise<InvokeResult>;
     authPrincipalsList(options?: RequestOptions): Promise<InvokeResult>;
+    authPrincipalsRevoke(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     authToken(options?: RequestOptions): Promise<InvokeResult>;
     boardsCardsAdd(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     boardsCardsList(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
@@ -102,6 +103,9 @@ export declare class OarClient {
     metaConceptsList(options?: RequestOptions): Promise<InvokeResult>;
     metaHandshake(options?: RequestOptions): Promise<InvokeResult>;
     metaHealth(options?: RequestOptions): Promise<InvokeResult>;
+    metaLivez(options?: RequestOptions): Promise<InvokeResult>;
+    metaOpsHealth(options?: RequestOptions): Promise<InvokeResult>;
+    metaReadyz(options?: RequestOptions): Promise<InvokeResult>;
     metaVersion(options?: RequestOptions): Promise<InvokeResult>;
     packetsReceiptsCreate(options?: RequestOptions): Promise<InvokeResult>;
     packetsReviewsCreate(options?: RequestOptions): Promise<InvokeResult>;

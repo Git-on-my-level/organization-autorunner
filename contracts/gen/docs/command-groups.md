@@ -34,7 +34,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `auth`
 
-- Commands: `12`
+- Commands: `13`
 - Command IDs:
   - `auth.agents.register` (`auth register`)
   - `auth.audit.list` (`auth audit list`)
@@ -47,6 +47,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `auth.passkey.register.options` (`auth passkey register options`)
   - `auth.passkey.register.verify` (`auth passkey register verify`)
   - `auth.principals.list` (`auth principals list`)
+  - `auth.principals.revoke` (`auth principals revoke`)
   - `auth.token` (`auth token`)
 
 ## `boards`
@@ -110,7 +111,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `meta`
 
-- Commands: `7`
+- Commands: `10`
 - Command IDs:
   - `meta.commands.get` (`meta commands get`)
   - `meta.commands.list` (`meta commands list`)
@@ -118,6 +119,9 @@ Generated from `contracts/oar-openapi.yaml`.
   - `meta.concepts.list` (`meta concepts list`)
   - `meta.handshake` (`meta handshake`)
   - `meta.health` (`meta health`)
+  - `meta.livez` (`meta livez`)
+  - `meta.ops.health` (`meta ops health`)
+  - `meta.readyz` (`meta readyz`)
   - `meta.version` (`meta version`)
 
 ## `packets`

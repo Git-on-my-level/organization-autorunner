@@ -18,7 +18,7 @@ type subcommandSpec struct {
 var apiSubcommandSpec = subcommandSpec{
 	command:  "api",
 	valid:    []string{"call"},
-	examples: []string{"oar api call --method GET --path /health"},
+	examples: []string{"oar api call --method GET --path /readyz"},
 }
 
 var authSubcommandSpec = subcommandSpec{
@@ -33,6 +33,7 @@ var authSubcommandSpec = subcommandSpec{
 		"oar auth invites create --kind agent --note 'ops bot'",
 		"oar auth bootstrap status",
 		"oar auth principals list",
+		"oar auth principals revoke --agent-id <agent-id>",
 		"oar auth audit list",
 	},
 	aliases: map[string]string{
@@ -59,8 +60,8 @@ var authBootstrapSubcommandSpec = subcommandSpec{
 
 var authPrincipalsSubcommandSpec = subcommandSpec{
 	command:  "auth principals",
-	valid:    []string{"list"},
-	examples: []string{"oar auth principals list", "oar auth principals list --limit 20"},
+	valid:    []string{"list", "revoke"},
+	examples: []string{"oar auth principals list", "oar auth principals list --limit 20", "oar auth principals revoke --agent-id <agent-id>", "oar auth principals revoke --agent-id <agent-id> --force-last-active"},
 	aliases: map[string]string{
 		"ls": "list",
 	},
@@ -86,8 +87,14 @@ var actorsSubcommandSpec = subcommandSpec{
 
 var metaSubcommandSpec = subcommandSpec{
 	command:  "meta",
-	valid:    []string{"commands", "command", "concepts", "concept", "docs", "doc", "skill"},
-	examples: []string{"oar meta commands", "oar meta command --command-id threads.list", "oar meta docs", "oar meta doc agent-guide", "oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard"},
+	valid:    []string{"health", "livez", "readyz", "version", "handshake", "ops", "commands", "command", "concepts", "concept", "docs", "doc", "skill"},
+	examples: []string{"oar meta health", "oar meta readyz", "oar meta ops health", "oar meta commands", "oar meta command --command-id threads.list", "oar meta docs", "oar meta doc agent-guide", "oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard"},
+}
+
+var metaOpsSubcommandSpec = subcommandSpec{
+	command:  "meta ops",
+	valid:    []string{"health"},
+	examples: []string{"oar meta ops health"},
 }
 
 var draftSubcommandSpec = subcommandSpec{

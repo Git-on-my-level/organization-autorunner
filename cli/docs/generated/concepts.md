@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.3`
-- Concepts: `44`
+- Concepts: `46`
 
 ## `append-only`
 
@@ -32,7 +32,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `auth`
 
-- Commands: `16`
+- Commands: `17`
 - Command IDs:
   - `agents.me.get`
   - `agents.me.keys.rotate`
@@ -49,6 +49,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `auth.passkey.register.options`
   - `auth.passkey.register.verify`
   - `auth.principals.list`
+  - `auth.principals.revoke`
   - `auth.token`
 
 ## `boards`
@@ -170,13 +171,16 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `health`
 
-- Commands: `1`
+- Commands: `4`
 - Command IDs:
   - `meta.health`
+  - `meta.livez`
+  - `meta.ops.health`
+  - `meta.readyz`
 
 ## `identity`
 
-- Commands: `6`
+- Commands: `7`
 - Command IDs:
   - `actors.list`
   - `actors.register`
@@ -184,6 +188,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `agents.me.patch`
   - `auth.agents.register`
   - `auth.principals.list`
+  - `auth.principals.revoke`
 
 ## `inbox`
 
@@ -222,6 +227,13 @@ Generated from `contracts/oar-openapi.yaml`.
 - Command IDs:
   - `docs.history`
 
+## `liveness`
+
+- Commands: `2`
+- Command IDs:
+  - `meta.health`
+  - `meta.livez`
+
 ## `maintenance`
 
 - Commands: `1`
@@ -245,6 +257,12 @@ Generated from `contracts/oar-openapi.yaml`.
   - `auth.invites.create`
   - `auth.invites.list`
   - `auth.invites.revoke`
+
+## `operations`
+
+- Commands: `1`
+- Command IDs:
+  - `meta.ops.health`
 
 ## `ordering`
 
@@ -302,9 +320,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `readiness`
 
-- Commands: `1`
+- Commands: `2`
 - Command IDs:
-  - `meta.health`
+  - `meta.ops.health`
+  - `meta.readyz`
 
 ## `receipts`
 
@@ -331,9 +350,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `revocation`
 
-- Commands: `1`
+- Commands: `2`
 - Command IDs:
   - `agents.me.revoke`
+  - `auth.principals.revoke`
 
 ## `schema`
 
