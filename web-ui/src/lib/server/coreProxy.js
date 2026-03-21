@@ -1,6 +1,8 @@
 export function buildProxyRequestInit(event) {
   const headers = new Headers(event.request.headers);
   headers.delete("host");
+  headers.delete("cookie");
+  headers.delete("authorization");
   headers.set("x-forwarded-host", event.url.host);
   headers.set("x-forwarded-proto", event.url.protocol.replace(/:$/, ""));
 

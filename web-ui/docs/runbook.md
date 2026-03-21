@@ -101,8 +101,10 @@ Identity is workspace-scoped.
   - Useful for local workflows when core allows unauthenticated writes.
   - Clearly labeled as "development-only" in the UI.
 - Passkey-authenticated mode:
-  - Access token stays in memory per workspace.
-  - Refresh token is stored in `sessionStorage` per workspace.
+  - Refresh/session state is carried in a same-origin `Secure`, `HttpOnly`, `SameSite=Lax` cookie per workspace.
+  - Browser JavaScript does not read or write refresh tokens.
+  - Access tokens stay on the server side and are refreshed through the cookie-backed session endpoint.
+  - Browser API calls go through the same-origin BFF/proxy surface.
   - Authenticated writes lock to that workspace's principal actor.
 - Actor-selection mode (dev only):
   - Selected actor is stored in `localStorage` per workspace.
@@ -304,7 +306,7 @@ When deploying behind a reverse proxy (Caddy, nginx, Cloudflare, etc.):
 
 4. **TLS considerations**: The CSP assumes TLS in production. If the proxy
    terminates TLS, ensure it forwards `https://` URLs to the UI so `connect-src
-   'self'` resolves correctly.
+'self'` resolves correctly.
 
 ### Testing CSP in production
 

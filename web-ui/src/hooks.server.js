@@ -2,6 +2,13 @@ import { env } from "$env/dynamic/private";
 import { isProxyableCommand } from "$lib/coreRouteCatalog";
 import { getWorkspaceHeader } from "$lib/compat/workspaceCompat";
 import { stripBasePath } from "$lib/workspacePaths";
+import {
+  clearWorkspaceAuthSession,
+  clearWorkspaceRefreshToken,
+  getWorkspaceAuthSession,
+  readWorkspaceRefreshToken,
+  refreshWorkspaceAuthSession,
+} from "$lib/server/authSession";
 import { loadWorkspaceCatalog } from "$lib/server/workspaceCatalog";
 import { buildProxyRequestInit } from "$lib/server/coreProxy";
 import { resolveProxyTarget } from "$lib/server/proxyWorkspaceTarget";
@@ -30,13 +37,63 @@ function resolveWorkspaceTarget(event) {
   });
 }
 
-async function proxyToCore(event, coreBaseUrl) {
+function shouldBypassProxy(pathname, method) {
+  const normalizedMethod = method.toUpperCase();
+  return (
+    normalizedMethod === "POST" &&
+    (pathname === "/auth/passkey/login/verify" ||
+      pathname === "/auth/passkey/register/verify")
+  );
+}
+
+async function refreshAndRetry(event, coreBaseUrl, workspaceSlug, targetUrl) {
+  if (!readWorkspaceRefreshToken(event, workspaceSlug)) {
+    return null;
+  }
+
+  try {
+    await refreshWorkspaceAuthSession({
+      event,
+      workspaceSlug,
+      coreBaseUrl,
+    });
+  } catch {
+    clearWorkspaceRefreshToken(event, workspaceSlug);
+    clearWorkspaceAuthSession(workspaceSlug);
+    return null;
+  }
+
+  const refreshedSession = getWorkspaceAuthSession(workspaceSlug);
+  if (!refreshedSession?.accessToken) {
+    return null;
+  }
+
+  const requestInit = buildProxyRequestInit(event);
+  requestInit.headers.delete("cookie");
+  requestInit.headers.delete("authorization");
+  requestInit.headers.set("authorization", `Bearer ${refreshedSession.accessToken}`);
+
+  try {
+    return await fetch(targetUrl, requestInit);
+  } catch {
+    return null;
+  }
+}
+
+async function proxyToCore(event, coreBaseUrl, workspaceSlug) {
   const corePathname = stripBasePath(event.url.pathname);
   const targetUrl = new URL(
     `${corePathname}${event.url.search}`,
     `${coreBaseUrl}/`,
   ).toString();
   const requestInit = buildProxyRequestInit(event);
+  requestInit.headers.delete("cookie");
+  requestInit.headers.delete("authorization");
+
+  const session = getWorkspaceAuthSession(workspaceSlug);
+  if (session?.accessToken) {
+    requestInit.headers.set("authorization", `Bearer ${session.accessToken}`);
+  }
 
   let upstreamResponse;
   try {
@@ -59,6 +116,23 @@ async function proxyToCore(event, coreBaseUrl) {
       },
     );
   }
+
+  if (upstreamResponse.status === 401) {
+    const retriedResponse = await refreshAndRetry(
+      event,
+      coreBaseUrl,
+      workspaceSlug,
+      targetUrl,
+    );
+    if (retriedResponse) {
+      upstreamResponse = retriedResponse;
+      if (upstreamResponse.status === 401) {
+        clearWorkspaceRefreshToken(event, workspaceSlug);
+        clearWorkspaceAuthSession(workspaceSlug);
+      }
+    }
+  }
+
   const responseHeaders = new Headers(upstreamResponse.headers);
   responseHeaders.delete("content-encoding");
   responseHeaders.delete("content-length");
@@ -94,7 +168,9 @@ export async function handle({ event, resolve }) {
   const method = event.request.method;
   const documentNavigation = isDocumentNavigationRequest(event.request);
   const proxyableRequest =
-    isProxyableCommand(method, pathname) && !documentNavigation;
+    isProxyableCommand(method, pathname) &&
+    !documentNavigation &&
+    !shouldBypassProxy(pathname, method);
 
   if (proxyableRequest) {
     const target = resolveWorkspaceTarget(event);
@@ -108,7 +184,7 @@ export async function handle({ event, resolve }) {
     }
 
     if (target.coreBaseUrl) {
-      return proxyToCore(event, target.coreBaseUrl);
+      return proxyToCore(event, target.coreBaseUrl, target.workspace.slug);
     }
   }
 
