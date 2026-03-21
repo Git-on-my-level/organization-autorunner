@@ -35,6 +35,7 @@ type PrimitiveStore interface {
 	GetArtifact(ctx context.Context, id string) (map[string]any, error)
 	GetArtifactContent(ctx context.Context, id string) ([]byte, string, error)
 	ListArtifacts(ctx context.Context, filter primitives.ArtifactListFilter) ([]map[string]any, error)
+	GetWorkspaceUsageSummary(ctx context.Context) (primitives.WorkspaceUsageSummary, error)
 	GetIdempotencyReplay(ctx context.Context, scope string, actorID string, requestKey string) (primitives.IdempotencyReplay, error)
 	PutIdempotencyReplay(ctx context.Context, scope string, actorID string, requestKey string, requestHash string, status int, response map[string]any) error
 	ListDerivedInboxItems(ctx context.Context, filter primitives.DerivedInboxListFilter) ([]primitives.DerivedInboxItem, error)
@@ -513,6 +514,14 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, payload)
+	})
+
+	registerRoute("/ops/usage-summary", exactRouteAccess(routeAccessWorkspaceBusiness, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+			return
+		}
+		handleGetUsageSummary(w, r, opts)
 	})
 
 	registerRoute("/version", exactRouteAccess(routeAccessAlwaysPublic, http.MethodGet), func(w http.ResponseWriter, r *http.Request) {
@@ -1581,7 +1590,7 @@ func shouldEnforceCLIVersion(path string) bool {
 		return false
 	}
 	switch path {
-	case "/health", "/livez", "/readyz", "/ops/health", "/version", "/meta/handshake", "/auth/token", "/auth/agents/register", "/auth/bootstrap/status":
+	case "/health", "/livez", "/readyz", "/ops/health", "/ops/usage-summary", "/version", "/meta/handshake", "/auth/token", "/auth/agents/register", "/auth/bootstrap/status":
 		return false
 	}
 	if strings.HasPrefix(path, "/auth/passkey/") {

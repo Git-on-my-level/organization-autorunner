@@ -268,6 +268,56 @@ func TestCreateArtifactConflictDoesNotLeakStagedContent(t *testing.T) {
 	}
 }
 
+func TestWorkspaceUsageSummaryUsesBackendUsageAndCountsRows(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(
+		workspace.DB(),
+		blob.NewObjectStoreBackend(workspace.Layout().ArtifactContentDir),
+		workspace.Layout().ArtifactContentDir,
+	)
+
+	if _, err := store.CreateArtifact(context.Background(), "actor-1", map[string]any{
+		"id":   "artifact-summary",
+		"kind": "doc",
+		"refs": []string{"thread:thread-1"},
+	}, "alpha", "text"); err != nil {
+		t.Fatalf("create artifact: %v", err)
+	}
+	if _, _, err := store.CreateDocument(context.Background(), "actor-1", map[string]any{
+		"id":    "doc-summary",
+		"title": "Summary doc",
+	}, "bravo", "text", nil); err != nil {
+		t.Fatalf("create document: %v", err)
+	}
+
+	summary, err := store.GetWorkspaceUsageSummary(context.Background())
+	if err != nil {
+		t.Fatalf("get workspace usage summary: %v", err)
+	}
+	if summary.Usage.Artifacts != 2 {
+		t.Fatalf("expected 2 artifacts, got %d", summary.Usage.Artifacts)
+	}
+	if summary.Usage.Documents != 1 {
+		t.Fatalf("expected 1 document, got %d", summary.Usage.Documents)
+	}
+	if summary.Usage.Revisions != 1 {
+		t.Fatalf("expected 1 document revision, got %d", summary.Usage.Revisions)
+	}
+	if summary.Usage.BlobObjects != 2 {
+		t.Fatalf("expected 2 blob objects, got %d", summary.Usage.BlobObjects)
+	}
+	if summary.Usage.BlobBytes != int64(len("alpha")+len("bravo")) {
+		t.Fatalf("unexpected blob bytes: got %d", summary.Usage.BlobBytes)
+	}
+}
+
 func TestUpdateDocumentWriteFailureDoesNotLeakStagedContent(t *testing.T) {
 	t.Parallel()
 

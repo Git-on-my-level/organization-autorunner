@@ -1467,6 +1467,10 @@ func TestHostedModeProtectsWorkspaceReadsAndBlocksLegacyActorFlows(t *testing.T)
 	defer opsHealthResp.Body.Close()
 	assertErrorCode(t, opsHealthResp, "auth_required")
 
+	usageResp := getJSONExpectStatusWithAuth(t, serverURL+"/ops/usage-summary", "", http.StatusUnauthorized)
+	defer usageResp.Body.Close()
+	assertErrorCode(t, usageResp, "auth_required")
+
 	createActorResp := postJSONExpectStatusWithAuth(t, serverURL+"/actors", map[string]any{
 		"actor": map[string]any{
 			"id":           "legacy-actor",
@@ -1502,6 +1506,18 @@ func TestHostedModeProtectsWorkspaceReadsAndBlocksLegacyActorFlows(t *testing.T)
 
 	authedOpsHealthResp := getJSONExpectStatusWithAuth(t, serverURL+"/ops/health", registerPayload.Tokens.AccessToken, http.StatusOK)
 	authedOpsHealthResp.Body.Close()
+
+	authedUsageResp := getJSONExpectStatusWithAuth(t, serverURL+"/ops/usage-summary", registerPayload.Tokens.AccessToken, http.StatusOK)
+	var usagePayload struct {
+		Summary map[string]any `json:"summary"`
+	}
+	if err := json.NewDecoder(authedUsageResp.Body).Decode(&usagePayload); err != nil {
+		t.Fatalf("decode usage summary response: %v", err)
+	}
+	authedUsageResp.Body.Close()
+	if usagePayload.Summary == nil {
+		t.Fatal("expected usage summary payload")
+	}
 }
 
 func TestExplicitDevModeKeepsLegacyActorFlowAndAnonymousWorkspaceAccess(t *testing.T) {

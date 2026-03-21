@@ -5,19 +5,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
+	"time"
 )
 
 type Option func(*Store)
 
 type WorkspaceQuota struct {
-	MaxBlobBytes         int64
-	MaxArtifacts         int64
-	MaxDocuments         int64
-	MaxDocumentRevisions int64
-	MaxUploadBytes       int64
+	MaxBlobBytes         int64 `json:"max_blob_bytes"`
+	MaxArtifacts         int64 `json:"max_artifacts"`
+	MaxDocuments         int64 `json:"max_documents"`
+	MaxDocumentRevisions int64 `json:"max_document_revisions"`
+	MaxUploadBytes       int64 `json:"max_upload_bytes"`
 }
 
 type QuotaViolation struct {
@@ -59,10 +57,25 @@ type quotaWriteDelta struct {
 }
 
 type workspaceUsage struct {
-	blobBytes int64
-	artifacts int64
-	documents int64
-	revisions int64
+	blobBytes   int64
+	blobObjects int64
+	artifacts   int64
+	documents   int64
+	revisions   int64
+}
+
+type WorkspaceUsageSummary struct {
+	Usage       WorkspaceUsage `json:"usage"`
+	Quota       WorkspaceQuota `json:"quota"`
+	GeneratedAt string         `json:"generated_at"`
+}
+
+type WorkspaceUsage struct {
+	BlobBytes   int64 `json:"blob_bytes"`
+	BlobObjects int64 `json:"blob_objects"`
+	Artifacts   int64 `json:"artifact_count"`
+	Documents   int64 `json:"document_count"`
+	Revisions   int64 `json:"document_revision_count"`
 }
 
 func (s *Store) checkWorkspaceWriteQuota(ctx context.Context, uploadBytes int64, contentHash string, delta quotaWriteDelta) error {
@@ -158,11 +171,15 @@ func (s *Store) currentWorkspaceUsage(ctx context.Context, includeBlobBytes bool
 
 	usage := workspaceUsage{}
 	if includeBlobBytes {
-		blobBytes, err := countWorkspaceBlobBytes(s.blobRoot)
-		if err != nil {
-			return workspaceUsage{}, err
+		if s.blob == nil {
+			return workspaceUsage{}, fmt.Errorf("blob backend is not configured")
 		}
-		usage.blobBytes = blobBytes
+		blobUsage, err := s.blob.Usage(ctx)
+		if err != nil {
+			return workspaceUsage{}, fmt.Errorf("measure blob usage: %w", err)
+		}
+		usage.blobBytes = blobUsage.Bytes
+		usage.blobObjects = blobUsage.Objects
 	}
 
 	var err error
@@ -179,47 +196,33 @@ func (s *Store) currentWorkspaceUsage(ctx context.Context, includeBlobBytes bool
 	return usage, nil
 }
 
+func (s *Store) GetWorkspaceUsageSummary(ctx context.Context) (WorkspaceUsageSummary, error) {
+	if s == nil || s.db == nil {
+		return WorkspaceUsageSummary{}, fmt.Errorf("primitives store database is not initialized")
+	}
+	usage, err := s.currentWorkspaceUsage(ctx, true)
+	if err != nil {
+		return WorkspaceUsageSummary{}, err
+	}
+	return WorkspaceUsageSummary{
+		Usage: WorkspaceUsage{
+			BlobBytes:   usage.blobBytes,
+			BlobObjects: usage.blobObjects,
+			Artifacts:   usage.artifacts,
+			Documents:   usage.documents,
+			Revisions:   usage.revisions,
+		},
+		Quota:       s.quota,
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339Nano),
+	}, nil
+}
+
 func countTableRows(ctx context.Context, db *sql.DB, table string) (int64, error) {
 	var count int64
 	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count %s rows: %w", table, err)
 	}
 	return count, nil
-}
-
-func countWorkspaceBlobBytes(root string) (int64, error) {
-	root = strings.TrimSpace(root)
-	if root == "" {
-		return 0, fmt.Errorf("workspace blob root is not configured")
-	}
-
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("read workspace blob root: %w", err)
-	}
-
-	var total int64
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasPrefix(name, ".cas-") {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return 0, fmt.Errorf("stat workspace blob %q: %w", filepath.Join(root, name), err)
-		}
-		if mode := info.Mode(); !mode.IsRegular() {
-			continue
-		}
-		total += info.Size()
-	}
-	return total, nil
 }
 
 func isQuotaViolationCode(err error, code string) bool {

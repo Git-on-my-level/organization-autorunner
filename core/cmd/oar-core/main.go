@@ -107,7 +107,7 @@ func main() {
 	flag.StringVar(&listenAddress, "listen-addr", listenAddress, "full listen address host:port; overrides --host/--port")
 	flag.StringVar(&schemaPath, "schema-path", schemaPath, "path to ../contracts/oar-schema.yaml")
 	flag.StringVar(&workspaceRoot, "workspace-root", workspaceRoot, "root directory for sqlite/filesystem workspace")
-	flag.StringVar(&blobBackend, "blob-backend", blobBackend, "blob storage backend (filesystem)")
+	flag.StringVar(&blobBackend, "blob-backend", blobBackend, "blob storage backend (filesystem|object)")
 	flag.StringVar(&blobRoot, "blob-root", blobRoot, "root directory for blob storage (defaults to workspace artifacts/content)")
 	flag.StringVar(&coreVersion, "core-version", coreVersion, "core version reported in handshake/version headers (defaults to schema version)")
 	flag.StringVar(&apiVersion, "api-version", apiVersion, "api version reported in handshake/version headers")
@@ -162,8 +162,10 @@ func main() {
 	switch blobBackend {
 	case "filesystem":
 		blobBackendImpl = blob.NewFilesystemBackend(effectiveBlobRoot)
+	case "object":
+		blobBackendImpl = blob.NewObjectStoreBackend(effectiveBlobRoot)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown blob backend: %s (supported: filesystem)\n", blobBackend)
+		fmt.Fprintf(os.Stderr, "unknown blob backend: %s (supported: filesystem, object)\n", blobBackend)
 		os.Exit(1)
 	}
 

@@ -300,6 +300,21 @@ func handleGetArtifactContent(w http.ResponseWriter, r *http.Request, opts handl
 	_, _ = w.Write(content)
 }
 
+func handleGetUsageSummary(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
+	if opts.primitiveStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
+		return
+	}
+
+	summary, err := opts.primitiveStore.GetWorkspaceUsageSummary(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load workspace usage summary")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"summary": summary})
+}
+
 func handleListArtifacts(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")

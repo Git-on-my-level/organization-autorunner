@@ -198,6 +198,11 @@ the readiness check passes, it also includes projection maintenance status:
 - `last_successful_stale_scan_at`: last successful background stale-thread scan.
 - `last_error`: last maintenance failure, if one has occurred since the most recent successful pass.
 
+`/ops/usage-summary` is the workspace usage envelope for control-plane polling.
+It reports blob bytes, blob object count, canonical artifact/document/revision counts,
+and the configured quota limits. Use it when you need an explicit storage/usage snapshot
+without scraping filesystem layout.
+
 Background projection maintenance is driven by:
 
 - `OAR_PROJECTION_MAINTENANCE_INTERVAL`
@@ -241,7 +246,9 @@ workspace and the primary thread timeline.
 1. Start server with a workspace root.
 2. Create a small object (for example, register an actor).
 3. Stop and restart server with the same workspace root.
-4. Confirm object still exists (data persisted in `state.sqlite` / artifact files).
+4. Confirm object still exists (data persisted in `state.sqlite` plus the configured blob backend root).
+
+If `OAR_BLOB_BACKEND=object`, the content objects live under the configured blob root in an object-style layout rather than a flat content directory. Backup and restore workflows must capture the database and the blob backend together.
 
 ## Packet Convenience Atomicity
 
