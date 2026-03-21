@@ -1,0 +1,49 @@
+# OAR Command Groups
+
+Generated from `contracts/oar-control-openapi.yaml`.
+
+- OpenAPI version: `3.1.0`
+- Contract version: `0.1.0`
+- Groups: `4`
+
+## `accounts`
+
+- Commands: `5`
+- Command IDs:
+  - `control.accounts.passkeys.register.finish` (`accounts passkeys register finish`)
+  - `control.accounts.passkeys.register.start` (`accounts passkeys register start`)
+  - `control.accounts.sessions.finish` (`accounts sessions finish`)
+  - `control.accounts.sessions.revoke-current` (`accounts sessions revoke-current`)
+  - `control.accounts.sessions.start` (`accounts sessions start`)
+
+## `organizations`
+
+- Commands: `10`
+- Command IDs:
+  - `control.organizations.create` (`organizations create`)
+  - `control.organizations.get` (`organizations get`)
+  - `control.organizations.invites.create` (`organizations invites create`)
+  - `control.organizations.invites.list` (`organizations invites list`)
+  - `control.organizations.invites.revoke` (`organizations invites revoke`)
+  - `control.organizations.list` (`organizations list`)
+  - `control.organizations.memberships.list` (`organizations memberships list`)
+  - `control.organizations.memberships.update` (`organizations memberships update`)
+  - `control.organizations.update` (`organizations update`)
+  - `control.organizations.usage-summary.get` (`organizations usage-summary get`)
+
+## `provisioning`
+
+- Commands: `1`
+- Command IDs:
+  - `control.provisioning.jobs.get` (`provisioning jobs get`)
+
+## `workspaces`
+
+- Commands: `5`
+- Command IDs:
+  - `control.workspaces.create` (`workspaces create`)
+  - `control.workspaces.get` (`workspaces get`)
+  - `control.workspaces.launch-sessions.create` (`workspaces launch-sessions create`)
+  - `control.workspaces.list` (`workspaces list`)
+  - `control.workspaces.session-exchange.create` (`workspaces session-exchange create`)
+
