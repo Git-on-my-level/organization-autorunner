@@ -5,7 +5,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -334,9 +337,7 @@ func TestAgentAuthLifecycleAndActorCompatibility(t *testing.T) {
 		t.Fatalf("decode new assertion response: %v", err)
 	}
 
-	revokeResp := postJSONExpectStatusWithAuth(t, serverURL+"/agents/me/revoke", map[string]any{
-		"force_last_active": true,
-	}, newAssertionPayload.Tokens.AccessToken, http.StatusOK)
+	revokeResp := postJSONExpectStatusWithAuth(t, serverURL+"/agents/me/revoke", map[string]any{}, newAssertionPayload.Tokens.AccessToken, http.StatusOK)
 	defer revokeResp.Body.Close()
 
 	revokedRefreshResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/token", map[string]any{
@@ -767,8 +768,11 @@ func TestAuthAuditAndPrincipalInventoryVisibility(t *testing.T) {
 	if asString(mapValue(selfRevokedEvent["metadata"], "revocation_mode")) != "self" {
 		t.Fatalf("unexpected principal_self_revoked metadata: %#v", selfRevokedEvent)
 	}
-	if force, ok := mapValue(selfRevokedEvent["metadata"], "force_last_active").(bool); !ok || force {
-		t.Fatalf("unexpected principal_self_revoked force metadata: %#v", selfRevokedEvent)
+	if allow, ok := mapValue(selfRevokedEvent["metadata"], "allow_human_lockout").(bool); !ok || allow {
+		t.Fatalf("unexpected principal_self_revoked allow_human_lockout metadata: %#v", selfRevokedEvent)
+	}
+	if reason := asString(mapValue(selfRevokedEvent["metadata"], "human_lockout_reason")); reason != "" {
+		t.Fatalf("unexpected principal_self_revoked human_lockout_reason metadata: %#v", selfRevokedEvent)
 	}
 }
 
@@ -848,6 +852,9 @@ func TestAdminPrincipalRevocationAndLastActiveSafeguards(t *testing.T) {
 	if asBool(revocationObj["already_revoked"]) {
 		t.Fatalf("expected first admin revoke not to be idempotent: %#v", revokePayload)
 	}
+	if asBool(revocationObj["allow_human_lockout"]) {
+		t.Fatalf("unexpected human lockout metadata on ordinary revoke: %#v", revokePayload)
+	}
 
 	secondRevokeResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/principals/"+memberPayload.Agent.AgentID+"/revoke", map[string]any{}, adminPayload.Tokens.AccessToken, http.StatusOK)
 	defer secondRevokeResp.Body.Close()
@@ -860,30 +867,12 @@ func TestAdminPrincipalRevocationAndLastActiveSafeguards(t *testing.T) {
 		t.Fatalf("expected idempotent admin revoke response, got %#v", secondRevokePayload)
 	}
 
-	lastActiveResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/principals/"+adminPayload.Agent.AgentID+"/revoke", map[string]any{}, adminPayload.Tokens.AccessToken, http.StatusConflict)
-	defer lastActiveResp.Body.Close()
-	assertErrorCode(t, lastActiveResp, "last_active_principal")
-
-	forcedResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/principals/"+adminPayload.Agent.AgentID+"/revoke", map[string]any{
-		"force_last_active": true,
-	}, adminPayload.Tokens.AccessToken, http.StatusOK)
-	defer forcedResp.Body.Close()
-	var forcedPayload map[string]any
-	if err := json.NewDecoder(forcedResp.Body).Decode(&forcedPayload); err != nil {
-		t.Fatalf("decode forced admin revoke response: %v", err)
-	}
-	forcedRevocationObj, _ := forcedPayload["revocation"].(map[string]any)
-	if forcedRevocationObj == nil || !asBool(forcedRevocationObj["force_last_active"]) {
-		t.Fatalf("expected forced admin revoke metadata, got %#v", forcedPayload)
-	}
-
 	events, _, err := env.authStore.ListAuditEvents(context.Background(), auth.AuthAuditListFilter{})
 	if err != nil {
 		t.Fatalf("list auth audit events after admin revoke flow: %v", err)
 	}
 
 	adminRevokedCount := 0
-	forcedAdminEventSeen := false
 	for _, event := range events {
 		if event.EventType != auth.AuthAuditEventPrincipalRevoked {
 			continue
@@ -900,25 +889,118 @@ func TestAdminPrincipalRevocationAndLastActiveSafeguards(t *testing.T) {
 			if mode, _ := event.Metadata["revocation_mode"].(string); mode != "admin" {
 				t.Fatalf("unexpected admin revoke metadata: %#v", event)
 			}
-		case adminPayload.Agent.AgentID:
-			if event.ActorAgentID == nil || *event.ActorAgentID != adminPayload.Agent.AgentID {
-				t.Fatalf("unexpected forced admin revoke actor: %#v", event)
-			}
-			if mode, _ := event.Metadata["revocation_mode"].(string); mode != "admin" {
-				t.Fatalf("unexpected forced admin revoke metadata: %#v", event)
-			}
-			force, _ := event.Metadata["force_last_active"].(bool)
-			if !force {
-				t.Fatalf("expected force_last_active=true for forced admin revoke: %#v", event)
-			}
-			forcedAdminEventSeen = true
 		}
 	}
 	if adminRevokedCount != 1 {
 		t.Fatalf("expected exactly one audit event for member admin revoke, got %d in %#v", adminRevokedCount, events)
 	}
-	if !forcedAdminEventSeen {
-		t.Fatalf("expected forced admin revoke audit event in %#v", events)
+}
+
+func TestHumanPrincipalRevocationSafeguards(t *testing.T) {
+	t.Parallel()
+
+	env := newAuthIntegrationEnv(t, authIntegrationOptions{bootstrapToken: testBootstrapToken})
+	serverURL := env.server.URL
+	ctx := context.Background()
+
+	adminResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/agents/register", map[string]any{
+		"username":        "lockout-admin",
+		"public_key":      mustGeneratePublicKey(t),
+		"bootstrap_token": testBootstrapToken,
+	}, "", http.StatusCreated)
+	defer adminResp.Body.Close()
+
+	var adminPayload struct {
+		Agent struct {
+			AgentID string `json:"agent_id"`
+			ActorID string `json:"actor_id"`
+		} `json:"agent"`
+		Tokens struct {
+			AccessToken string `json:"access_token"`
+		} `json:"tokens"`
+	}
+	if err := json.NewDecoder(adminResp.Body).Decode(&adminPayload); err != nil {
+		t.Fatalf("decode admin register response: %v", err)
+	}
+
+	seededMachine := seedMachinePrincipalForLockoutTest(t, ctx, env.workspace.DB(), "agent-machine-lockout", "actor-machine-lockout", "machine.lockout", "machine-lockout-token")
+	seededHumanOne := seedHumanPrincipalForLockoutTest(t, ctx, env.workspace.DB(), "agent-human-lockout-1", "actor-human-lockout-1", "human.lockout.one", "human-lockout-one-token")
+
+	blockedResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/principals/"+seededHumanOne.AgentID+"/revoke", map[string]any{}, adminPayload.Tokens.AccessToken, http.StatusConflict)
+	defer blockedResp.Body.Close()
+	assertErrorCode(t, blockedResp, "last_active_principal")
+
+	machineResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/principals/"+seededMachine.AgentID+"/revoke", map[string]any{}, adminPayload.Tokens.AccessToken, http.StatusOK)
+	defer machineResp.Body.Close()
+	var machinePayload map[string]any
+	if err := json.NewDecoder(machineResp.Body).Decode(&machinePayload); err != nil {
+		t.Fatalf("decode machine revoke response: %v", err)
+	}
+	machineRevocation, _ := machinePayload["revocation"].(map[string]any)
+	if machineRevocation == nil || asBool(machineRevocation["allow_human_lockout"]) {
+		t.Fatalf("unexpected machine revoke payload: %#v", machinePayload)
+	}
+
+	seededHumanTwo := seedHumanPrincipalForLockoutTest(t, ctx, env.workspace.DB(), "agent-human-lockout-2", "actor-human-lockout-2", "human.lockout.two", "human-lockout-two-token")
+
+	allowedResp := postJSONExpectStatusWithAuth(t, serverURL+"/auth/principals/"+seededHumanOne.AgentID+"/revoke", map[string]any{}, adminPayload.Tokens.AccessToken, http.StatusOK)
+	defer allowedResp.Body.Close()
+	var allowedPayload map[string]any
+	if err := json.NewDecoder(allowedResp.Body).Decode(&allowedPayload); err != nil {
+		t.Fatalf("decode allowed revoke response: %v", err)
+	}
+	allowedRevocation, _ := allowedPayload["revocation"].(map[string]any)
+	if allowedRevocation == nil || asBool(allowedRevocation["allow_human_lockout"]) {
+		t.Fatalf("expected ordinary revoke response for first human, got %#v", allowedPayload)
+	}
+
+	lastHumanBlockedResp := postJSONExpectStatusWithAuth(t, serverURL+"/agents/me/revoke", map[string]any{}, seededHumanTwo.AccessToken, http.StatusConflict)
+	defer lastHumanBlockedResp.Body.Close()
+	assertErrorCode(t, lastHumanBlockedResp, "last_active_principal")
+
+	breakGlassResp := postJSONExpectStatusWithAuth(t, serverURL+"/agents/me/revoke", map[string]any{
+		"allow_human_lockout":  true,
+		"human_lockout_reason": "restore workspace access",
+	}, seededHumanTwo.AccessToken, http.StatusOK)
+	defer breakGlassResp.Body.Close()
+	var breakGlassPayload map[string]any
+	if err := json.NewDecoder(breakGlassResp.Body).Decode(&breakGlassPayload); err != nil {
+		t.Fatalf("decode break-glass self revoke response: %v", err)
+	}
+	breakGlassRevocation, _ := breakGlassPayload["revocation"].(map[string]any)
+	if breakGlassRevocation == nil || !asBool(breakGlassRevocation["allow_human_lockout"]) {
+		t.Fatalf("expected break-glass self revoke metadata, got %#v", breakGlassPayload)
+	}
+
+	events, _, err := env.authStore.ListAuditEvents(context.Background(), auth.AuthAuditListFilter{})
+	if err != nil {
+		t.Fatalf("list auth audit events after human revoke flow: %v", err)
+	}
+
+	humanLockoutEventSeen := false
+	for _, event := range events {
+		if event.EventType != auth.AuthAuditEventPrincipalHumanLockoutRevoked {
+			continue
+		}
+		if event.SubjectAgentID == nil || *event.SubjectAgentID != seededHumanTwo.AgentID {
+			continue
+		}
+		humanLockoutEventSeen = true
+		if event.ActorAgentID == nil || *event.ActorAgentID != seededHumanTwo.AgentID {
+			t.Fatalf("unexpected human lockout actor: %#v", event)
+		}
+		if mode, _ := event.Metadata["revocation_mode"].(string); mode != "self" {
+			t.Fatalf("unexpected human lockout metadata: %#v", event)
+		}
+		if reason, _ := event.Metadata["human_lockout_reason"].(string); reason != "restore workspace access" {
+			t.Fatalf("unexpected human lockout reason metadata: %#v", event)
+		}
+		if allow, _ := event.Metadata["allow_human_lockout"].(bool); !allow {
+			t.Fatalf("expected allow_human_lockout metadata in %#v", event)
+		}
+	}
+	if !humanLockoutEventSeen {
+		t.Fatalf("expected principal_human_lockout_revoked audit event in %#v", events)
 	}
 }
 
@@ -1440,6 +1522,146 @@ func listAuthAuditPage(t *testing.T, serverURL string, accessToken string, limit
 		t.Fatalf("decode auth audit response: %v", err)
 	}
 	return payload
+}
+
+type lockoutPrincipalSeed struct {
+	AgentID     string
+	ActorID     string
+	Username    string
+	AccessToken string
+}
+
+func seedMachinePrincipalForLockoutTest(t *testing.T, ctx context.Context, db *sql.DB, agentID string, actorID string, username string, accessToken string) lockoutPrincipalSeed {
+	t.Helper()
+
+	seed := lockoutPrincipalSeed{
+		AgentID:     agentID,
+		ActorID:     actorID,
+		Username:    username,
+		AccessToken: accessToken,
+	}
+	now := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO actors(id, display_name, tags_json, created_at, metadata_json)
+		 VALUES (?, ?, ?, ?, '{}')`,
+		actorID,
+		username,
+		`["agent"]`,
+		now,
+	); err != nil {
+		t.Fatalf("insert machine actor: %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO agents(id, username, actor_id, created_at, updated_at, revoked_at, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, NULL, '{}')`,
+		agentID,
+		username,
+		actorID,
+		now,
+		now,
+	); err != nil {
+		t.Fatalf("insert machine agent: %v", err)
+	}
+	insertAuthAccessTokenForLockoutTest(t, ctx, db, agentID, accessToken, now)
+	return seed
+}
+
+func seedHumanPrincipalForLockoutTest(t *testing.T, ctx context.Context, db *sql.DB, agentID string, actorID string, username string, accessToken string) lockoutPrincipalSeed {
+	t.Helper()
+
+	seed := lockoutPrincipalSeed{
+		AgentID:     agentID,
+		ActorID:     actorID,
+		Username:    username,
+		AccessToken: accessToken,
+	}
+	now := time.Date(2026, 3, 21, 10, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	publicKeyB64, _ := generateKeyPair(t)
+	publicKey, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	if err != nil {
+		t.Fatalf("decode public key: %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO actors(id, display_name, tags_json, created_at, metadata_json)
+		 VALUES (?, ?, ?, ?, '{}')`,
+		actorID,
+		username,
+		`["agent","human","passkey"]`,
+		now,
+	); err != nil {
+		t.Fatalf("insert human actor: %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO agents(id, username, actor_id, created_at, updated_at, revoked_at, metadata_json)
+		 VALUES (?, ?, ?, ?, ?, NULL, '{}')`,
+		agentID,
+		username,
+		actorID,
+		now,
+		now,
+	); err != nil {
+		t.Fatalf("insert human agent: %v", err)
+	}
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO passkey_credentials(
+			credential_id,
+			agent_id,
+			user_handle,
+			public_key,
+			attestation_type,
+			transport,
+			sign_count,
+			backup_eligible,
+			backup_state,
+			aaguid,
+			attachment,
+			created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"credential-"+agentID,
+		agentID,
+		[]byte("user-"+agentID),
+		publicKey,
+		"none",
+		"",
+		0,
+		0,
+		0,
+		[]byte{},
+		"",
+		now,
+	); err != nil {
+		t.Fatalf("insert human passkey credential: %v", err)
+	}
+	insertAuthAccessTokenForLockoutTest(t, ctx, db, agentID, accessToken, now)
+	return seed
+}
+
+func insertAuthAccessTokenForLockoutTest(t *testing.T, ctx context.Context, db *sql.DB, agentID string, accessToken string, now string) {
+	t.Helper()
+
+	expiresAt := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO auth_access_tokens(id, agent_id, token_hash, created_at, expires_at, revoked_at)
+		 VALUES (?, ?, ?, ?, ?, NULL)`,
+		"access-"+agentID,
+		agentID,
+		authHashTokenForLockoutTest(accessToken),
+		now,
+		expiresAt,
+	); err != nil {
+		t.Fatalf("insert access token: %v", err)
+	}
+}
+
+func authHashTokenForLockoutTest(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }
 
 func mustGeneratePublicKey(t *testing.T) string {

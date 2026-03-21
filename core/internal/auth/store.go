@@ -78,17 +78,18 @@ const (
 )
 
 type RevokeAgentInput struct {
-	Actor           Principal
-	Mode            RevocationMode
-	ForceLastActive bool
+	Actor              Principal
+	Mode               RevocationMode
+	AllowHumanLockout  bool
+	HumanLockoutReason string
 }
 
 type RevokeAgentResult struct {
 	Principal  AuthPrincipalSummary `json:"principal"`
 	Revocation struct {
-		Mode            string `json:"mode"`
-		AlreadyRevoked  bool   `json:"already_revoked"`
-		ForceLastActive bool   `json:"force_last_active"`
+		Mode              string `json:"mode"`
+		AlreadyRevoked    bool   `json:"already_revoked"`
+		AllowHumanLockout bool   `json:"allow_human_lockout"`
 	} `json:"revocation"`
 }
 
@@ -853,6 +854,13 @@ func (s *Store) RevokeAgent(ctx context.Context, agentID string, input RevokeAge
 	if strings.TrimSpace(string(input.Mode)) == "" {
 		input.Mode = RevocationModeAdmin
 	}
+	input.HumanLockoutReason = strings.TrimSpace(input.HumanLockoutReason)
+	if input.AllowHumanLockout && input.HumanLockoutReason == "" {
+		return RevokeAgentResult{}, fmt.Errorf("%w: human_lockout_reason is required when allow_human_lockout=true", ErrInvalidRequest)
+	}
+	if !input.AllowHumanLockout && input.HumanLockoutReason != "" {
+		return RevokeAgentResult{}, fmt.Errorf("%w: human_lockout_reason requires allow_human_lockout=true", ErrInvalidRequest)
+	}
 
 	now := time.Now().UTC()
 	nowText := now.Format(time.RFC3339Nano)
@@ -864,6 +872,7 @@ func (s *Store) RevokeAgent(ctx context.Context, agentID string, input RevokeAge
 	var (
 		subjectActorID  string
 		existingRevoked sql.NullString
+		principal       AuthPrincipalSummary
 	)
 	err = tx.QueryRowContext(
 		ctx,
@@ -891,16 +900,25 @@ func (s *Store) RevokeAgent(ctx context.Context, agentID string, input RevokeAge
 		return result, nil
 	}
 
-	activeCount, err := s.countActivePrincipalsTx(ctx, tx)
+	principal, err = s.getPrincipalSummaryTx(ctx, tx, agentID)
 	if err != nil {
 		_ = tx.Rollback()
 		return RevokeAgentResult{}, err
 	}
-	if activeCount == 1 && !input.ForceLastActive {
+	activeHumanCount, err := s.countActiveHumanPrincipalsTx(ctx, tx)
+	if err != nil {
+		_ = tx.Rollback()
+		return RevokeAgentResult{}, err
+	}
+	if principal.PrincipalKind == "human" && activeHumanCount == 1 && !input.AllowHumanLockout {
 		_ = tx.Rollback()
 		return RevokeAgentResult{}, ErrLastActivePrincipal
 	}
-	usedForceLastActive := activeCount == 1 && input.ForceLastActive
+	usedHumanLockout := principal.PrincipalKind == "human" && activeHumanCount == 1 && input.AllowHumanLockout
+	if input.AllowHumanLockout && !usedHumanLockout {
+		_ = tx.Rollback()
+		return RevokeAgentResult{}, fmt.Errorf("%w: allow_human_lockout is only permitted when revoking the last active human principal", ErrInvalidRequest)
+	}
 
 	_, err = tx.ExecContext(
 		ctx,
@@ -933,6 +951,18 @@ func (s *Store) RevokeAgent(ctx context.Context, agentID string, input RevokeAge
 	if input.Mode == RevocationModeSelf {
 		eventType = AuthAuditEventPrincipalSelfRevoked
 	}
+	if usedHumanLockout {
+		eventType = AuthAuditEventPrincipalHumanLockoutRevoked
+	}
+	metadata := map[string]any{
+		"actor_username":      strings.TrimSpace(input.Actor.Username),
+		"revocation_mode":     string(input.Mode),
+		"allow_human_lockout": usedHumanLockout,
+		"active_human_count":  activeHumanCount,
+	}
+	if usedHumanLockout {
+		metadata["human_lockout_reason"] = input.HumanLockoutReason
+	}
 	if err := s.recordAuthAuditEventTx(ctx, tx, AuthAuditEventInput{
 		EventType:      eventType,
 		OccurredAt:     now,
@@ -940,17 +970,13 @@ func (s *Store) RevokeAgent(ctx context.Context, agentID string, input RevokeAge
 		ActorActorID:   input.Actor.ActorID,
 		SubjectAgentID: agentID,
 		SubjectActorID: subjectActorID,
-		Metadata: map[string]any{
-			"actor_username":    strings.TrimSpace(input.Actor.Username),
-			"revocation_mode":   string(input.Mode),
-			"force_last_active": usedForceLastActive,
-		},
+		Metadata:       metadata,
 	}); err != nil {
 		_ = tx.Rollback()
 		return RevokeAgentResult{}, err
 	}
 
-	principal, err := s.getPrincipalSummaryTx(ctx, tx, agentID)
+	principal, err = s.getPrincipalSummaryTx(ctx, tx, agentID)
 	if err != nil {
 		_ = tx.Rollback()
 		return RevokeAgentResult{}, err
@@ -962,19 +988,47 @@ func (s *Store) RevokeAgent(ctx context.Context, agentID string, input RevokeAge
 
 	result := RevokeAgentResult{Principal: principal}
 	result.Revocation.Mode = string(input.Mode)
-	result.Revocation.ForceLastActive = usedForceLastActive
+	result.Revocation.AllowHumanLockout = usedHumanLockout
 	return result, nil
 }
 
-func (s *Store) countActivePrincipalsTx(ctx context.Context, tx *sql.Tx) (int, error) {
+func (s *Store) countActiveHumanPrincipalsTx(ctx context.Context, tx *sql.Tx) (int, error) {
 	var count int
 	if err := tx.QueryRowContext(
 		ctx,
 		`SELECT COUNT(1)
-		 FROM agents
-		 WHERE revoked_at IS NULL`,
+		 FROM agents a
+		 WHERE a.revoked_at IS NULL
+		   AND EXISTS(
+		       SELECT 1
+		         FROM passkey_credentials pc
+		        WHERE pc.agent_id = a.id
+		        LIMIT 1
+		   )`,
 	).Scan(&count); err != nil {
-		return 0, fmt.Errorf("count active principals: %w", err)
+		return 0, fmt.Errorf("count active human principals: %w", err)
+	}
+	return count, nil
+}
+
+func (s *Store) CountActiveHumanPrincipals(ctx context.Context) (int, error) {
+	if s == nil || s.db == nil {
+		return 0, fmt.Errorf("auth store database is not initialized")
+	}
+	var count int
+	if err := s.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(1)
+		 FROM agents a
+		 WHERE a.revoked_at IS NULL
+		   AND EXISTS(
+		       SELECT 1
+		         FROM passkey_credentials pc
+		        WHERE pc.agent_id = a.id
+		        LIMIT 1
+		   )`,
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count active human principals: %w", err)
 	}
 	return count, nil
 }

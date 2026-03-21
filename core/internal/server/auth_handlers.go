@@ -236,16 +236,19 @@ func handleRevokeCurrentAgent(w http.ResponseWriter, r *http.Request, opts handl
 	}
 
 	result, err := opts.authStore.RevokeAgent(r.Context(), principal.AgentID, auth.RevokeAgentInput{
-		Actor:           *principal,
-		Mode:            auth.RevocationModeSelf,
-		ForceLastActive: req.ForceLastActive,
+		Actor:              *principal,
+		Mode:               auth.RevocationModeSelf,
+		AllowHumanLockout:  req.AllowHumanLockout,
+		HumanLockoutReason: req.HumanLockoutReason,
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, auth.ErrAgentNotFound):
 			writeError(w, http.StatusUnauthorized, "invalid_token", "authenticated agent no longer exists")
 		case errors.Is(err, auth.ErrLastActivePrincipal):
-			writeError(w, http.StatusConflict, "last_active_principal", "refusing to revoke the last active principal without force_last_active=true")
+			writeError(w, http.StatusConflict, "last_active_principal", "refusing to revoke the last active human principal without allow_human_lockout=true and human_lockout_reason")
+		case errors.Is(err, auth.ErrInvalidRequest):
+			writeError(w, http.StatusBadRequest, "invalid_request", sanitizeAuthError(err))
 		case errors.Is(err, auth.ErrAuthRequired):
 			writeError(w, http.StatusUnauthorized, "auth_required", "authorization header is required")
 		default:
@@ -269,16 +272,19 @@ func handleRevokePrincipal(w http.ResponseWriter, r *http.Request, opts handlerO
 	}
 
 	result, err := opts.authStore.RevokeAgent(r.Context(), agentID, auth.RevokeAgentInput{
-		Actor:           *principal,
-		Mode:            auth.RevocationModeAdmin,
-		ForceLastActive: req.ForceLastActive,
+		Actor:              *principal,
+		Mode:               auth.RevocationModeAdmin,
+		AllowHumanLockout:  req.AllowHumanLockout,
+		HumanLockoutReason: req.HumanLockoutReason,
 	})
 	if err != nil {
 		switch {
 		case errors.Is(err, auth.ErrAgentNotFound):
 			writeError(w, http.StatusNotFound, "not_found", "principal not found")
 		case errors.Is(err, auth.ErrLastActivePrincipal):
-			writeError(w, http.StatusConflict, "last_active_principal", "refusing to revoke the last active principal without force_last_active=true")
+			writeError(w, http.StatusConflict, "last_active_principal", "refusing to revoke the last active human principal without allow_human_lockout=true and human_lockout_reason")
+		case errors.Is(err, auth.ErrInvalidRequest):
+			writeError(w, http.StatusBadRequest, "invalid_request", sanitizeAuthError(err))
 		case errors.Is(err, auth.ErrAuthRequired):
 			writeError(w, http.StatusUnauthorized, "auth_required", "authorization header is required")
 		default:
@@ -291,10 +297,12 @@ func handleRevokePrincipal(w http.ResponseWriter, r *http.Request, opts handlerO
 }
 
 func decodeRevokePrincipalRequest(w http.ResponseWriter, r *http.Request) (struct {
-	ForceLastActive bool `json:"force_last_active"`
+	AllowHumanLockout  bool   `json:"allow_human_lockout"`
+	HumanLockoutReason string `json:"human_lockout_reason"`
 }, bool) {
 	var req struct {
-		ForceLastActive bool `json:"force_last_active"`
+		AllowHumanLockout  bool   `json:"allow_human_lockout"`
+		HumanLockoutReason string `json:"human_lockout_reason"`
 	}
 	if r == nil || r.Body == nil {
 		return req, true

@@ -164,6 +164,133 @@ test.describe("Access management page", () => {
     ).toBeVisible();
   });
 
+  test("requires break-glass confirmation for the last active human principal", async ({
+    page,
+  }) => {
+    await seedAuthenticatedAgent(page);
+
+    await page.route("**/auth/bootstrap/status", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          bootstrap_registration_available: false,
+        }),
+      });
+    });
+
+    await page.route("**/auth/principals*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          active_human_principal_count: 1,
+          principals: [
+            {
+              agent_id: "agent-ops-ai",
+              actor_id: "actor-ops-ai",
+              username: "ops-ai",
+              principal_kind: "agent",
+              auth_method: "public_key",
+              revoked: false,
+              created_at: "2024-01-15T10:00:00Z",
+              updated_at: "2024-01-15T10:00:00Z",
+            },
+            {
+              agent_id: "agent-human-1",
+              actor_id: "actor-human-1",
+              username: "human-one",
+              principal_kind: "human",
+              auth_method: "passkey",
+              revoked: false,
+              created_at: "2024-01-16T10:00:00Z",
+              updated_at: "2024-01-16T10:00:00Z",
+            },
+          ],
+        }),
+      });
+    });
+
+    await page.route(/\/auth\/invites(?:\/.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ invites: [] }),
+      });
+    });
+
+    await page.route("**/auth/audit*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ events: [] }),
+      });
+    });
+
+    let revokePayload = null;
+    await page.route(
+      "**/auth/principals/agent-human-1/revoke",
+      async (route) => {
+        revokePayload = route.request().postDataJSON();
+        await route.fulfill({
+          status: 200,
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            ok: true,
+            principal: {
+              agent_id: "agent-human-1",
+              actor_id: "actor-human-1",
+              username: "human-one",
+              principal_kind: "human",
+              auth_method: "passkey",
+              revoked: true,
+              created_at: "2024-01-16T10:00:00Z",
+              updated_at: "2024-01-16T10:00:00Z",
+              revoked_at: "2024-01-17T10:00:00Z",
+            },
+            revocation: {
+              mode: "admin",
+              already_revoked: false,
+              allow_human_lockout: true,
+            },
+          }),
+        });
+      },
+    );
+
+    await page.goto("/");
+
+    await page.getByRole("link", { name: "Access", exact: true }).click();
+    await expect(page).toHaveURL(/\/access$/);
+
+    await expect(
+      page.getByRole("button", { name: "Break glass", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Break glass", exact: true })
+      .click();
+
+    await expect(
+      page.getByText("Warning: this is the last active human principal"),
+    ).toBeVisible();
+    await expect(page.getByLabel("Type agent ID to confirm")).toBeVisible();
+    await expect(page.getByLabel("Human lockout reason")).toBeVisible();
+
+    await page.getByLabel("Type agent ID to confirm").fill("agent-human-1");
+    await page.getByLabel("Human lockout reason").fill("restore access");
+    await page
+      .getByRole("button", { name: "Allow human lockout and revoke" })
+      .click();
+
+    await expect(
+      page.getByText("Warning: this is the last active human principal"),
+    ).toHaveCount(0);
+    expect(revokePayload).toEqual({
+      allow_human_lockout: true,
+      human_lockout_reason: "restore access",
+    });
+  });
+
   test("does not offer admin revoke for the signed-in principal", async ({
     page,
   }) => {

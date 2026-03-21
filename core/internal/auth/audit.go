@@ -17,13 +17,14 @@ import (
 var ErrInvalidCursor = errors.New("invalid_cursor")
 
 const (
-	AuthAuditEventBootstrapConsumed    = "bootstrap_consumed"
-	AuthAuditEventInviteCreated        = "invite_created"
-	AuthAuditEventInviteRevoked        = "invite_revoked"
-	AuthAuditEventInviteConsumed       = "invite_consumed"
-	AuthAuditEventPrincipalRegistered  = "principal_registered"
-	AuthAuditEventPrincipalRevoked     = "principal_revoked"
-	AuthAuditEventPrincipalSelfRevoked = "principal_self_revoked"
+	AuthAuditEventBootstrapConsumed            = "bootstrap_consumed"
+	AuthAuditEventInviteCreated                = "invite_created"
+	AuthAuditEventInviteRevoked                = "invite_revoked"
+	AuthAuditEventInviteConsumed               = "invite_consumed"
+	AuthAuditEventPrincipalRegistered          = "principal_registered"
+	AuthAuditEventPrincipalHumanLockoutRevoked = "principal_human_lockout_revoked"
+	AuthAuditEventPrincipalRevoked             = "principal_revoked"
+	AuthAuditEventPrincipalSelfRevoked         = "principal_self_revoked"
 )
 
 type AuthPrincipalListFilter struct {
