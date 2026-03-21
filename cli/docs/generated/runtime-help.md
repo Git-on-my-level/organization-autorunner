@@ -597,7 +597,7 @@ Commands:
   threads list             List thread snapshots
   threads patch            Patch thread snapshot
   threads timeline         Get thread timeline events and referenced entities
-  threads workspace        Get canonical thread workspace projection
+  threads workspace        Get thread workspace projection
 
 Canonical coordination read path:
   threads review              Deep-read one thread workspace with review hydration enabled by default.
@@ -680,7 +680,7 @@ Commands:
   boards get               Get board metadata
   boards list              List boards with derived summary data
   boards update            Update board metadata
-  boards workspace         Get canonical board workspace projection
+  boards workspace         Get board workspace projection
 
 Global flags:
   Global flags can appear before or after the command path.

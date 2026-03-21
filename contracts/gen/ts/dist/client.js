@@ -1991,7 +1991,7 @@ export const commandRegistry = [
         "method": "GET",
         "path": "/boards/{board_id}/workspace",
         "operation_id": "getBoardWorkspace",
-        "summary": "Get canonical board workspace projection",
+        "summary": "Get board workspace projection",
         "why": "Load one board's canonical organizing map plus hydrated backing resources and derived scan sections in a single round-trip.",
         "input_mode": "none",
         "streaming": {
@@ -4354,7 +4354,7 @@ export const commandRegistry = [
         "method": "GET",
         "path": "/threads/{thread_id}/workspace",
         "operation_id": "getThreadWorkspace",
-        "summary": "Get canonical thread workspace projection",
+        "summary": "Get thread workspace projection",
         "why": "Load one thread workspace projection from the server, including canonical thread context plus derived collaboration and inbox summaries, so CLI and web do not need client-side joins.",
         "input_mode": "none",
         "streaming": {

@@ -1276,7 +1276,7 @@ paths:
   /threads/{thread_id}/workspace:
     get:
       operationId: getThreadWorkspace
-      summary: Get canonical thread workspace projection
+      summary: Get thread workspace projection
       tags: [threads]
       x-oar-surface: "projection"
       x-oar-command-id: "threads.workspace"
@@ -1672,7 +1672,7 @@ paths:
   /boards/{board_id}/workspace:
     get:
       operationId: getBoardWorkspace
-      summary: Get canonical board workspace projection
+      summary: Get board workspace projection
       tags: [boards]
       x-oar-surface: "projection"
       x-oar-command-id: "boards.workspace"
