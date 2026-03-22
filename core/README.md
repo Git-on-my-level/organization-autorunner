@@ -5,7 +5,7 @@ Go-first bootstrap for the Organization Autorunner core backend.
 This repo currently includes:
 - `docs/`: spec + HTTP contract
 - `../contracts/oar-schema.yaml`: shared schema
-- `cmd/oar-core`: HTTP server (`/health`, `/readyz`, `/ops/health`, `/version`) with SQLite+filesystem workspace init
+- `cmd/oar-core`: HTTP server (`/health`, `/livez`, `/readyz`, `/ops/health`, `/version`) with SQLite+filesystem workspace init
 - `cmd/oar-control-plane`: SaaS control-plane HTTP server for accounts, organizations, workspace registry, jobs, invites, and audit state
 - `scripts/dev`, `scripts/lint`, `scripts/test`: local workflows
 

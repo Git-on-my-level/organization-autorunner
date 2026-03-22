@@ -43,6 +43,12 @@ export const commandRegistry = [
                     "name": "registration_session_id",
                     "type": "string"
                 }
+            ],
+            "optional": [
+                {
+                    "name": "invite_token",
+                    "type": "string"
+                }
             ]
         },
         "adjacent_commands": [
@@ -150,6 +156,12 @@ export const commandRegistry = [
                 },
                 {
                     "name": "session_id",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "invite_token",
                     "type": "string"
                 }
             ]

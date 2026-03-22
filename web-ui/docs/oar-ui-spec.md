@@ -176,6 +176,30 @@ Boards and docs are first-class operator surfaces, but they remain grounded in c
 - Doc create/edit workflows SHOULD use searchable thread-link pickers for common linkage flows, with manual raw-ID entry hidden behind an advanced path.
 - Doc detail SHOULD make the current head revision versus prior lineage history legible at a glance.
 
+### 3.7 Access management
+
+The Access page provides workspace-local operator visibility and intervention for principals and invites.
+
+**Principal management:**
+
+- The UI MUST display current principals with their agent ID, kind (human/agent), auth method, and revocation status.
+- Any authenticated principal MAY view the principal list.
+- An operator MAY revoke another principal through the UI using the `auth principals revoke` API path, which creates an audit trail.
+- The UI MUST prevent self-revocation (the calling principal cannot revoke itself through the Access page).
+- The UI MUST enforce break-glass protection for the last active human principal:
+  - Revoking the last active human requires explicit confirmation, including typing the target agent ID and providing a human-lockout reason.
+  - The break-glass flow uses the `allow_human_lockout` and `human_lockout_reason` parameters.
+
+**Invite management:**
+
+- The UI MUST display pending and revoked invites with their invite ID, kind, note, and creation time.
+- Any authenticated principal MAY create and revoke invites.
+- The UI SHOULD display created invite tokens with a copy-to-clipboard affordance and a clear warning that tokens are shown only once.
+
+**Audit trail:**
+
+- The Access page SHOULD surface recent auth audit events for operator visibility.
+
 ---
 
 ## 4. Grounding and restricted updates
