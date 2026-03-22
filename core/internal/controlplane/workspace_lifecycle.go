@@ -44,10 +44,21 @@ func (s *Service) transitionWorkspaceState(ctx context.Context, identity Request
 	if membership.Status != "active" {
 		return Workspace{}, ProvisioningJob{}, accessDenied("workspace membership is disabled")
 	}
+	if !membershipCanManage(membership.Role) {
+		return Workspace{}, ProvisioningJob{}, accessDenied("workspace lifecycle changes require owner or admin access")
+	}
 
 	now := s.now()
 	nowText := now.Format(time.RFC3339Nano)
-	workspace.DesiredState = desiredState
+	previousStatus := workspace.Status
+	desiredStateChanged := workspace.DesiredState != desiredState
+	stateChanged := previousStatus != currentState
+	persistWorkspace := stateChanged || desiredStateChanged
+	if persistWorkspace {
+		workspace.Status = currentState
+		workspace.DesiredState = desiredState
+		workspace.UpdatedAt = nowText
+	}
 	job := ProvisioningJob{
 		ID:              "job_" + uuid.NewString(),
 		OrganizationID:  workspace.OrganizationID,
@@ -60,10 +71,10 @@ func (s *Service) transitionWorkspaceState(ctx context.Context, identity Request
 		Retryable:       true,
 		Parameters: map[string]any{
 			"requested_state": desiredState,
-			"current_state":   workspace.Status,
+			"current_state":   previousStatus,
 		},
 	}
-	if workspace.Status == currentState {
+	if !stateChanged {
 		job.Status = "succeeded"
 		job.ProgressMessage = progress + " (already applied)"
 		job.FinishedAt = stringPtr(nowText)
@@ -73,8 +84,6 @@ func (s *Service) transitionWorkspaceState(ctx context.Context, identity Request
 			"desired_state": workspace.DesiredState,
 		}
 	} else {
-		workspace.Status = currentState
-		workspace.UpdatedAt = nowText
 		job.Status = "succeeded"
 		job.ProgressMessage = progress
 		job.FinishedAt = stringPtr(nowText)
@@ -93,7 +102,7 @@ func (s *Service) transitionWorkspaceState(ctx context.Context, identity Request
 	if err := s.insertProvisioningJob(ctx, tx, job); err != nil {
 		return Workspace{}, ProvisioningJob{}, internalError("failed to create workspace lifecycle job")
 	}
-	if workspace.Status != currentState {
+	if persistWorkspace {
 		if err := s.persistWorkspaceRoutingManifest(ctx, tx, workspace); err != nil {
 			return Workspace{}, ProvisioningJob{}, err
 		}
@@ -129,6 +138,9 @@ func (s *Service) restoreOrReplaceWorkspace(ctx context.Context, identity Reques
 	}
 	if membership.Status != "active" {
 		return Workspace{}, ProvisioningJob{}, accessDenied("workspace membership is disabled")
+	}
+	if !membershipCanManage(membership.Role) {
+		return Workspace{}, ProvisioningJob{}, accessDenied("workspace restore and replace require owner or admin access")
 	}
 	backupDir = strings.TrimSpace(backupDir)
 	if backupDir == "" {

@@ -99,23 +99,11 @@ func TestControlPlaneAccountOrganizationWorkspaceInviteJobAuditFlow(t *testing.T
 		t.Fatalf("expected 1 invite, got %d", got)
 	}
 
-	firstWorkspaceCreate := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
-		"organization_id": organizationID,
-		"slug":            "ops",
-		"display_name":    "Ops",
-		"region":          "us-central1",
-		"workspace_tier":  "standard",
-	}, http.StatusCreated, authHeaders(ownerToken))
+	firstWorkspaceCreate := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "ops", "Ops", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
 	firstWorkspace := asMap(t, firstWorkspaceCreate["workspace"])
 	firstJob := asMap(t, firstWorkspaceCreate["provisioning_job"])
 
-	secondWorkspaceCreate := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
-		"organization_id": organizationID,
-		"slug":            "eng",
-		"display_name":    "Engineering",
-		"region":          "us-east1",
-		"workspace_tier":  "plus",
-	}, http.StatusCreated, authHeaders(ownerToken))
+	secondWorkspaceCreate := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "eng", "Engineering", "us-east1", "plus"), http.StatusCreated, authHeaders(ownerToken))
 	secondWorkspace := asMap(t, secondWorkspaceCreate["workspace"])
 	secondJob := asMap(t, secondWorkspaceCreate["provisioning_job"])
 
@@ -216,13 +204,7 @@ func TestControlPlaneWorkspaceProvisioningProducesReachableDeploymentAndRoutingM
 	}, http.StatusCreated, authHeaders(ownerToken))
 	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
 
-	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
-		"organization_id": organizationID,
-		"slug":            "route",
-		"display_name":    "Route Workspace",
-		"region":          "us-central1",
-		"workspace_tier":  "standard",
-	}, http.StatusCreated, authHeaders(ownerToken))
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "route", "Route Workspace", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
 	t.Log("provisioning response received")
 	workspace := asMap(t, createWorkspaceResp["workspace"])
 	deploymentRoot := asString(t, workspace["deployment_root"])
@@ -277,13 +259,7 @@ func TestControlPlaneSessionExchangeRequiresActiveMembership(t *testing.T) {
 	memberAccount, memberSession := registerAccount(t, env, "member-launch@example.com", "Member Launch", "cred-member-launch")
 	memberToken := asString(t, memberSession["access_token"])
 
-	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
-		"organization_id": organizationID,
-		"slug":            "ops",
-		"display_name":    "Ops",
-		"region":          "us-central1",
-		"workspace_tier":  "standard",
-	}, http.StatusCreated, authHeaders(ownerToken))
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "ops", "Ops", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
 	workspaceID := asString(t, asMap(t, createWorkspaceResp["workspace"])["id"])
 
 	launchResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces/"+workspaceID+"/launch-sessions", map[string]any{
@@ -310,6 +286,95 @@ func TestControlPlaneSessionExchangeRequiresActiveMembership(t *testing.T) {
 	}
 }
 
+func TestControlPlaneWorkspaceLifecycleMutationsRequireManageRoleAndPersistState(t *testing.T) {
+	env := newControlPlaneTestEnv(t, "")
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner-lifecycle@example.com", "Owner Lifecycle", "cred-owner-lifecycle")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "lifecycle-org",
+		"display_name": "Lifecycle Org",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
+		"email": "member-lifecycle@example.com",
+		"role":  "member",
+	}, http.StatusCreated, authHeaders(ownerToken))
+
+	_, memberSession := registerAccount(t, env, "member-lifecycle@example.com", "Member Lifecycle", "cred-member-lifecycle")
+	memberToken := asString(t, memberSession["access_token"])
+
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "lifecycle", "Lifecycle Workspace", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
+	workspaceID := asString(t, asMap(t, createWorkspaceResp["workspace"])["id"])
+
+	deniedSuspendResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces/"+workspaceID+"/suspend", nil, http.StatusForbidden, authHeaders(memberToken))
+	if got := asString(t, asMap(t, deniedSuspendResp["error"])["code"]); got != "access_denied" {
+		t.Fatalf("expected suspend to require manage role, got %q", got)
+	}
+
+	suspendResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces/"+workspaceID+"/suspend", nil, http.StatusOK, authHeaders(ownerToken))
+	suspendedWorkspace := asMap(t, suspendResp["workspace"])
+	if got := asString(t, suspendedWorkspace["status"]); got != "suspended" {
+		t.Fatalf("expected suspend response status=suspended, got %q", got)
+	}
+
+	getWorkspaceResp := requestJSON(t, http.MethodGet, env.server.URL+"/workspaces/"+workspaceID, nil, http.StatusOK, authHeaders(ownerToken))
+	if got := asString(t, asMap(t, getWorkspaceResp["workspace"])["status"]); got != "suspended" {
+		t.Fatalf("expected persisted workspace status=suspended, got %q", got)
+	}
+
+	manifestResp := requestJSON(t, http.MethodGet, env.server.URL+"/workspaces/"+workspaceID+"/routing-manifest", nil, http.StatusOK, authHeaders(ownerToken))
+	if got := asString(t, asMap(t, manifestResp["routing_manifest"])["current_state"]); got != "suspended" {
+		t.Fatalf("expected persisted routing manifest current_state=suspended, got %q", got)
+	}
+
+	resumeResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces/"+workspaceID+"/resume", nil, http.StatusOK, authHeaders(ownerToken))
+	resumedWorkspace := asMap(t, resumeResp["workspace"])
+	if got := asString(t, resumedWorkspace["status"]); got != "ready" {
+		t.Fatalf("expected resume response status=ready, got %q", got)
+	}
+
+	getWorkspaceResp = requestJSON(t, http.MethodGet, env.server.URL+"/workspaces/"+workspaceID, nil, http.StatusOK, authHeaders(ownerToken))
+	if got := asString(t, asMap(t, getWorkspaceResp["workspace"])["status"]); got != "ready" {
+		t.Fatalf("expected persisted workspace status=ready after resume, got %q", got)
+	}
+}
+
+func TestControlPlaneCreateWorkspaceRequiresServiceIdentity(t *testing.T) {
+	env := newControlPlaneTestEnv(t, "")
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner-service-identity@example.com", "Owner Service Identity", "cred-owner-service-identity")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "service-identity-org",
+		"display_name": "Service Identity Org",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
+		"organization_id": organizationID,
+		"slug":            "missing-service-identity",
+		"display_name":    "Missing Service Identity",
+		"region":          "us-central1",
+		"workspace_tier":  "standard",
+	}, http.StatusBadRequest, authHeaders(ownerToken))
+
+	errPayload := asMap(t, createWorkspaceResp["error"])
+	if got := asString(t, errPayload["code"]); got != "invalid_request" {
+		t.Fatalf("expected invalid_request, got %q", got)
+	}
+	if got := asString(t, errPayload["message"]); got != "service_identity_id and service_identity_public_key are required" {
+		t.Fatalf("expected service identity validation message, got %q", got)
+	}
+}
+
 func TestControlPlaneWorkspaceBackupMaintenanceAndRetentionSweep(t *testing.T) {
 	env := newControlPlaneTestEnv(t, "")
 	defer env.Close()
@@ -324,13 +389,7 @@ func TestControlPlaneWorkspaceBackupMaintenanceAndRetentionSweep(t *testing.T) {
 	}, http.StatusCreated, authHeaders(ownerToken))
 	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
 
-	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
-		"organization_id": organizationID,
-		"slug":            "nightly",
-		"display_name":    "Nightly Workspace",
-		"region":          "us-central1",
-		"workspace_tier":  "standard",
-	}, http.StatusCreated, authHeaders(ownerToken))
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "nightly", "Nightly Workspace", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
 	workspace := asMap(t, createWorkspaceResp["workspace"])
 	workspaceID := asString(t, workspace["id"])
 	coreWorkspaceRoot := filepath.Join(asString(t, workspace["deployment_root"]), "workspace")
@@ -435,13 +494,7 @@ func TestControlPlaneProvisionRestoreFailureAndRetrySemantics(t *testing.T) {
 	}, http.StatusCreated, authHeaders(ownerToken))
 	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
 
-	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
-		"organization_id": organizationID,
-		"slug":            "retry",
-		"display_name":    "Retry Workspace",
-		"region":          "us-central1",
-		"workspace_tier":  "standard",
-	}, http.StatusCreated, authHeaders(ownerToken))
+	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "retry", "Retry Workspace", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
 	workspace := asMap(t, createWorkspaceResp["workspace"])
 	workspaceID := asString(t, workspace["id"])
 	deploymentRoot := asString(t, workspace["deployment_root"])
@@ -517,13 +570,7 @@ func TestControlPlaneProvisioningFailureIsDurableAndRetryable(t *testing.T) {
 	}, http.StatusCreated, authHeaders(ownerToken))
 	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
 
-	provisionFailureResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", map[string]any{
-		"organization_id": organizationID,
-		"slug":            "broken",
-		"display_name":    "Broken Workspace",
-		"region":          "us-central1",
-		"workspace_tier":  "standard",
-	}, http.StatusCreated, authHeaders(ownerToken))
+	provisionFailureResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "broken", "Broken Workspace", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
 	provisionFailureJob := asMap(t, provisionFailureResp["provisioning_job"])
 	if got := asString(t, provisionFailureJob["status"]); got != "failed" {
 		t.Fatalf("expected failed provisioning response job, got %q", got)
@@ -1012,6 +1059,38 @@ func requestJSON(t *testing.T, method string, endpoint string, payload any, want
 
 func authHeaders(token string) map[string]string {
 	return map[string]string{"Authorization": "Bearer " + token}
+}
+
+func workspaceCreatePayload(t *testing.T, organizationID string, slug string, displayName string, region string, workspaceTier string) map[string]any {
+	t.Helper()
+
+	serviceIdentity := newWorkspaceServiceIdentity(t, "svc_"+strings.ReplaceAll(slug, "-", "_"))
+	return map[string]any{
+		"organization_id":             organizationID,
+		"slug":                        slug,
+		"display_name":                displayName,
+		"region":                      region,
+		"workspace_tier":              workspaceTier,
+		"service_identity_id":         serviceIdentity.ID(),
+		"service_identity_public_key": serviceIdentity.PublicKeyBase64(),
+	}
+}
+
+func newWorkspaceServiceIdentity(t *testing.T, id string) *controlplaneauth.WorkspaceServiceIdentity {
+	t.Helper()
+
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate workspace service key: %v", err)
+	}
+	serviceIdentity, err := controlplaneauth.NewWorkspaceServiceIdentity(controlplaneauth.WorkspaceServiceIdentityConfig{
+		ID:         id,
+		PrivateKey: privateKey,
+	})
+	if err != nil {
+		t.Fatalf("new workspace service identity: %v", err)
+	}
+	return serviceIdentity
 }
 
 func originHeaders() map[string]string {

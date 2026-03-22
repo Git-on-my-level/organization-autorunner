@@ -82,16 +82,11 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 	}
 	serviceIdentityID = strings.TrimSpace(serviceIdentityID)
 	serviceIdentityPublicKey = strings.TrimSpace(serviceIdentityPublicKey)
-	if serviceIdentityID == "" && serviceIdentityPublicKey != "" {
-		return Workspace{}, ProvisioningJob{}, invalidRequest("service_identity_id is required when service_identity_public_key is provided")
+	if serviceIdentityID == "" || serviceIdentityPublicKey == "" {
+		return Workspace{}, ProvisioningJob{}, invalidRequest("service_identity_id and service_identity_public_key are required")
 	}
-	if serviceIdentityID != "" && serviceIdentityPublicKey == "" {
-		return Workspace{}, ProvisioningJob{}, invalidRequest("service_identity_public_key is required when service_identity_id is provided")
-	}
-	if serviceIdentityPublicKey != "" {
-		if _, err := controlplaneauth.ParseEd25519PublicKeyBase64(serviceIdentityPublicKey); err != nil {
-			return Workspace{}, ProvisioningJob{}, invalidRequest("service_identity_public_key is invalid")
-		}
+	if _, err := controlplaneauth.ParseEd25519PublicKeyBase64(serviceIdentityPublicKey); err != nil {
+		return Workspace{}, ProvisioningJob{}, invalidRequest("service_identity_public_key is invalid")
 	}
 	usageSummary, err := s.GetUsageSummary(ctx, identity, organizationID)
 	if err != nil {

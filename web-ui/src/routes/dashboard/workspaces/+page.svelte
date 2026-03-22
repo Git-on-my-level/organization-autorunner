@@ -13,6 +13,8 @@
   let newDisplayName = $state("");
   let newRegion = $state("us-east-1");
   let selectedOrgId = $state("");
+  let newServiceIdentityId = $state("");
+  let newServiceIdentityPublicKey = $state("");
 
   $effect(() => {
     if (!selectedOrgId && organizations.length > 0) {
@@ -21,7 +23,13 @@
   });
 
   async function handleCreateWorkspace() {
-    if (!newSlug.trim() || !newDisplayName.trim() || !selectedOrgId) {
+    if (
+      !newSlug.trim() ||
+      !newDisplayName.trim() ||
+      !selectedOrgId ||
+      !newServiceIdentityId.trim() ||
+      !newServiceIdentityPublicKey.trim()
+    ) {
       error = "All fields are required.";
       return;
     }
@@ -36,6 +44,8 @@
         organization_id: selectedOrgId,
         region: newRegion,
         workspace_tier: "standard",
+        service_identity_id: newServiceIdentityId.trim(),
+        service_identity_public_key: newServiceIdentityPublicKey.trim(),
       });
 
       goto("/dashboard");
@@ -175,6 +185,41 @@
             <option value="eu-west-1">EU (Ireland)</option>
             <option value="ap-southeast-1">Asia Pacific (Singapore)</option>
           </select>
+        </div>
+
+        <div>
+          <label
+            class="block text-[12px] font-medium text-[var(--ui-text-muted)]"
+            for="workspace-service-identity-id"
+          >
+            Service identity ID
+          </label>
+          <input
+            bind:value={newServiceIdentityId}
+            class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+            id="workspace-service-identity-id"
+            placeholder="svc_my_workspace"
+            type="text"
+          />
+        </div>
+
+        <div>
+          <label
+            class="block text-[12px] font-medium text-[var(--ui-text-muted)]"
+            for="workspace-service-identity-public-key"
+          >
+            Service identity public key
+          </label>
+          <textarea
+            bind:value={newServiceIdentityPublicKey}
+            class="mt-1 min-h-28 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 font-mono text-[13px] text-[var(--ui-text)]"
+            id="workspace-service-identity-public-key"
+            placeholder="Base64-encoded Ed25519 public key"
+          ></textarea>
+          <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
+            This must match the workspace service identity private key used by
+            the deployed workspace core.
+          </p>
         </div>
 
         <div class="flex gap-3">
