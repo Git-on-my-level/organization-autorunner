@@ -744,6 +744,12 @@
                 "name": "registration_session_id",
                 "type": "string"
               }
+            ],
+            "optional": [
+              {
+                "name": "invite_token",
+                "type": "string"
+              }
             ]
           },
           "adjacent_commands": [
@@ -851,6 +857,12 @@
               },
               {
                 "name": "session_id",
+                "type": "string"
+              }
+            ],
+            "optional": [
+              {
+                "name": "invite_token",
                 "type": "string"
               }
             ]
@@ -3072,6 +3084,12 @@
                 "name": "registration_session_id",
                 "type": "string"
               }
+            ],
+            "optional": [
+              {
+                "name": "invite_token",
+                "type": "string"
+              }
             ]
           },
           "adjacent_commands": [
@@ -3179,6 +3197,12 @@
               },
               {
                 "name": "session_id",
+                "type": "string"
+              }
+            ],
+            "optional": [
+              {
+                "name": "invite_token",
                 "type": "string"
               }
             ]
@@ -4412,6 +4436,12 @@
                 "name": "registration_session_id",
                 "type": "string"
               }
+            ],
+            "optional": [
+              {
+                "name": "invite_token",
+                "type": "string"
+              }
             ]
           },
           "adjacent_commands": [
@@ -4465,6 +4495,12 @@
               },
               {
                 "name": "session_id",
+                "type": "string"
+              }
+            ],
+            "optional": [
+              {
+                "name": "invite_token",
                 "type": "string"
               }
             ]

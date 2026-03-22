@@ -2,6 +2,7 @@ import { createControlClient } from "./controlClient.js";
 
 const CONTROL_SESSION_COOKIE = "oar_control_session";
 const CONTROL_ACCOUNT_COOKIE = "oar_control_account";
+const CONTROL_INVITE_COOKIE = "oar_control_invite";
 
 const controlSessionState = {
   accessToken: "",
@@ -23,6 +24,28 @@ function buildControlCookieOptions(event) {
 
 export function getControlSessionCookieName() {
   return CONTROL_SESSION_COOKIE;
+}
+
+export function readControlInviteToken(event) {
+  return event.cookies.get(CONTROL_INVITE_COOKIE) ?? "";
+}
+
+export function writeControlInviteToken(event, inviteToken) {
+  const normalized = String(inviteToken ?? "").trim();
+  if (!normalized) {
+    clearControlInviteToken(event);
+    return;
+  }
+
+  event.cookies.set(
+    CONTROL_INVITE_COOKIE,
+    normalized,
+    buildControlCookieOptions(event),
+  );
+}
+
+export function clearControlInviteToken(event) {
+  event.cookies.delete(CONTROL_INVITE_COOKIE, { path: "/" });
 }
 
 export function readControlAccessToken(event) {
@@ -139,11 +162,17 @@ export async function startControlLogin(event, email) {
   return response;
 }
 
-export async function finishControlLogin(event, sessionId, credential) {
+export async function finishControlLogin(
+  event,
+  sessionId,
+  credential,
+  inviteToken = "",
+) {
   const client = createControlClient();
   const response = await client.finishSession({
     session_id: sessionId,
     credential,
+    ...(inviteToken ? { invite_token: inviteToken } : {}),
   });
 
   const account = response.account;
@@ -175,11 +204,13 @@ export async function finishControlRegistration(
   event,
   registrationSessionId,
   credential,
+  inviteToken = "",
 ) {
   const client = createControlClient();
   const response = await client.finishPasskeyRegistration({
     registration_session_id: registrationSessionId,
     credential,
+    ...(inviteToken ? { invite_token: inviteToken } : {}),
   });
 
   const account = response.account;
@@ -229,5 +260,6 @@ export async function logoutControlSession(event) {
 
   clearControlAccessToken(event);
   clearControlAccount(event);
+  clearControlInviteToken(event);
   clearControlSessionState();
 }

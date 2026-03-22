@@ -45,7 +45,13 @@ function shouldBypassProxy(pathname, method) {
   );
 }
 
-async function refreshAndRetry(event, coreBaseUrl, workspaceSlug, targetUrl) {
+async function refreshAndRetry(
+  event,
+  coreBaseUrl,
+  workspaceSlug,
+  targetUrl,
+  requestBody,
+) {
   if (!readWorkspaceRefreshToken(event, workspaceSlug)) {
     return null;
   }
@@ -66,7 +72,9 @@ async function refreshAndRetry(event, coreBaseUrl, workspaceSlug, targetUrl) {
     return null;
   }
 
-  const requestInit = buildProxyRequestInit(event);
+  const requestInit = buildProxyRequestInit(event, {
+    body: requestBody,
+  });
   requestInit.headers.delete("cookie");
   requestInit.headers.delete("authorization");
   requestInit.headers.set(
@@ -87,7 +95,16 @@ async function proxyToCore(event, coreBaseUrl, workspaceSlug) {
     `${corePathname}${event.url.search}`,
     `${coreBaseUrl}/`,
   ).toString();
-  const requestInit = buildProxyRequestInit(event);
+  const method = event.request.method.toUpperCase();
+  let requestBody;
+  if (method !== "GET" && method !== "HEAD") {
+    const payload = new Uint8Array(await event.request.arrayBuffer());
+    requestBody = payload.byteLength > 0 ? payload : undefined;
+  }
+
+  const requestInit = buildProxyRequestInit(event, {
+    body: requestBody,
+  });
   requestInit.headers.delete("cookie");
   requestInit.headers.delete("authorization");
 
@@ -124,6 +141,7 @@ async function proxyToCore(event, coreBaseUrl, workspaceSlug) {
       coreBaseUrl,
       workspaceSlug,
       targetUrl,
+      requestBody,
     );
     if (retriedResponse) {
       upstreamResponse = retriedResponse;

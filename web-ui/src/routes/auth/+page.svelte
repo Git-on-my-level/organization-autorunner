@@ -23,6 +23,10 @@
   let loadingRegistration = $state(false);
   let loadingLogin = $state(false);
 
+  function hasInviteFlow() {
+    return $page.url.searchParams.get("invite") === "1";
+  }
+
   function resolveRedirectPath() {
     const redirectPath = $page.url.searchParams.get("redirect") || "/dashboard";
     return redirectPath.startsWith("/") ? redirectPath : "/dashboard";
@@ -38,13 +42,13 @@
 
   onMount(async () => {
     await initializeControlSession();
-    if ($controlAuthenticated) {
+    if ($controlAuthenticated && !hasInviteFlow()) {
       goto(resolveRedirectPath());
     }
   });
 
   $effect(() => {
-    if ($controlAuthenticated) {
+    if ($controlAuthenticated && !hasInviteFlow()) {
       goto(resolveRedirectPath());
     }
   });
@@ -131,7 +135,7 @@
       Loading...
     </div>
   </main>
-{:else if $controlAuthenticated}
+{:else if $controlAuthenticated && !$page.url.searchParams.get("invite")}
   <main class="min-h-screen bg-[var(--ui-bg)] px-4 py-10 text-[var(--ui-text)]">
     <div
       class="mx-auto flex max-w-xl items-center justify-center rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-4 py-10 text-[13px]"
@@ -150,6 +154,14 @@
           Sign in to access your organizations and workspaces
         </p>
       </div>
+
+      {#if $page.url.searchParams.get("invite") === "1"}
+        <div
+          class="mb-4 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-4 py-3 text-[13px] text-indigo-300"
+        >
+          Continue with your passkey to accept this organization invite.
+        </div>
+      {/if}
 
       <div class="flex gap-4 lg:flex-row">
         <section

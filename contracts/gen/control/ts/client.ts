@@ -88,6 +88,12 @@ export const commandRegistry: CommandSpec[] = [
           "name": "registration_session_id",
           "type": "string"
         }
+      ],
+      "optional": [
+        {
+          "name": "invite_token",
+          "type": "string"
+        }
       ]
     },
     "adjacent_commands": [
@@ -195,6 +201,12 @@ export const commandRegistry: CommandSpec[] = [
         },
         {
           "name": "session_id",
+          "type": "string"
+        }
+      ],
+      "optional": [
+        {
+          "name": "invite_token",
           "type": "string"
         }
       ]

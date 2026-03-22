@@ -1688,6 +1688,7 @@ components:
       type: object
       properties:
         registration_session_id: { type: string }
+        invite_token: { type: string }
         credential:
           type: object
           additionalProperties: true
@@ -1714,6 +1715,7 @@ components:
       type: object
       properties:
         session_id: { type: string }
+        invite_token: { type: string }
         credential:
           type: object
           additionalProperties: true

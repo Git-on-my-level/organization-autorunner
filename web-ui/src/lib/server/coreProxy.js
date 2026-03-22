@@ -1,4 +1,4 @@
-export function buildProxyRequestInit(event) {
+export function buildProxyRequestInit(event, { body } = {}) {
   const headers = new Headers(event.request.headers);
   headers.delete("host");
   headers.delete("cookie");
@@ -13,7 +13,7 @@ export function buildProxyRequestInit(event) {
   };
 
   if (method !== "GET" && method !== "HEAD") {
-    requestInit.body = event.request.body;
+    requestInit.body = body ?? event.request.body;
     requestInit.duplex = "half";
   }
 

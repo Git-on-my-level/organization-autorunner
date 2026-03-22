@@ -1,13 +1,19 @@
 import { json } from "@sveltejs/kit";
 
 import {
+  clearControlInviteToken,
   finishControlLogin,
   finishControlRegistration,
   logoutControlSession,
   loadControlSession,
+  readControlInviteToken,
   startControlLogin,
   startControlRegistration,
 } from "$lib/server/controlSession.js";
+
+function isInviteTokenError(error) {
+  return error?.status === 401 && error?.body?.error?.code === "invalid_token";
+}
 
 function jsonControlError(
   error,
@@ -88,6 +94,7 @@ export async function POST(event) {
 
   if (action === "register-finish") {
     const registrationSessionId = body.registration_session_id;
+    const inviteToken = readControlInviteToken(event);
     const credential = body.credential;
 
     if (!registrationSessionId || !credential) {
@@ -107,10 +114,15 @@ export async function POST(event) {
         event,
         registrationSessionId,
         credential,
+        inviteToken,
       );
+      clearControlInviteToken(event);
 
       return json(result);
     } catch (error) {
+      if (inviteToken && isInviteTokenError(error)) {
+        clearControlInviteToken(event);
+      }
       return jsonControlError(
         error,
         "registration_finish_failed",
@@ -146,6 +158,7 @@ export async function POST(event) {
 
   if (action === "login-finish") {
     const sessionId = body.session_id;
+    const inviteToken = readControlInviteToken(event);
     const credential = body.credential;
 
     if (!sessionId || !credential) {
@@ -161,10 +174,19 @@ export async function POST(event) {
     }
 
     try {
-      const result = await finishControlLogin(event, sessionId, credential);
+      const result = await finishControlLogin(
+        event,
+        sessionId,
+        credential,
+        inviteToken,
+      );
+      clearControlInviteToken(event);
 
       return json(result);
     } catch (error) {
+      if (inviteToken && isInviteTokenError(error)) {
+        clearControlInviteToken(event);
+      }
       return jsonControlError(
         error,
         "login_finish_failed",

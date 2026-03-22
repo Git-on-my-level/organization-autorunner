@@ -70,11 +70,13 @@ func TestControlPlaneAccountOrganizationWorkspaceInviteJobAuditFlow(t *testing.T
 		"email": "member@example.com",
 		"role":  "member",
 	}, http.StatusCreated, authHeaders(ownerToken))
-	if inviteURL := asString(t, createInviteResp["invite_url"]); inviteURL == "" {
+	inviteURL := asString(t, createInviteResp["invite_url"])
+	if inviteURL == "" {
 		t.Fatal("expected invite_url in create invite response")
 	}
+	inviteToken := inviteTokenFromURL(t, inviteURL)
 
-	_, memberSession := registerAccount(t, env, "member@example.com", "Member", "cred-member")
+	_, memberSession := registerAccount(t, env, "member@example.com", "Member", "cred-member", inviteToken)
 	memberToken := asString(t, memberSession["access_token"])
 
 	memberOrganizations := requestJSON(t, http.MethodGet, env.server.URL+"/organizations", nil, http.StatusOK, authHeaders(memberToken))
@@ -252,12 +254,13 @@ func TestControlPlaneSessionExchangeRequiresActiveMembership(t *testing.T) {
 	}, http.StatusCreated, authHeaders(ownerToken))
 	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
 
-	requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
+	createInviteResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
 		"email": "member-launch@example.com",
 		"role":  "member",
 	}, http.StatusCreated, authHeaders(ownerToken))
+	inviteToken := inviteTokenFromURL(t, asString(t, createInviteResp["invite_url"]))
 
-	memberAccount, memberSession := registerAccount(t, env, "member-launch@example.com", "Member Launch", "cred-member-launch")
+	memberAccount, memberSession := registerAccount(t, env, "member-launch@example.com", "Member Launch", "cred-member-launch", inviteToken)
 	memberToken := asString(t, memberSession["access_token"])
 
 	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "ops", "Ops", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
@@ -301,12 +304,13 @@ func TestControlPlaneSessionExchangeConsumesLaunchTokensAtomically(t *testing.T)
 	}, http.StatusCreated, authHeaders(ownerToken))
 	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
 
-	requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
+	createInviteResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
 		"email": "member-launch-race@example.com",
 		"role":  "member",
 	}, http.StatusCreated, authHeaders(ownerToken))
+	inviteToken := inviteTokenFromURL(t, asString(t, createInviteResp["invite_url"]))
 
-	_, memberSession := registerAccount(t, env, "member-launch-race@example.com", "Member Launch Race", "cred-member-launch-race")
+	_, memberSession := registerAccount(t, env, "member-launch-race@example.com", "Member Launch Race", "cred-member-launch-race", inviteToken)
 	memberToken := asString(t, memberSession["access_token"])
 
 	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "race", "Race Workspace", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
@@ -406,12 +410,13 @@ func TestControlPlaneWorkspaceLifecycleMutationsRequireManageRoleAndPersistState
 	}, http.StatusCreated, authHeaders(ownerToken))
 	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
 
-	requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
+	createInviteResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
 		"email": "member-lifecycle@example.com",
 		"role":  "member",
 	}, http.StatusCreated, authHeaders(ownerToken))
+	inviteToken := inviteTokenFromURL(t, asString(t, createInviteResp["invite_url"]))
 
-	_, memberSession := registerAccount(t, env, "member-lifecycle@example.com", "Member Lifecycle", "cred-member-lifecycle")
+	_, memberSession := registerAccount(t, env, "member-lifecycle@example.com", "Member Lifecycle", "cred-member-lifecycle", inviteToken)
 	memberToken := asString(t, memberSession["access_token"])
 
 	createWorkspaceResp := requestJSON(t, http.MethodPost, env.server.URL+"/workspaces", workspaceCreatePayload(t, organizationID, "lifecycle", "Lifecycle Workspace", "us-central1", "standard"), http.StatusCreated, authHeaders(ownerToken))
@@ -1285,6 +1290,82 @@ func TestControlPlaneAccountSessionsConsumeCeremoniesAtomically(t *testing.T) {
 	}
 }
 
+func TestControlPlaneRegistrationLeavesInvitePendingWithoutInviteToken(t *testing.T) {
+	env := newControlPlaneTestEnv(t, "")
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner-invite@example.com", "Owner Invite", "cred-owner-invite")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "invite-gate",
+		"display_name": "Invite Gate",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	createInviteResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
+		"email": "member-invite@example.com",
+		"role":  "member",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	if got := asString(t, createInviteResp["invite_url"]); got == "" {
+		t.Fatal("expected invite_url in create invite response")
+	}
+
+	_, memberSession := registerAccount(t, env, "member-invite@example.com", "Member Invite", "cred-member-invite")
+	memberToken := asString(t, memberSession["access_token"])
+
+	memberOrganizations := requestJSON(t, http.MethodGet, env.server.URL+"/organizations", nil, http.StatusOK, authHeaders(memberToken))
+	got := 0
+	if items, ok := memberOrganizations["organizations"]; ok && items != nil {
+		got = len(asSlice(t, items))
+	}
+	if got != 0 {
+		t.Fatalf("expected registration without invite token to keep invite pending, got %d organizations", got)
+	}
+}
+
+func TestControlPlaneLoginAcceptsPendingInviteWithInviteToken(t *testing.T) {
+	env := newControlPlaneTestEnv(t, "")
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner-login-invite@example.com", "Owner Login Invite", "cred-owner-login-invite")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	_, memberSession := registerAccount(t, env, "member-login-invite@example.com", "Member Login Invite", "cred-member-login-invite")
+	memberToken := asString(t, memberSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "login-invite",
+		"display_name": "Login Invite",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	createInviteResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
+		"email": "member-login-invite@example.com",
+		"role":  "member",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	inviteToken := inviteTokenFromURL(t, asString(t, createInviteResp["invite_url"]))
+
+	memberOrganizations := requestJSON(t, http.MethodGet, env.server.URL+"/organizations", nil, http.StatusOK, authHeaders(memberToken))
+	got := 0
+	if items, ok := memberOrganizations["organizations"]; ok && items != nil {
+		got = len(asSlice(t, items))
+	}
+	if got != 0 {
+		t.Fatalf("expected invited account to have no organizations before using invite token, got %d", got)
+	}
+
+	loginSession := loginAccount(t, env, "member-login-invite@example.com", "cred-member-login-invite", inviteToken)
+	memberToken = asString(t, loginSession["access_token"])
+
+	memberOrganizations = requestJSON(t, http.MethodGet, env.server.URL+"/organizations", nil, http.StatusOK, authHeaders(memberToken))
+	if got := len(asSlice(t, memberOrganizations["organizations"])); got != 1 {
+		t.Fatalf("expected login with invite token to accept membership, got %d organizations", got)
+	}
+}
+
 func newControlPlaneTestEnv(t *testing.T, root string) *controlPlaneTestEnv {
 	return newControlPlaneTestEnvWithScripts(t, root, "")
 }
@@ -1355,7 +1436,7 @@ func (env *controlPlaneTestEnv) Close() {
 	}
 }
 
-func registerAccount(t *testing.T, env *controlPlaneTestEnv, email string, displayName string, credentialID string) (map[string]any, map[string]any) {
+func registerAccount(t *testing.T, env *controlPlaneTestEnv, email string, displayName string, credentialID string, inviteToken ...string) (map[string]any, map[string]any) {
 	t.Helper()
 
 	startResp := requestJSON(t, http.MethodPost, env.server.URL+"/account/passkeys/registrations/start", map[string]any{
@@ -1365,15 +1446,20 @@ func registerAccount(t *testing.T, env *controlPlaneTestEnv, email string, displ
 	options := asMap(t, startResp["public_key_options"])
 	user := asMap(t, options["user"])
 
-	finishResp := requestJSON(t, http.MethodPost, env.server.URL+"/account/passkeys/registrations/finish", map[string]any{
+	finishPayload := map[string]any{
 		"registration_session_id": asString(t, startResp["registration_session_id"]),
 		"credential":              registrationCredential(t, options, credentialID, asString(t, user["id"])),
-	}, http.StatusOK, originHeaders())
+	}
+	if len(inviteToken) > 0 && strings.TrimSpace(inviteToken[0]) != "" {
+		finishPayload["invite_token"] = inviteToken[0]
+	}
+
+	finishResp := requestJSON(t, http.MethodPost, env.server.URL+"/account/passkeys/registrations/finish", finishPayload, http.StatusOK, originHeaders())
 
 	return asMap(t, finishResp["account"]), asMap(t, finishResp["session"])
 }
 
-func loginAccount(t *testing.T, env *controlPlaneTestEnv, email string, credentialID string) map[string]any {
+func loginAccount(t *testing.T, env *controlPlaneTestEnv, email string, credentialID string, inviteToken ...string) map[string]any {
 	t.Helper()
 
 	startResp := requestJSON(t, http.MethodPost, env.server.URL+"/account/sessions/start", map[string]any{
@@ -1381,12 +1467,31 @@ func loginAccount(t *testing.T, env *controlPlaneTestEnv, email string, credenti
 	}, http.StatusOK, originHeaders())
 	options := asMap(t, startResp["public_key_options"])
 
-	finishResp := requestJSON(t, http.MethodPost, env.server.URL+"/account/sessions/finish", map[string]any{
+	finishPayload := map[string]any{
 		"session_id": asString(t, startResp["session_id"]),
 		"credential": assertionCredential(t, options, credentialID),
-	}, http.StatusOK, originHeaders())
+	}
+	if len(inviteToken) > 0 && strings.TrimSpace(inviteToken[0]) != "" {
+		finishPayload["invite_token"] = inviteToken[0]
+	}
+
+	finishResp := requestJSON(t, http.MethodPost, env.server.URL+"/account/sessions/finish", finishPayload, http.StatusOK, originHeaders())
 
 	return asMap(t, finishResp["session"])
+}
+
+func inviteTokenFromURL(t *testing.T, inviteURL string) string {
+	t.Helper()
+
+	parsed, err := url.Parse(inviteURL)
+	if err != nil {
+		t.Fatalf("parse invite url: %v", err)
+	}
+	token := strings.TrimPrefix(parsed.Path, "/invites/")
+	if token == "" || token == parsed.Path {
+		t.Fatalf("expected invite token path in %q", inviteURL)
+	}
+	return token
 }
 
 func registrationCredential(t *testing.T, options map[string]any, credentialID string, userHandle string) map[string]any {

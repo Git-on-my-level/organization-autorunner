@@ -75,6 +75,7 @@ func NewHandler(service *controlplane.Service, config Config) http.Handler {
 	mux.HandleFunc("POST /account/passkeys/registrations/finish", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			RegistrationSessionID string         `json:"registration_session_id"`
+			InviteToken           string         `json:"invite_token"`
 			Credential            map[string]any `json:"credential"`
 		}
 		if !decodeJSONBody(w, r, &body) {
@@ -87,7 +88,7 @@ func NewHandler(service *controlplane.Service, config Config) http.Handler {
 			return
 		}
 
-		account, session, err := service.FinishPasskeyRegistration(r.Context(), body.RegistrationSessionID, body.Credential, rpID, origin)
+		account, session, err := service.FinishPasskeyRegistration(r.Context(), body.RegistrationSessionID, body.Credential, rpID, origin, body.InviteToken)
 		if err != nil {
 			writeServiceError(w, err)
 			return
@@ -126,8 +127,9 @@ func NewHandler(service *controlplane.Service, config Config) http.Handler {
 
 	mux.HandleFunc("POST /account/sessions/finish", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
-			SessionID  string         `json:"session_id"`
-			Credential map[string]any `json:"credential"`
+			SessionID   string         `json:"session_id"`
+			InviteToken string         `json:"invite_token"`
+			Credential  map[string]any `json:"credential"`
 		}
 		if !decodeJSONBody(w, r, &body) {
 			return
@@ -139,7 +141,7 @@ func NewHandler(service *controlplane.Service, config Config) http.Handler {
 			return
 		}
 
-		account, session, err := service.FinishAccountSession(r.Context(), body.SessionID, body.Credential, rpID, origin)
+		account, session, err := service.FinishAccountSession(r.Context(), body.SessionID, body.Credential, rpID, origin, body.InviteToken)
 		if err != nil {
 			writeServiceError(w, err)
 			return

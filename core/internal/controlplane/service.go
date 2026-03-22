@@ -265,7 +265,7 @@ func (s *Service) StartPasskeyRegistration(ctx context.Context, email string, di
 	}, account, nil
 }
 
-func (s *Service) FinishPasskeyRegistration(ctx context.Context, sessionID string, credential map[string]any, rpID string, origin string) (Account, Session, error) {
+func (s *Service) FinishPasskeyRegistration(ctx context.Context, sessionID string, credential map[string]any, rpID string, origin string, inviteToken string) (Account, Session, error) {
 	rpID, origin, err := normalizeWebAuthnInputs(rpID, origin)
 	if err != nil {
 		return Account{}, Session{}, err
@@ -368,7 +368,7 @@ func (s *Service) FinishPasskeyRegistration(ctx context.Context, sessionID strin
 	account.DisplayName = ceremony.DisplayName
 	account.LastLoginAt = stringPtr(nowText)
 
-	if err := s.acceptPendingInvitesTx(ctx, tx, account, now); err != nil {
+	if err := acceptInviteTokenTx(ctx, tx, account, inviteToken, now); err != nil {
 		return Account{}, Session{}, err
 	}
 
@@ -477,7 +477,7 @@ func (s *Service) StartAccountSession(ctx context.Context, email string, rpID st
 	}, AccountHint{Email: account.Email, DisplayName: account.DisplayName}, nil
 }
 
-func (s *Service) FinishAccountSession(ctx context.Context, sessionID string, credential map[string]any, rpID string, origin string) (Account, Session, error) {
+func (s *Service) FinishAccountSession(ctx context.Context, sessionID string, credential map[string]any, rpID string, origin string, inviteToken string) (Account, Session, error) {
 	rpID, origin, err := normalizeWebAuthnInputs(rpID, origin)
 	if err != nil {
 		return Account{}, Session{}, err
@@ -565,6 +565,10 @@ func (s *Service) FinishAccountSession(ctx context.Context, sessionID string, cr
 		return Account{}, Session{}, internalError("failed to update last login")
 	}
 	account.LastLoginAt = stringPtr(nowText)
+
+	if err := acceptInviteTokenTx(ctx, tx, account, inviteToken, now); err != nil {
+		return Account{}, Session{}, err
+	}
 
 	session, err := issueSessionTx(ctx, tx, account.ID, now, s.sessionTTL)
 	if err != nil {
@@ -823,74 +827,84 @@ func issueSessionTx(ctx context.Context, tx *sql.Tx, accountID string, now time.
 	return session, nil
 }
 
-func (s *Service) acceptPendingInvitesTx(ctx context.Context, tx *sql.Tx, account Account, now time.Time) error {
-	rows, err := tx.QueryContext(
-		ctx,
-		`SELECT id, organization_id, role
-		 FROM organization_invites
-		 WHERE email = ? AND status = 'pending' AND expires_at > ?
-		 ORDER BY created_at ASC, id ASC`,
-		account.Email,
-		now.Format(time.RFC3339Nano),
-	)
-	if err != nil {
-		return internalError("failed to load pending invites")
+func acceptInviteTokenTx(ctx context.Context, tx *sql.Tx, account Account, inviteToken string, now time.Time) error {
+	inviteToken = strings.TrimSpace(inviteToken)
+	if inviteToken == "" {
+		return nil
 	}
-	defer rows.Close()
 
 	type inviteRef struct {
 		ID             string
 		OrganizationID string
+		Email          string
 		Role           string
 	}
-	var invites []inviteRef
-	for rows.Next() {
-		var invite inviteRef
-		if err := rows.Scan(&invite.ID, &invite.OrganizationID, &invite.Role); err != nil {
-			return internalError("failed to scan pending invite")
+
+	var invite inviteRef
+	err := tx.QueryRowContext(
+		ctx,
+		`SELECT id, organization_id, email, role
+		 FROM organization_invites
+		 WHERE token_hash = ?
+		   AND status = 'pending'
+		   AND expires_at > ?`,
+		hashToken(inviteToken),
+		now.Format(time.RFC3339Nano),
+	).Scan(&invite.ID, &invite.OrganizationID, &invite.Email, &invite.Role)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return &APIError{Status: http.StatusUnauthorized, Code: "invalid_token", Message: "invite token is invalid or expired"}
 		}
-		invites = append(invites, invite)
+		return internalError("failed to load pending invite")
 	}
-	if err := rows.Err(); err != nil {
-		return internalError("failed to iterate pending invites")
+
+	if invite.Email != account.Email {
+		return &APIError{Status: http.StatusUnauthorized, Code: "invalid_token", Message: "invite token is invalid or expired"}
 	}
 
 	nowText := now.Format(time.RFC3339Nano)
-	for _, invite := range invites {
-		if err := upsertMembershipTx(ctx, tx, Membership{
-			ID:             "mem_" + uuid.NewString(),
-			OrganizationID: invite.OrganizationID,
-			AccountID:      account.ID,
-			Role:           invite.Role,
-			Status:         "active",
-			CreatedAt:      nowText,
-		}); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(
-			ctx,
-			`UPDATE organization_invites
-			 SET status = 'accepted', accepted_at = ?, accepted_by_account_id = ?
-			 WHERE id = ?`,
-			nowText,
-			account.ID,
-			invite.ID,
-		); err != nil {
-			return internalError("failed to accept organization invite")
-		}
-		if err := insertAuditEventTx(ctx, tx, AuditEvent{
-			ID:             "audit_" + uuid.NewString(),
-			EventType:      "organization_invite_accepted",
-			OrganizationID: stringPtr(invite.OrganizationID),
-			TargetType:     "organization_invite",
-			TargetID:       invite.ID,
-			OccurredAt:     nowText,
-			Metadata: map[string]any{
-				"account_id": account.ID,
-			},
-		}, stringPtr(account.ID)); err != nil {
-			return err
-		}
+	result, err := tx.ExecContext(
+		ctx,
+		`UPDATE organization_invites
+		 SET status = 'accepted', accepted_at = ?, accepted_by_account_id = ?
+		 WHERE id = ? AND status = 'pending'`,
+		nowText,
+		account.ID,
+		invite.ID,
+	)
+	if err != nil {
+		return internalError("failed to accept organization invite")
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return internalError("failed to confirm organization invite acceptance")
+	}
+	if rowsAffected == 0 {
+		return &APIError{Status: http.StatusUnauthorized, Code: "invalid_token", Message: "invite token is invalid or expired"}
+	}
+
+	if err := upsertMembershipTx(ctx, tx, Membership{
+		ID:             "mem_" + uuid.NewString(),
+		OrganizationID: invite.OrganizationID,
+		AccountID:      account.ID,
+		Role:           invite.Role,
+		Status:         "active",
+		CreatedAt:      nowText,
+	}); err != nil {
+		return err
+	}
+	if err := insertAuditEventTx(ctx, tx, AuditEvent{
+		ID:             "audit_" + uuid.NewString(),
+		EventType:      "organization_invite_accepted",
+		OrganizationID: stringPtr(invite.OrganizationID),
+		TargetType:     "organization_invite",
+		TargetID:       invite.ID,
+		OccurredAt:     nowText,
+		Metadata: map[string]any{
+			"account_id": account.ID,
+		},
+	}, stringPtr(account.ID)); err != nil {
+		return err
 	}
 	return nil
 }
