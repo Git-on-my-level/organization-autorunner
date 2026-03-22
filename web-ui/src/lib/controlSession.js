@@ -6,20 +6,15 @@ export const controlSessionReady = writable(false);
 export const controlAccount = writable(null);
 export const controlAuthenticated = writable(false);
 
-const browser = typeof window !== "undefined";
-
 const controlState = {
   ready: false,
-  accessToken: "",
   account: null,
 };
 
 function syncControlStores() {
   controlSessionReady.set(controlState.ready);
   controlAccount.set(controlState.account);
-  controlAuthenticated.set(
-    Boolean(controlState.accessToken && controlState.account),
-  );
+  controlAuthenticated.set(Boolean(controlState.account));
 }
 
 function resolveFetch(fetchFn) {
@@ -77,7 +72,7 @@ async function requestJSON(
 }
 
 export function getControlAccessToken() {
-  return controlState.accessToken;
+  return "";
 }
 
 export function getControlAccount() {
@@ -88,8 +83,7 @@ export function isControlAuthenticated() {
   return get(controlAuthenticated);
 }
 
-export function completeControlSession(account, accessToken) {
-  controlState.accessToken = accessToken || "";
+export function completeControlSession(account) {
   controlState.account = account ?? null;
   controlState.ready = true;
   syncControlStores();
@@ -97,7 +91,6 @@ export function completeControlSession(account, accessToken) {
 }
 
 export function clearControlSession() {
-  controlState.accessToken = "";
   controlState.account = null;
   controlState.ready = true;
   syncControlStores();
@@ -108,12 +101,11 @@ export async function initializeControlSession({ fetchFn, baseUrl = "" } = {}) {
   syncControlStores();
 
   try {
-    const result = await requestJSON("/control/session", {
+    const result = await requestJSON("/auth", {
       fetchFn,
       baseUrl,
     });
     controlState.account = result.account ?? null;
-    controlState.accessToken = result.access_token || "";
     controlState.ready = true;
     syncControlStores();
     return result.account ?? null;
@@ -125,16 +117,14 @@ export async function initializeControlSession({ fetchFn, baseUrl = "" } = {}) {
 }
 
 export async function logoutControlSession({ fetchFn, baseUrl = "" } = {}) {
-  if (browser || typeof fetchFn === "function") {
-    try {
-      await requestJSON("/control/session", {
-        fetchFn,
-        baseUrl,
-        method: "DELETE",
-      });
-    } catch {
-      // Fall through to local cleanup.
-    }
+  try {
+    await requestJSON("/auth", {
+      fetchFn,
+      baseUrl,
+      method: "DELETE",
+    });
+  } catch {
+    // Fall through to local cleanup.
   }
 
   clearControlSession();
@@ -143,7 +133,7 @@ export async function logoutControlSession({ fetchFn, baseUrl = "" } = {}) {
 export function createControlTokenProvider() {
   return {
     getAccessToken() {
-      return controlState.accessToken;
+      return "";
     },
   };
 }

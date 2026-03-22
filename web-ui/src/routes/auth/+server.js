@@ -1,16 +1,16 @@
 import { json } from "@sveltejs/kit";
 
 import {
+  finishControlLogin,
   finishControlRegistration,
-  startControlPasskeyRegistration,
-  startControlSession,
-  finishControlSession,
   logoutControlSession,
   loadControlSession,
+  startControlLogin,
+  startControlRegistration,
 } from "$lib/server/controlSession.js";
 
-export async function POST({ request, cookies }) {
-  const body = await request.json();
+export async function POST(event) {
+  const body = await event.request.json();
   const action = body.action;
 
   if (action === "register-start") {
@@ -30,10 +30,7 @@ export async function POST({ request, cookies }) {
     }
 
     try {
-      const result = await startControlPasskeyRegistration({
-        email,
-        display_name: displayName,
-      });
+      const result = await startControlRegistration(event, email, displayName);
 
       return json(result);
     } catch (error) {
@@ -70,7 +67,7 @@ export async function POST({ request, cookies }) {
 
     try {
       const result = await finishControlRegistration(
-        { request: { cookies } },
+        event,
         registrationSessionId,
         credential,
       );
@@ -105,7 +102,7 @@ export async function POST({ request, cookies }) {
     }
 
     try {
-      const result = await startControlSession({ email });
+      const result = await startControlLogin(event, email);
 
       return json(result);
     } catch (error) {
@@ -139,11 +136,7 @@ export async function POST({ request, cookies }) {
     }
 
     try {
-      const result = await finishControlSession(
-        { request: { cookies } },
-        sessionId,
-        credential,
-      );
+      const result = await finishControlLogin(event, sessionId, credential);
 
       return json({
         account: result.account,
@@ -168,9 +161,9 @@ export async function POST({ request, cookies }) {
   );
 }
 
-export async function DELETE({ cookies }) {
+export async function DELETE(event) {
   try {
-    await logoutControlSession({ cookies });
+    await logoutControlSession(event);
   } catch {
     // Ignore errors during logout
   }
@@ -178,8 +171,8 @@ export async function DELETE({ cookies }) {
   return json({ revoked: true });
 }
 
-export async function GET({ cookies }) {
-  const session = await loadControlSession({ cookies });
+export async function GET(event) {
+  const session = await loadControlSession(event);
 
   if (session?.account) {
     return json({

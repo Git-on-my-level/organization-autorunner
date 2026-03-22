@@ -1,66 +1,22 @@
 <script>
   import { goto } from "$app/navigation";
-  import { page } from "$app/stores";
-  import { onMount } from "svelte";
 
-  import {
-    controlAuthenticated,
-    logoutControlSession,
-  } from "$lib/controlSession.js";
+  import { logoutControlSession } from "$lib/controlSession.js";
   import { controlClient } from "$lib/controlClient.js";
 
-  let organizationId = $state("");
+  let { data } = $props();
+
+  let organizationId = $derived(data.organizationId ?? "");
   let invite = $state(null);
-  let loading = $state(true);
   let accepting = $state(false);
   let error = $state("");
   let expired = $state(false);
 
   $effect(() => {
-    organizationId = $page.url.searchParams.get("organization_id") || "";
+    invite = data.invite ?? null;
+    error = data.inviteError ?? "";
+    expired = Boolean(data.expired);
   });
-
-  onMount(async () => {
-    if (!$controlAuthenticated) {
-      const currentUrl = $page.url.pathname + $page.url.search;
-      goto(`/auth?redirect=${encodeURIComponent(currentUrl)}`);
-      return;
-    }
-
-    if (organizationId) {
-      await loadInvite();
-    } else {
-      loading = false;
-    }
-  });
-
-  async function loadInvite() {
-    loading = true;
-    error = "";
-
-    try {
-      const result =
-        await controlClient.listOrganizationInvites(organizationId);
-      const pendingInvites = (result.invites ?? []).filter(
-        (inv) => inv.status === "pending" || inv.status === "sent",
-      );
-
-      if (pendingInvites.length === 0) {
-        error = "No pending invites found for this organization.";
-      } else {
-        invite = pendingInvites[0];
-
-        if (new Date(invite.expires_at) < new Date()) {
-          expired.set(true);
-          error = "This invite has expired. Please request a new invite.";
-        }
-      }
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to load invite";
-    } finally {
-      loading = false;
-    }
-  }
 
   async function handleAcceptInvite() {
     if (!invite || !organizationId) {
@@ -110,11 +66,7 @@
       </div>
     </header>
 
-    {#if loading}
-      <div class="py-10 text-center text-[var(--ui-text-muted)]">
-        Loading invite...
-      </div>
-    {:else if !organizationId}
+    {#if !organizationId}
       <div class="rounded-md border border-red-500/50 bg-red-500/10 px-4 py-6">
         <div class="flex items-start gap-3">
           <svg

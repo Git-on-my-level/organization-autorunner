@@ -557,7 +557,7 @@ func TestControlPlaneFleetHeartbeatBackupUpgradeDrillAndInventory(t *testing.T) 
 		},
 		"usage_summary": map[string]any{
 			"usage": map[string]any{
-				"blob_bytes":              1024,
+				"blob_bytes":              int64(2 * 1024 * 1024 * 1024),
 				"blob_objects":            3,
 				"artifact_count":          1,
 				"document_count":          0,
@@ -580,6 +580,12 @@ func TestControlPlaneFleetHeartbeatBackupUpgradeDrillAndInventory(t *testing.T) 
 	}
 	if got := asString(t, heartbeatWorkspace["desired_version"]); got != "hosted-instance/v1" {
 		t.Fatalf("expected desired_version to start at current version, got %q", got)
+	}
+	usageResp := requestJSON(t, http.MethodGet, env.server.URL+"/organizations/"+organizationID+"/usage-summary", nil, http.StatusOK, authHeaders(ownerToken))
+	usageSummary := asMap(t, usageResp["summary"])
+	usage := asMap(t, usageSummary["usage"])
+	if got := int(asFloat(t, usage["storage_gb"])); got != 2 {
+		t.Fatalf("expected usage storage_gb=2 after heartbeat metering, got %d", got)
 	}
 
 	coreWorkspaceRoot := filepath.Join(deploymentRoot, "workspace")

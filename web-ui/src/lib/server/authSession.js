@@ -9,14 +9,16 @@ import {
 } from "../workspacePaths.js";
 import { getWorkspaceHeader } from "../compat/workspaceCompat.js";
 
-const sessionStateByWorkspace = new Map();
-
 function getWorkspaceSlug(value) {
   return normalizeWorkspaceSlug(value) || DEFAULT_WORKSPACE_SLUG;
 }
 
 export function getAuthSessionCookieName(workspaceSlug) {
   return `oar_ui_session_${getWorkspaceSlug(workspaceSlug)}`;
+}
+
+export function getAuthAccessCookieName(workspaceSlug) {
+  return `oar_ui_access_${getWorkspaceSlug(workspaceSlug)}`;
 }
 
 function isSecureCookieRequest(event) {
@@ -74,34 +76,46 @@ async function requestCoreJSON(coreBaseUrl, pathname, options = {}) {
   return payload;
 }
 
-function getWorkspaceState(workspaceSlug) {
-  const slug = getWorkspaceSlug(workspaceSlug);
-  if (!sessionStateByWorkspace.has(slug)) {
-    sessionStateByWorkspace.set(slug, {
-      refreshToken: "",
-      accessToken: "",
-      agent: null,
-    });
-  }
-
-  return sessionStateByWorkspace.get(slug);
+export function readWorkspaceAccessToken(event, workspaceSlug) {
+  return event.cookies.get(getAuthAccessCookieName(workspaceSlug)) ?? "";
 }
 
-export function getWorkspaceAuthSession(workspaceSlug) {
-  const state = sessionStateByWorkspace.get(getWorkspaceSlug(workspaceSlug));
-  if (!state) {
+export function writeWorkspaceAccessToken(event, workspaceSlug, accessToken) {
+  const normalized = String(accessToken ?? "").trim();
+  if (!normalized) {
+    clearWorkspaceAccessToken(event, workspaceSlug);
+    return;
+  }
+
+  event.cookies.set(
+    getAuthAccessCookieName(workspaceSlug),
+    normalized,
+    buildAuthSessionCookieOptions(event),
+  );
+}
+
+export function clearWorkspaceAccessToken(event, workspaceSlug) {
+  event.cookies.delete(getAuthAccessCookieName(workspaceSlug), {
+    path: "/",
+  });
+}
+
+export function getWorkspaceAuthSession(event, workspaceSlug) {
+  const refreshToken = readWorkspaceRefreshToken(event, workspaceSlug);
+  const accessToken = readWorkspaceAccessToken(event, workspaceSlug);
+  if (!refreshToken && !accessToken) {
     return null;
   }
 
   return {
-    refreshToken: state.refreshToken,
-    accessToken: state.accessToken,
-    agent: state.agent,
+    refreshToken,
+    accessToken,
   };
 }
 
-export function clearWorkspaceAuthSession(workspaceSlug) {
-  sessionStateByWorkspace.delete(getWorkspaceSlug(workspaceSlug));
+export function clearWorkspaceAuthSession(event, workspaceSlug) {
+  clearWorkspaceRefreshToken(event, workspaceSlug);
+  clearWorkspaceAccessToken(event, workspaceSlug);
 }
 
 export function readWorkspaceRefreshToken(event, workspaceSlug) {
@@ -173,7 +187,7 @@ export async function refreshWorkspaceAuthSession({
 
   const refreshToken = readWorkspaceRefreshToken(event, workspaceSlug);
   if (!refreshToken) {
-    clearWorkspaceAuthSession(workspaceSlug);
+    clearWorkspaceAuthSession(event, workspaceSlug);
     return null;
   }
 
@@ -196,14 +210,10 @@ export async function refreshWorkspaceAuthSession({
     });
   }
 
-  const state = getWorkspaceState(workspaceSlug);
-  state.refreshToken = nextRefreshToken;
-  state.accessToken = accessToken;
-  state.agent = null;
-
   if (nextRefreshToken !== refreshToken) {
     writeWorkspaceRefreshToken(event, workspaceSlug, nextRefreshToken);
   }
+  writeWorkspaceAccessToken(event, workspaceSlug, accessToken);
 
   return {
     refreshToken: nextRefreshToken,
@@ -220,39 +230,32 @@ export async function loadWorkspaceAuthenticatedAgent({
     return null;
   }
 
-  const state = getWorkspaceState(workspaceSlug);
   const refreshToken = readWorkspaceRefreshToken(event, workspaceSlug);
 
   if (!refreshToken) {
-    clearWorkspaceAuthSession(workspaceSlug);
+    clearWorkspaceAuthSession(event, workspaceSlug);
     return null;
   }
 
-  if (state.refreshToken !== refreshToken) {
-    state.refreshToken = refreshToken;
-    state.accessToken = "";
-    state.agent = null;
-  }
-
   async function fetchCurrentAgent() {
-    if (!state.accessToken) {
+    let accessToken = readWorkspaceAccessToken(event, workspaceSlug);
+    if (!accessToken) {
       await refreshWorkspaceAuthSession({
         event,
         workspaceSlug,
         coreBaseUrl,
       });
+      accessToken = readWorkspaceAccessToken(event, workspaceSlug);
     }
 
-    if (!state.accessToken) {
+    if (!accessToken) {
       return null;
     }
 
     const agentResponse = await requestCoreJSON(coreBaseUrl, "/agents/me", {
-      token: state.accessToken,
+      token: accessToken,
     });
-
-    state.agent = agentResponse.agent ?? null;
-    return state.agent;
+    return agentResponse.agent ?? null;
   }
 
   try {
@@ -267,15 +270,15 @@ export async function loadWorkspaceAuthenticatedAgent({
       workspaceSlug,
       coreBaseUrl,
     });
-    if (!state.accessToken) {
+    const accessToken = readWorkspaceAccessToken(event, workspaceSlug);
+    if (!accessToken) {
       return null;
     }
 
     const agentResponse = await requestCoreJSON(coreBaseUrl, "/agents/me", {
-      token: state.accessToken,
+      token: accessToken,
     });
-    state.agent = agentResponse.agent ?? null;
-    return state.agent;
+    return agentResponse.agent ?? null;
   }
 }
 
@@ -310,11 +313,9 @@ export async function handleWorkspaceAuthVerifyResponse({
   if (refreshToken) {
     writeWorkspaceRefreshToken(event, workspaceSlug, refreshToken);
   }
-
-  const state = getWorkspaceState(workspaceSlug);
-  state.refreshToken = refreshToken || state.refreshToken;
-  state.accessToken = accessToken || state.accessToken;
-  state.agent = agent;
+  if (accessToken) {
+    writeWorkspaceAccessToken(event, workspaceSlug, accessToken);
+  }
 
   const sanitizedPayload = {
     agent,

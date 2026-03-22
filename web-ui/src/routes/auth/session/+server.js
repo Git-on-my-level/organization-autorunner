@@ -2,7 +2,6 @@ import { json } from "@sveltejs/kit";
 
 import {
   clearWorkspaceAuthSession,
-  clearWorkspaceRefreshToken,
   loadWorkspaceAuthenticatedAgent,
   resolveWorkspaceSlugFromEvent,
 } from "$lib/server/authSession";
@@ -33,8 +32,7 @@ export async function GET(event) {
     );
   } catch (error) {
     if (error?.status === 401 || error?.status === 403) {
-      clearWorkspaceRefreshToken(event, resolved.workspaceSlug);
-      clearWorkspaceAuthSession(resolved.workspaceSlug);
+      clearWorkspaceAuthSession(event, resolved.workspaceSlug);
     }
     return json(
       {
@@ -57,8 +55,7 @@ export async function DELETE(event) {
     return json(resolved.error.payload, { status: resolved.error.status });
   }
 
-  clearWorkspaceRefreshToken(event, resolved.workspaceSlug);
-  clearWorkspaceAuthSession(resolved.workspaceSlug);
+  clearWorkspaceAuthSession(event, resolved.workspaceSlug);
 
   return json(
     {

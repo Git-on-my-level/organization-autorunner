@@ -1,45 +1,17 @@
 <script>
-  import { goto } from "$app/navigation";
-  import { onMount } from "svelte";
+  import { goto, invalidateAll } from "$app/navigation";
 
-  import {
-    controlAuthenticated,
-    logoutControlSession,
-  } from "$lib/controlSession.js";
+  import { logoutControlSession } from "$lib/controlSession.js";
   import { controlClient } from "$lib/controlClient.js";
 
-  let organizations = $state([]);
-  let workspaces = $state([]);
-  let loading = $state(true);
+  let { data } = $props();
+
+  let organizations = $derived(data.organizations ?? []);
+  let workspaces = $derived(data.workspaces ?? []);
   let error = $state("");
   let creatingOrg = $state(false);
   let newOrgSlug = $state("");
   let newOrgDisplayName = $state("");
-
-  onMount(async () => {
-    if (!$controlAuthenticated) return;
-
-    await loadData();
-  });
-
-  async function loadData() {
-    loading = true;
-    error = "";
-
-    try {
-      const [orgResult, wsResult] = await Promise.all([
-        controlClient.listOrganizations(),
-        controlClient.listWorkspaces(),
-      ]);
-
-      organizations = orgResult.organizations ?? [];
-      workspaces = wsResult.workspaces ?? [];
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to load data";
-    } finally {
-      loading = false;
-    }
-  }
 
   async function handleCreateOrganization() {
     if (!newOrgSlug.trim() || !newOrgDisplayName.trim()) {
@@ -58,7 +30,7 @@
 
       newOrgSlug = "";
       newOrgDisplayName = "";
-      await loadData();
+      await invalidateAll();
     } catch (e) {
       error = e instanceof Error ? e.message : "Failed to create organization";
     } finally {
@@ -148,11 +120,7 @@
       </div>
     </header>
 
-    {#if loading}
-      <div class="py-10 text-center text-[var(--ui-text-muted)]">
-        Loading...
-      </div>
-    {:else if error}
+    {#if error}
       <div class="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-400">
         {error}
       </div>

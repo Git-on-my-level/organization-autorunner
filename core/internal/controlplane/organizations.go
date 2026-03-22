@@ -497,11 +497,33 @@ func (s *Service) GetUsageSummary(ctx context.Context, identity RequestIdentity,
 	).Scan(&monthlyLaunchCount); err != nil {
 		return UsageSummary{}, internalError("failed to count launches")
 	}
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT heartbeat_usage_summary_json FROM workspaces WHERE organization_id = ?`,
+		organizationID,
+	)
+	if err != nil {
+		return UsageSummary{}, internalError("failed to load workspace usage summaries")
+	}
+	defer rows.Close()
+	var totalBlobBytes int64
+	for rows.Next() {
+		var heartbeatUsageSummary sql.NullString
+		if err := rows.Scan(&heartbeatUsageSummary); err != nil {
+			return UsageSummary{}, internalError("failed to scan workspace usage summary")
+		}
+		summary := decodeJSONMap(heartbeatUsageSummary)
+		totalBlobBytes += workspaceBlobBytes(summary)
+	}
+	if err := rows.Err(); err != nil {
+		return UsageSummary{}, internalError("failed to iterate workspace usage summaries")
+	}
+	storageGB := storageGigabytesFromBytes(totalBlobBytes)
 
 	usage := UsageMeter{
 		WorkspaceCount:     workspaceCount,
 		HumanSeatCount:     humanSeatCount,
-		StorageGB:          0,
+		StorageGB:          storageGB,
 		MonthlyLaunchCount: monthlyLaunchCount,
 	}
 	return UsageSummary{
@@ -514,6 +536,35 @@ func (s *Service) GetUsageSummary(ctx context.Context, identity RequestIdentity,
 			StorageGBRemaining:  max(0, plan.IncludedStorageGB-usage.StorageGB),
 		},
 	}, nil
+}
+
+func workspaceBlobBytes(summary map[string]any) int64 {
+	usage, ok := summary["usage"].(map[string]any)
+	if !ok {
+		return 0
+	}
+	return int64FromUsageValue(usage["blob_bytes"])
+}
+
+func int64FromUsageValue(value any) int64 {
+	switch typed := value.(type) {
+	case int:
+		return int64(typed)
+	case int64:
+		return typed
+	case float64:
+		return int64(typed)
+	default:
+		return 0
+	}
+}
+
+func storageGigabytesFromBytes(totalBytes int64) int {
+	const bytesPerGB = int64(1024 * 1024 * 1024)
+	if totalBytes <= 0 {
+		return 0
+	}
+	return int((totalBytes + bytesPerGB - 1) / bytesPerGB)
 }
 
 func (s *Service) requireOrganizationAccess(ctx context.Context, identity RequestIdentity, organizationID string, includeSuspended bool) (Organization, Membership, error) {

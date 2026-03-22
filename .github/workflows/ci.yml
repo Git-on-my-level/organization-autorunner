@@ -62,6 +62,8 @@ jobs:
               - 'web-ui/**'
               - 'scripts/**'
               - 'deploy/**'
+              - 'docs/**'
+              - 'runbooks/**'
               - '.github/workflows/ci.yml'
               - 'Makefile'
 

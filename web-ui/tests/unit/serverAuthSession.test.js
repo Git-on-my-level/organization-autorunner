@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  clearWorkspaceAccessToken,
   clearWorkspaceRefreshToken,
   handleWorkspaceAuthVerifyResponse,
+  writeWorkspaceAccessToken,
   writeWorkspaceRefreshToken,
 } from "../../src/lib/server/authSession.js";
 
@@ -49,6 +51,28 @@ describe("server auth session helpers", () => {
     });
   });
 
+  it("writes HttpOnly and Secure access-token cookies on HTTPS", () => {
+    const recorder = createCookieRecorder();
+    const event = {
+      url: new URL("https://oar.example.com/auth/session"),
+      cookies: recorder.cookies,
+    };
+
+    writeWorkspaceAccessToken(event, "alpha", "access-token");
+
+    expect(recorder.setCalls).toHaveLength(1);
+    expect(recorder.setCalls[0]).toMatchObject({
+      name: "oar_ui_access_alpha",
+      value: "access-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: true,
+        path: "/",
+      },
+    });
+  });
+
   it("clears refresh-token cookies with the same workspace scope", () => {
     const recorder = createCookieRecorder();
     const event = {
@@ -60,6 +84,24 @@ describe("server auth session helpers", () => {
     expect(recorder.deleteCalls).toEqual([
       {
         name: "oar_ui_session_alpha",
+        options: {
+          path: "/",
+        },
+      },
+    ]);
+  });
+
+  it("clears access-token cookies with the same workspace scope", () => {
+    const recorder = createCookieRecorder();
+    const event = {
+      cookies: recorder.cookies,
+    };
+
+    clearWorkspaceAccessToken(event, "alpha");
+
+    expect(recorder.deleteCalls).toEqual([
+      {
+        name: "oar_ui_access_alpha",
         options: {
           path: "/",
         },
@@ -106,15 +148,27 @@ describe("server auth session helpers", () => {
         username: "passkey.user",
       },
     });
-    expect(recorder.setCalls[0]).toMatchObject({
-      name: "oar_ui_session_alpha",
-      value: "refresh-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: true,
-        path: "/",
+    expect(recorder.setCalls).toEqual([
+      {
+        name: "oar_ui_session_alpha",
+        value: "refresh-token",
+        options: {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: true,
+          path: "/",
+        },
       },
-    });
+      {
+        name: "oar_ui_access_alpha",
+        value: "access-token",
+        options: {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: true,
+          path: "/",
+        },
+      },
+    ]);
   });
 });

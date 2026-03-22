@@ -1,5 +1,5 @@
 import { env } from "$env/dynamic/private";
-import { OarClient } from "../../../../contracts/gen/control/ts/client.js";
+import { OarClient } from "../../../../contracts/gen/control/ts/dist/client.js";
 
 export function getControlBaseUrl() {
   return (

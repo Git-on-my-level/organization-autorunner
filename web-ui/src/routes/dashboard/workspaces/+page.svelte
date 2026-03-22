@@ -1,15 +1,12 @@
 <script>
   import { goto } from "$app/navigation";
-  import { onMount } from "svelte";
 
-  import {
-    controlAuthenticated,
-    logoutControlSession,
-  } from "$lib/controlSession.js";
+  import { logoutControlSession } from "$lib/controlSession.js";
   import { controlClient } from "$lib/controlClient.js";
 
-  let organizations = $state([]);
-  let loading = $state(true);
+  let { data } = $props();
+
+  let organizations = $derived(data.organizations ?? []);
   let creating = $state(false);
   let error = $state("");
   let newSlug = $state("");
@@ -17,32 +14,11 @@
   let newRegion = $state("us-east-1");
   let selectedOrgId = $state("");
 
-  onMount(async () => {
-    if (!$controlAuthenticated) {
-      goto("/auth");
-      return;
+  $effect(() => {
+    if (!selectedOrgId && organizations.length > 0) {
+      selectedOrgId = organizations[0].id;
     }
-
-    await loadOrganizations();
   });
-
-  async function loadOrganizations() {
-    loading = true;
-    error = "";
-
-    try {
-      const result = await controlClient.listOrganizations();
-      organizations = result.organizations ?? [];
-
-      if (organizations.length > 0 && !selectedOrgId) {
-        selectedOrgId = organizations[0].id;
-      }
-    } catch (e) {
-      error = e instanceof Error ? e.message : "Failed to load organizations";
-    } finally {
-      loading = false;
-    }
-  }
 
   async function handleCreateWorkspace() {
     if (!newSlug.trim() || !newDisplayName.trim() || !selectedOrgId) {
@@ -102,11 +78,7 @@
       </div>
     </header>
 
-    {#if loading}
-      <div class="py-10 text-center text-[var(--ui-text-muted)]">
-        Loading...
-      </div>
-    {:else if error}
+    {#if error}
       <div class="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-400">
         {error}
       </div>

@@ -1,7 +1,5 @@
 import { normalizeBaseUrl } from "./config.js";
 
-const browser = typeof window !== "undefined";
-
 function resolveFetch(fetchFn) {
   if (typeof fetchFn === "function") {
     return fetchFn;
@@ -28,7 +26,7 @@ function createErrorFromResponse(status, details) {
 
 async function requestJSON(
   pathname,
-  { fetchFn, method = "GET", body, baseUrl, headers } = {},
+  { fetchFn, method = "GET", body, baseUrl = "", headers } = {},
 ) {
   const response = await resolveFetch(fetchFn)(buildUrl(pathname, baseUrl), {
     method,
@@ -56,197 +54,89 @@ async function requestJSON(
   return payload;
 }
 
-function getStoredAccessToken() {
-  if (!browser) return "";
-  try {
-    return localStorage.getItem("oar_control_access_token") || "";
-  } catch {
-    return "";
-  }
-}
-
-function setStoredAccessToken(token) {
-  if (!browser) return;
-  try {
-    if (token) {
-      localStorage.setItem("oar_control_access_token", token);
-    } else {
-      localStorage.removeItem("oar_control_access_token");
-    }
-  } catch {
-    // ignore
-  }
-}
-
-function authHeaders() {
-  const token = getStoredAccessToken();
-  return token ? { authorization: `Bearer ${token}` } : {};
+function controlApiPath(pathname) {
+  return `/control/api${pathname}`;
 }
 
 export const controlClient = {
   async startPasskeyRegistration(body, { fetchFn, baseUrl = "" } = {}) {
-    return requestJSON("/account/passkeys/registrations/start", {
+    return requestJSON("/auth", {
       fetchFn,
       baseUrl,
       method: "POST",
-      body,
+      body: {
+        action: "register-start",
+        ...body,
+      },
     });
   },
 
   async finishPasskeyRegistration(body, { fetchFn, baseUrl = "" } = {}) {
-    const result = await requestJSON("/account/passkeys/registrations/finish", {
+    return requestJSON("/auth", {
       fetchFn,
       baseUrl,
       method: "POST",
-      body,
+      body: {
+        action: "register-finish",
+        ...body,
+      },
     });
-    if (result.session?.access_token) {
-      setStoredAccessToken(result.session.access_token);
-    }
-    return result;
   },
 
   async startSession(body, { fetchFn, baseUrl = "" } = {}) {
-    return requestJSON("/account/sessions/start", {
+    return requestJSON("/auth", {
       fetchFn,
       baseUrl,
       method: "POST",
-      body,
+      body: {
+        action: "login-start",
+        ...body,
+      },
     });
   },
 
   async finishSession(body, { fetchFn, baseUrl = "" } = {}) {
-    const result = await requestJSON("/account/sessions/finish", {
+    return requestJSON("/auth", {
       fetchFn,
       baseUrl,
       method: "POST",
-      body,
+      body: {
+        action: "login-finish",
+        ...body,
+      },
     });
-    if (result.session?.access_token) {
-      setStoredAccessToken(result.session.access_token);
-    }
-    return result;
   },
 
   async revokeCurrentSession({ fetchFn, baseUrl = "" } = {}) {
-    try {
-      await requestJSON("/account/sessions/current", {
-        fetchFn,
-        baseUrl,
-        method: "DELETE",
-        headers: authHeaders(),
-      });
-    } finally {
-      setStoredAccessToken("");
-    }
+    return requestJSON("/auth", {
+      fetchFn,
+      baseUrl,
+      method: "DELETE",
+    });
   },
 
   async listOrganizations({ fetchFn, baseUrl = "" } = {}) {
-    return requestJSON("/organizations", {
+    return requestJSON(controlApiPath("/organizations"), {
       fetchFn,
       baseUrl,
-      headers: authHeaders(),
     });
   },
 
   async createOrganization(body, { fetchFn, baseUrl = "" } = {}) {
-    return requestJSON("/organizations", {
+    return requestJSON(controlApiPath("/organizations"), {
       fetchFn,
       baseUrl,
       method: "POST",
       body,
-      headers: authHeaders(),
     });
   },
 
   async getOrganization(organizationId, { fetchFn, baseUrl = "" } = {}) {
-    return requestJSON(`/organizations/${encodeURIComponent(organizationId)}`, {
-      fetchFn,
-      baseUrl,
-      headers: authHeaders(),
-    });
-  },
-
-  async listWorkspaces(organizationId, { fetchFn, baseUrl = "" } = {}) {
-    const query = organizationId
-      ? `?organization_id=${encodeURIComponent(organizationId)}`
-      : "";
-    return requestJSON(`/workspaces${query}`, {
-      fetchFn,
-      baseUrl,
-      headers: authHeaders(),
-    });
-  },
-
-  async createWorkspace(body, { fetchFn, baseUrl = "" } = {}) {
-    return requestJSON("/workspaces", {
-      fetchFn,
-      baseUrl,
-      method: "POST",
-      body,
-      headers: authHeaders(),
-    });
-  },
-
-  async getWorkspace(workspaceId, { fetchFn, baseUrl = "" } = {}) {
-    return requestJSON(`/workspaces/${encodeURIComponent(workspaceId)}`, {
-      fetchFn,
-      baseUrl,
-      headers: authHeaders(),
-    });
-  },
-
-  async getProvisioningJob(jobId, { fetchFn, baseUrl = "" } = {}) {
-    return requestJSON(`/provisioning/jobs/${encodeURIComponent(jobId)}`, {
-      fetchFn,
-      baseUrl,
-      headers: authHeaders(),
-    });
-  },
-
-  async createLaunchSession(
-    workspaceId,
-    body = {},
-    { fetchFn, baseUrl = "" } = {},
-  ) {
     return requestJSON(
-      `/workspaces/${encodeURIComponent(workspaceId)}/launch-sessions`,
+      controlApiPath(`/organizations/${encodeURIComponent(organizationId)}`),
       {
         fetchFn,
         baseUrl,
-        method: "POST",
-        body,
-        headers: authHeaders(),
-      },
-    );
-  },
-
-  async exchangeWorkspaceSession(
-    workspaceId,
-    exchangeToken,
-    { fetchFn, baseUrl = "" } = {},
-  ) {
-    return requestJSON(
-      `/workspaces/${encodeURIComponent(workspaceId)}/session-exchange`,
-      {
-        fetchFn,
-        baseUrl,
-        method: "POST",
-        body: { exchange_token: exchangeToken },
-      },
-    );
-  },
-
-  async listOrganizationMemberships(
-    organizationId,
-    { fetchFn, baseUrl = "" } = {},
-  ) {
-    return requestJSON(
-      `/organizations/${encodeURIComponent(organizationId)}/memberships`,
-      {
-        fetchFn,
-        baseUrl,
-        headers: authHeaders(),
       },
     );
   },
@@ -256,44 +146,12 @@ export const controlClient = {
     { fetchFn, baseUrl = "" } = {},
   ) {
     return requestJSON(
-      `/organizations/${encodeURIComponent(organizationId)}/invites`,
+      controlApiPath(
+        `/organizations/${encodeURIComponent(organizationId)}/invites`,
+      ),
       {
         fetchFn,
         baseUrl,
-        headers: authHeaders(),
-      },
-    );
-  },
-
-  async createOrganizationInvite(
-    organizationId,
-    body,
-    { fetchFn, baseUrl = "" } = {},
-  ) {
-    return requestJSON(
-      `/organizations/${encodeURIComponent(organizationId)}/invites`,
-      {
-        fetchFn,
-        baseUrl,
-        method: "POST",
-        body,
-        headers: authHeaders(),
-      },
-    );
-  },
-
-  async revokeOrganizationInvite(
-    organizationId,
-    inviteId,
-    { fetchFn, baseUrl = "" } = {},
-  ) {
-    return requestJSON(
-      `/organizations/${encodeURIComponent(organizationId)}/invites/${encodeURIComponent(inviteId)}/revoke`,
-      {
-        fetchFn,
-        baseUrl,
-        method: "POST",
-        headers: authHeaders(),
       },
     );
   },
@@ -304,31 +162,34 @@ export const controlClient = {
     { fetchFn, baseUrl = "" } = {},
   ) {
     return requestJSON(
-      `/organizations/${encodeURIComponent(organizationId)}/invites/${encodeURIComponent(inviteId)}/accept`,
+      controlApiPath(
+        `/organizations/${encodeURIComponent(organizationId)}/invites/${encodeURIComponent(inviteId)}/accept`,
+      ),
       {
         fetchFn,
         baseUrl,
         method: "POST",
-        headers: authHeaders(),
+        body: {},
       },
     );
   },
 
-  async getOrganizationUsageSummary(
-    organizationId,
-    { fetchFn, baseUrl = "" } = {},
-  ) {
-    return requestJSON(
-      `/organizations/${encodeURIComponent(organizationId)}/usage-summary`,
-      {
-        fetchFn,
-        baseUrl,
-        headers: authHeaders(),
-      },
-    );
+  async listWorkspaces(organizationId, { fetchFn, baseUrl = "" } = {}) {
+    const query = organizationId
+      ? `?organization_id=${encodeURIComponent(organizationId)}`
+      : "";
+    return requestJSON(controlApiPath(`/workspaces${query}`), {
+      fetchFn,
+      baseUrl,
+    });
   },
 
-  clearStoredToken() {
-    setStoredAccessToken("");
+  async createWorkspace(body, { fetchFn, baseUrl = "" } = {}) {
+    return requestJSON(controlApiPath("/workspaces"), {
+      fetchFn,
+      baseUrl,
+      method: "POST",
+      body,
+    });
   },
 };

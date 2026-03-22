@@ -4,7 +4,6 @@ import { getWorkspaceHeader } from "$lib/compat/workspaceCompat";
 import { stripBasePath } from "$lib/workspacePaths";
 import {
   clearWorkspaceAuthSession,
-  clearWorkspaceRefreshToken,
   getWorkspaceAuthSession,
   readWorkspaceRefreshToken,
   refreshWorkspaceAuthSession,
@@ -58,12 +57,11 @@ async function refreshAndRetry(event, coreBaseUrl, workspaceSlug, targetUrl) {
       coreBaseUrl,
     });
   } catch {
-    clearWorkspaceRefreshToken(event, workspaceSlug);
-    clearWorkspaceAuthSession(workspaceSlug);
+    clearWorkspaceAuthSession(event, workspaceSlug);
     return null;
   }
 
-  const refreshedSession = getWorkspaceAuthSession(workspaceSlug);
+  const refreshedSession = getWorkspaceAuthSession(event, workspaceSlug);
   if (!refreshedSession?.accessToken) {
     return null;
   }
@@ -93,7 +91,7 @@ async function proxyToCore(event, coreBaseUrl, workspaceSlug) {
   requestInit.headers.delete("cookie");
   requestInit.headers.delete("authorization");
 
-  const session = getWorkspaceAuthSession(workspaceSlug);
+  const session = getWorkspaceAuthSession(event, workspaceSlug);
   if (session?.accessToken) {
     requestInit.headers.set("authorization", `Bearer ${session.accessToken}`);
   }
@@ -130,8 +128,7 @@ async function proxyToCore(event, coreBaseUrl, workspaceSlug) {
     if (retriedResponse) {
       upstreamResponse = retriedResponse;
       if (upstreamResponse.status === 401) {
-        clearWorkspaceRefreshToken(event, workspaceSlug);
-        clearWorkspaceAuthSession(workspaceSlug);
+        clearWorkspaceAuthSession(event, workspaceSlug);
       }
     }
   }

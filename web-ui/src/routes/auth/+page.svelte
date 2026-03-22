@@ -1,10 +1,13 @@
 <script>
   import { goto } from "$app/navigation";
+  import { page } from "$app/stores";
   import { onMount } from "svelte";
 
   import {
+    completeControlSession,
     controlAuthenticated,
     controlSessionReady,
+    initializeControlSession,
   } from "$lib/controlSession.js";
   import { controlClient } from "$lib/controlClient.js";
   import {
@@ -19,15 +22,21 @@
   let loadingRegistration = $state(false);
   let loadingLogin = $state(false);
 
-  onMount(() => {
+  function resolveRedirectPath() {
+    const redirectPath = $page.url.searchParams.get("redirect") || "/dashboard";
+    return redirectPath.startsWith("/") ? redirectPath : "/dashboard";
+  }
+
+  onMount(async () => {
+    await initializeControlSession();
     if ($controlAuthenticated) {
-      goto("/dashboard");
+      goto(resolveRedirectPath());
     }
   });
 
   $effect(() => {
     if ($controlAuthenticated) {
-      goto("/dashboard");
+      goto(resolveRedirectPath());
     }
   });
 
@@ -60,7 +69,8 @@
       });
 
       if (result.account) {
-        goto("/dashboard");
+        completeControlSession(result.account);
+        goto(resolveRedirectPath());
       }
     } catch (error) {
       registrationError =
@@ -91,7 +101,8 @@
       });
 
       if (result.account) {
-        goto("/dashboard");
+        completeControlSession(result.account);
+        goto(resolveRedirectPath());
       }
     } catch (error) {
       loginError = error instanceof Error ? error.message : "Sign in failed.";
