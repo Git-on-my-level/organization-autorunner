@@ -185,12 +185,15 @@ agent auth remains enabled, and startup fails closed unless the
 
 ```bash
 curl -fsS http://127.0.0.1:8000/health
+curl -fsS http://127.0.0.1:8000/livez
 curl -fsS http://127.0.0.1:8000/readyz
 curl -fsS http://127.0.0.1:8000/version
 ```
 
 `/health` is the minimal public liveness probe and returns only `{ ok: true }`
 when the process is alive.
+
+`/livez` is an explicit liveness alias with the same minimal payload.
 
 `/readyz` performs the workspace storage connectivity check before the instance
 is treated as ready.
