@@ -69,7 +69,7 @@ contract):
 - `GET /auth/bootstrap/status`
 - `GET /auth/principals`, `POST /auth/principals/{agent_id}/revoke`
 - `GET /auth/invites`, `POST /auth/invites`,
-  `DELETE /auth/invites/{invite_id}`
+  `POST /auth/invites/{invite_id}/revoke`
 - `GET /auth/audit`
 - `POST /threads`, `GET /threads`, `GET /threads/{thread_id}`,
   `PATCH /threads/{thread_id}`, `GET /threads/{thread_id}/timeline`,
