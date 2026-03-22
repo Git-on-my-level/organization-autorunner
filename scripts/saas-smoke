@@ -112,7 +112,7 @@ mkdir -p "$CONTROL_PLANE_ROOT"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_ISSUER="$CONTROL_PLANE_BASE_URL"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_AUDIENCE="oar-core"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_SIGNING_KEY="$SERVICE_PRIVATE_KEY"
-  export OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE="http://127.0.0.1:WORKSPACE_PORT/%s"
+  export OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE="http://127.0.0.1/%s"
   export OAR_CONTROL_PLANE_INVITE_URL_TEMPLATE="${CONTROL_PLANE_BASE_URL}/invites/%s"
   cd "$REPO_ROOT/core"
   go run ./cmd/oar-control-plane \
@@ -205,11 +205,12 @@ echo ""
 echo "=== Test 3: First workspace provisioning ==="
 
 WORKSPACE1_PORT="18101"
+WORKSPACE1_SERVICE_IDENTITY_ID="saas-smoke-ws1-service"
 CREATE_WS1_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
   -H "authorization: Bearer $OWNER_TOKEN" \
   -X POST \
-  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"workspace-1\",\"display_name\":\"Workspace 1\",\"region\":\"us-central1\",\"workspace_tier\":\"standard\"}" \
+  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"workspace-1\",\"display_name\":\"Workspace 1\",\"region\":\"us-central1\",\"workspace_tier\":\"standard\",\"service_identity_id\":\"$WORKSPACE1_SERVICE_IDENTITY_ID\",\"service_identity_public_key\":\"$SERVICE_PUBLIC_KEY\"}" \
   "$CONTROL_PLANE_BASE_URL/workspaces")
 
 WS1_ID="$(json_get_first "$CREATE_WS1_RESPONSE" workspace.id id || true)"
@@ -222,9 +223,9 @@ if [[ -z "$WS1_ID" ]] || [[ -z "$WS1_DEPLOYMENT_ROOT" ]]; then
 fi
 
 WS1_STATUS="$(json_get_first "$CREATE_WS1_RESPONSE" workspace.status status || true)"
-if [[ "$WS1_STATUS" != "provisioned" ]] && [[ "$WS1_STATUS" != "active" ]]; then
+if [[ "$WS1_STATUS" != "provisioned" ]] && [[ "$WS1_STATUS" != "active" ]] && [[ "$WS1_STATUS" != "ready" ]]; then
   echo "workspace 1 provisioning did not reach active state: $WS1_STATUS" >&2
-  cat "$CREATE_WS1_RESPONSE" >&2 || true
+  printf '%s\n' "$CREATE_WS1_RESPONSE" >&2
   exit 1
 fi
 
@@ -234,11 +235,12 @@ echo ""
 echo "=== Test 4: Second workspace provisioning (multi-workspace) ==="
 
 WORKSPACE2_PORT="18102"
+WORKSPACE2_SERVICE_IDENTITY_ID="saas-smoke-ws2-service"
 CREATE_WS2_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
   -H "authorization: Bearer $OWNER_TOKEN" \
   -X POST \
-  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"workspace-2\",\"display_name\":\"Workspace 2\",\"region\":\"us-east1\",\"workspace_tier\":\"plus\"}" \
+  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"workspace-2\",\"display_name\":\"Workspace 2\",\"region\":\"us-east1\",\"workspace_tier\":\"plus\",\"service_identity_id\":\"$WORKSPACE2_SERVICE_IDENTITY_ID\",\"service_identity_public_key\":\"$SERVICE_PUBLIC_KEY\"}" \
   "$CONTROL_PLANE_BASE_URL/workspaces")
 
 WS2_ID="$(json_get_first "$CREATE_WS2_RESPONSE" workspace.id id || true)"
@@ -258,6 +260,13 @@ mkdir -p "$WORKSPACE1_ROOT"
 mkdir -p "$WORKSPACE2_ROOT"
 
 BOOTSTRAP_TOKEN1="saas-smoke-ws1-$(generate_token 16)"
+export OAR_HUMAN_AUTH_MODE="control_plane"
+export OAR_CONTROL_PLANE_TOKEN_ISSUER="$CONTROL_PLANE_BASE_URL"
+export OAR_CONTROL_PLANE_TOKEN_AUDIENCE="oar-core"
+export OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY="$SERVICE_PUBLIC_KEY"
+export OAR_CONTROL_PLANE_WORKSPACE_ID="$WS1_ID"
+export OAR_WORKSPACE_SERVICE_ID="$WORKSPACE1_SERVICE_IDENTITY_ID"
+export OAR_WORKSPACE_SERVICE_PRIVATE_KEY="$SERVICE_PRIVATE_KEY"
 
 start_core_server \
   WORKSPACE1_PID \
@@ -275,6 +284,9 @@ start_core_server \
   false
 
 BOOTSTRAP_TOKEN2="saas-smoke-ws2-$(generate_token 16)"
+export OAR_CONTROL_PLANE_WORKSPACE_ID="$WS2_ID"
+export OAR_WORKSPACE_SERVICE_ID="$WORKSPACE2_SERVICE_IDENTITY_ID"
+export OAR_WORKSPACE_SERVICE_PRIVATE_KEY="$SERVICE_PRIVATE_KEY"
 
 start_core_server \
   WORKSPACE2_PID \
@@ -305,6 +317,14 @@ if ! wait_for_http_ok "$WS2_BASE_URL/readyz" 30; then
   cat "$WORKSPACE2_LOG" >&2 || true
   exit 1
 fi
+
+unset OAR_HUMAN_AUTH_MODE
+unset OAR_CONTROL_PLANE_TOKEN_ISSUER
+unset OAR_CONTROL_PLANE_TOKEN_AUDIENCE
+unset OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY
+unset OAR_CONTROL_PLANE_WORKSPACE_ID
+unset OAR_WORKSPACE_SERVICE_ID
+unset OAR_WORKSPACE_SERVICE_PRIVATE_KEY
 
 echo "✓ Both workspace cores started and healthy"
 

@@ -110,7 +110,7 @@ mkdir -p "$CONTROL_PLANE_ROOT"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_ISSUER="$CONTROL_PLANE_BASE_URL"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_AUDIENCE="oar-core"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_SIGNING_KEY="$SERVICE_PRIVATE_KEY"
-  export OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE="http://127.0.0.1:WORKSPACE_PORT/%s"
+  export OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE="http://127.0.0.1/%s"
   export OAR_CONTROL_PLANE_INVITE_URL_TEMPLATE="${CONTROL_PLANE_BASE_URL}/invites/%s"
   cd "$REPO_ROOT/core"
   go run ./cmd/oar-control-plane \
@@ -162,12 +162,14 @@ print(base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('='))
     -d "{\"registration_session_id\":\"$REG_SESSION_ID\",\"credential\":{\"id\":\"$CREDENTIAL_ID\",\"rawId\":\"$CREDENTIAL_ID\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$CLIENT_DATA\",\"userHandle\":\"$REG_USER_ID\"}}}" \
     "$CONTROL_PLANE_BASE_URL/account/passkeys/registrations/finish")
 
-  json_get_first "$FINISH_REG_RESPONSE" session.access_token access_token || true
+  printf '%s\n%s\n' \
+    "$(json_get_first "$FINISH_REG_RESPONSE" session.access_token access_token || true)" \
+    "$CREDENTIAL_ID"
 }
 
 login_account() {
   local email="$1"
-  local cred_suffix="$2"
+  local credential_id="$2"
 
   START_LOGIN_RESPONSE=$(curl -sS \
     -H "content-type: application/json" \
@@ -180,7 +182,6 @@ login_account() {
   LOGIN_OPTIONS="$(json_get "$START_LOGIN_RESPONSE" public_key_options || true)"
   CHALLENGE="$(json_get "$LOGIN_OPTIONS" challenge || true)"
 
-  CREDENTIAL_ID="cred-${cred_suffix}-$(generate_token 8)"
   CLIENT_DATA=$(python3 -c "
 import json, base64
 data = {'challenge': '$CHALLENGE', 'origin': 'http://localhost:5173', 'type': 'webauthn.get'}
@@ -191,14 +192,16 @@ print(base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('='))
     -H "content-type: application/json" \
     -H "origin: http://localhost:5173" \
     -X POST \
-    -d "{\"session_id\":\"$LOGIN_SESSION_ID\",\"credential\":{\"id\":\"$CREDENTIAL_ID\",\"rawId\":\"$CREDENTIAL_ID\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$CLIENT_DATA\"}}}" \
+  -d "{\"session_id\":\"$LOGIN_SESSION_ID\",\"credential\":{\"id\":\"$credential_id\",\"rawId\":\"$credential_id\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$CLIENT_DATA\"}}}" \
     "$CONTROL_PLANE_BASE_URL/account/sessions/finish")
 
   json_get_first "$FINISH_LOGIN_RESPONSE" session.access_token access_token || true
 }
 
 echo "Registering admin account..."
-ADMIN_TOKEN=$(register_account "admin@example.com" "Admin User" "admin")
+ADMIN_ACCOUNT_OUTPUT="$(register_account "admin@example.com" "Admin User" "admin")"
+ADMIN_TOKEN="$(sed -n '1p' <<<"$ADMIN_ACCOUNT_OUTPUT")"
+ADMIN_CREDENTIAL_ID="$(sed -n '2p' <<<"$ADMIN_ACCOUNT_OUTPUT")"
 if [[ -z "$ADMIN_TOKEN" ]]; then
   echo "failed to register admin account" >&2
   exit 1
@@ -219,11 +222,12 @@ echo "✓ Organization created (id=$ORG_ID)"
 
 echo ""
 echo "Provisioning workspace 1..."
+WORKSPACE1_SERVICE_IDENTITY_ID="saas-e2e-ws1-service"
 CREATE_WS1_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
   -H "authorization: Bearer $ADMIN_TOKEN" \
   -X POST \
-  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"ws-alpha\",\"display_name\":\"Alpha Workspace\",\"region\":\"us-central1\",\"workspace_tier\":\"standard\"}" \
+  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"ws-alpha\",\"display_name\":\"Alpha Workspace\",\"region\":\"us-central1\",\"workspace_tier\":\"standard\",\"service_identity_id\":\"$WORKSPACE1_SERVICE_IDENTITY_ID\",\"service_identity_public_key\":\"$SERVICE_PUBLIC_KEY\"}" \
   "$CONTROL_PLANE_BASE_URL/workspaces")
 
 WS1_ID="$(json_get_first "$CREATE_WS1_RESPONSE" workspace.id id || true)"
@@ -232,11 +236,12 @@ echo "✓ Workspace 1 provisioned (id=$WS1_ID)"
 
 echo ""
 echo "Provisioning workspace 2..."
+WORKSPACE2_SERVICE_IDENTITY_ID="saas-e2e-ws2-service"
 CREATE_WS2_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
   -H "authorization: Bearer $ADMIN_TOKEN" \
   -X POST \
-  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"ws-beta\",\"display_name\":\"Beta Workspace\",\"region\":\"us-east1\",\"workspace_tier\":\"plus\"}" \
+  -d "{\"organization_id\":\"$ORG_ID\",\"slug\":\"ws-beta\",\"display_name\":\"Beta Workspace\",\"region\":\"us-east1\",\"workspace_tier\":\"plus\",\"service_identity_id\":\"$WORKSPACE2_SERVICE_IDENTITY_ID\",\"service_identity_public_key\":\"$SERVICE_PUBLIC_KEY\"}" \
   "$CONTROL_PLANE_BASE_URL/workspaces")
 
 WS2_ID="$(json_get_first "$CREATE_WS2_RESPONSE" workspace.id id || true)"
@@ -249,6 +254,13 @@ WORKSPACE2_PORT="18112"
 echo ""
 echo "Starting workspace core 1..."
 BOOTSTRAP_TOKEN1="e2e-ws1-$(generate_token 16)"
+export OAR_HUMAN_AUTH_MODE="control_plane"
+export OAR_CONTROL_PLANE_TOKEN_ISSUER="$CONTROL_PLANE_BASE_URL"
+export OAR_CONTROL_PLANE_TOKEN_AUDIENCE="oar-core"
+export OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY="$SERVICE_PUBLIC_KEY"
+export OAR_CONTROL_PLANE_WORKSPACE_ID="$WS1_ID"
+export OAR_WORKSPACE_SERVICE_ID="$WORKSPACE1_SERVICE_IDENTITY_ID"
+export OAR_WORKSPACE_SERVICE_PRIVATE_KEY="$SERVICE_PRIVATE_KEY"
 start_core_server \
   WORKSPACE1_PID \
   "$CORE_BIN" \
@@ -275,6 +287,9 @@ echo "✓ Workspace 1 core running"
 echo ""
 echo "Starting workspace core 2..."
 BOOTSTRAP_TOKEN2="e2e-ws2-$(generate_token 16)"
+export OAR_CONTROL_PLANE_WORKSPACE_ID="$WS2_ID"
+export OAR_WORKSPACE_SERVICE_ID="$WORKSPACE2_SERVICE_IDENTITY_ID"
+export OAR_WORKSPACE_SERVICE_PRIVATE_KEY="$SERVICE_PRIVATE_KEY"
 start_core_server \
   WORKSPACE2_PID \
   "$CORE_BIN" \
@@ -296,6 +311,13 @@ if ! wait_for_http_ok "http://${CONTROL_PLANE_HOST}:${WORKSPACE2_PORT}/readyz" 3
   exit 1
 fi
 WS2_BASE_URL="http://${CONTROL_PLANE_HOST}:${WORKSPACE2_PORT}"
+unset OAR_HUMAN_AUTH_MODE
+unset OAR_CONTROL_PLANE_TOKEN_ISSUER
+unset OAR_CONTROL_PLANE_TOKEN_AUDIENCE
+unset OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY
+unset OAR_CONTROL_PLANE_WORKSPACE_ID
+unset OAR_WORKSPACE_SERVICE_ID
+unset OAR_WORKSPACE_SERVICE_PRIVATE_KEY
 echo "✓ Workspace 2 core running"
 
 echo ""
@@ -312,7 +334,9 @@ echo "✓ Member invited"
 
 echo ""
 echo "Registering member account..."
-MEMBER_TOKEN=$(register_account "member@example.com" "Member User" "member")
+MEMBER_ACCOUNT_OUTPUT="$(register_account "member@example.com" "Member User" "member")"
+MEMBER_TOKEN="$(sed -n '1p' <<<"$MEMBER_ACCOUNT_OUTPUT")"
+MEMBER_CREDENTIAL_ID="$(sed -n '2p' <<<"$MEMBER_ACCOUNT_OUTPUT")"
 if [[ -z "$MEMBER_TOKEN" ]]; then
   echo "failed to register member account" >&2
   exit 1
@@ -490,7 +514,7 @@ echo "✓ Revoked session rejected"
 
 echo ""
 echo "Admin re-login..."
-ADMIN_TOKEN=$(login_account "admin@example.com" "admin")
+ADMIN_TOKEN=$(login_account "admin@example.com" "$ADMIN_CREDENTIAL_ID")
 if [[ -z "$ADMIN_TOKEN" ]]; then
   echo "failed to re-login admin" >&2
   exit 1
