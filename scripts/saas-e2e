@@ -67,6 +67,20 @@ json_get_first() {
   return 1
 }
 
+invite_token_from_url() {
+  local invite_url="$1"
+  python3 -c '
+import sys
+from urllib.parse import urlparse
+
+path = urlparse(sys.argv[1]).path.rstrip("/")
+prefix = "/invites/"
+if not path.startswith(prefix):
+    raise SystemExit(1)
+print(path[len(prefix):])
+' "$invite_url"
+}
+
 generate_ed25519_key_base64() {
   local go_file
   go_file="$(mktemp "${TMP_DIR}/genkey.XXXXXX.go")"
@@ -135,6 +149,7 @@ register_account() {
   local email="$1"
   local display_name="$2"
   local cred_suffix="$3"
+  local invite_token="${4:-}"
 
   START_REG_RESPONSE=$(curl -sS \
     -H "content-type: application/json" \
@@ -159,7 +174,7 @@ print(base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('='))
     -H "content-type: application/json" \
     -H "origin: http://localhost:5173" \
     -X POST \
-    -d "{\"registration_session_id\":\"$REG_SESSION_ID\",\"credential\":{\"id\":\"$CREDENTIAL_ID\",\"rawId\":\"$CREDENTIAL_ID\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$CLIENT_DATA\",\"userHandle\":\"$REG_USER_ID\"}}}" \
+    -d "{\"registration_session_id\":\"$REG_SESSION_ID\"${invite_token:+,\"invite_token\":\"$invite_token\"},\"credential\":{\"id\":\"$CREDENTIAL_ID\",\"rawId\":\"$CREDENTIAL_ID\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$CLIENT_DATA\",\"userHandle\":\"$REG_USER_ID\"}}}" \
     "$CONTROL_PLANE_BASE_URL/account/passkeys/registrations/finish")
 
   printf '%s\n%s\n' \
@@ -330,11 +345,18 @@ CREATE_INVITE_RESPONSE=$(curl -sS \
   -X POST \
   -d '{"email":"member@example.com","role":"member"}' \
   "$CONTROL_PLANE_BASE_URL/organizations/$ORG_ID/invites")
+MEMBER_INVITE_URL="$(json_get_first "$CREATE_INVITE_RESPONSE" invite_url url || true)"
+MEMBER_INVITE_TOKEN="$(invite_token_from_url "$MEMBER_INVITE_URL" || true)"
+if [[ -z "$MEMBER_INVITE_TOKEN" ]]; then
+  echo "failed to extract member invite token" >&2
+  echo "response: $CREATE_INVITE_RESPONSE" >&2
+  exit 1
+fi
 echo "✓ Member invited"
 
 echo ""
 echo "Registering member account..."
-MEMBER_ACCOUNT_OUTPUT="$(register_account "member@example.com" "Member User" "member")"
+MEMBER_ACCOUNT_OUTPUT="$(register_account "member@example.com" "Member User" "member" "$MEMBER_INVITE_TOKEN")"
 MEMBER_TOKEN="$(sed -n '1p' <<<"$MEMBER_ACCOUNT_OUTPUT")"
 MEMBER_CREDENTIAL_ID="$(sed -n '2p' <<<"$MEMBER_ACCOUNT_OUTPUT")"
 if [[ -z "$MEMBER_TOKEN" ]]; then

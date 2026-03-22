@@ -69,6 +69,20 @@ json_get_first() {
   return 1
 }
 
+invite_token_from_url() {
+  local invite_url="$1"
+  python3 -c '
+import sys
+from urllib.parse import urlparse
+
+path = urlparse(sys.argv[1]).path.rstrip("/")
+prefix = "/invites/"
+if not path.startswith(prefix):
+    raise SystemExit(1)
+print(path[len(prefix):])
+' "$invite_url"
+}
+
 generate_ed25519_key_base64() {
   local go_file
   go_file="$(mktemp "${TMP_DIR}/genkey.XXXXXX.go")"
@@ -344,6 +358,12 @@ if [[ -z "$INVITE_URL" ]]; then
   echo "response: $CREATE_INVITE_RESPONSE" >&2
   exit 1
 fi
+INVITE_TOKEN="$(invite_token_from_url "$INVITE_URL" || true)"
+if [[ -z "$INVITE_TOKEN" ]]; then
+  echo "failed to extract invite token from invite url" >&2
+  echo "invite_url: $INVITE_URL" >&2
+  exit 1
+fi
 
 echo "Member invite created"
 
@@ -370,7 +390,7 @@ FINISH_MEMBER_REG_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
   -H "origin: http://localhost:5173" \
   -X POST \
-  -d "{\"registration_session_id\":\"$MEMBER_REG_SESSION_ID\",\"credential\":{\"id\":\"$MEMBER_CREDENTIAL_ID\",\"rawId\":\"$MEMBER_CREDENTIAL_ID\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$MEMBER_CLIENT_DATA\",\"userHandle\":\"$MEMBER_USER_ID\"}}}" \
+  -d "{\"registration_session_id\":\"$MEMBER_REG_SESSION_ID\",\"invite_token\":\"$INVITE_TOKEN\",\"credential\":{\"id\":\"$MEMBER_CREDENTIAL_ID\",\"rawId\":\"$MEMBER_CREDENTIAL_ID\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$MEMBER_CLIENT_DATA\",\"userHandle\":\"$MEMBER_USER_ID\"}}}" \
   "$CONTROL_PLANE_BASE_URL/account/passkeys/registrations/finish")
 
 MEMBER_TOKEN="$(json_get_first "$FINISH_MEMBER_REG_RESPONSE" session.access_token access_token tokens.access_token || true)"

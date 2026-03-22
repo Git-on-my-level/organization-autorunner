@@ -605,21 +605,33 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 
 	now := s.now()
 	nowText := now.Format(time.RFC3339Nano)
-	result, err := tx.ExecContext(
-		ctx,
-		`UPDATE launch_sessions
-		 SET consumed_at = ?
-		 WHERE id = ?
-		   AND consumed_at IS NULL`,
-		nowText,
-		launchID,
-	)
-	if err != nil {
-		return Workspace{}, WorkspaceGrant{}, internalError("failed to consume launch session")
-	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return Workspace{}, WorkspaceGrant{}, internalError("failed to confirm launch session consumption")
+	var rowsAffected int64
+	for attempt := 0; attempt < 5; attempt++ {
+		result, execErr := tx.ExecContext(
+			ctx,
+			`UPDATE launch_sessions
+			 SET consumed_at = ?
+			 WHERE id = ?
+			   AND consumed_at IS NULL`,
+			nowText,
+			launchID,
+		)
+		if execErr != nil {
+			if isSQLiteBusyError(execErr) {
+				if attempt < 4 {
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
+				return Workspace{}, WorkspaceGrant{}, &APIError{Status: http.StatusConflict, Code: "exchange_invalid", Message: "exchange token has already been used"}
+			}
+			return Workspace{}, WorkspaceGrant{}, internalError("failed to consume launch session")
+		}
+		var rowsErr error
+		rowsAffected, rowsErr = result.RowsAffected()
+		if rowsErr != nil {
+			return Workspace{}, WorkspaceGrant{}, internalError("failed to confirm launch session consumption")
+		}
+		break
 	}
 	if rowsAffected == 0 {
 		return Workspace{}, WorkspaceGrant{}, &APIError{Status: http.StatusConflict, Code: "exchange_invalid", Message: "exchange token has already been used"}
