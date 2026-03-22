@@ -1033,7 +1033,8 @@ func (s *Store) countActiveHumanPrincipalsTx(ctx context.Context, tx *sql.Tx) (i
 		fmt.Sprintf(`SELECT COUNT(1)
 		 FROM agents a
 		 WHERE a.revoked_at IS NULL
-		   AND %s = 'human'`, principalKindExpr("a")),
+		   AND %s = 'human'
+		   AND %s != '%s'`, principalKindExpr("a"), authMethodExpr("a"), AuthMethodControlPlane),
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count active human principals: %w", err)
 	}
@@ -1050,7 +1051,8 @@ func (s *Store) CountActiveHumanPrincipals(ctx context.Context) (int, error) {
 		fmt.Sprintf(`SELECT COUNT(1)
 		 FROM agents a
 		 WHERE a.revoked_at IS NULL
-		   AND %s = 'human'`, principalKindExpr("a")),
+		   AND %s = 'human'
+		   AND %s != '%s'`, principalKindExpr("a"), authMethodExpr("a"), AuthMethodControlPlane),
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count active human principals: %w", err)
 	}

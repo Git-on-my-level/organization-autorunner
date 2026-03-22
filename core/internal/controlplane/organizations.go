@@ -239,58 +239,83 @@ func (s *Service) ListOrganizationMemberships(ctx context.Context, identity Requ
 }
 
 func (s *Service) UpdateOrganizationMembership(ctx context.Context, identity RequestIdentity, organizationID string, membershipID string, role *string, status *string) (Membership, error) {
-	organization, callerMembership, err := s.requireOrganizationAccess(ctx, identity, organizationID, true)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		return Membership{}, internalError("failed to begin membership update transaction")
+	}
+	defer tx.Rollback()
+
+	if err := requireOrganizationManageAccessTx(ctx, tx, organizationID, identity.Account.ID, true, "membership updates require owner or admin access"); err != nil {
 		return Membership{}, err
 	}
-	if !membershipCanManage(callerMembership.Role) {
-		return Membership{}, accessDenied("membership updates require owner or admin access")
-	}
 
-	membership, err := loadMembership(ctx, s.db, organizationID, membershipID)
+	var membership Membership
+	err = tx.QueryRowContext(
+		ctx,
+		`SELECT id, organization_id, account_id, role, status, created_at
+		 FROM organization_memberships
+		 WHERE organization_id = ? AND id = ?`,
+		organizationID,
+		membershipID,
+	).Scan(&membership.ID, &membership.OrganizationID, &membership.AccountID, &membership.Role, &membership.Status, &membership.CreatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return Membership{}, notFound("membership not found")
 		}
 		return Membership{}, internalError("failed to load membership")
 	}
+
+	nextMembership := membership
 	if role != nil {
 		if err := validateMembershipRole(*role); err != nil {
 			return Membership{}, err
 		}
-		membership.Role = *role
+		nextMembership.Role = *role
 	}
 	if status != nil {
 		if err := validateMembershipStatus(*status); err != nil {
 			return Membership{}, err
 		}
-		membership.Status = *status
+		nextMembership.Status = *status
 	}
 
-	if _, err := s.db.ExecContext(
+	if membershipIsActiveManager(membership) && !membershipIsActiveManager(nextMembership) {
+		activeManagerCount, err := countActiveOrganizationManagersTx(ctx, tx, organizationID)
+		if err != nil {
+			return Membership{}, err
+		}
+		if activeManagerCount <= 1 {
+			return Membership{}, conflict("manager_required", "organization must keep at least one active owner or admin")
+		}
+	}
+
+	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE organization_memberships SET role = ?, status = ? WHERE id = ?`,
-		membership.Role,
-		membership.Status,
-		membership.ID,
+		nextMembership.Role,
+		nextMembership.Status,
+		nextMembership.ID,
 	); err != nil {
 		return Membership{}, internalError("failed to update membership")
 	}
-	if err := insertAuditEvent(ctx, s.db, AuditEvent{
+	if err := insertAuditEventTx(ctx, tx, AuditEvent{
 		ID:             "audit_" + uuid.NewString(),
 		EventType:      "organization_membership_updated",
-		OrganizationID: stringPtr(organization.ID),
+		OrganizationID: stringPtr(strings.TrimSpace(organizationID)),
 		TargetType:     "membership",
-		TargetID:       membership.ID,
+		TargetID:       nextMembership.ID,
 		OccurredAt:     s.now().Format(time.RFC3339Nano),
 		Metadata: map[string]any{
-			"role":   membership.Role,
-			"status": membership.Status,
+			"role":   nextMembership.Role,
+			"status": nextMembership.Status,
 		},
 	}, stringPtr(identity.Account.ID)); err != nil {
 		return Membership{}, err
 	}
-	return membership, nil
+	if err := tx.Commit(); err != nil {
+		return Membership{}, internalError("failed to commit membership update")
+	}
+	return nextMembership, nil
 }
 
 func (s *Service) ListOrganizationInvites(ctx context.Context, identity RequestIdentity, organizationID string, page PageRequest) (Page[OrganizationInvite], error) {
@@ -734,6 +759,26 @@ func scanInvite(scanner inviteScanner) (OrganizationInvite, error) {
 func membershipCanManage(role string) bool {
 	role = strings.TrimSpace(role)
 	return role == "owner" || role == "admin"
+}
+
+func membershipIsActiveManager(membership Membership) bool {
+	return strings.TrimSpace(membership.Status) == "active" && membershipCanManage(membership.Role)
+}
+
+func countActiveOrganizationManagersTx(ctx context.Context, tx *sql.Tx, organizationID string) (int, error) {
+	var count int
+	if err := tx.QueryRowContext(
+		ctx,
+		`SELECT COUNT(1)
+		 FROM organization_memberships
+		 WHERE organization_id = ?
+		   AND status = 'active'
+		   AND role IN ('owner', 'admin')`,
+		organizationID,
+	).Scan(&count); err != nil {
+		return 0, internalError("failed to count organization managers")
+	}
+	return count, nil
 }
 
 func validatePlanTier(planTier string) error {

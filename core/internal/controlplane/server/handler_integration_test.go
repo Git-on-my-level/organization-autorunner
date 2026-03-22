@@ -175,6 +175,13 @@ func TestControlPlaneAccountOrganizationWorkspaceInviteJobAuditFlow(t *testing.T
 	if got := asString(t, grant["scope"]); got != "workspace:"+asString(t, firstWorkspace["id"]) {
 		t.Fatalf("expected workspace grant scope, got %q", got)
 	}
+	grantExpiresAt, err := time.Parse(time.RFC3339Nano, asString(t, grant["expires_at"]))
+	if err != nil {
+		t.Fatalf("parse workspace grant expiry: %v", err)
+	}
+	if !grantExpiresAt.After(time.Now().UTC().Add(11 * time.Minute)) {
+		t.Fatalf("expected exchanged workspace grant to outlive launch ttl, got %s", grantExpiresAt.Format(time.RFC3339Nano))
+	}
 
 	if got := asString(t, secondWorkspace["id"]); got == "" {
 		t.Fatal("expected second workspace id")
@@ -483,6 +490,54 @@ func TestControlPlaneCreateWorkspaceRequiresServiceIdentity(t *testing.T) {
 	}
 	if got := asString(t, errPayload["message"]); got != "service_identity_id and service_identity_public_key are required" {
 		t.Fatalf("expected service identity validation message, got %q", got)
+	}
+}
+
+func TestControlPlaneOrganizationRetainsAtLeastOneActiveManager(t *testing.T) {
+	env := newControlPlaneTestEnv(t, "")
+	defer env.Close()
+
+	ownerAccount, ownerSession := registerAccount(t, env, "owner-manager@example.com", "Owner Manager", "cred-owner-manager")
+	ownerToken := asString(t, ownerSession["access_token"])
+	ownerID := asString(t, ownerAccount["id"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "manager-guard",
+		"display_name": "Manager Guard",
+		"plan_tier":    "team",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	var ownerMembershipID string
+	if err := env.workspace.DB().QueryRowContext(
+		context.Background(),
+		`SELECT id FROM organization_memberships WHERE organization_id = ? AND account_id = ?`,
+		organizationID,
+		ownerID,
+	).Scan(&ownerMembershipID); err != nil {
+		t.Fatalf("load owner membership: %v", err)
+	}
+
+	blockedResp := requestJSON(t, http.MethodPatch, env.server.URL+"/organizations/"+organizationID+"/memberships/"+ownerMembershipID, map[string]any{
+		"role": "viewer",
+	}, http.StatusConflict, authHeaders(ownerToken))
+	if got := asString(t, asMap(t, blockedResp["error"])["code"]); got != "manager_required" {
+		t.Fatalf("expected manager_required, got %q", got)
+	}
+
+	createInviteResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations/"+organizationID+"/invites", map[string]any{
+		"email": "admin-manager@example.com",
+		"role":  "admin",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	adminInviteToken := inviteTokenFromURL(t, asString(t, createInviteResp["invite_url"]))
+
+	_, _ = registerAccount(t, env, "admin-manager@example.com", "Admin Manager", "cred-admin-manager", adminInviteToken)
+
+	allowedResp := requestJSON(t, http.MethodPatch, env.server.URL+"/organizations/"+organizationID+"/memberships/"+ownerMembershipID, map[string]any{
+		"role": "viewer",
+	}, http.StatusOK, authHeaders(ownerToken))
+	if got := asString(t, asMap(t, allowedResp["membership"])["role"]); got != "viewer" {
+		t.Fatalf("expected owner demotion after adding admin, got role %q", got)
 	}
 }
 

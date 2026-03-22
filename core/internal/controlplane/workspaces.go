@@ -666,7 +666,7 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 		Email:          account.Email,
 		DisplayName:    account.DisplayName,
 		LaunchID:       launchID,
-		TTL:            s.launchTTL,
+		TTL:            s.sessionTTL,
 	})
 	if err != nil {
 		return Workspace{}, WorkspaceGrant{}, internalError("failed to generate workspace grant")
