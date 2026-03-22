@@ -764,26 +764,36 @@ func loadCeremonyTx(ctx context.Context, tx *sql.Tx, id string) (storedCeremony,
 }
 
 func consumePasskeyCeremonyTx(ctx context.Context, tx *sql.Tx, ceremonyID string, consumedAt string, internalMessage string, expiredMessage string) error {
-	result, err := tx.ExecContext(
-		ctx,
-		`UPDATE passkey_ceremonies
-		 SET consumed_at = ?
-		 WHERE id = ?
-		   AND consumed_at IS NULL`,
-		consumedAt,
-		ceremonyID,
-	)
-	if err != nil {
-		return internalError(internalMessage)
+	for attempt := 0; attempt < 5; attempt++ {
+		result, err := tx.ExecContext(
+			ctx,
+			`UPDATE passkey_ceremonies
+			 SET consumed_at = ?
+			 WHERE id = ?
+			   AND consumed_at IS NULL`,
+			consumedAt,
+			ceremonyID,
+		)
+		if err != nil {
+			if isSQLiteBusyError(err) {
+				if attempt < 4 {
+					time.Sleep(10 * time.Millisecond)
+					continue
+				}
+				return &APIError{Status: http.StatusUnauthorized, Code: "session_expired", Message: expiredMessage}
+			}
+			return internalError(internalMessage)
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return internalError(internalMessage)
+		}
+		if rowsAffected == 0 {
+			return &APIError{Status: http.StatusUnauthorized, Code: "session_expired", Message: expiredMessage}
+		}
+		return nil
 	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return internalError(internalMessage)
-	}
-	if rowsAffected == 0 {
-		return &APIError{Status: http.StatusUnauthorized, Code: "session_expired", Message: expiredMessage}
-	}
-	return nil
+	return &APIError{Status: http.StatusUnauthorized, Code: "session_expired", Message: expiredMessage}
 }
 
 func issueSessionTx(ctx context.Context, tx *sql.Tx, accountID string, now time.Time, ttl time.Duration) (Session, error) {
@@ -1289,6 +1299,17 @@ func credentialSafeEmail(email string) string {
 
 func isSQLiteConstraint(err error) bool {
 	return strings.Contains(strings.ToLower(err.Error()), "constraint")
+}
+
+func isSQLiteBusyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	lowered := strings.ToLower(err.Error())
+	return strings.Contains(lowered, "database is locked") ||
+		strings.Contains(lowered, "database table is locked") ||
+		strings.Contains(lowered, "sqlite_busy") ||
+		strings.Contains(lowered, "cannot start a transaction within a transaction")
 }
 
 func equalBytes(left []byte, right []byte) bool {
