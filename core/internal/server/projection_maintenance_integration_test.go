@@ -239,7 +239,7 @@ func TestPublicHealthEndpointsDoNotExposeProjectionMaintenance(t *testing.T) {
 
 	h := newProjectionMaintenanceTestServer(t)
 
-	for _, path := range []string{"/health", "/readyz"} {
+	for _, path := range []string{"/health", "/livez", "/readyz"} {
 		resp, err := http.Get(h.baseURL + path)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
