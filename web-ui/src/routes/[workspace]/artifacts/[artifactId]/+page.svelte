@@ -28,6 +28,7 @@
   let artifactContentType = $state("");
   let loading = $state(false);
   let loadError = $state("");
+  let contentLoadError = $state("");
   let loadedArtifactId = $state("");
   let reviewDraft = $state(null);
   let submittingReview = $state(false);
@@ -280,30 +281,13 @@
     if (!targetId) return;
     loading = true;
     loadError = "";
+    contentLoadError = "";
     loadedArtifactId = targetId;
+
+    let loadedArtifact = null;
     try {
-      artifact = (await coreClient.getArtifact(targetId)).artifact ?? null;
-      if (!artifact) {
-        loadError = "Artifact not found.";
-        artifactContent = null;
-        artifactContentType = "";
-        return;
-      }
-      const contentResponse = await coreClient.getArtifactContent(targetId);
-      artifactContent = contentResponse.content ?? null;
-      artifactContentType = contentResponse.contentType ?? "";
-      reviewDraft = blankReviewDraft();
-      reviewErrors = [];
-      reviewFieldErrors = {};
-      reviewNotice = "";
-      createdReview = null;
-      reviseFollowupLink = "";
-      if (artifact?.kind === "receipt" && artifact?.thread_id)
-        await loadThreadTimeline(artifact.thread_id);
-      else {
-        threadTimeline = [];
-        timelineError = "";
-      }
+      loadedArtifact =
+        (await coreClient.getArtifact(targetId)).artifact ?? null;
     } catch (e) {
       loadError = `Failed to load artifact: ${e instanceof Error ? e.message : String(e)}`;
       artifact = null;
@@ -311,9 +295,49 @@
       artifactContentType = "";
       threadTimeline = [];
       timelineError = "";
-    } finally {
       loading = false;
+      return;
     }
+
+    if (!loadedArtifact) {
+      loadError = "Artifact not found.";
+      artifact = null;
+      artifactContent = null;
+      artifactContentType = "";
+      loading = false;
+      return;
+    }
+
+    artifact = loadedArtifact;
+    reviewDraft = blankReviewDraft();
+    reviewErrors = [];
+    reviewFieldErrors = {};
+    reviewNotice = "";
+    createdReview = null;
+    reviseFollowupLink = "";
+
+    try {
+      const contentResponse = await coreClient.getArtifactContent(targetId);
+      artifactContent = contentResponse.content ?? null;
+      artifactContentType = contentResponse.contentType ?? "";
+    } catch (e) {
+      artifactContent = null;
+      artifactContentType = "";
+      contentLoadError = `Content unavailable: ${e instanceof Error ? e.message : String(e)}`;
+    }
+
+    try {
+      if (artifact?.kind === "receipt" && artifact?.thread_id)
+        await loadThreadTimeline(artifact.thread_id);
+      else {
+        threadTimeline = [];
+        timelineError = "";
+      }
+    } catch {
+      threadTimeline = [];
+    }
+
+    loading = false;
   }
 </script>
 
@@ -468,7 +492,13 @@
     </div>
   {/if}
 
-  {#if artifact.kind === "doc" && hasTextContent}
+  {#if contentLoadError}
+    <div
+      class="mt-3 rounded-md border border-[var(--ui-border)] px-3 py-2 text-[12px] text-[var(--ui-text-muted)]"
+    >
+      Content unavailable for this artifact.
+    </div>
+  {:else if artifact.kind === "doc" && hasTextContent}
     <div
       class="mt-3 rounded-md bg-indigo-500/10 px-3 py-2 text-[12px] text-indigo-400"
     >
@@ -477,7 +507,7 @@
     </div>
   {/if}
 
-  {#if !isKnownPacketArtifactKind && artifact.kind !== "doc" && !hasTextContent}
+  {#if !contentLoadError && !isKnownPacketArtifactKind && artifact.kind !== "doc" && !hasTextContent}
     <div
       class="mt-3 rounded-md bg-amber-500/10 px-3 py-2 text-[12px] text-amber-400"
     >

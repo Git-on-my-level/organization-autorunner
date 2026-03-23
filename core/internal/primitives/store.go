@@ -33,6 +33,8 @@ var ErrInvalidCursor = errors.New("invalid cursor")
 const actorStatementEventIDPlaceholder = "<event_id>"
 
 type ArtifactListFilter struct {
+	Q                 string
+	Limit             *int
 	Kind              string
 	ThreadID          string
 	CreatedBefore     string
@@ -433,6 +435,9 @@ func (s *Store) GetArtifactContent(ctx context.Context, id string) ([]byte, stri
 	}
 	if err != nil {
 		return nil, "", fmt.Errorf("query artifact content metadata: %w", err)
+	}
+	if contentHash == "" {
+		return nil, "", ErrNotFound
 	}
 
 	body, err := s.blob.Read(ctx, contentHash)
@@ -2056,6 +2061,9 @@ func buildListCommitmentsQuery(filter CommitmentListFilter) (string, []any) {
 }
 
 func buildListArtifactsQuery(filter ArtifactListFilter) (string, []any) {
+	q := strings.TrimSpace(filter.Q)
+	qPattern := "%" + q + "%"
+
 	if threadID := strings.TrimSpace(filter.ThreadID); threadID != "" {
 		primaryClauses := []string{"thread_id = ?"}
 		secondaryClauses := []string{"COALESCE(thread_id, '') <> ?", "EXISTS (SELECT 1 FROM json_each(refs_json) WHERE value = ?)"}
@@ -2083,17 +2091,26 @@ func buildListArtifactsQuery(filter ArtifactListFilter) (string, []any) {
 			primaryArgs = append(primaryArgs, createdBefore)
 			secondaryArgs = append(secondaryArgs, createdBefore)
 		}
-		query := `SELECT metadata_json FROM (
-			SELECT metadata_json, created_at, id FROM artifacts WHERE ` + strings.Join(primaryClauses, " AND ") + `
+		if q != "" {
+			searchClause := "(id LIKE ? OR kind LIKE ? OR COALESCE(json_extract(metadata_json, '$.summary'), '') LIKE ?)"
+			primaryClauses = append(primaryClauses, searchClause)
+			secondaryClauses = append(secondaryClauses, searchClause)
+			primaryArgs = append(primaryArgs, qPattern, qPattern, qPattern)
+			secondaryArgs = append(secondaryArgs, qPattern, qPattern, qPattern)
+		}
+		innerQuery := `SELECT metadata_json, created_at, id FROM artifacts WHERE ` + strings.Join(primaryClauses, " AND ") + `
 			UNION ALL
-			SELECT metadata_json, created_at, id FROM artifacts WHERE ` + strings.Join(secondaryClauses, " AND ") + `
-		) ORDER BY created_at ASC, id ASC`
+			SELECT metadata_json, created_at, id FROM artifacts WHERE ` + strings.Join(secondaryClauses, " AND ")
+		query := `SELECT metadata_json FROM (` + innerQuery + `) ORDER BY created_at ASC, id ASC`
+		if filter.Limit != nil && *filter.Limit > 0 {
+			query += fmt.Sprintf(` LIMIT %d`, *filter.Limit)
+		}
 		args := append(primaryArgs, secondaryArgs...)
 		return query, args
 	}
 
 	query := `SELECT metadata_json FROM artifacts WHERE 1=1`
-	args := make([]any, 0, 6)
+	args := make([]any, 0, 8)
 	if !filter.IncludeTombstoned {
 		query += ` AND tombstoned_at IS NULL`
 	}
@@ -2109,7 +2126,14 @@ func buildListArtifactsQuery(filter ArtifactListFilter) (string, []any) {
 		query += ` AND created_at <= ?`
 		args = append(args, createdBefore)
 	}
+	if q != "" {
+		query += ` AND (id LIKE ? OR kind LIKE ? OR COALESCE(json_extract(metadata_json, '$.summary'), '') LIKE ?)`
+		args = append(args, qPattern, qPattern, qPattern)
+	}
 	query += ` ORDER BY created_at ASC, id ASC`
+	if filter.Limit != nil && *filter.Limit > 0 {
+		query += fmt.Sprintf(` LIMIT %d`, *filter.Limit)
+	}
 	return query, args
 }
 

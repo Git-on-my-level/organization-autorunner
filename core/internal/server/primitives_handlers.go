@@ -3,6 +3,7 @@ package server
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -329,7 +330,16 @@ func handleListArtifacts(w http.ResponseWriter, r *http.Request, opts handlerOpt
 
 	includeTombstoned := strings.TrimSpace(query.Get("include_tombstoned")) == "true"
 
+	var limitPtr *int
+	if limitStr := strings.TrimSpace(query.Get("limit")); limitStr != "" {
+		if n, err := strconv.Atoi(limitStr); err == nil && n > 0 {
+			limitPtr = &n
+		}
+	}
+
 	artifacts, err := opts.primitiveStore.ListArtifacts(r.Context(), primitives.ArtifactListFilter{
+		Q:                 strings.TrimSpace(query.Get("q")),
+		Limit:             limitPtr,
 		Kind:              strings.TrimSpace(query.Get("kind")),
 		ThreadID:          threadID,
 		CreatedBefore:     strings.TrimSpace(query.Get("created_before")),

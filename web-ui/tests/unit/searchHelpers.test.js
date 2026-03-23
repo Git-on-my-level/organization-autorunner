@@ -5,6 +5,7 @@ import {
   searchDocuments,
   searchActors,
   searchBoards,
+  searchArtifacts,
 } from "../../src/lib/searchHelpers.js";
 
 vi.mock("../../src/lib/coreClient.js", () => ({
@@ -13,6 +14,7 @@ vi.mock("../../src/lib/coreClient.js", () => ({
     listDocuments: vi.fn(),
     listActors: vi.fn(),
     listBoards: vi.fn(),
+    listArtifacts: vi.fn(),
   },
 }));
 
@@ -171,6 +173,43 @@ describe("searchHelpers", () => {
       coreClient.listBoards.mockResolvedValue({});
 
       const result = await searchBoards("test");
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe("searchArtifacts", () => {
+    it("calls coreClient.listArtifacts with query and limit", async () => {
+      const mockArtifacts = [
+        { id: "artifact-1", kind: "work_order", summary: "Test work order" },
+        { id: "artifact-2", kind: "receipt", summary: "Test receipt" },
+      ];
+      coreClient.listArtifacts.mockResolvedValue({ artifacts: mockArtifacts });
+
+      const result = await searchArtifacts("test", 15);
+
+      expect(coreClient.listArtifacts).toHaveBeenCalledWith({
+        q: "test",
+        limit: 15,
+      });
+      expect(result).toEqual(mockArtifacts);
+    });
+
+    it("uses default limit of 20 when not specified", async () => {
+      coreClient.listArtifacts.mockResolvedValue({ artifacts: [] });
+
+      await searchArtifacts("query");
+
+      expect(coreClient.listArtifacts).toHaveBeenCalledWith({
+        q: "query",
+        limit: 20,
+      });
+    });
+
+    it("returns empty array when response has no artifacts", async () => {
+      coreClient.listArtifacts.mockResolvedValue({});
+
+      const result = await searchArtifacts("test");
 
       expect(result).toEqual([]);
     });

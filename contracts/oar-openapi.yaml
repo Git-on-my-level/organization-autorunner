@@ -2306,6 +2306,14 @@ paths:
       x-oar-agent-notes: "Safe and idempotent."
       parameters:
         - in: query
+          name: q
+          schema: { type: string }
+          description: "Full-text search query matched against artifact id, kind, and summary."
+        - in: query
+          name: limit
+          schema: { type: integer }
+          description: "Maximum number of artifacts to return."
+        - in: query
           name: kind
           schema: { type: string }
         - in: query
