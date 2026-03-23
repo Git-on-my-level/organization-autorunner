@@ -1,3 +1,4 @@
+import { dev } from "$app/environment";
 import { env } from "$env/dynamic/private";
 import { isProxyableCommand } from "$lib/coreRouteCatalog";
 import { getWorkspaceHeader } from "$lib/compat/workspaceCompat";
@@ -162,21 +163,30 @@ async function proxyToCore(event, coreBaseUrl, workspaceSlug) {
   });
 }
 
-const CSP_DIRECTIVES = {
-  "default-src": ["'self'"],
-  "script-src": ["'self'"],
-  "style-src": ["'self'", "'unsafe-inline'"],
-  "img-src": ["'self'", "data:", "https:"],
-  "font-src": ["'self'", "data:"],
-  "connect-src": ["'self'"],
-  "frame-ancestors": ["'none'"],
-  "base-uri": ["'self'"],
-  "form-action": ["'self'"],
-  "object-src": ["'none'"],
-};
+const GOOGLE_FONTS_STYLE = "https://fonts.googleapis.com";
+const GOOGLE_FONTS_FONT = "https://fonts.gstatic.com";
+
+function buildCSPDirectives() {
+  const scriptSrc = dev
+    ? ["'self'", "'unsafe-inline'", "'unsafe-eval'"]
+    : ["'self'"];
+
+  return {
+    "default-src": ["'self'"],
+    "script-src": scriptSrc,
+    "style-src": ["'self'", "'unsafe-inline'", GOOGLE_FONTS_STYLE],
+    "img-src": ["'self'", "data:", "https:"],
+    "font-src": ["'self'", "data:", GOOGLE_FONTS_FONT],
+    "connect-src": ["'self'"],
+    "frame-ancestors": ["'none'"],
+    "base-uri": ["'self'"],
+    "form-action": ["'self'"],
+    "object-src": ["'none'"],
+  };
+}
 
 function buildCSPHeader() {
-  return Object.entries(CSP_DIRECTIVES)
+  return Object.entries(buildCSPDirectives())
     .map(([directive, values]) => `${directive} ${values.join(" ")}`)
     .join("; ");
 }

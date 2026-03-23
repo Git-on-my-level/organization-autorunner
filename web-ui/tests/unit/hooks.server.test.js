@@ -13,6 +13,10 @@ const authSessionMocks = vi.hoisted(() => ({
   }),
 }));
 
+vi.mock("$app/environment", () => ({
+  dev: false,
+}));
+
 vi.mock("$env/dynamic/private", () => ({
   env: {},
 }));
