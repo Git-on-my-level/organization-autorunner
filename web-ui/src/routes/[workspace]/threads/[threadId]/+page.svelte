@@ -202,15 +202,19 @@
 {:else if !snapshot}
   <p class="text-[13px] text-[var(--ui-text-muted)]">Thread not found.</p>
 {:else}
-  <nav
+  <div
     class="mt-3 flex gap-0 border-b border-[var(--ui-border)]"
     aria-label="Thread sections"
+    role="tablist"
   >
     {#each [["overview", "Overview"], ["work", "Work"], ["timeline", "Timeline"]] as [tabId, tabLabel]}
       <button
         class={`relative cursor-pointer px-3 py-2 text-[13px] font-medium transition-colors ${activeTab === tabId ? "text-[var(--ui-text)]" : "text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"}`}
         onclick={() => (activeTab = tabId)}
         type="button"
+        role="tab"
+        aria-selected={activeTab === tabId}
+        tabindex={activeTab === tabId ? 0 : -1}
       >
         {tabLabel}
         {#if activeTab === tabId}
@@ -220,33 +224,39 @@
         {/if}
       </button>
     {/each}
-  </nav>
+  </div>
 
   {#if activeTab === "overview"}
-    <ThreadOverviewTab
-      {threadId}
-      onSave={handleSaveThread}
-      {conflictWarning}
-      {editNotice}
-    />
-    <ThreadBoardsPanel {threadId} />
-    <ThreadDocumentsPanel {threadId} />
-    <ThreadCommitmentsPanel
-      {threadId}
-      onCommitmentSave={handleSaveCommitment}
-      onCommitmentCreate={handleCreateCommitment}
-    />
+    <div role="tabpanel" tabindex="0">
+      <ThreadOverviewTab
+        {threadId}
+        onSave={handleSaveThread}
+        {conflictWarning}
+        {editNotice}
+      />
+      <ThreadBoardsPanel {threadId} />
+      <ThreadDocumentsPanel {threadId} />
+      <ThreadCommitmentsPanel
+        {threadId}
+        onCommitmentSave={handleSaveCommitment}
+        onCommitmentCreate={handleCreateCommitment}
+      />
+    </div>
   {/if}
 
   {#if activeTab === "work"}
-    <ThreadWorkTab
-      {threadId}
-      onWorkOrderSubmit={handleWorkOrderSubmit}
-      onReceiptSubmit={handleReceiptSubmit}
-    />
+    <div role="tabpanel" tabindex="0">
+      <ThreadWorkTab
+        {threadId}
+        onWorkOrderSubmit={handleWorkOrderSubmit}
+        onReceiptSubmit={handleReceiptSubmit}
+      />
+    </div>
   {/if}
 
   {#if activeTab === "timeline"}
-    <ThreadTimelineTab {threadId} onMessagePost={handleMessagePost} />
+    <div role="tabpanel" tabindex="0">
+      <ThreadTimelineTab {threadId} onMessagePost={handleMessagePost} />
+    </div>
   {/if}
 {/if}

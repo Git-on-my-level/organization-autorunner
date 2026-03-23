@@ -117,12 +117,12 @@
   class="mt-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-2.5"
 >
   {#if refs.length === 0}
-    <p class="text-xs text-[var(--ui-text-muted)]">{emptyText}</p>
+    <p class="text-[11px] text-[var(--ui-text-muted)]">{emptyText}</p>
   {:else}
     <div class="flex flex-wrap gap-1.5">
       {#each resolvedRefs as resolved}
         <span
-          class="inline-flex items-center gap-1 rounded-md border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs text-indigo-400"
+          class="inline-flex items-center gap-1 rounded-md border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-[11px] text-indigo-400"
         >
           {#if resolved.isLink}
             <a
@@ -164,7 +164,7 @@
       type="text"
     />
     <button
-      class="cursor-pointer rounded-md border border-[var(--ui-border-strong)] bg-[var(--ui-bg-soft)] px-3 py-2 text-xs font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border-subtle)]"
+      class="cursor-pointer rounded-md border border-[var(--ui-border-strong)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[11px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border-subtle)]"
       onclick={addCandidate}
       type="button"
     >
@@ -173,7 +173,7 @@
   </div>
 
   {#if localError}
-    <p class="mt-1.5 text-xs text-red-400">{localError}</p>
+    <p class="mt-1.5 text-[11px] text-red-400">{localError}</p>
   {/if}
 
   {#if normalizedSuggestions.length > 0}
@@ -186,7 +186,7 @@
       <div class="mt-1.5 flex flex-wrap gap-1.5">
         {#each normalizedSuggestions as suggestion}
           <button
-            class="cursor-pointer rounded-full border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1 text-xs text-[var(--ui-text-muted)] transition-colors hover:border-indigo-500/30 hover:text-indigo-300"
+            class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:border-indigo-500/30 hover:text-indigo-300"
             onclick={() => addSuggestion(suggestion.value)}
             type="button"
           >
@@ -198,7 +198,9 @@
   {/if}
 
   <button
-    class="mt-2 cursor-pointer rounded-md px-2 py-1 text-xs text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
+    aria-controls="guided-refs-advanced"
+    aria-expanded={showAdvanced}
+    class="mt-2 cursor-pointer rounded-md px-2 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
     onclick={() => {
       showAdvanced = !showAdvanced;
     }}
@@ -207,20 +209,23 @@
     {showAdvanced ? hideAdvancedToggleLabel : advancedToggleLabel}
   </button>
 
-  {#if showAdvanced}
-    <label class="mt-2 block text-xs font-medium text-[var(--ui-text-muted)]"
-      >{advancedLabel}
-      <textarea
-        aria-label={textareaAriaLabel}
-        bind:value
-        class="mt-1.5 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
-        rows={advancedRows}
-      ></textarea></label
-    >
-    <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">{advancedHint}</p>
-  {/if}
+  <div id="guided-refs-advanced">
+    {#if showAdvanced}
+      <label
+        class="mt-2 block text-[11px] font-medium text-[var(--ui-text-muted)]"
+        >{advancedLabel}
+        <textarea
+          aria-label={textareaAriaLabel}
+          bind:value
+          class="mt-1.5 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+          rows={advancedRows}
+        ></textarea></label
+      >
+      <p class="mt-1 text-[11px] text-[var(--ui-text-muted)]">{advancedHint}</p>
+    {/if}
+  </div>
 </div>
 
 {#if fieldError}
-  <p class="mt-1.5 text-xs text-red-400">{fieldError}</p>
+  <p class="mt-1.5 text-[11px] text-red-400">{fieldError}</p>
 {/if}

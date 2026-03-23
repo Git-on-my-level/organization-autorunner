@@ -7,7 +7,7 @@
   {open}
 >
   <summary
-    class="cursor-pointer text-xs font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
+    class="cursor-pointer text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
   >
     {title}
   </summary>

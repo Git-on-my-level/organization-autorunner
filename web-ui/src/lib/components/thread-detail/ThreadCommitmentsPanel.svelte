@@ -311,6 +311,8 @@
       Commitments
     </h2>
     <button
+      aria-controls="new-commitment-form"
+      aria-expanded={commitmentFormOpen}
       class="cursor-pointer rounded px-2 py-1 text-[12px] font-medium text-indigo-400 hover:bg-[var(--ui-bg-soft)] hover:text-indigo-300"
       onclick={() => (commitmentFormOpen = !commitmentFormOpen)}
       type="button">{commitmentFormOpen ? "Cancel" : "New"}</button
@@ -330,6 +332,7 @@
 
   {#if commitmentFormOpen}
     <form
+      id="new-commitment-form"
       class="border-b border-[var(--ui-border-subtle)] px-4 py-3"
       onsubmit={(event) => {
         event.preventDefault();
@@ -465,7 +468,7 @@
 
         {#if editingCommitmentId === commitment.id && editCommitmentDraft}
           <form
-            class="mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
+            class="mt-3 border-t border-[var(--ui-border)] p-3"
             onsubmit={(event) => {
               event.preventDefault();
               void handleSaveCommitmentEdit(commitment.id);

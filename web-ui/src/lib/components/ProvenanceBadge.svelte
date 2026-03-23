@@ -36,7 +36,7 @@
       {label}
     </summary>
     <div
-      class="mt-1 rounded border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-xs text-[var(--ui-text-muted)]"
+      class="mt-1 rounded border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[11px] text-[var(--ui-text-muted)]"
     >
       {#if sources.length > 0}
         <p>Based on: {sources.join(", ")}</p>

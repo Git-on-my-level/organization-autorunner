@@ -133,7 +133,7 @@
             </p>
           </div>
           <span
-            class="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-300"
+            class="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[11px] text-indigo-300"
           >
             Add
           </span>

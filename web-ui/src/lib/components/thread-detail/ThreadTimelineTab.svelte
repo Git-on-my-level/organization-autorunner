@@ -75,6 +75,7 @@
     </p>{/if}
   <textarea
     bind:value={messageText}
+    aria-label="Post a message"
     class="w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
     id="message-text"
     placeholder="Write a message..."

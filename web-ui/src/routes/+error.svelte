@@ -44,23 +44,23 @@
       >
         <li>
           Start the backend: <code
-            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
+            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] font-medium"
             >make serve</code
           >
           in
           <code
-            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
+            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] font-medium"
             >organization-autorunner-core</code
           >
         </li>
         <li>
           Set <code
-            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
+            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] font-medium"
             >OAR_WORKSPACES='[&#123;"slug":"local","coreBaseUrl":"http://127.0.0.1:8000"&#125;]'</code
           >
           or the compatibility alias
           <code
-            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-xs font-medium"
+            class="rounded-md bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] font-medium"
             >OAR_PROJECTS</code
           >
         </li>

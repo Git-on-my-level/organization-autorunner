@@ -499,14 +499,14 @@
 
       <div class="flex shrink-0 gap-2">
         <button
-          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
+          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] hover:text-[var(--ui-text)]"
           onclick={openBoardEditForm}
           type="button"
         >
           {showBoardEditForm ? "Close" : "Edit"}
         </button>
         <button
-          class="rounded-md bg-indigo-600 px-2.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-indigo-500"
+          class="rounded-md bg-indigo-600 px-2.5 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-indigo-500"
           onclick={openAddCardForm}
           type="button"
         >
@@ -880,7 +880,7 @@
 
                     <div class="mt-1.5 flex flex-wrap gap-1 pl-4">
                       <span
-                        class="rounded px-1 py-0.5 text-[10px] {freshnessStatusTone(
+                        class="rounded px-1 py-0.5 text-[11px] {freshnessStatusTone(
                           cardFreshness?.status,
                         )}"
                       >
@@ -889,27 +889,27 @@
                       {#if derivedCurrent}
                         {#if (summary?.open_commitment_count ?? 0) > 0}
                           <span
-                            class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                            class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
                           >
                             {summary.open_commitment_count} commit.
                           </span>
                         {/if}
                         {#if (summary?.inbox_count ?? 0) > 0}
                           <span
-                            class="rounded bg-amber-500/10 px-1 py-0.5 text-[10px] text-amber-400"
+                            class="rounded bg-amber-500/10 px-1 py-0.5 text-[11px] text-amber-400"
                           >
                             {summary.inbox_count} inbox
                           </span>
                         {/if}
                         {#if (summary?.decision_request_count ?? 0) > 0}
                           <span
-                            class="rounded bg-indigo-500/10 px-1 py-0.5 text-[10px] text-indigo-400"
+                            class="rounded bg-indigo-500/10 px-1 py-0.5 text-[11px] text-indigo-400"
                           >
                             {summary.decision_request_count} decisions
                           </span>
                         {/if}
                         <span
-                          class="rounded px-1 py-0.5 text-[10px] {staleBadgeClass(
+                          class="rounded px-1 py-0.5 text-[11px] {staleBadgeClass(
                             Boolean(summary?.stale),
                           )}"
                         >
@@ -917,7 +917,7 @@
                         </span>
                       {:else}
                         <span
-                          class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] text-[var(--ui-text-subtle)]"
+                          class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-subtle)]"
                         >
                           Derived counts hidden until refresh completes
                         </span>
@@ -928,7 +928,7 @@
                       <div class="mt-1.5 pl-4">
                         <a
                           aria-label={`Pinned doc ${backing.pinned_document.title || backing.pinned_document.id}`}
-                          class="inline-block rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-300 transition-colors hover:text-indigo-200"
+                          class="inline-block rounded bg-indigo-500/10 px-1.5 py-0.5 text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
                           href={workspaceHref(
                             `/docs/${encodeURIComponent(backing.pinned_document.id)}`,
                           )}
@@ -942,7 +942,7 @@
                     <div class="mt-2 flex justify-end">
                       <button
                         aria-label={`Manage ${thread?.title || threadId}`}
-                        class="rounded px-1.5 py-0.5 text-[11px] text-[var(--ui-text-subtle)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text-muted)]"
+                        class="rounded px-1.5 py-1.5 text-[11px] text-[var(--ui-text-subtle)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text-muted)]"
                         onclick={() => openCardManager(cardItem)}
                         type="button"
                       >
@@ -963,7 +963,7 @@
                           class="border-b border-[var(--ui-border)] px-2.5 py-1.5"
                         >
                           <p
-                            class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
+                            class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
                           >
                             Commitments
                           </p>
@@ -990,7 +990,7 @@
                           class="border-b border-[var(--ui-border)] px-2.5 py-1.5"
                         >
                           <p
-                            class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
+                            class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
                           >
                             Inbox
                           </p>
@@ -1012,7 +1012,7 @@
                           class="border-b border-[var(--ui-border)] px-2.5 py-1.5"
                         >
                           <p
-                            class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
+                            class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
                           >
                             Documents
                           </p>
@@ -1053,7 +1053,7 @@
                             </select>
                           </label>
                           <button
-                            class="rounded bg-indigo-600 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40"
+                            class="rounded bg-indigo-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40"
                             disabled={mutatingCardId === threadId}
                             onclick={() =>
                               moveCard(
@@ -1079,7 +1079,7 @@
                         />
                         <div class="flex justify-end">
                           <button
-                            class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
+                            class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
                             disabled={mutatingCardId === threadId}
                             onclick={() => saveCardPinnedDocument(cardItem)}
                             type="button"
@@ -1090,7 +1090,7 @@
 
                         <div class="flex items-center gap-1">
                           <button
-                            class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
+                            class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
                             disabled={index === 0 ||
                               mutatingCardId === threadId}
                             onclick={() =>
@@ -1100,7 +1100,7 @@
                             Move up
                           </button>
                           <button
-                            class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
+                            class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
                             disabled={index === cards.length - 1 ||
                               mutatingCardId === threadId}
                             onclick={() =>
@@ -1111,7 +1111,7 @@
                           </button>
                           <div class="flex-1"></div>
                           <button
-                            class="rounded border border-red-500/20 bg-red-500/10 px-2 py-1 text-[11px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-40"
+                            class="rounded border border-red-500/20 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-40"
                             disabled={mutatingCardId === threadId}
                             onclick={() => removeCard(cardItem)}
                             type="button"

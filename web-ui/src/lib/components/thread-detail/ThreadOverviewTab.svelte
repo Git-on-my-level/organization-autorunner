@@ -275,7 +275,7 @@
 
   {#if editOpen && editDraft}
     <form
-      class="mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] p-4"
+      class="mt-3 border-t border-[var(--ui-border)] p-4"
       onsubmit={(event) => {
         event.preventDefault();
         void handleSave();

@@ -540,7 +540,7 @@
             >
               <span class="flex-1 break-all">{createdToken}</span>
               <button
-                class="shrink-0 cursor-pointer rounded px-2 py-0.5 text-[10px] font-medium text-emerald-400 hover:bg-emerald-400/10"
+                class="shrink-0 cursor-pointer rounded px-2 py-1.5 text-[10px] font-medium text-emerald-400 hover:bg-emerald-400/10"
                 onclick={copyTokenToClipboard}
                 type="button"
               >
@@ -632,51 +632,52 @@
           </p>
         {/if}
         <form
-          class="flex flex-wrap items-end gap-3"
           onsubmit={(event) => {
             event.preventDefault();
             handleCreateInvite();
           }}
         >
-          <div class="flex-1 min-w-[200px]">
-            <label
-              class="mb-1 block text-[11px] font-medium text-[var(--ui-text-muted)]"
-              for="invite-kind"
+          <div class="flex flex-wrap items-end gap-3">
+            <div class="flex-1 min-w-[200px]">
+              <label
+                class="mb-1 block text-[11px] font-medium text-[var(--ui-text-muted)]"
+                for="invite-kind"
+              >
+                Kind
+              </label>
+              <select
+                bind:value={newInviteKind}
+                class="w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
+                id="invite-kind"
+              >
+                <option value="agent">Agent</option>
+                <option value="human">Human</option>
+                <option value="any">Any</option>
+              </select>
+            </div>
+            <div class="flex-[2] min-w-[240px]">
+              <label
+                class="mb-1 block text-[11px] font-medium text-[var(--ui-text-muted)]"
+                for="invite-note"
+              >
+                Note (optional)
+              </label>
+              <input
+                bind:value={newInviteNote}
+                class="w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
+                id="invite-note"
+                placeholder="e.g. 'ops bot for CI'"
+                type="text"
+              />
+            </div>
+            <button
+              class="cursor-pointer rounded-md bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+              disabled={creatingInvite}
+              type="submit"
             >
-              Kind
-            </label>
-            <select
-              bind:value={newInviteKind}
-              class="w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
-              id="invite-kind"
-            >
-              <option value="agent">Agent</option>
-              <option value="human">Human</option>
-              <option value="any">Any</option>
-            </select>
+              {creatingInvite ? "Creating..." : "Create invite"}
+            </button>
           </div>
-          <div class="flex-[2] min-w-[240px]">
-            <label
-              class="mb-1 block text-[11px] font-medium text-[var(--ui-text-muted)]"
-              for="invite-note"
-            >
-              Note (optional)
-            </label>
-            <input
-              bind:value={newInviteNote}
-              class="w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
-              id="invite-note"
-              placeholder="e.g. 'ops bot for CI'"
-              type="text"
-            />
-          </div>
-          <button
-            class="cursor-pointer rounded-md bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-            disabled={creatingInvite}
-            type="submit"
-          >
-            {creatingInvite ? "Creating..." : "Create invite"}
-          </button>
         </form>
       </div>
     </section>
@@ -727,7 +728,7 @@
                 </span>
                 {#if !invite.revoked_at && !invite.consumed_at}
                   <button
-                    class="shrink-0 cursor-pointer rounded px-2 py-1 text-[11px] font-medium text-red-400 hover:bg-red-400/10 disabled:opacity-50"
+                    class="shrink-0 cursor-pointer rounded px-2 py-1.5 text-[11px] font-medium text-red-400 hover:bg-red-400/10 disabled:opacity-50"
                     disabled={revokingInviteId === invite.id}
                     onclick={() => handleRevokeInvite(invite.id)}
                     type="button"
@@ -794,7 +795,7 @@
                 {#if !principal.revoked && !isCurrentPrincipal(principal)}
                   {@const lastHuman = isLastActiveHumanPrincipal(principal)}
                   <button
-                    class="shrink-0 cursor-pointer rounded px-2 py-1 text-[11px] font-medium text-red-400 hover:bg-red-400/10 disabled:opacity-50"
+                    class="shrink-0 cursor-pointer rounded px-2 py-1.5 text-[11px] font-medium text-red-400 hover:bg-red-400/10 disabled:opacity-50"
                     disabled={principalRevokeConfirming ||
                       principalRevokeForcing}
                     onclick={() => startPrincipalRevoke(principal)}

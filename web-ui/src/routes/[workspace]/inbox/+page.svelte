@@ -283,6 +283,7 @@
 <div class="flex flex-wrap gap-1.5 mb-5" data-testid="inbox-filter-bar">
   {#each [["all", `All (${totalItems})`], ["immediate", `Immediate (${urgencySummary.immediate})`], ["high", `High (${urgencySummary.high})`], ["aging", "Aging 24h+"]] as [value, label]}
     <button
+      aria-pressed={urgencyFilter === value}
       class="cursor-pointer rounded-md border border-[var(--ui-border)] px-2.5 py-1.5 text-[12px] font-medium transition-colors {filterButtonClass(
         value,
       )}"
@@ -472,7 +473,6 @@
 
               <div class="mt-3 flex items-center gap-2">
                 <button
-                  aria-label="Dismiss"
                   class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] disabled:opacity-50"
                   disabled={Boolean(ackInFlightById[item.id])}
                   onclick={() => acknowledgeItem(item)}

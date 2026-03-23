@@ -19,7 +19,9 @@
     href={workspacePath(workspaceSlug, "/threads")}>Threads</a
   >
   <span class="text-[var(--ui-text-subtle)]">/</span>
-  <span class="truncate text-[var(--ui-text)]">{snapshot?.title || ""}</span>
+  <span class="truncate text-[var(--ui-text)]" aria-current="page"
+    >{snapshot?.title || ""}</span
+  >
 </nav>
 
 {#if snapshot}

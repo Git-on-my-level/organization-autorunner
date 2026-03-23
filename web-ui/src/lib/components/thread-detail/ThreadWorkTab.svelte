@@ -329,9 +329,7 @@
         ></textarea></label
       >
 
-      <div
-        class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
-      >
+      <div class="border-t border-[var(--ui-border)] pt-3">
         <div class="flex flex-wrap items-start justify-between gap-2">
           <div>
             <p class="text-[12px] font-medium text-[var(--ui-text-muted)]">
@@ -421,9 +419,7 @@
     </form>
   {/if}
   {#if createdWorkOrder}
-    <div
-      class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3"
-    >
+    <div class="mt-3 border-t border-[var(--ui-border)] pt-3">
       <p class="text-[12px] text-[var(--ui-text-muted)]">
         Created: <a
           class="text-indigo-400 underline"
@@ -521,9 +517,7 @@
     </form>
   {/if}
   {#if createdReceipt}
-    <div
-      class="mt-3 rounded-md border border-[var(--ui-border-subtle)] bg-[var(--ui-bg-soft)] p-3"
-    >
+    <div class="mt-3 border-t border-[var(--ui-border)] pt-3">
       <p class="text-[12px] text-[var(--ui-text-muted)]">
         Submitted: <a
           class="text-indigo-400 underline"

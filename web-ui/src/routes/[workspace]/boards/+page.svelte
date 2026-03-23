@@ -376,6 +376,7 @@
         }}
         role="button"
         tabindex="0"
+        aria-label={board.title || board.id}
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0 flex-1">

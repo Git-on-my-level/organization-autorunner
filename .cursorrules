@@ -1,0 +1,59 @@
+## Design Context
+
+### Users
+
+Human operators — managers and executives — who need to triage organizational state, track commitments, and intervene decisively. They come to OAR when something needs their attention: a decision, an exception, a stalled commitment. They are busy and context-switching; they do not browse OAR for pleasure. Their primary job-to-be-done is to rapidly understand what needs attention and act on it, then leave.
+
+At the top level (inbox, thread list) they are optimizing for speed: scan, triage, dispatch. When they drill into a thread or artifact they shift into an inspection mode and need to feel genuinely in control — confident that what they are seeing is accurate, evidence-backed, and complete.
+
+### Brand Personality
+
+Focused · Serious · Reliable
+
+OAR is an operating system for organizational work, not a project tracker. Every surface should communicate that real, durable, evidence-backed decisions happen here. The brand is sober and precise. It earns trust through information density and clarity, not warmth or delight.
+
+Voice and tone: direct, unambiguous, operator-grade. Avoid consumer-app softness, marketing language, or playful microcopy. Labels should be domain-accurate (use the schema vocabulary: thread, commitment, receipt, work order, artifact, event, snapshot, inbox, provenance, actor).
+
+### Aesthetic Direction
+
+**Dark-first.** The UI is dark by design and intent. Light mode is a future possibility, not a current requirement. All design decisions are made for the dark theme. Do not introduce light-mode assumptions into token choices.
+
+**Compact and information-dense**, in the style of Linear or Slack. Tighter padding, smaller type, less vertical waste. Every pixel must earn its place.
+
+**Flat and monochromatic.** Single-level card surfaces with dividers, not nested card stacks. Color is reserved strictly for semantic status (error, warning, success, info, urgency). Never use color for decoration.
+
+**Accent**: indigo — `#6366f1` (strong, brand mark, CTAs) / `#818cf8` (links, focus rings). This is the only "brand" hue. Do not introduce other hues for brand purposes.
+
+**Anti-references:**
+- **Jira / enterprise bloat** — no cluttered toolbars, heavy form-heavy workflows, or badge-everywhere information hierarchy.
+- **Consumer apps** — no rounded-pill UI, bright saturated color palettes, gamification, or whitespace-heavy layouts.
+
+### Design Principles
+
+1. **Triage over browse.** The inbox and list views are the first thing operators see. Design for fast scanning: dense rows, clear status signals, minimal chrome. Reserve expansive layouts for detail surfaces where operators need to read carefully.
+
+2. **Provenance is first-class.** Evidence-backed state and inferred state are fundamentally different. The UI must make this distinction visible at all times — different colors, labels, or icons — never collapsing them into a single undifferentiated display.
+
+3. **Flat and readable over layered and clever.** Prefer a single bordered container with dividers over nested card hierarchies. Prefer explicit pixel type sizes (`text-[13px]`, `text-[12px]`, `text-[11px]`) over Tailwind utility shorthands (`text-sm`, `text-xs`). Prefer `rounded-md` consistently over mixing radii.
+
+4. **Graceful forward-compatibility.** Unknown event types, artifact kinds, ref prefixes, and object fields must stay visible — never hidden, never silently dropped. The UI is one client among many and must degrade safely when oar-core introduces newer data.
+
+5. **Intervention, not orchestration.** The UI surfaces human decisions, acknowledgments, reviews, and snapshot edits. It does not automate, orchestrate agents, or maintain its own source of truth. Design affordances that make safe, explicit human action easy, and that surface the evidence behind every consequential state change.
+
+### Token Quick Reference
+
+| Purpose | Value |
+|---|---|
+| Page background | `#0e1015` / `bg-gray-50` / `var(--ui-bg)` |
+| Panel / card surface | `#181a21` / `bg-gray-100` / `var(--ui-panel)` |
+| Standard border | `#262a33` / `border-gray-200` / `var(--ui-border)` |
+| Primary text | `#e2e5eb` / `text-gray-900` / `var(--ui-text)` |
+| Muted text | `#7d828e` / `text-gray-500` / `var(--ui-text-muted)` |
+| Accent (links, focus) | `#818cf8` / `var(--ui-accent)` |
+| Accent strong (CTAs) | `#6366f1` / `var(--ui-accent-strong)` |
+| Base font size | `13px` |
+| Font family | Inter, system UI stack |
+| Default radius | `rounded-md` |
+
+Full visual rules: `web-ui/docs/style-guide.md`
+Full product/UX spec: `web-ui/docs/oar-ui-spec.md`

@@ -85,7 +85,7 @@
   </div>
 {:else if snapshot}
   <div
-    class="mt-4 rounded-xl border border-[var(--ui-border)] bg-[var(--ui-panel)]"
+    class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
   >
     <div class="border-b border-[var(--ui-border-subtle)] px-5 py-3">
       <h2 class="text-[13px] font-medium text-[var(--ui-text)]">

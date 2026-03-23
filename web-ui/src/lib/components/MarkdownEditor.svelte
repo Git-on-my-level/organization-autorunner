@@ -266,6 +266,9 @@
                 title="{action.label}{action.shortcut
                   ? ` (${navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl+'}${action.shortcut.toUpperCase()})`
                   : ''}"
+                aria-label="{action.label}{action.shortcut
+                  ? ` (${navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl+'}${action.shortcut.toUpperCase()})`
+                  : ''}"
                 type="button">{action.icon}</button
               >
             {/if}
@@ -311,19 +314,19 @@
   }
 
   .md-editor-chrome {
-    border: 1px solid #262a33;
+    border: 1px solid var(--ui-border);
     border-radius: 0.375rem;
-    background: #0e1015;
+    background: var(--ui-bg);
     overflow: hidden;
   }
 
   .md-editor-chrome:focus-within {
-    border-color: #818cf8;
+    border-color: var(--ui-accent);
     box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
   }
 
   .md-editor--readonly .md-editor-chrome:focus-within {
-    border-color: #262a33;
+    border-color: var(--ui-border);
     box-shadow: none;
   }
 
@@ -332,8 +335,8 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    border-bottom: 1px solid #262a33;
-    background: #181a21;
+    border-bottom: 1px solid var(--ui-border);
+    background: var(--ui-panel);
     padding: 0 0.5rem;
     min-height: 2.25rem;
     flex-wrap: wrap;
@@ -350,7 +353,7 @@
     padding: 0.375rem 0.625rem;
     font-size: 12px;
     font-weight: 500;
-    color: #7d828e;
+    color: var(--ui-text-muted);
     cursor: pointer;
     border-bottom: 2px solid transparent;
     transition:
@@ -359,12 +362,12 @@
   }
 
   .md-editor-tab:hover {
-    color: #e2e5eb;
+    color: var(--ui-text);
   }
 
   .md-editor-tab--active {
-    color: #e2e5eb;
-    border-bottom-color: #818cf8;
+    color: var(--ui-text);
+    border-bottom-color: var(--ui-accent);
   }
 
   .md-editor-actions {
@@ -378,7 +381,7 @@
   .md-editor-sep {
     width: 1px;
     height: 1rem;
-    background: #353a45;
+    background: var(--ui-border-strong);
     margin: 0 0.25rem;
   }
 
@@ -389,7 +392,7 @@
     font-size: 11px;
     font-family:
       ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    color: #7d828e;
+    color: var(--ui-text-muted);
     border-radius: 0.25rem;
     cursor: pointer;
     line-height: 1.4;
@@ -400,8 +403,8 @@
   }
 
   .md-editor-btn:hover {
-    background: #262a33;
-    color: #e2e5eb;
+    background: var(--ui-border);
+    color: var(--ui-text);
   }
 
   .md-editor-btn--bold {
@@ -424,8 +427,8 @@
     width: 100%;
     min-height: 8rem;
     border: none;
-    background: #0e1015;
-    color: #e2e5eb;
+    background: var(--ui-bg);
+    color: var(--ui-text);
     padding: 0.625rem 0.75rem;
     font-size: 13px;
     font-family:
@@ -437,7 +440,7 @@
   }
 
   .md-editor-textarea::placeholder {
-    color: #565b66;
+    color: var(--ui-text-subtle);
   }
 
   .md-editor-preview {
@@ -449,7 +452,7 @@
   }
 
   .md-editor-empty {
-    color: #565b66;
+    color: var(--ui-text-subtle);
     font-style: italic;
     margin: 0;
   }

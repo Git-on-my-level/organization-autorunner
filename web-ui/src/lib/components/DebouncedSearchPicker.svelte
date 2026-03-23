@@ -91,6 +91,7 @@
   <input
     type="text"
     class="search-input"
+    aria-label="Search"
     {placeholder}
     value={searchQuery}
     oninput={handleSearchInput}
@@ -107,6 +108,7 @@
   {#if searchResults.length > 0}
     <select
       class="search-results"
+      aria-label="Filter results"
       size={Math.min(searchResults.length, 5)}
       onchange={handleSelection}
     >
@@ -131,6 +133,7 @@
       <input
         type="text"
         class="manual-input"
+        aria-label="Enter ID manually"
         placeholder={advancedPlaceholder}
         {value}
         oninput={handleManualInput}
@@ -160,7 +163,7 @@
   .search-input:focus,
   .manual-input:focus {
     outline: none;
-    border-color: #6366f1;
+    border-color: var(--ui-accent-strong);
   }
 
   .search-results {
@@ -178,7 +181,7 @@
   }
 
   .search-results option:hover {
-    background: #6366f1;
+    background: var(--ui-accent-strong);
     color: white;
   }
 

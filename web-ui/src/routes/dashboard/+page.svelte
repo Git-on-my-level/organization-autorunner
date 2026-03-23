@@ -64,13 +64,13 @@
   function getWorkspaceStatusColor(workspace) {
     switch (workspace.status) {
       case "provisioning":
-        return "text-amber-500";
+        return "text-amber-400";
       case "ready":
-        return "text-green-500";
+        return "text-green-400";
       case "suspended":
-        return "text-amber-500";
+        return "text-amber-400";
       case "degraded":
-        return "text-red-500";
+        return "text-red-400";
       case "archived":
         return "text-[var(--ui-text-muted)]";
       default:
@@ -139,7 +139,7 @@
     </header>
 
     {#if error}
-      <div class="rounded-md bg-red-500/10 px-4 py-3 text-sm text-red-400">
+      <div class="rounded-md bg-red-500/10 px-4 py-3 text-[13px] text-red-400">
         {error}
       </div>
     {:else if organizations.length === 0}
@@ -256,7 +256,7 @@
                       d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
                     />
                   </svg>
-                  <p class="mt-2 text-sm text-[var(--ui-text-muted)]">
+                  <p class="mt-2 text-[13px] text-[var(--ui-text-muted)]">
                     No workspaces yet.
                   </p>
                   <a
@@ -287,13 +287,13 @@
                       </div>
                       {#if ws.status === "provisioning"}
                         <span
-                          class="rounded-md bg-amber-500/20 px-3 py-1 text-[11px] font-medium text-amber-500"
+                          class="rounded-md bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-400"
                         >
                           Provisioning...
                         </span>
                       {:else if ws.status === "suspended"}
                         <span
-                          class="rounded-md bg-amber-500/20 px-3 py-1 text-[11px] font-medium text-amber-500"
+                          class="rounded-md bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-400"
                         >
                           Suspended
                         </span>
