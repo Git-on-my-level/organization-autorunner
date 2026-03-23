@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -143,7 +144,11 @@ func handleCreateBoard(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		case errors.Is(err, primitives.ErrConflict):
 			writeError(w, http.StatusConflict, "conflict", "board already exists")
 		default:
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to create board")
+			message := "failed to create board"
+			if opts.allowUnauthenticatedWrites {
+				message = fmt.Sprintf("%s: %v", message, err)
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", message)
 		}
 		return
 	}
@@ -382,7 +387,11 @@ func handleAddBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		case errors.Is(err, primitives.ErrConflict):
 			writeError(w, http.StatusConflict, "conflict", "board membership already exists or board has changed; refresh and retry")
 		default:
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to add board card")
+			message := "failed to add board card"
+			if opts.allowUnauthenticatedWrites {
+				message = fmt.Sprintf("%s: %v", message, err)
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", message)
 		}
 		return
 	}

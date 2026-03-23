@@ -1,4 +1,5 @@
 <script>
+  import { goto } from "$app/navigation";
   import { page } from "$app/stores";
   import { onMount } from "svelte";
 
@@ -8,10 +9,17 @@
   import { formatAbsoluteDateTime, formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
   import {
+    INBOX_CATEGORY_ORDER,
+    INBOX_CATEGORY_LABELS,
+    INBOX_CATEGORY_DESCRIPTIONS,
+    INBOX_URGENCY_LEVELS,
+    INBOX_URGENCY_LABELS,
     enrichInboxItem,
     getInboxCategoryLabel,
+    getInboxUrgencyLabel,
     groupInboxItems,
     summarizeInboxUrgency,
+    summarizeInboxByCategory,
   } from "$lib/inboxUtils";
 
   let loading = $state(false);
@@ -24,6 +32,8 @@
   let decisionFormErrorsById = $state({});
   let postedDecisionByInboxItem = $state({});
   let urgencyFilter = $state("all");
+  let categoryFilter = $state("all");
+  let filtersOpen = $state(false);
   let workspaceSlug = $derived($page.params.workspace);
 
   let threadContextCache = $state({});
@@ -33,8 +43,15 @@
   let totalItems = $derived(items.length);
   let enrichedItems = $derived(items.map((item) => enrichInboxItem(item)));
   let urgencySummary = $derived(summarizeInboxUrgency(items));
+  let categorySummary = $derived(summarizeInboxByCategory(items));
   let filteredItems = $derived(
     enrichedItems.filter((item) => {
+      if (
+        categoryFilter !== "all" &&
+        String(item?.category ?? "") !== categoryFilter
+      ) {
+        return false;
+      }
       if (urgencyFilter === "all") return true;
       if (urgencyFilter === "aging") {
         return Number.isFinite(item.age_hours) && item.age_hours >= 24;
@@ -48,8 +65,74 @@
   );
   let hasFilteredItems = $derived(filteredItems.length > 0);
 
+  let hasActiveFilters = $derived(
+    categoryFilter !== "all" || urgencyFilter !== "all",
+  );
+
+  let activeFilterSummaryParts = $derived.by(() => {
+    const parts = [];
+    if (categoryFilter !== "all") {
+      parts.push(getInboxCategoryLabel(categoryFilter));
+    }
+    if (urgencyFilter === "aging") {
+      parts.push("Aging 24h+");
+    } else if (urgencyFilter !== "all") {
+      parts.push(getInboxUrgencyLabel(urgencyFilter));
+    }
+    return parts;
+  });
+
   function workspaceHref(pathname = "/") {
     return workspacePath(workspaceSlug, pathname);
+  }
+
+  $effect(() => {
+    const params = $page.url.searchParams;
+    const rawCategory = String(params.get("category") ?? "").trim();
+    const rawUrgency = String(params.get("urgency") ?? "").trim();
+
+    categoryFilter = rawCategory && INBOX_CATEGORY_ORDER.includes(rawCategory)
+      ? rawCategory
+      : "all";
+
+    const validUrgencies = [...INBOX_URGENCY_LEVELS, "aging"];
+    urgencyFilter = rawUrgency && validUrgencies.includes(rawUrgency)
+      ? rawUrgency
+      : "all";
+
+    if (rawCategory || rawUrgency) {
+      filtersOpen = true;
+    }
+  });
+
+  function buildFilterUrl() {
+    const params = new URLSearchParams();
+    if (categoryFilter !== "all") params.set("category", categoryFilter);
+    if (urgencyFilter !== "all") params.set("urgency", urgencyFilter);
+    const qs = params.toString();
+    const base = workspaceHref("/inbox");
+    return qs ? `${base}?${qs}` : base;
+  }
+
+  async function applyFilters() {
+    await goto(buildFilterUrl(), {
+      replaceState: true,
+      noScroll: true,
+      keepFocus: true,
+    });
+  }
+
+  async function resetFilters() {
+    await goto(workspaceHref("/inbox"), {
+      replaceState: true,
+      noScroll: true,
+      keepFocus: true,
+    });
+  }
+
+  function setUrgencyFromCard(level) {
+    urgencyFilter = urgencyFilter === level ? "all" : level;
+    applyFilters();
   }
 
   onMount(async () => {
@@ -261,74 +344,164 @@
     return "border-l-transparent";
   }
 
-  function filterButtonClass(filterName) {
-    const active = urgencyFilter === filterName;
-    if (active) {
-      return "bg-[var(--ui-border-strong)] text-[var(--ui-text)]";
-    }
-    return "bg-[var(--ui-bg-soft)] text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]";
+  function urgencyCardClass(level) {
+    const active = urgencyFilter === level;
+    if (active) return "ring-1 ring-[var(--ui-accent)] border-[var(--ui-accent)]";
+    return "border-[var(--ui-border)] hover:border-[var(--ui-text-subtle)]";
+  }
+
+  function categoryBadgeClass(category) {
+    if (category === "decision_needed") return "text-indigo-400";
+    if (category === "exception") return "text-red-400";
+    if (category === "commitment_risk") return "text-amber-400";
+    return "text-[var(--ui-text-muted)]";
   }
 </script>
 
-<div class="flex items-baseline justify-between gap-4 mb-4">
+<div class="flex items-center justify-between mb-4">
   <div>
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">Inbox</h1>
     <p class="text-[13px] text-[var(--ui-text-muted)]">
       Sorted by urgency. Oldest items bubble up.
     </p>
   </div>
-  <span
-    class="inline-flex items-center gap-1.5 rounded-md bg-[var(--ui-panel)] px-2.5 py-1.5 text-[13px] font-semibold text-[var(--ui-text)]"
-    data-testid="inbox-triage-header"
-  >
-    {totalItems} open
-  </span>
+  <div class="flex items-center gap-1.5">
+    <button
+      class="cursor-pointer inline-flex items-center gap-1.5 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)]"
+      onclick={() => (filtersOpen = !filtersOpen)}
+      type="button"
+      data-testid="inbox-filters-toggle"
+    >
+      <svg
+        class="h-3.5 w-3.5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+        />
+      </svg>
+      Filters
+    </button>
+    <span
+      class="inline-flex items-center gap-1.5 rounded-md bg-[var(--ui-panel)] px-2.5 py-1.5 text-[13px] font-semibold text-[var(--ui-text)]"
+      data-testid="inbox-triage-header"
+    >
+      {totalItems} open
+    </span>
+  </div>
 </div>
 
-<div class="flex gap-2 mb-4" data-testid="urgency-summary-immediate">
+{#if hasActiveFilters}
   <div
-    class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
+    class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ui-text-muted)]"
+    data-testid="inbox-active-filters-summary"
+  >
+    <span class="font-medium text-[var(--ui-text)]">Active filters</span>
+    {#each activeFilterSummaryParts as part, i}
+      <span class="text-[var(--ui-text-subtle)]">&middot;</span>
+      <span>{part}</span>
+    {/each}
+  </div>
+{/if}
+
+{#if filtersOpen}
+  <div
+    class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-3"
+    data-testid="inbox-filter-panel"
+  >
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="text-[12px]">
+        <span class="font-medium text-[var(--ui-text-muted)]">Category</span>
+        <select
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
+          value={categoryFilter}
+          onchange={(e) => { categoryFilter = e.currentTarget.value; applyFilters(); }}
+          data-testid="inbox-category-filter"
+        >
+          <option value="all">All categories</option>
+          {#each INBOX_CATEGORY_ORDER as cat}
+            <option value={cat}>
+              {INBOX_CATEGORY_LABELS[cat]} — {INBOX_CATEGORY_DESCRIPTIONS[cat]}
+            </option>
+          {/each}
+        </select>
+      </label>
+      <label class="text-[12px]">
+        <span class="font-medium text-[var(--ui-text-muted)]">Urgency</span>
+        <select
+          class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
+          value={urgencyFilter}
+          onchange={(e) => { urgencyFilter = e.currentTarget.value; applyFilters(); }}
+          data-testid="inbox-urgency-filter"
+        >
+          <option value="all">All urgency levels</option>
+          {#each INBOX_URGENCY_LEVELS as level}
+            <option value={level}>{INBOX_URGENCY_LABELS[level]}</option>
+          {/each}
+          <option value="aging">Aging 24h+</option>
+        </select>
+      </label>
+    </div>
+    <div class="mt-3 flex gap-1.5">
+      <button
+        class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
+        onclick={resetFilters}
+        type="button"
+      >
+        Reset
+      </button>
+    </div>
+  </div>
+{/if}
+
+{#if error}
+  <div
+    class="mb-4 rounded-md bg-red-500/10 px-3 py-2.5 text-[13px] text-red-400"
+    role="alert"
+  >
+    {error}
+  </div>
+{/if}
+
+<div class="flex gap-2 mb-4" data-testid="urgency-summary-strip">
+  <button
+    class="cursor-pointer flex-1 rounded-md border bg-[var(--ui-bg-soft)] px-3 py-2 text-left transition-colors {urgencyCardClass('immediate')}"
+    onclick={() => setUrgencyFromCard("immediate")}
+    type="button"
+    data-testid="urgency-summary-immediate"
   >
     <p class="text-[11px] font-medium text-red-400">Immediate</p>
     <p class="text-lg font-semibold text-[var(--ui-text)]">
       {urgencySummary.immediate}
     </p>
-  </div>
-  <div
-    class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
+  </button>
+  <button
+    class="cursor-pointer flex-1 rounded-md border bg-[var(--ui-bg-soft)] px-3 py-2 text-left transition-colors {urgencyCardClass('high')}"
+    onclick={() => setUrgencyFromCard("high")}
+    type="button"
     data-testid="urgency-summary-high"
   >
     <p class="text-[11px] font-medium text-amber-400">High</p>
     <p class="text-lg font-semibold text-[var(--ui-text)]">
       {urgencySummary.high}
     </p>
-  </div>
-  <div
-    class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
+  </button>
+  <button
+    class="cursor-pointer flex-1 rounded-md border bg-[var(--ui-bg-soft)] px-3 py-2 text-left transition-colors {urgencyCardClass('normal')}"
+    onclick={() => setUrgencyFromCard("normal")}
+    type="button"
     data-testid="urgency-summary-normal"
   >
     <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">Normal</p>
     <p class="text-lg font-semibold text-[var(--ui-text)]">
       {urgencySummary.normal}
     </p>
-  </div>
-</div>
-
-<div class="flex flex-wrap gap-1.5 mb-5" data-testid="inbox-filter-bar">
-  {#each [["all", `All (${totalItems})`], ["immediate", `Immediate (${urgencySummary.immediate})`], ["high", `High (${urgencySummary.high})`], ["aging", "Aging 24h+"]] as [value, label]}
-    <button
-      aria-pressed={urgencyFilter === value}
-      class="cursor-pointer rounded-md border border-[var(--ui-border)] px-2.5 py-1.5 text-[12px] font-medium transition-colors {filterButtonClass(
-        value,
-      )}"
-      onclick={() => {
-        urgencyFilter = value;
-      }}
-      type="button"
-    >
-      {label}
-    </button>
-  {/each}
+  </button>
 </div>
 
 {#if Object.keys(pendingAckById).length > 0}
@@ -351,15 +524,6 @@
         </button>
       </div>
     {/each}
-  </div>
-{/if}
-
-{#if error}
-  <div
-    class="mb-4 rounded-md bg-red-500/10 px-3 py-2.5 text-[13px] text-red-400"
-    role="alert"
-  >
-    {error}
   </div>
 {/if}
 
@@ -404,12 +568,10 @@
     </p>
     <button
       class="cursor-pointer mt-3 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-1.5 text-[13px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
-      onclick={() => {
-        urgencyFilter = "all";
-      }}
+      onclick={resetFilters}
       type="button"
     >
-      Show all
+      Clear filters
     </button>
   </div>
 {:else}
@@ -418,7 +580,7 @@
       <section data-testid={`inbox-group-${group.category}`}>
         <div class="mb-2 flex items-center gap-2">
           <h2
-            class="text-[12px] font-semibold uppercase tracking-wide text-[var(--ui-text-muted)]"
+            class="text-[12px] font-semibold uppercase tracking-wide {categoryBadgeClass(group.category)}"
           >
             {getInboxCategoryLabel(group.category)}
           </h2>

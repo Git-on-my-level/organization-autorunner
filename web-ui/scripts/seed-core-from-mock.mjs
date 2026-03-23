@@ -412,7 +412,7 @@ async function seedBoards() {
     const primaryDocumentId = mapOptionalDocumentId(
       sourceBoard.primary_document_id,
     );
-    const createResponse = await request("POST", "/boards", {
+    const createResponse = await requestRetryOnServerError("POST", "/boards", {
       actor_id: actorId,
       board: {
         id: sourceBoard.id,
@@ -463,14 +463,19 @@ async function seedBoards() {
       );
       const columnKey = String(sourceCard.column_key ?? "backlog").trim() || "backlog";
       const afterThreadId = lastThreadByColumn.get(columnKey);
-      const addResponse = await request("POST", `/boards/${encodeURIComponent(newBoardId)}/cards`, {
-        actor_id: pickActorId(sourceCard.created_by ?? sourceCard.updated_by),
-        if_board_updated_at: String(currentBoard?.updated_at ?? "").trim(),
-        thread_id: threadId,
-        column_key: columnKey,
-        ...(afterThreadId ? { after_thread_id: afterThreadId } : {}),
-        ...(pinnedDocumentId ? { pinned_document_id: pinnedDocumentId } : {}),
-      });
+      const boardUpdatedAt = String(currentBoard?.updated_at ?? "").trim();
+      const addResponse = await requestRetryOnServerError(
+        "POST",
+        `/boards/${encodeURIComponent(newBoardId)}/cards`,
+        {
+          actor_id: pickActorId(sourceCard.created_by ?? sourceCard.updated_by),
+          ...(boardUpdatedAt ? { if_board_updated_at: boardUpdatedAt } : {}),
+          thread_id: threadId,
+          column_key: columnKey,
+          ...(afterThreadId ? { after_thread_id: afterThreadId } : {}),
+          ...(pinnedDocumentId ? { pinned_document_id: pinnedDocumentId } : {}),
+        },
+      );
 
       currentBoard = addResponse?.board ?? currentBoard;
       lastThreadByColumn.set(columnKey, threadId);
@@ -735,13 +740,41 @@ async function request(method, path, body, okStatuses = [200, 201]) {
   return parsed;
 }
 
+/** Retries POSTs that fail with 5xx (e.g. brief SQLite contention right after core startup). */
+async function requestRetryOnServerError(
+  method,
+  path,
+  body,
+  okStatuses = [200, 201],
+  { attempts = 4, baseDelayMs = 200 } = {},
+) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await request(method, path, body, okStatuses);
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const is5xx = /->\s5\d\d:/.test(msg);
+      if (!is5xx || attempt === attempts - 1) {
+        throw err;
+      }
+      await sleep(baseDelayMs * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 async function waitForCore(baseUrl, timeoutMs) {
   const start = Date.now();
 
   while (Date.now() - start < timeoutMs) {
     try {
-      const response = await fetch(`${baseUrl}/version`);
-      if (response.ok) {
+      const [versionResponse, readyResponse] = await Promise.all([
+        fetch(`${baseUrl}/version`),
+        fetch(`${baseUrl}/readyz`),
+      ]);
+      if (versionResponse.ok && readyResponse.ok) {
         return;
       }
     } catch {

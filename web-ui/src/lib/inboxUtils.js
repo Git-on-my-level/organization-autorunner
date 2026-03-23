@@ -10,6 +10,12 @@ export const INBOX_CATEGORY_LABELS = {
   commitment_risk: "At Risk",
 };
 
+export const INBOX_CATEGORY_DESCRIPTIONS = {
+  decision_needed: "Decision event pending",
+  exception: "Error or anomaly flagged",
+  commitment_risk: "Commitment deadline approaching",
+};
+
 export function getInboxCategoryLabel(category) {
   return INBOX_CATEGORY_LABELS[category] ?? category;
 }
@@ -212,4 +218,16 @@ export function groupInboxItems(items = [], options = {}) {
     }));
 
   return [...knownGroups, ...extraGroups];
+}
+
+export function summarizeInboxByCategory(items = []) {
+  const counts = {};
+  for (const category of INBOX_CATEGORY_ORDER) {
+    counts[category] = 0;
+  }
+  for (const item of items) {
+    const category = String(item?.category ?? "unknown");
+    counts[category] = (counts[category] ?? 0) + 1;
+  }
+  return counts;
 }

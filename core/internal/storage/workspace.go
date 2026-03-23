@@ -115,7 +115,9 @@ func sqliteDSN(databasePath string) string {
 		Path:   databasePath,
 	}
 	query := dsn.Query()
-	query.Add("_pragma", "busy_timeout(5000)")
+	// Dev and multi-writer paths (projection maintenance + API) can contend on SQLite;
+	// a longer busy wait reduces spurious "database is locked" under bursty local traffic.
+	query.Add("_pragma", "busy_timeout(20000)")
 	query.Add("_pragma", "journal_mode(WAL)")
 	dsn.RawQuery = query.Encode()
 	return dsn.String()

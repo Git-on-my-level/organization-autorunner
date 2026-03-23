@@ -242,6 +242,143 @@ export function buildThreadFilterQueryParams(filters = {}) {
   return query;
 }
 
+/**
+ * Thread list page URL state: same fields as the filter panel, plus virtual flags
+ * that are applied client-side (API cannot express OR / not-closed in one query).
+ */
+export function parseThreadListSearchParams(searchParams) {
+  const sp =
+    searchParams instanceof URLSearchParams
+      ? searchParams
+      : new URLSearchParams(searchParams);
+
+  const openOnly = sp.get("open") === "1";
+  const highPriorityTier = sp.get("high_priority") === "1";
+
+  let status = String(sp.get("status") ?? "").trim();
+  let priority = String(sp.get("priority") ?? "").trim();
+  let cadence = String(sp.get("cadence") ?? "").trim();
+  const cadenceAll = sp.getAll("cadence");
+  if (!cadence && cadenceAll.length > 0) {
+    cadence = String(cadenceAll[0] ?? "").trim();
+  }
+
+  const tags = sp.getAll("tag");
+  const tagInput = tags.join(", ");
+
+  let staleness = "all";
+  const staleRaw = sp.get("stale");
+  if (staleRaw === "true") {
+    staleness = "stale";
+  } else if (staleRaw === "false") {
+    staleness = "fresh";
+  }
+
+  // Virtual filters take precedence over single-field API filters.
+  if (openOnly) {
+    status = "";
+  }
+  if (highPriorityTier) {
+    priority = "";
+  }
+
+  if (status && !THREAD_STATUSES.includes(status)) {
+    status = "";
+  }
+  if (priority && !THREAD_PRIORITIES.includes(priority)) {
+    priority = "";
+  }
+
+  if (cadence) {
+    if (THREAD_SCHEDULE_PRESETS.includes(cadence)) {
+      // keep preset token
+    } else {
+      const preset = cadencePresetFromValue(cadence);
+      cadence = THREAD_SCHEDULE_PRESETS.includes(preset) ? preset : "";
+    }
+  }
+
+  return {
+    status,
+    priority,
+    cadence,
+    staleness,
+    tagInput,
+    openOnly,
+    highPriorityTier,
+  };
+}
+
+/**
+ * Serialize thread list filters for the URL (includes open / high_priority flags).
+ */
+export function buildThreadListSearchString(state = {}) {
+  const params = new URLSearchParams();
+
+  if (state.openOnly) {
+    params.set("open", "1");
+  }
+  if (state.highPriorityTier) {
+    params.set("high_priority", "1");
+  }
+
+  if (!state.openOnly && state.status) {
+    params.set("status", state.status);
+  }
+  if (!state.highPriorityTier && state.priority) {
+    params.set("priority", state.priority);
+  }
+  if (state.cadence) {
+    params.set("cadence", state.cadence);
+  }
+
+  for (const tag of parseTagFilterInput(state.tagInput ?? "")) {
+    params.append("tag", tag);
+  }
+
+  if (state.staleness === "stale") {
+    params.set("stale", "true");
+  } else if (state.staleness === "fresh") {
+    params.set("stale", "false");
+  }
+
+  return params.toString();
+}
+
+/**
+ * Builds the API query for listThreads. Omits status when openOnly (then filter
+ * client-side for non-closed). Omits priority when highPriorityTier (then filter
+ * for p0/p1).
+ */
+export function buildThreadFilterQueryParamsFromThreadListState(state = {}) {
+  const tags = parseTagFilterInput(state.tagInput ?? "");
+  const base = {
+    status: state.openOnly ? "" : state.status,
+    priority: state.highPriorityTier ? "" : state.priority,
+    cadence: state.cadence,
+    staleness: state.staleness,
+    tags,
+  };
+  return buildThreadFilterQueryParams(base);
+}
+
+/**
+ * Applies open-only and high-priority-tier filters after the server response.
+ */
+export function applyThreadListClientFilters(threads, state = {}) {
+  let list = threads ?? [];
+  if (state.openOnly) {
+    list = list.filter((t) => String(t?.status ?? "") !== "closed");
+  }
+  if (state.highPriorityTier) {
+    list = list.filter((t) => {
+      const pr = String(t?.priority ?? "");
+      return pr === "p0" || pr === "p1";
+    });
+  }
+  return list;
+}
+
 export function readBackendStaleState(thread) {
   if (typeof thread?.stale === "boolean") {
     return thread.stale;

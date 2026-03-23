@@ -132,6 +132,23 @@
     return workspacePath(workspaceSlug, pathname);
   }
 
+  function inboxCategoryHref(category) {
+    const params = new URLSearchParams();
+    if (category) {
+      params.set("category", String(category));
+    }
+    const qs = params.toString();
+    const base = workspaceHref("/inbox");
+    return qs ? `${base}?${qs}` : base;
+  }
+
+  function threadsQueryHref(queryPairs) {
+    const params = new URLSearchParams(queryPairs);
+    const qs = params.toString();
+    const base = workspaceHref("/threads");
+    return qs ? `${base}?${qs}` : base;
+  }
+
   function priorityBadge(priority) {
     const styles = {
       p0: "text-red-400",
@@ -234,7 +251,7 @@
           {#each inboxSummary as summary}
             <a
               class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-              href={workspaceHref("/inbox")}
+              href={inboxCategoryHref(summary.category)}
             >
               <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
                 {summary.label}
@@ -322,7 +339,7 @@
         <div class="flex gap-2 mb-3">
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={workspaceHref("/threads")}
+            href={threadsQueryHref([["open", "1"]])}
           >
             <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
               Open
@@ -333,7 +350,7 @@
           </a>
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={workspaceHref("/threads")}
+            href={threadsQueryHref([["stale", "true"]])}
           >
             <p
               class="text-[11px] font-medium {threadHealth.staleCount > 0
@@ -352,7 +369,7 @@
           </a>
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={workspaceHref("/threads")}
+            href={threadsQueryHref([["high_priority", "1"]])}
           >
             <p
               class="text-[11px] font-medium {threadHealth.highPriorityCount > 0

@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyThreadListClientFilters,
+  buildThreadFilterQueryParamsFromThreadListState,
   buildThreadFilterQueryString,
   buildThreadFilterQueryParams,
+  buildThreadListSearchString,
   cadenceMatchesFilter,
   cadencePresetFromValue,
   cadenceToRequestValue,
   computeStaleness,
   formatCadenceLabel,
+  parseThreadListSearchParams,
   readBackendStaleState,
   validateCadenceSelection,
   parseTagFilterInput,
@@ -137,6 +141,86 @@ describe("thread filter query builders", () => {
     expect(readBackendStaleState({ stale: false })).toBe(false);
     expect(readBackendStaleState({})).toBeNull();
     expect(readBackendStaleState(null)).toBeNull();
+  });
+
+  it("parses thread list URL flags and preserves API filters", () => {
+    const sp = new URLSearchParams(
+      "open=1&high_priority=1&status=active&priority=p2&stale=true&tag=ops",
+    );
+    expect(parseThreadListSearchParams(sp)).toEqual({
+      status: "",
+      priority: "",
+      cadence: "",
+      staleness: "stale",
+      tagInput: "ops",
+      openOnly: true,
+      highPriorityTier: true,
+    });
+  });
+
+  it("parses thread list URL without virtual flags", () => {
+    expect(
+      parseThreadListSearchParams(
+        new URLSearchParams("status=paused&priority=p1&cadence=weekly"),
+      ),
+    ).toEqual({
+      status: "paused",
+      priority: "p1",
+      cadence: "weekly",
+      staleness: "all",
+      tagInput: "",
+      openOnly: false,
+      highPriorityTier: false,
+    });
+  });
+
+  it("serializes thread list URL including open and high_priority", () => {
+    expect(
+      buildThreadListSearchString({
+        openOnly: true,
+        highPriorityTier: true,
+        status: "active",
+        priority: "p1",
+        cadence: "",
+        staleness: "all",
+        tagInput: "a, b",
+      }),
+    ).toBe("open=1&high_priority=1&tag=a&tag=b");
+  });
+
+  it("omits status and priority from API query when virtual flags are set", () => {
+    expect(
+      buildThreadFilterQueryParamsFromThreadListState({
+        status: "active",
+        priority: "p1",
+        cadence: "",
+        staleness: "stale",
+        tagInput: "",
+        openOnly: true,
+        highPriorityTier: true,
+      }),
+    ).toEqual({ stale: true });
+  });
+
+  it("filters threads client-side for open and high priority tier", () => {
+    const threads = [
+      { status: "closed", priority: "p0" },
+      { status: "active", priority: "p2" },
+      { status: "active", priority: "p1" },
+      { status: "paused", priority: "p0" },
+    ];
+    expect(applyThreadListClientFilters(threads, { openOnly: true })).toEqual([
+      { status: "active", priority: "p2" },
+      { status: "active", priority: "p1" },
+      { status: "paused", priority: "p0" },
+    ]);
+    expect(
+      applyThreadListClientFilters(threads, { highPriorityTier: true }),
+    ).toEqual([
+      { status: "closed", priority: "p0" },
+      { status: "active", priority: "p1" },
+      { status: "paused", priority: "p0" },
+    ]);
   });
 
   it("falls back to local check-in heuristics when stale state is absent", () => {

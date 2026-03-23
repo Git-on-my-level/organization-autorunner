@@ -9,6 +9,11 @@ CORE_PORT ?= 8000
 CONTROL_PLANE_PORT ?= 8100
 WEB_UI_PORT ?= 5173
 CORE_BASE_URL ?= http://$(CORE_HOST):$(CORE_PORT)
+# Local SQLite + artifacts for oar-core (same default as core/Makefile).
+CORE_WORKSPACE_ROOT ?= $(CURDIR)/$(CORE_DIR)/.oar-workspace
+# When 1 (default), `make serve` removes CORE_WORKSPACE_ROOT before starting core if SEED_CORE=1,
+# so each dev session starts from an empty workspace and mock seed does not stack on old data.
+RESET_DEV_WORKSPACE ?= 1
 SEED_CORE ?= 1
 FORCE_SEED ?= 0
 
@@ -88,18 +93,16 @@ saas-load-smoke: ## Run SaaS load smoke test (multiple workspaces with concurren
 	./scripts/saas-load-smoke
 
 serve: ## Start core, seed mock dataset into core, then start web-ui
-	@set -euo pipefail; \
-	trap 'for pid in $$(jobs -p); do kill "$$pid" 2>/dev/null || true; done' EXIT INT TERM; \
-	OAR_ALLOW_UNAUTHENTICATED_WRITES=1 $(MAKE) -C $(CORE_DIR) serve HOST="$(CORE_HOST)" PORT="$(CORE_PORT)" & \
-	core_pid=$$!; \
-	if [ "$(SEED_CORE)" = "1" ]; then \
-		OAR_CORE_BASE_URL="$(CORE_BASE_URL)" OAR_FORCE_SEED="$(FORCE_SEED)" node "$(WEB_UI_DIR)/scripts/seed-core-from-mock.mjs"; \
-	else \
-		echo "Skipping core seed step (SEED_CORE=$(SEED_CORE))."; \
-	fi; \
-	OAR_CORE_BASE_URL="$(CORE_BASE_URL)" $(MAKE) -C $(WEB_UI_DIR) serve PORT="$(WEB_UI_PORT)" & \
-	ui_pid=$$!; \
-	wait $$core_pid $$ui_pid
+	@REPO_ROOT="$(CURDIR)" \
+	CORE_HOST="$(CORE_HOST)" \
+	CORE_PORT="$(CORE_PORT)" \
+	CORE_BASE_URL="$(CORE_BASE_URL)" \
+	CORE_WORKSPACE_ROOT="$(CORE_WORKSPACE_ROOT)" \
+	WEB_UI_PORT="$(WEB_UI_PORT)" \
+	RESET_DEV_WORKSPACE="$(RESET_DEV_WORKSPACE)" \
+	SEED_CORE="$(SEED_CORE)" \
+	FORCE_SEED="$(FORCE_SEED)" \
+	./scripts/serve.sh
 
 serve-control-plane: ## Start the SaaS control-plane service locally
 	$(MAKE) -C $(CORE_DIR) serve-control-plane HOST="$(CORE_HOST)" PORT="$(CONTROL_PLANE_PORT)"

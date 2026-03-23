@@ -1,6 +1,6 @@
 <script>
+  import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import { onMount } from "svelte";
 
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
@@ -10,16 +10,24 @@
     THREAD_PRIORITIES,
     THREAD_PRIORITY_LABELS,
     THREAD_STATUSES,
-    buildThreadFilterQueryParams,
+    applyThreadListClientFilters,
+    buildThreadFilterQueryParamsFromThreadListState,
+    buildThreadListSearchString,
     cadenceToRequestValue,
     computeStaleness,
     formatCadenceLabel,
     getPriorityLabel,
+    parseThreadListSearchParams,
     parseTagFilterInput,
     validateCadenceSelection,
   } from "$lib/threadFilters";
   import { workspacePath } from "$lib/workspacePaths";
   import { describeCron } from "$lib/threadPatch";
+
+  /** Virtual filter: non-closed threads (matches dashboard "Open"); distinct from status=active|paused. */
+  const STATUS_OPEN_NOT_CLOSED = "__open__";
+  /** Virtual filter: P0 and P1 (matches dashboard "High priority"); distinct from single priority. */
+  const PRIORITY_HIGH_TIER = "__high_tier__";
 
   const defaultFilters = {
     status: "",
@@ -27,6 +35,8 @@
     cadence: "",
     staleness: "all",
     tagInput: "",
+    openOnly: false,
+    highPriorityTier: false,
   };
 
   let filters = $state({ ...defaultFilters });
@@ -53,25 +63,25 @@
     return workspacePath(workspaceSlug, pathname);
   }
 
-  onMount(async () => {
-    await loadThreads();
+  $effect(() => {
+    const parsed = parseThreadListSearchParams($page.url.searchParams);
+    filters = { ...defaultFilters, ...parsed };
+    if ([...$page.url.searchParams.keys()].length > 0) {
+      filtersOpen = true;
+    }
+    loadThreadsFromState(parsed);
   });
 
-  async function loadThreads() {
+  async function loadThreadsFromState(state) {
     loading = true;
     error = "";
 
     try {
-      const query = buildThreadFilterQueryParams({
-        status: filters.status,
-        priority: filters.priority,
-        cadence: filters.cadence,
-        staleness: filters.staleness,
-        tags: parseTagFilterInput(filters.tagInput),
-      });
-
+      const query = buildThreadFilterQueryParamsFromThreadListState(state);
       const response = await coreClient.listThreads(query);
-      threads = response.threads ?? [];
+      let list = response.threads ?? [];
+      list = applyThreadListClientFilters(list, state);
+      threads = list;
     } catch (loadError) {
       const reason =
         loadError instanceof Error ? loadError.message : String(loadError);
@@ -82,13 +92,26 @@
     }
   }
 
+  async function loadThreads() {
+    await loadThreadsFromState(filters);
+  }
+
   async function applyFilters() {
-    await loadThreads();
+    const qs = buildThreadListSearchString(filters);
+    const path = workspaceHref("/threads");
+    await goto(`${path}${qs ? `?${qs}` : ""}`, {
+      replaceState: true,
+      noScroll: true,
+      keepFocus: true,
+    });
   }
 
   async function resetFilters() {
-    filters = { ...defaultFilters };
-    await loadThreads();
+    await goto(workspaceHref("/threads"), {
+      replaceState: true,
+      noScroll: true,
+      keepFocus: true,
+    });
   }
 
   function resetThreadDraft() {
@@ -163,8 +186,67 @@
       filters.priority !== "" ||
       filters.cadence !== "" ||
       filters.staleness !== "all" ||
-      filters.tagInput.trim() !== "",
+      filters.tagInput.trim() !== "" ||
+      filters.openOnly ||
+      filters.highPriorityTier,
   );
+
+  function statusFilterSelectValue() {
+    if (filters.openOnly) return STATUS_OPEN_NOT_CLOSED;
+    return filters.status;
+  }
+
+  function onStatusFilterChange(value) {
+    if (value === STATUS_OPEN_NOT_CLOSED) {
+      filters = { ...filters, openOnly: true, status: "" };
+    } else {
+      filters = { ...filters, openOnly: false, status: value };
+    }
+  }
+
+  function priorityFilterSelectValue() {
+    if (filters.highPriorityTier) return PRIORITY_HIGH_TIER;
+    return filters.priority;
+  }
+
+  function onPriorityFilterChange(value) {
+    if (value === PRIORITY_HIGH_TIER) {
+      filters = { ...filters, highPriorityTier: true, priority: "" };
+    } else {
+      filters = { ...filters, highPriorityTier: false, priority: value };
+    }
+  }
+
+  let activeFilterSummaryParts = $derived.by(() => {
+    const parts = [];
+    if (filters.openOnly) {
+      parts.push("Open (not closed)");
+    } else if (filters.status) {
+      parts.push(
+        `${filters.status[0].toUpperCase()}${filters.status.slice(1)}`,
+      );
+    }
+    if (filters.highPriorityTier) {
+      parts.push("High (P0 & P1)");
+    } else if (filters.priority) {
+      parts.push(THREAD_PRIORITY_LABELS[filters.priority] ?? filters.priority);
+    }
+    if (filters.cadence) {
+      parts.push(
+        THREAD_SCHEDULE_PRESET_LABELS[filters.cadence] ?? filters.cadence,
+      );
+    }
+    if (filters.staleness === "stale") {
+      parts.push("Stale");
+    } else if (filters.staleness === "fresh") {
+      parts.push("Fresh");
+    }
+    const tags = parseTagFilterInput(filters.tagInput);
+    if (tags.length > 0) {
+      parts.push(`Tags: ${tags.join(", ")}`);
+    }
+    return parts;
+  });
 
   function priorityDot(priority) {
     const colors = {
@@ -252,6 +334,22 @@
   </div>
 </div>
 
+{#if hasActiveFilters}
+  <div
+    class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ui-text-muted)]"
+    data-testid="threads-active-filters-summary"
+  >
+    <span class="font-medium text-[var(--ui-text)]">Active filters</span>
+    <span class="text-[var(--ui-text-subtle)]">·</span>
+    {#each activeFilterSummaryParts as part, i}
+      {#if i > 0}
+        <span class="text-[var(--ui-text-subtle)]">·</span>
+      {/if}
+      <span>{part}</span>
+    {/each}
+  </div>
+{/if}
+
 {#if error}
   <div
     class="mb-4 rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400"
@@ -269,10 +367,12 @@
       <label class="text-[12px]">
         <span class="font-medium text-[var(--ui-text-muted)]">Status</span>
         <select
-          bind:value={filters.status}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
+          onchange={(event) => onStatusFilterChange(event.currentTarget.value)}
+          value={statusFilterSelectValue()}
         >
           <option value="">All</option>
+          <option value={STATUS_OPEN_NOT_CLOSED}>Open (not closed)</option>
           {#each THREAD_STATUSES as status}<option value={status}
               >{status[0].toUpperCase() + status.slice(1)}</option
             >{/each}
@@ -281,10 +381,13 @@
       <label class="text-[12px]">
         <span class="font-medium text-[var(--ui-text-muted)]">Priority</span>
         <select
-          bind:value={filters.priority}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
+          onchange={(event) =>
+            onPriorityFilterChange(event.currentTarget.value)}
+          value={priorityFilterSelectValue()}
         >
           <option value="">All</option>
+          <option value={PRIORITY_HIGH_TIER}>High (P0 &amp; P1)</option>
           {#each THREAD_PRIORITIES as priority}<option value={priority}
               >{THREAD_PRIORITY_LABELS[priority]}</option
             >{/each}

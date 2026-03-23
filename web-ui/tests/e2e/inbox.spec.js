@@ -176,12 +176,15 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
   await expect(page.getByTestId("inbox-card-inbox-002")).toBeVisible();
   await expect(page.getByTestId("inbox-card-inbox-003")).toBeVisible();
 
-  await page.getByRole("button", { name: /Immediate/ }).click();
+  await page.getByTestId("inbox-filters-toggle").click();
+  const urgencySelect = page.getByTestId("inbox-urgency-filter");
+
+  await urgencySelect.selectOption("immediate");
   await expect(page.getByTestId("inbox-card-inbox-002")).toBeVisible();
   await expect(page.getByTestId("inbox-card-inbox-001")).toHaveCount(0);
   await expect(page.getByTestId("inbox-card-inbox-003")).toHaveCount(0);
 
-  await page.getByRole("button", { name: /Aging 24h\+/ }).click();
+  await urgencySelect.selectOption("aging");
   await expect(page.getByTestId("inbox-card-inbox-003")).toBeVisible();
   await expect(page.getByTestId("inbox-card-inbox-001")).toBeVisible();
   await expect(page.getByTestId("inbox-card-inbox-002")).toHaveCount(0);
