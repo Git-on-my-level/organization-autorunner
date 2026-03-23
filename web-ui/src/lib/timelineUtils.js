@@ -182,6 +182,27 @@ export function toTimelineViewEvent(event, options = {}) {
   };
 }
 
+function parseEventTimeMs(event) {
+  const ts = event?.ts;
+  if (ts == null || ts === "") {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const ms = Date.parse(String(ts));
+  return Number.isFinite(ms) ? ms : Number.NEGATIVE_INFINITY;
+}
+
+function compareEventsNewestFirst(a, b) {
+  const tb = parseEventTimeMs(b);
+  const ta = parseEventTimeMs(a);
+  if (tb !== ta) {
+    return tb - ta;
+  }
+  return String(b.id ?? "").localeCompare(String(a.id ?? ""));
+}
+
 export function toTimelineView(events = [], options = {}) {
-  return events.map((event) => toTimelineViewEvent(event, options));
+  const ordered = Array.isArray(events)
+    ? [...events].sort(compareEventsNewestFirst)
+    : [];
+  return ordered.map((event) => toTimelineViewEvent(event, options));
 }

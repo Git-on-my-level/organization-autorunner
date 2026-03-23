@@ -1,4 +1,22 @@
 /**
+ * Format an ISO 8601 instant as a local calendar date and time (for triage surfaces).
+ * Returns "" for null/undefined inputs; returns the raw value if not parseable.
+ */
+export function formatAbsoluteDateTime(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return String(isoString);
+
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/**
  * Format an ISO 8601 timestamp as a human-readable relative or absolute date.
  * Returns "" for null/undefined inputs; returns the raw value if not parseable.
  */

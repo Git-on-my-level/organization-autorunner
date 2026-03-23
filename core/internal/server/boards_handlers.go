@@ -801,10 +801,7 @@ func buildBoardWorkspaceInboxSection(ctx context.Context, opts handlerOptions, t
 			return nil, err
 		}
 		for _, item := range threadItems {
-			copy := cloneWorkspaceMap(item.Data)
-			if copy == nil {
-				copy = map[string]any{}
-			}
+			copy := payloadFromDerivedInboxItem(item)
 			if strings.TrimSpace(anyString(copy["thread_id"])) == "" {
 				copy["thread_id"] = threadID
 			}

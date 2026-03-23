@@ -126,6 +126,7 @@ func refreshDerivedThreadProjection(ctx context.Context, opts handlerOptions, th
 
 func deriveThreadInboxItems(ctx context.Context, opts handlerOptions, threadID string, events []map[string]any, now time.Time, riskHorizon time.Duration) ([]derivedInboxItem, error) {
 	ackedAt := latestInboxAcknowledgments(events)
+	decidedIDs := decidedInboxItemIDs(events)
 	latestActivity := latestThreadActivityFromEvents(events)
 	items := make([]derivedInboxItem, 0)
 
@@ -144,6 +145,11 @@ func deriveThreadInboxItems(ctx context.Context, opts handlerOptions, threadID s
 			}
 			if isSuppressedByAck(item, ackedAt) {
 				continue
+			}
+			if eventType == "decision_needed" {
+				if _, decided := decidedIDs[item.ID]; decided {
+					continue
+				}
 			}
 			items = append(items, item)
 		}

@@ -24,6 +24,41 @@ type derivedInboxItem struct {
 	HasDueAt  bool
 }
 
+func payloadFromDerivedInboxItem(item primitives.DerivedInboxItem) map[string]any {
+	m := cloneWorkspaceMap(item.Data)
+	if m == nil {
+		m = map[string]any{}
+	}
+	trigger := strings.TrimSpace(item.TriggerAt)
+	if trigger != "" {
+		if _, ok := m["source_event_time"]; !ok {
+			m["source_event_time"] = trigger
+		}
+		if _, ok := m["trigger_at"]; !ok {
+			m["trigger_at"] = trigger
+		}
+	}
+	return m
+}
+
+func payloadFromLocalDerivedInboxItem(item derivedInboxItem) map[string]any {
+	m := cloneWorkspaceMap(item.Data)
+	if m == nil {
+		m = map[string]any{}
+	}
+	if item.TriggerAt.IsZero() {
+		return m
+	}
+	trigger := item.TriggerAt.Format(time.RFC3339Nano)
+	if _, ok := m["source_event_time"]; !ok {
+		m["source_event_time"] = trigger
+	}
+	if _, ok := m["trigger_at"]; !ok {
+		m["trigger_at"] = trigger
+	}
+	return m
+}
+
 func handleGetInbox(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
@@ -44,7 +79,7 @@ func handleGetInbox(w http.ResponseWriter, r *http.Request, opts handlerOptions)
 
 		payloadItems := make([]map[string]any, 0, len(items))
 		for _, item := range items {
-			payloadItems = append(payloadItems, item.Data)
+			payloadItems = append(payloadItems, payloadFromLocalDerivedInboxItem(item))
 		}
 
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -77,7 +112,7 @@ func handleGetInbox(w http.ResponseWriter, r *http.Request, opts handlerOptions)
 
 	payloadItems := make([]map[string]any, 0, len(projected))
 	for _, item := range projected {
-		payloadItems = append(payloadItems, cloneWorkspaceMap(item.Data))
+		payloadItems = append(payloadItems, payloadFromDerivedInboxItem(item))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -116,7 +151,7 @@ func handleGetInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 				continue
 			}
 			writeJSON(w, http.StatusOK, map[string]any{
-				"item":         item.Data,
+				"item":         payloadFromLocalDerivedInboxItem(item),
 				"generated_at": now.Format(time.RFC3339Nano),
 			})
 			return
@@ -151,7 +186,7 @@ func handleGetInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"item":                 cloneWorkspaceMap(item.Data),
+		"item":                 payloadFromDerivedInboxItem(item),
 		"generated_at":         now.Format(time.RFC3339Nano),
 		"projection_freshness": cloneWorkspaceMap(states[item.ThreadID].Freshness),
 	})
@@ -288,6 +323,7 @@ func deriveInboxItemsNoStaleEmission(ctx context.Context, opts handlerOptions, n
 	}
 
 	ackedAt := latestInboxAcknowledgments(events)
+	decidedIDs := decidedInboxItemIDs(events)
 	latestActivity := latestThreadActivityFromEvents(events)
 	items := make([]derivedInboxItem, 0)
 
@@ -307,6 +343,11 @@ func deriveInboxItemsNoStaleEmission(ctx context.Context, opts handlerOptions, n
 			}
 			if isSuppressedByAck(item, ackedAt) {
 				continue
+			}
+			if eventType == "decision_needed" {
+				if _, decided := decidedIDs[item.ID]; decided {
+					continue
+				}
 			}
 			items = append(items, item)
 		}
@@ -336,6 +377,28 @@ func isStaleThreadException(event map[string]any) bool {
 	payload, _ := event["payload"].(map[string]any)
 	subtype, _ := payload["subtype"].(string)
 	return subtype == "stale_thread"
+}
+
+func decidedInboxItemIDs(events []map[string]any) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, event := range events {
+		eventType, _ := event["type"].(string)
+		if eventType != "decision_made" {
+			continue
+		}
+		refs, err := extractStringSlice(event["refs"])
+		if err != nil {
+			continue
+		}
+		for _, ref := range refs {
+			prefix, value, err := schema.SplitTypedRef(ref)
+			if err != nil || prefix != "inbox" {
+				continue
+			}
+			out[value] = struct{}{}
+		}
+	}
+	return out
 }
 
 func latestInboxAcknowledgments(events []map[string]any) map[string]time.Time {

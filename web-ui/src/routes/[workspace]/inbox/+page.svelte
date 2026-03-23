@@ -5,7 +5,7 @@
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
-  import { formatTimestamp } from "$lib/formatDate";
+  import { formatAbsoluteDateTime, formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
   import {
     enrichInboxItem,
@@ -237,6 +237,7 @@
       toggleDecisionForm(item, false);
       updateDecisionField(item.id, "summary", "");
       updateDecisionField(item.id, "notes", "");
+      items = items.filter((candidate) => candidate.id !== item.id);
     } catch (decisionError) {
       const reason =
         decisionError instanceof Error
@@ -434,21 +435,28 @@
               )}"
               data-testid={`inbox-card-${item.id}`}
             >
-              <div class="flex items-center gap-2 text-[11px]">
-                <span
-                  class="inline-flex h-1.5 w-1.5 rounded-full {urgencyDot(
-                    item.urgency_level,
-                  )}"
-                ></span>
-                <span class="font-medium text-[var(--ui-text-muted)]"
-                  >{item.urgency_label}</span
-                >
-                <span class="text-[var(--ui-text-subtle)]"
-                  >{item.age_label}</span
-                >
+              <div class="flex items-center justify-between gap-2 text-[11px]">
+                <div class="flex min-w-0 items-center gap-2">
+                  <span
+                    class="inline-flex h-1.5 w-1.5 shrink-0 rounded-full {urgencyDot(
+                      item.urgency_level,
+                    )}"
+                  ></span>
+                  <span class="font-medium text-[var(--ui-text-muted)]"
+                    >{item.urgency_label}</span
+                  >
+                  {#if item.age_label}
+                    <span class="text-[var(--ui-text-subtle)]"
+                      >{item.age_label}</span
+                    >
+                  {/if}
+                </div>
                 {#if item.has_source_event_time}
-                  <span class="text-[var(--ui-text-subtle)]">
-                    {formatTimestamp(item.source_event_time)}
+                  <span
+                    class="shrink-0 tabular-nums text-[var(--ui-text-subtle)]"
+                    title={item.source_event_time}
+                  >
+                    {formatAbsoluteDateTime(item.source_event_time)}
                   </span>
                 {/if}
               </div>

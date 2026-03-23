@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildTimelineRefLabelHints,
+  toTimelineView,
   toTimelineViewEvent,
 } from "../../src/lib/timelineUtils.js";
 
@@ -58,6 +59,36 @@ describe("timeline utils", () => {
       isLink: true,
       primaryLabel: "Document doc-1",
     });
+  });
+
+  it("orders timeline view newest first with stable id tie-break", () => {
+    const view = toTimelineView(
+      [
+        {
+          id: "evt-old",
+          ts: "2026-03-01T00:00:00.000Z",
+          type: "message_posted",
+          summary: "older",
+        },
+        {
+          id: "evt-new",
+          ts: "2026-03-03T00:00:00.000Z",
+          type: "message_posted",
+          summary: "newer",
+        },
+      ],
+      { threadId: "thread-1" },
+    );
+    expect(view.map((e) => e.id)).toEqual(["evt-new", "evt-old"]);
+
+    const sameTs = toTimelineView(
+      [
+        { id: "evt-b", ts: "2026-03-03T12:00:00.000Z", type: "message_posted" },
+        { id: "evt-a", ts: "2026-03-03T12:00:00.000Z", type: "message_posted" },
+      ],
+      { threadId: "thread-1" },
+    );
+    expect(sameTs.map((e) => e.id)).toEqual(["evt-b", "evt-a"]);
   });
 
   it("builds label hints from timeline expansions", () => {

@@ -235,7 +235,7 @@ func buildThreadWorkspaceInboxSection(ctx context.Context, opts handlerOptions, 
 
 	filtered := make([]map[string]any, 0, len(items))
 	for _, item := range items {
-		filtered = append(filtered, cloneWorkspaceMap(item.Data))
+		filtered = append(filtered, payloadFromDerivedInboxItem(item))
 	}
 
 	return map[string]any{

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   datetimeLocalToIso,
+  formatAbsoluteDateTime,
   formatTimestamp,
   isoToDatetimeLocal,
 } from "../../src/lib/formatDate.js";
@@ -27,6 +28,13 @@ describe("formatDate", () => {
     vi.setSystemTime(new Date("2026-03-15T12:00:00.000Z"));
 
     expect(formatTimestamp("2026-03-01T09:30:00.000Z")).toBe("Mar 1, 2026");
+  });
+
+  it("formats absolute local date and time for triage surfaces", () => {
+    const s = formatAbsoluteDateTime("2026-03-15T14:30:00.000Z");
+    expect(s.length).toBeGreaterThan(8);
+    expect(s).toMatch(/2026/);
+    expect(formatAbsoluteDateTime("")).toBe("");
   });
 
   it("handles missing and invalid inputs", () => {

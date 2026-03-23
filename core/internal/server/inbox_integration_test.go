@@ -198,6 +198,109 @@ func TestInboxDerivationAndAcknowledgmentSuppression(t *testing.T) {
 	}
 }
 
+func TestDecisionNeedeSuppressedByDecisionMade(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	threadResp := postJSONExpectStatus(t, h.baseURL+"/threads", `{
+		"actor_id":"actor-1",
+		"thread":{
+			"title":"Decision suppression thread",
+			"type":"incident",
+			"status":"active",
+			"priority":"p1",
+			"tags":["ops"],
+			"cadence":"daily",
+			"next_check_in_at":"2026-03-05T00:00:00Z",
+			"current_summary":"summary",
+			"next_actions":["do x"],
+			"key_artifacts":[],
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer threadResp.Body.Close()
+	var createdThread struct {
+		Thread map[string]any `json:"thread"`
+	}
+	if err := json.NewDecoder(threadResp.Body).Decode(&createdThread); err != nil {
+		t.Fatalf("decode thread response: %v", err)
+	}
+	threadID := asString(createdThread.Thread["id"])
+	if threadID == "" {
+		t.Fatal("expected thread id")
+	}
+
+	// Emit decision_needed — should appear in inbox.
+	dnResp := postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-1",
+		"event":{
+			"type":"decision_needed",
+			"thread_id":"`+threadID+`",
+			"refs":["thread:`+threadID+`"],
+			"summary":"Approve customer refunds",
+			"payload":{},
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer dnResp.Body.Close()
+
+	items := getInboxItems(t, h.baseURL)
+	decisionItem, ok := findInboxItem(items, func(item map[string]any) bool {
+		return asString(item["category"]) == "decision_needed" && asString(item["thread_id"]) == threadID
+	})
+	if !ok {
+		t.Fatalf("expected decision_needed inbox item, got %#v", items)
+	}
+	inboxItemID := asString(decisionItem["id"])
+	if inboxItemID == "" {
+		t.Fatal("expected inbox item id")
+	}
+
+	// Record decision_made referencing the inbox item — should suppress the inbox item.
+	dmResp := postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-1",
+		"event":{
+			"type":"decision_made",
+			"thread_id":"`+threadID+`",
+			"refs":["thread:`+threadID+`","inbox:`+inboxItemID+`"],
+			"summary":"Approved emergency refunds",
+			"payload":{"notes":""},
+			"provenance":{"sources":["actor_statement:ui"]}
+		}
+	}`, http.StatusCreated)
+	dmResp.Body.Close()
+
+	itemsAfterDecision := getInboxItems(t, h.baseURL)
+	if _, stillThere := findInboxItem(itemsAfterDecision, func(item map[string]any) bool {
+		return asString(item["id"]) == inboxItemID
+	}); stillThere {
+		t.Fatalf("expected decision_needed inbox item to be suppressed after decision_made, got %#v", itemsAfterDecision)
+	}
+
+	// A new decision_needed on the same thread should still appear (no over-suppression).
+	dn2Resp := postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-1",
+		"event":{
+			"type":"decision_needed",
+			"thread_id":"`+threadID+`",
+			"refs":["thread:`+threadID+`"],
+			"summary":"Another decision needed",
+			"payload":{},
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+	defer dn2Resp.Body.Close()
+
+	itemsAfterRetrigger := getInboxItems(t, h.baseURL)
+	if _, ok := findInboxItem(itemsAfterRetrigger, func(item map[string]any) bool {
+		return asString(item["category"]) == "decision_needed" && asString(item["thread_id"]) == threadID
+	}); !ok {
+		t.Fatalf("expected new decision_needed inbox item after retrigger, got %#v", itemsAfterRetrigger)
+	}
+}
+
 func TestGetInboxItemDetailByID(t *testing.T) {
 	t.Parallel()
 

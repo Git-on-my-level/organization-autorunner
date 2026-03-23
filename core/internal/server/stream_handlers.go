@@ -159,12 +159,13 @@ type inboxStreamRecord struct {
 func buildInboxStreamRecords(items []derivedInboxItem) []inboxStreamRecord {
 	records := make([]inboxStreamRecord, 0, len(items))
 	for _, item := range items {
-		itemID := strings.TrimSpace(anyString(item.Data["id"]))
+		payload := payloadFromLocalDerivedInboxItem(item)
+		itemID := strings.TrimSpace(anyString(payload["id"]))
 		if itemID == "" {
 			continue
 		}
 
-		dataBytes, err := json.Marshal(item.Data)
+		dataBytes, err := json.Marshal(payload)
 		if err != nil {
 			continue
 		}
@@ -174,7 +175,7 @@ func buildInboxStreamRecords(items []derivedInboxItem) []inboxStreamRecord {
 			eventID: itemID + "@" + digest,
 			itemID:  itemID,
 			digest:  digest,
-			data:    item.Data,
+			data:    payload,
 		})
 	}
 	return records
