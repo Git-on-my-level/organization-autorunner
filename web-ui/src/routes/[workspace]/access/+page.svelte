@@ -6,11 +6,12 @@
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
 
+  let { data } = $props();
+
   let loading = $state(true);
   let pageError = $state("");
   let workspaceSlug = $derived($page.params.workspace);
 
-  let bootstrapStatus = $state(null);
   let principals = $state([]);
   let activeHumanPrincipalCount = $state(0);
   let invites = $state([]);
@@ -30,7 +31,9 @@
   let newInviteKind = $state("agent");
 
   let createdToken = $state("");
+  let createdInviteKind = $state("");
   let tokenCopied = $state(false);
+  let messageCopied = $state(false);
   let tokenDismissed = $state(false);
 
   let revokingInviteId = $state("");
@@ -48,7 +51,6 @@
   const SECTION_READY = "ready";
   const SECTION_ERROR = "error";
 
-  let bootstrapState = $state({ status: SECTION_IDLE, error: "" });
   let principalsState = $state({ status: SECTION_IDLE, error: "" });
   let invitesState = $state({ status: SECTION_IDLE, error: "" });
   let auditState = $state({ status: SECTION_IDLE, error: "" });
@@ -65,26 +67,12 @@
     loading = true;
     pageError = "";
 
-    const [bootstrapResult, principalsResult, invitesResult, auditResult] =
+    const [principalsResult, invitesResult, auditResult] =
       await Promise.allSettled([
-        coreClient.bootstrapStatus(),
         coreClient.listPrincipals({ limit: 50 }),
         coreClient.listInvites(),
         coreClient.listAuthAudit({ limit: 50 }),
       ]);
-
-    if (bootstrapResult.status === "fulfilled") {
-      bootstrapStatus = bootstrapResult.value;
-      bootstrapState = { status: SECTION_READY, error: "" };
-    } else {
-      bootstrapState = {
-        status: SECTION_ERROR,
-        error: extractErrorMessage(
-          bootstrapResult.reason,
-          "Failed to load bootstrap status",
-        ),
-      };
-    }
 
     if (principalsResult.status === "fulfilled") {
       const data = principalsResult.value;
@@ -184,7 +172,9 @@
     creatingInvite = true;
     inviteError = "";
     createdToken = "";
+    createdInviteKind = "";
     tokenCopied = false;
+    messageCopied = false;
     tokenDismissed = false;
 
     try {
@@ -196,6 +186,7 @@
       }
       const result = await coreClient.createInvite(payload);
       createdToken = result.token ?? "";
+      createdInviteKind = newInviteKind;
       newInviteNote = "";
       await loadAccessData();
     } catch (error) {
@@ -310,9 +301,35 @@
     }
   }
 
+  function buildRegistrationMessage(token, baseUrl) {
+    const url = baseUrl || "<CORE_API_URL>";
+    return [
+      "Register with this OAR workspace using the invite token below.",
+      "",
+      "Run the following command (replace <agent-name> with a profile name and <username> with your desired username):",
+      "",
+      `  oar --base-url ${url} --agent <agent-name> auth register --username <username> --invite-token ${token}`,
+      "",
+      "This invite token is single-use.",
+    ].join("\n");
+  }
+
+  async function copyRegistrationMessage() {
+    if (!createdToken) return;
+    try {
+      await navigator.clipboard.writeText(
+        buildRegistrationMessage(createdToken, data.coreBaseUrl),
+      );
+      messageCopied = true;
+    } catch {
+      messageCopied = false;
+    }
+  }
+
   function dismissToken() {
     tokenDismissed = true;
     createdToken = "";
+    createdInviteKind = "";
   }
 
   function extractErrorMessage(error, fallback) {
@@ -539,14 +556,36 @@
               class="mt-2 flex items-center gap-2 rounded bg-black/20 px-2 py-1.5 font-mono text-[11px] text-[var(--ui-text)]"
             >
               <span class="flex-1 break-all">{createdToken}</span>
+              {#if createdInviteKind === "agent" || createdInviteKind === "any"}
+                <button
+                  class="shrink-0 cursor-pointer rounded px-2 py-1.5 text-[10px] font-medium text-emerald-400 hover:bg-emerald-400/10"
+                  onclick={copyTokenToClipboard}
+                  type="button"
+                >
+                  {tokenCopied ? "Copied" : "Copy token"}
+                </button>
+              {:else}
+                <button
+                  class="shrink-0 cursor-pointer rounded px-2 py-1.5 text-[10px] font-medium text-emerald-400 hover:bg-emerald-400/10"
+                  onclick={copyTokenToClipboard}
+                  type="button"
+                >
+                  {tokenCopied ? "Copied" : "Copy"}
+                </button>
+              {/if}
+            </div>
+            {#if createdInviteKind === "agent" || createdInviteKind === "any"}
               <button
-                class="shrink-0 cursor-pointer rounded px-2 py-1.5 text-[10px] font-medium text-emerald-400 hover:bg-emerald-400/10"
-                onclick={copyTokenToClipboard}
+                class="mt-2 cursor-pointer rounded border border-emerald-500/30 px-3 py-1.5 text-[11px] font-medium text-emerald-400 hover:bg-emerald-400/10"
+                onclick={copyRegistrationMessage}
                 type="button"
               >
-                {tokenCopied ? "Copied" : "Copy"}
+                {messageCopied ? "Copied" : "Copy registration message"}
               </button>
-            </div>
+              <p class="mt-1.5 text-[11px] text-[var(--ui-text-muted)]">
+                Copies a ready-to-paste command with instructions for your agent to register.
+              </p>
+            {/if}
           </div>
           <button
             aria-label="Dismiss token banner"
@@ -580,35 +619,6 @@
         {pageError}
       </div>
     {/if}
-
-    <section>
-      <h2 class="mb-2 text-[13px] font-semibold text-[var(--ui-text)]">
-        Bootstrap status
-      </h2>
-      {#if bootstrapState.status === SECTION_ERROR}
-        <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
-          {bootstrapState.error}
-        </p>
-      {:else if bootstrapState.status === SECTION_READY}
-        <div
-          class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2"
-        >
-          <p class="text-[13px] text-[var(--ui-text)]">
-            {#if bootstrapStatus?.bootstrap_registration_available}
-              <span class="font-medium text-emerald-400"
-                >Bootstrap registration is available</span
-              >
-              - the first principal can register with a bootstrap token.
-            {:else}
-              <span class="font-medium text-amber-400"
-                >Bootstrap registration is closed</span
-              >
-              - new principals must be invited by an existing operator.
-            {/if}
-          </p>
-        </div>
-      {/if}
-    </section>
 
     <section>
       <h2 class="mb-2 text-[13px] font-semibold text-[var(--ui-text)]">
