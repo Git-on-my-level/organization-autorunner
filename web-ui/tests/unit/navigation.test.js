@@ -4,18 +4,24 @@ import {
   getShellContentConfig,
   isKnownSection,
   navigationItems,
+  settingsNavItems,
 } from "../../src/lib/navigation.js";
 
 describe("navigation model", () => {
-  it("includes expected top-level labels", () => {
+  it("includes expected primary nav labels", () => {
     expect(navigationItems.map((item) => item.label)).toEqual([
       "Home",
       "Inbox",
       "Threads",
       "Boards",
+      "Docs",
+    ]);
+  });
+
+  it("includes settings nav labels", () => {
+    expect(settingsNavItems.map((item) => item.label)).toEqual([
       "Artifacts",
       "Access",
-      "Docs",
     ]);
   });
 
@@ -23,6 +29,8 @@ describe("navigation model", () => {
     expect(isKnownSection("/")).toBe(true);
     expect(isKnownSection("/threads")).toBe(true);
     expect(isKnownSection("/boards")).toBe(true);
+    expect(isKnownSection("/docs")).toBe(true);
+    expect(isKnownSection("/artifacts")).toBe(true);
     expect(isKnownSection("/access")).toBe(true);
     expect(isKnownSection("/missing")).toBe(false);
   });

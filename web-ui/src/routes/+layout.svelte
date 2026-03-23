@@ -24,7 +24,11 @@
   } from "$lib/authSession";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import { coreClient } from "$lib/coreClient";
-  import { getShellContentConfig, navigationItems } from "$lib/navigation";
+  import {
+    getShellContentConfig,
+    navigationItems,
+    settingsNavItems,
+  } from "$lib/navigation";
   import {
     setCurrentWorkspaceSlug,
     setDevActorMode,
@@ -119,8 +123,10 @@
       : "?",
   );
   let shellContentConfig = $derived(getShellContentConfig(currentAppPath));
+  const shellNavForTitle = [...navigationItems, ...settingsNavItems];
+
   let pageTitle = $derived(() => {
-    const navItem = navigationItems.find(
+    const navItem = shellNavForTitle.find(
       (item) => isActive(item.href) && item.href !== "/",
     );
     const section = navItem?.label;
@@ -454,157 +460,206 @@
   {:else}
     <div class="shell-frame">
       <aside class="shell-sidebar" aria-label="Primary">
-        {#if hasMultipleWorkspaces}
-          <div class="workspace-switcher" id="workspace-picker-container">
-            <button
-              class="workspace-switcher-trigger"
-              onclick={toggleWorkspacePicker}
-              aria-expanded={workspacePickerOpen}
-              aria-haspopup="listbox"
-              type="button"
+        <div class="shell-sidebar-top">
+          <button
+            class="shell-search-trigger"
+            onclick={() => (commandPaletteOpen = true)}
+            type="button"
+          >
+            <svg
+              class="shell-search-trigger-icon"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
             >
-              <span class="workspace-switcher-icon" aria-hidden="true">
-                {workspaceInitials(activeWorkspace?.label)}
-              </span>
-              <span class="workspace-switcher-label">
-                <span class="workspace-switcher-name"
-                  >{activeWorkspace?.label || activeWorkspaceSlug}</span
-                >
-                <span class="workspace-switcher-sub">OAR Control Surface</span>
-              </span>
-              <svg
-                class="workspace-switcher-chevron"
-                class:workspace-switcher-chevron--open={workspacePickerOpen}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            </button>
+              <path
+                fill-rule="evenodd"
+                d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+                clip-rule="evenodd"
+              />
+            </svg>
+            <span>Search</span>
+            <kbd class="shell-search-kbd">⌘K</kbd>
+          </button>
+        </div>
 
-            {#if workspacePickerOpen}
-              <div
-                class="workspace-switcher-dropdown"
-                role="listbox"
-                aria-label="Switch workspace"
+        <div class="shell-sidebar-main">
+          {#if hasMultipleWorkspaces}
+            <div class="workspace-switcher" id="workspace-picker-container">
+              <button
+                class="workspace-switcher-trigger"
+                onclick={toggleWorkspacePicker}
+                aria-expanded={workspacePickerOpen}
+                aria-haspopup="listbox"
+                type="button"
               >
-                {#each data.workspaces ?? [] as workspace}
-                  {@const isCurrent = workspace.slug === activeWorkspaceSlug}
-                  <button
-                    class="workspace-switcher-option"
-                    class:workspace-switcher-option--active={isCurrent}
-                    role="option"
-                    aria-selected={isCurrent}
-                    onclick={() => pickWorkspace(workspace.slug)}
-                    type="button"
+                <span class="workspace-switcher-icon" aria-hidden="true">
+                  {workspaceInitials(activeWorkspace?.label)}
+                </span>
+                <span class="workspace-switcher-label">
+                  <span class="workspace-switcher-name"
+                    >{activeWorkspace?.label || activeWorkspaceSlug}</span
                   >
-                    <span
-                      class="workspace-switcher-option-icon"
+                  <span class="workspace-switcher-sub">OAR Control Surface</span
+                  >
+                </span>
+                <svg
+                  class="workspace-switcher-chevron"
+                  class:workspace-switcher-chevron--open={workspacePickerOpen}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {#if workspacePickerOpen}
+                <div
+                  class="workspace-switcher-dropdown"
+                  role="listbox"
+                  aria-label="Switch workspace"
+                >
+                  {#each data.workspaces ?? [] as workspace}
+                    {@const isCurrent = workspace.slug === activeWorkspaceSlug}
+                    <button
+                      class="workspace-switcher-option"
+                      class:workspace-switcher-option--active={isCurrent}
+                      role="option"
+                      aria-selected={isCurrent}
+                      onclick={() => pickWorkspace(workspace.slug)}
+                      type="button"
+                    >
+                      <span
+                        class="workspace-switcher-option-icon"
+                        aria-hidden="true"
+                      >
+                        {workspaceInitials(workspace.label)}
+                      </span>
+                      <span class="workspace-switcher-option-label">
+                        <span>{workspace.label}</span>
+                        {#if workspace.description}
+                          <span class="workspace-switcher-option-desc"
+                            >{workspace.description}</span
+                          >
+                        {/if}
+                      </span>
+                      {#if isCurrent}
+                        <svg
+                          class="workspace-switcher-check"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          aria-hidden="true"
+                        >
+                          <path
+                            fill-rule="evenodd"
+                            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                            clip-rule="evenodd"
+                          />
+                        </svg>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <nav class="shell-nav" aria-label="Primary">
+            {#each navigationItems as item}
+              {@const active = isActive(item.href)}
+              <a
+                class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}
+                href={workspaceHref(item.href)}
+                aria-label={item.label}
+              >
+                <svg
+                  class="shell-nav-icon"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  aria-hidden="true"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d={iconPath(item.icon)}
+                  />
+                </svg>
+                <span class="shell-nav-copy">
+                  <span>{item.label}</span>
+                  {#if item.hint}
+                    <span class="shell-nav-hint">{item.hint}</span>
+                  {/if}
+                </span>
+              </a>
+            {/each}
+          </nav>
+        </div>
+
+        <div class="shell-sidebar-footer">
+          <div
+            class="shell-actor-panel"
+            aria-label="Identity and workspace links"
+          >
+            <nav class="shell-secondary-nav" aria-label="Workspace">
+              <div class="shell-settings-links">
+                {#each settingsNavItems as item}
+                  {@const active = isActive(item.href)}
+                  <a
+                    class={`shell-settings-link ${active ? "shell-settings-link--active" : ""}`}
+                    href={workspaceHref(item.href)}
+                    aria-label={item.label}
+                  >
+                    <svg
+                      class="shell-settings-icon"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="1.75"
                       aria-hidden="true"
                     >
-                      {workspaceInitials(workspace.label)}
-                    </span>
-                    <span class="workspace-switcher-option-label">
-                      <span>{workspace.label}</span>
-                      {#if workspace.description}
-                        <span class="workspace-switcher-option-desc"
-                          >{workspace.description}</span
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d={iconPath(item.icon)}
+                      />
+                    </svg>
+                    <span class="shell-settings-link-text">
+                      <span>{item.label}</span>
+                      {#if item.hint}
+                        <span class="shell-settings-link-hint">{item.hint}</span
                         >
                       {/if}
                     </span>
-                    {#if isCurrent}
-                      <svg
-                        class="workspace-switcher-check"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fill-rule="evenodd"
-                          d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-                          clip-rule="evenodd"
-                        />
-                      </svg>
-                    {/if}
-                  </button>
+                  </a>
                 {/each}
               </div>
-            {/if}
-          </div>
-        {/if}
-
-        <nav class="shell-nav" aria-label="Primary">
-          {#each navigationItems as item}
-            {@const active = isActive(item.href)}
-            <a
-              class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}
-              href={workspaceHref(item.href)}
-              aria-label={item.label}
-            >
-              <svg
-                class="shell-nav-icon"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.75"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d={iconPath(item.icon)}
-                />
-              </svg>
-              <span class="shell-nav-copy">
-                <span>{item.label}</span>
-                {#if item.hint}
-                  <span class="shell-nav-hint">{item.hint}</span>
-                {/if}
-              </span>
-            </a>
-          {/each}
-        </nav>
-
-        <button
-          class="shell-search-trigger"
-          onclick={() => (commandPaletteOpen = true)}
-          type="button"
-        >
-          <svg
-            class="shell-search-trigger-icon"
-            viewBox="0 0 20 20"
-            fill="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              fill-rule="evenodd"
-              d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          <span>Search</span>
-          <kbd class="shell-search-kbd">⌘K</kbd>
-        </button>
-
-        <div class="shell-actor-panel">
-          <p class="shell-actor-label">
-            {$authenticatedAgent ? "Authenticated principal" : "Signed in as"}
-          </p>
-          <div class="shell-actor-row">
-            <span class="shell-actor-avatar" aria-hidden="true">{initials}</span
-            >
-            <div class="shell-actor-copy">
-              <p>{selectedActorName}</p>
+            </nav>
+            <div class="shell-actor-identity">
+              <p class="shell-actor-label">
+                {$authenticatedAgent
+                  ? "Authenticated principal"
+                  : "Signed in as"}
+              </p>
+              <div class="shell-actor-row">
+                <span class="shell-actor-avatar" aria-hidden="true"
+                  >{initials}</span
+                >
+                <div class="shell-actor-copy">
+                  <p>{selectedActorName}</p>
+                </div>
+              </div>
             </div>
+            <button onclick={switchIdentity} type="button">
+              {$authenticatedAgent ? "Sign out" : "Switch identity"}
+            </button>
           </div>
-          <button onclick={switchIdentity} type="button">
-            {$authenticatedAgent ? "Sign out" : "Switch identity"}
-          </button>
         </div>
       </aside>
 
@@ -721,6 +776,32 @@
                 {/if}
                 <div class="mobile-workspace-divider"></div>
                 {#each navigationItems as item}
+                  {@const active = isActive(item.href)}
+                  <a
+                    class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}
+                    href={workspaceHref(item.href)}
+                    onclick={closeMobileNav}
+                    aria-label={item.label}
+                  >
+                    <svg
+                      class="shell-nav-icon"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="1.75"
+                      aria-hidden="true"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d={iconPath(item.icon)}
+                      />
+                    </svg>
+                    <span>{item.label}</span>
+                  </a>
+                {/each}
+                <div class="shell-mobile-nav-divider" role="presentation"></div>
+                {#each settingsNavItems as item}
                   {@const active = isActive(item.href)}
                   <a
                     class={`shell-nav-link ${active ? "shell-nav-link--active" : ""}`}

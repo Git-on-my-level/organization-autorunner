@@ -24,6 +24,16 @@ export const navigationItems = [
     hint: "Kanban boards",
   },
   {
+    label: "Docs",
+    href: "/docs",
+    icon: "docs",
+    hint: "Docs and versioned content",
+  },
+];
+
+/** Secondary destinations grouped with the identity panel (sidebar bottom). */
+export const settingsNavItems = [
+  {
     label: "Artifacts",
     href: "/artifacts",
     icon: "artifacts",
@@ -34,12 +44,6 @@ export const navigationItems = [
     href: "/access",
     icon: "access",
     hint: "Manage principals and invites",
-  },
-  {
-    label: "Docs",
-    href: "/docs",
-    icon: "docs",
-    hint: "Docs and versioned content",
   },
 ];
 
@@ -105,7 +109,10 @@ function normalizePathname(pathname) {
 
 export function isKnownSection(pathname) {
   const normalizedPathname = normalizePathname(pathname);
-  return navigationItems.some((item) => normalizedPathname === item.href);
+  return (
+    navigationItems.some((item) => normalizedPathname === item.href) ||
+    settingsNavItems.some((item) => normalizedPathname === item.href)
+  );
 }
 
 export function getShellContentConfig(pathname) {

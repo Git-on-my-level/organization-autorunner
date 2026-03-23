@@ -575,7 +575,6 @@ a:focus-visible {
 }
 
 .shell-actor-panel {
-  margin-top: auto;
   border-radius: var(--ui-radius-md);
   border: 1px solid var(--ui-border);
   padding: 0.625rem;
@@ -588,6 +587,66 @@ a:focus-visible {
   letter-spacing: 0.06em;
   color: var(--ui-text-subtle);
   font-weight: 500;
+}
+
+.shell-settings-links {
+  display: grid;
+  gap: 1px;
+}
+
+.shell-settings-link {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.375rem;
+  margin: 0 -0.25rem;
+  border-radius: var(--ui-radius-sm);
+  text-decoration: none;
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  transition:
+    background 0.1s,
+    color 0.1s;
+}
+
+.shell-settings-link:hover {
+  background: var(--ui-panel-muted);
+  color: var(--ui-text);
+}
+
+.shell-settings-link--active {
+  background: var(--ui-panel-muted);
+  color: var(--ui-text);
+}
+
+.shell-settings-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  opacity: 0.85;
+}
+
+.shell-settings-link--active .shell-settings-icon {
+  opacity: 1;
+}
+
+.shell-settings-link-text {
+  min-width: 0;
+  display: grid;
+  gap: 0.125rem;
+}
+
+.shell-settings-link-hint {
+  display: none;
+}
+
+.shell-actor-identity {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border);
 }
 
 .shell-actor-row {
@@ -769,6 +828,12 @@ a:focus-visible {
 .shell-mobile-nav .shell-nav-copy,
 .shell-mobile-nav .shell-nav-hint {
   display: none;
+}
+
+.shell-mobile-nav-divider {
+  margin: 0.5rem 0 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border);
 }
 
 .shell-mobile-switch {
@@ -1010,9 +1075,39 @@ a:focus-visible {
 }
 
 @media (min-width: 1024px) {
+  /* Viewport-height sidebar: nav scrolls; search + identity stay visible (sidebar no longer stretches with main). */
   .shell-sidebar {
     display: flex;
     flex-direction: column;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  .shell-sidebar-top {
+    flex: 0 0 auto;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--ui-border);
+  }
+
+  .shell-sidebar-top .shell-search-trigger {
+    margin-top: 0;
+  }
+
+  .shell-sidebar-main {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .shell-sidebar-footer {
+    flex: 0 0 auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--ui-border);
   }
 
   .shell-mobile-header {

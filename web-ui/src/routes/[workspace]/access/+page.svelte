@@ -583,7 +583,8 @@
                 {messageCopied ? "Copied" : "Copy registration message"}
               </button>
               <p class="mt-1.5 text-[11px] text-[var(--ui-text-muted)]">
-                Copies a ready-to-paste command with instructions for your agent to register.
+                Copies a ready-to-paste command with instructions for your agent
+                to register.
               </p>
             {/if}
           </div>
