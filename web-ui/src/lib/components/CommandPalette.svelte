@@ -6,6 +6,7 @@
     searchBoards,
     searchArtifacts,
   } from "$lib/searchHelpers";
+  import { kindLabel } from "$lib/artifactKinds";
   import { workspacePath } from "$lib/workspacePaths";
 
   let { open = $bindable(false), workspaceSlug = "" } = $props();
@@ -163,6 +164,11 @@
   }
 
   function resultTitle(entry) {
+    if (entry.type === "artifact") {
+      const summary = String(entry.item.summary ?? "").trim();
+      if (summary) return summary;
+      return `${kindLabel(entry.item.kind)} artifact`;
+    }
     return entry.item.title || entry.item.display_name || entry.item.id;
   }
 
@@ -182,7 +188,7 @@
       return entry.item.id;
     }
     if (entry.type === "artifact") {
-      return entry.item.kind || entry.item.id;
+      return kindLabel(entry.item.kind);
     }
     return "";
   }
@@ -282,7 +288,11 @@
                 <span class="cmd-result-title">{resultTitle(entry)}</span>
                 <span class="cmd-result-subtitle">{resultSubtitle(entry)}</span>
               </div>
-              <span class="cmd-result-badge">{typeLabels[entry.type]}</span>
+              <span class="cmd-result-badge"
+                >{entry.type === "artifact"
+                  ? kindLabel(entry.item.kind)
+                  : typeLabels[entry.type]}</span
+              >
             </button>
           {/if}
         {/each}

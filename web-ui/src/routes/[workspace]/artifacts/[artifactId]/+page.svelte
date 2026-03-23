@@ -4,6 +4,7 @@
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import { coreClient } from "$lib/coreClient";
+  import { kindLabel, kindDescription, kindColor } from "$lib/artifactKinds";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
   import ProvenanceBadge from "$lib/components/ProvenanceBadge.svelte";
@@ -173,17 +174,6 @@
     return candidates[0];
   }
 
-  function kindDescription(kind) {
-    if (kind === "work_order") return "Execution plan and acceptance criteria";
-    if (kind === "receipt")
-      return "Recorded outcomes and verification evidence";
-    if (kind === "review") return "Human review decision on a receipt";
-    if (kind === "doc") return "Readable source document";
-    if (kind === "evidence") return "Supporting evidence artifact";
-    if (kind === "log") return "Operational log artifact";
-    return "Artifact payload";
-  }
-
   function truncateLabel(value, max = 72) {
     const text = String(value ?? "").trim();
     if (!text) return "";
@@ -324,26 +314,6 @@
     } finally {
       loading = false;
     }
-  }
-
-  function kindLabel(kind) {
-    const labels = {
-      work_order: "Work Order",
-      receipt: "Receipt",
-      review: "Review",
-      doc: "Document",
-    };
-    return labels[kind] ?? kind;
-  }
-
-  function kindColor(kind) {
-    const styles = {
-      work_order: "text-blue-400 bg-blue-500/10",
-      receipt: "text-emerald-400 bg-emerald-500/10",
-      review: "text-purple-400 bg-purple-500/10",
-      doc: "text-amber-400 bg-amber-500/10",
-    };
-    return styles[kind] ?? "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
   }
 </script>
 

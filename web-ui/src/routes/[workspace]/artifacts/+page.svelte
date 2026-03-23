@@ -4,18 +4,15 @@
 
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
+  import {
+    KIND_LABELS,
+    kindLabel,
+    kindDescription,
+    kindColor,
+  } from "$lib/artifactKinds";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
   import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
-
-  const KIND_LABELS = {
-    work_order: "Work Order",
-    receipt: "Receipt",
-    review: "Review",
-    doc: "Document",
-    evidence: "Evidence",
-    log: "Log",
-  };
 
   let artifacts = $state([]);
   let loading = $state(false);
@@ -80,32 +77,6 @@
       created_before: "",
     };
     await loadArtifacts();
-  }
-
-  function kindLabel(kind) {
-    return KIND_LABELS[String(kind ?? "").trim()] ?? String(kind ?? "Artifact");
-  }
-
-  function kindDescription(kind) {
-    if (kind === "work_order") return "Execution plan and acceptance criteria";
-    if (kind === "receipt") return "Work completion evidence and verification";
-    if (kind === "review") return "Human decision on receipt quality";
-    if (kind === "doc") return "Readable document artifact";
-    if (kind === "evidence") return "Supporting evidence and logs";
-    if (kind === "log") return "Operational activity record";
-    return "Artifact payload";
-  }
-
-  function kindColor(kind) {
-    const styles = {
-      work_order: "text-blue-400 bg-blue-500/10",
-      receipt: "text-emerald-400 bg-emerald-500/10",
-      review: "text-amber-400 bg-amber-500/10",
-      doc: "text-fuchsia-400 bg-fuchsia-500/10",
-      evidence: "text-[var(--ui-text-muted)] bg-[var(--ui-border)]",
-      log: "text-teal-400 bg-teal-500/10",
-    };
-    return styles[kind] ?? "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
   }
 
   function rowHeading(artifact) {
