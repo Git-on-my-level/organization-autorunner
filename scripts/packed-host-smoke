@@ -419,13 +419,30 @@ fi
 echo "✓ Control-plane routing metadata matches workspace listeners"
 
 echo ""
-echo "=== Step 8: Starting shared web UI ==="
+echo "=== Step 8: Building shared web UI ==="
 
 (
-  cd "$REPO_ROOT"
+  cd "$REPO_ROOT/web-ui"
+  ./scripts/build >"$UI_LOG" 2>&1
+) || {
+  echo "web UI build failed" >&2
+  cat "$UI_LOG" >&2 || true
+  exit 1
+}
+
+echo "✓ Shared web UI built"
+
+echo ""
+echo "=== Step 8b: Starting shared web UI ==="
+
+(
+  cd "$REPO_ROOT/web-ui"
+  HOST="$UI_HOST" \
+  PORT="$UI_PORT" \
+  ORIGIN="$UI_BASE_URL" \
   OAR_CONTROL_BASE_URL="$CONTROL_PLANE_BASE_URL" \
   OAR_CORE_BASE_URL="" \
-  pnpm -C web-ui exec vite dev --host "$UI_HOST" --port "$UI_PORT" >"$UI_LOG" 2>&1
+  ./scripts/serve >>"$UI_LOG" 2>&1
 ) &
 UI_PID=$!
 
@@ -438,7 +455,7 @@ fi
 echo "✓ Shared web UI started at $UI_BASE_URL"
 
 echo ""
-echo "=== Step 8b: Shared web UI login ==="
+echo "=== Step 8c: Shared web UI login ==="
 
 START_UI_LOGIN_RESPONSE=$(curl -sS \
   -c "$UI_COOKIE_JAR" \

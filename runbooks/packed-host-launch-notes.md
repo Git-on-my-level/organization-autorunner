@@ -18,12 +18,8 @@ Sub-agent review summary:
 - Fixed blocker: packed-host provisioning docs and
   `provision-packed-workspace.sh` now use the same instance-root layout as the
   hosted backup and restore helpers.
-
-Non-blocking follow-up:
-
-- `scripts/packed-host-smoke` still uses `vite dev` for the local shared-UI
-  process instead of the production `build/index.js` serve path. This is
-  tracked in `TICKET-910-packed-host-production-ui-smoke.md`.
+- Fixed blocker: `scripts/packed-host-smoke` now builds the shared web UI and
+  serves it through the production Node adapter path instead of `vite dev`.
 
 ## Launch evidence
 
@@ -37,7 +33,7 @@ Validated on 2026-03-24:
 
 Latest smoke artifact bundle:
 
-- `.tmp/packed-host-smoke/run.TBOXc2`
+- `.tmp/packed-host-smoke/run.we3q7q`
 
 Key smoke outcomes from that run:
 
@@ -68,4 +64,10 @@ Key smoke outcomes from that run:
   `http://localhost:<ui-port>` for the local smoke browser origin.
 - `OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE` is set to
   `http://localhost:<ui-port>/%s` for the local shared-UI route shape.
-- The local smoke uses `pnpm -C web-ui exec vite dev` for the shared UI.
+- The local smoke builds the shared UI with `web-ui/scripts/build` before it
+  starts the Node adapter server.
+- The local smoke serves the shared UI with `web-ui/scripts/serve` and sets
+  `HOST=127.0.0.1`, `PORT=<ui-port>`, and `ORIGIN=http://localhost:<ui-port>`
+  so the bound listener stays loopback-only while WebAuthn and launch URLs
+  keep the `localhost` browser origin expected by the control-plane smoke
+  flow.
