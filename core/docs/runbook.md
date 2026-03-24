@@ -34,6 +34,8 @@ below so it can run alongside the existing core + web-ui development loop.
 | WebAuthn origin | n/a | `OAR_WEBAUTHN_ORIGIN` | derived from browser request origin |
 | WebAuthn RP display name | n/a | `OAR_WEBAUTHN_RP_DISPLAY_NAME` | `OAR` |
 | Human auth mode | n/a | `OAR_HUMAN_AUTH_MODE` | `workspace_local` |
+| Control-plane heartbeat base URL | n/a | `OAR_CONTROL_PLANE_BASE_URL` | unset |
+| Control-plane heartbeat interval | n/a | `OAR_CONTROL_PLANE_HEARTBEAT_INTERVAL` | `30s` |
 | Control-plane token issuer | n/a | `OAR_CONTROL_PLANE_TOKEN_ISSUER` | unset |
 | Control-plane token audience | n/a | `OAR_CONTROL_PLANE_TOKEN_AUDIENCE` | unset |
 | Control-plane workspace identifier | n/a | `OAR_CONTROL_PLANE_WORKSPACE_ID` | unset |
@@ -195,6 +197,21 @@ explicitly open local workflow is required.
 mode, workspace-local passkey human auth is disabled, workspace-local Ed25519
 agent auth remains enabled, and startup fails closed unless the
 `OAR_CONTROL_PLANE_TOKEN_*` and `OAR_WORKSPACE_SERVICE_*` settings are valid.
+
+Set `OAR_CONTROL_PLANE_BASE_URL` to enable the workspace heartbeat reporter.
+When enabled, `oar-core` reuses `OAR_WORKSPACE_SERVICE_ID` and
+`OAR_WORKSPACE_SERVICE_PRIVATE_KEY` to sign a `purpose=heartbeat` workspace
+service assertion and POST a background heartbeat to the control plane every
+`OAR_CONTROL_PLANE_HEARTBEAT_INTERVAL` (default `30s`). Heartbeat delivery
+failures are logged and retried; they do not stop the workspace core. The
+heartbeat payload includes:
+
+- core version plus build identity
+- readiness summary
+- projection maintenance summary
+- usage summary
+- last successful backup timestamp when a standard hosted backup manifest is
+  discoverable near the workspace root
 
 ## Verify server health
 

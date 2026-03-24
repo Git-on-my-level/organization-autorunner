@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,6 +19,7 @@ import (
 	"organization-autorunner-core/internal/auth"
 	"organization-autorunner-core/internal/blob"
 	"organization-autorunner-core/internal/controlplaneauth"
+	"organization-autorunner-core/internal/controlplaneauth/heartbeat"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/server"
@@ -83,6 +86,8 @@ func main() {
 		webAuthnOrigin             = envString("OAR_WEBAUTHN_ORIGIN", "")
 		webAuthnDisplayName        = envString("OAR_WEBAUTHN_RP_DISPLAY_NAME", "OAR")
 		humanAuthMode              = envString("OAR_HUMAN_AUTH_MODE", controlplaneauth.HumanAuthModeWorkspaceLocal)
+		controlPlaneBaseURL        = envString("OAR_CONTROL_PLANE_BASE_URL", "")
+		controlPlaneHeartbeatIntvl = envDuration("OAR_CONTROL_PLANE_HEARTBEAT_INTERVAL", heartbeat.DefaultInterval)
 		controlPlaneTokenIssuer    = envString("OAR_CONTROL_PLANE_TOKEN_ISSUER", "")
 		controlPlaneTokenAudience  = envString("OAR_CONTROL_PLANE_TOKEN_AUDIENCE", "")
 		controlPlaneWorkspaceID    = envString("OAR_CONTROL_PLANE_WORKSPACE_ID", "")
@@ -206,6 +211,7 @@ func main() {
 		controlPlaneVerifier *controlplaneauth.WorkspaceHumanVerifier
 		serviceIdentity      *controlplaneauth.WorkspaceServiceIdentity
 	)
+	needsWorkspaceServiceIdentity := strings.TrimSpace(humanAuthMode) == controlplaneauth.HumanAuthModeControlPlane || strings.TrimSpace(controlPlaneBaseURL) != ""
 	switch strings.TrimSpace(humanAuthMode) {
 	case controlplaneauth.HumanAuthModeWorkspaceLocal:
 	case controlplaneauth.HumanAuthModeControlPlane:
@@ -224,6 +230,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "invalid control-plane human auth configuration: %v\n", err)
 			os.Exit(1)
 		}
+	default:
+		fmt.Fprintf(os.Stderr, "invalid OAR_HUMAN_AUTH_MODE %q (supported: %s, %s)\n", humanAuthMode, controlplaneauth.HumanAuthModeWorkspaceLocal, controlplaneauth.HumanAuthModeControlPlane)
+		os.Exit(1)
+	}
+	if needsWorkspaceServiceIdentity {
 		servicePrivateKey, err := controlplaneauth.ParseEd25519PrivateKeyBase64(workspaceServicePrivateKey)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "invalid OAR_WORKSPACE_SERVICE_PRIVATE_KEY: %v\n", err)
@@ -237,9 +248,6 @@ func main() {
 			fmt.Fprintf(os.Stderr, "invalid workspace service identity configuration: %v\n", err)
 			os.Exit(1)
 		}
-	default:
-		fmt.Fprintf(os.Stderr, "invalid OAR_HUMAN_AUTH_MODE %q (supported: %s, %s)\n", humanAuthMode, controlplaneauth.HumanAuthModeWorkspaceLocal, controlplaneauth.HumanAuthModeControlPlane)
-		os.Exit(1)
 	}
 	primitiveStore := primitives.NewStore(workspace.DB(), blobBackendImpl, effectiveBlobRoot, primitives.WithWorkspaceQuota(workspaceQuota))
 	projectionMaintainer := server.NewProjectionMaintainer(server.ProjectionMaintainerConfig{
@@ -251,6 +259,47 @@ func main() {
 		DirtyBatchSize:    projectionBatchSize,
 		SystemActorID:     "oar-core",
 	})
+	var heartbeatReporter *heartbeat.Reporter
+	if strings.TrimSpace(controlPlaneBaseURL) != "" {
+		heartbeatReporter, err = heartbeat.NewReporter(heartbeat.ReporterConfig{
+			BaseURL:     controlPlaneBaseURL,
+			WorkspaceID: controlPlaneWorkspaceID,
+			Interval:    controlPlaneHeartbeatIntvl,
+			Version:     coreVersion,
+			Build:       detectBuildString(coreInstanceID, coreVersion),
+			Identity:    serviceIdentity,
+			ReadinessSummary: func(ctx context.Context) map[string]any {
+				if err := workspace.Ping(ctx); err != nil {
+					return map[string]any{
+						"ok": false,
+						"error": map[string]any{
+							"code":    "storage_unavailable",
+							"message": "storage health check failed",
+						},
+					}
+				}
+				return map[string]any{"ok": true}
+			},
+			ProjectionMaintenanceSummary: func(ctx context.Context, now time.Time) map[string]any {
+				return toStringAnyMap(projectionMaintainer.Snapshot(ctx, now))
+			},
+			UsageSummary: func(ctx context.Context) (map[string]any, error) {
+				summary, err := primitiveStore.GetWorkspaceUsageSummary(ctx)
+				if err != nil {
+					return nil, err
+				}
+				return toStringAnyMap(summary), nil
+			},
+			LastSuccessfulBackupAt: func(ctx context.Context) (*string, error) {
+				_ = ctx
+				return heartbeat.DiscoverLastSuccessfulBackupAt(workspace.Layout().RootDir)
+			},
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "invalid heartbeat reporter configuration: %v\n", err)
+			os.Exit(1)
+		}
+	}
 	handler := server.NewHandler(
 		contract.Version,
 		server.WithHealthCheck(workspace.Ping),
@@ -300,9 +349,15 @@ func main() {
 	if projectionMode == server.ProjectionModeBackground {
 		go projectionMaintainer.Run(maintenanceCtx)
 	}
+	if heartbeatReporter != nil {
+		go heartbeatReporter.Run(maintenanceCtx)
+	}
 	go func() {
 		fmt.Printf("oar-core listening on http://%s\n", addr)
 		fmt.Printf("  projection mode: %s\n", projectionMode)
+		if heartbeatReporter != nil {
+			fmt.Printf("  control-plane heartbeat: %s (workspace_id=%s, interval=%s)\n", controlPlaneBaseURL, controlPlaneWorkspaceID, controlPlaneHeartbeatIntvl)
+		}
 		if enableDevActorMode {
 			fmt.Println("  WARNING: dev actor mode enabled (anonymous workspace reads and legacy actor flows)")
 		}
@@ -400,4 +455,54 @@ func envBool(name string, fallback bool) bool {
 		os.Exit(1)
 	}
 	return parsed
+}
+
+func toStringAnyMap(value any) map[string]any {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return map[string]any{}
+	}
+	out := map[string]any{}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return map[string]any{}
+	}
+	return out
+}
+
+func detectBuildString(coreInstanceID string, coreVersion string) string {
+	parts := make([]string, 0, 3)
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if version := strings.TrimSpace(info.Main.Version); version != "" && version != "(devel)" {
+			parts = append(parts, version)
+		}
+		revision := ""
+		modified := false
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				revision = strings.TrimSpace(setting.Value)
+			case "vcs.modified":
+				modified = strings.TrimSpace(setting.Value) == "true"
+			}
+		}
+		if len(revision) > 12 {
+			revision = revision[:12]
+		}
+		if revision != "" {
+			parts = append(parts, revision)
+		}
+		if modified {
+			parts = append(parts, "dirty")
+		}
+	}
+	if len(parts) > 0 {
+		return strings.Join(parts, "+")
+	}
+	if strings.TrimSpace(coreInstanceID) != "" {
+		return strings.TrimSpace(coreInstanceID)
+	}
+	if strings.TrimSpace(coreVersion) != "" {
+		return strings.TrimSpace(coreVersion)
+	}
+	return "oar-core"
 }

@@ -161,12 +161,23 @@ scripts/hosted/rebuild-derived.sh --actor-id operator_ws_example
 
 ## Heartbeats
 
-After the heartbeat reporter ticket is complete, the workspace core should update control-plane status automatically. Verify in the control plane:
+Packed-host workspace env files should include:
+
+- `OAR_CONTROL_PLANE_BASE_URL`
+- `OAR_CONTROL_PLANE_HEARTBEAT_INTERVAL`
+- `OAR_CONTROL_PLANE_WORKSPACE_ID`
+- `OAR_WORKSPACE_SERVICE_ID`
+- `OAR_WORKSPACE_SERVICE_PRIVATE_KEY`
+
+When those settings are present, `oar-core` sends background signed heartbeats
+directly to the control plane and retries on failures without taking the
+workspace down. Verify in the control plane:
 
 - `last_heartbeat_at`
 - health summary
 - projection maintenance summary
 - usage summary
+- `last_successful_backup_at` when standard hosted backup manifests are present
 
 ## Backups
 
