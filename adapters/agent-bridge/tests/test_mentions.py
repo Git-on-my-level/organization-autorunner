@@ -9,3 +9,10 @@ def test_extract_mentions_dedupes_and_preserves_order():
 def test_extract_mentions_ignores_email_like_patterns():
     text = "email a@b.com but tag @real_agent"
     assert extract_mentions(text) == ["real_agent"]
+
+
+def test_extract_mentions_supports_max_length_handle():
+    handle = "a" + ("b" * 63)
+    text = f"ping @{handle}"
+    assert len(handle) == 64
+    assert extract_mentions(text) == [handle]
