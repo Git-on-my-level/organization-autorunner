@@ -75,13 +75,16 @@ See [`../deploy/env/packed-host/web-ui.env.example`](../deploy/env/packed-host/w
 ## Workspace core configuration
 
 Each workspace has its own env file: `/etc/oar/workspaces/<workspace-id>.env`
+and one packed-host instance root at
+`/var/lib/oar/workspaces/<workspace-id>/` with `workspace/`, `config/`,
+`metadata/`, and `backups/`.
 
 Required settings:
 
 | Variable | Purpose |
 |---|---|
 | `OAR_LISTEN_ADDR` | Loopback bind address for this workspace |
-| `OAR_WORKSPACE_ROOT` | Persistent state directory for this workspace |
+| `OAR_WORKSPACE_ROOT` | Runtime workspace directory, typically `/var/lib/oar/workspaces/<workspace-id>/workspace` |
 | `OAR_SCHEMA_PATH` | Path to shared schema |
 | `OAR_CORE_INSTANCE_ID` | Unique identifier for this workspace |
 | `OAR_HUMAN_AUTH_MODE` | Set to `control_plane` for SaaS |

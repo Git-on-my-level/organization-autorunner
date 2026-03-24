@@ -293,6 +293,9 @@ func (s *Service) workspaceCoreOrigin(workspace Workspace) string {
 	if strings.TrimSpace(workspace.CoreOrigin) != "" {
 		return normalizeWorkspaceOrigin(workspace.CoreOrigin)
 	}
+	if listenPort := s.workspacePlacement(workspace).ListenPort; listenPort > 0 {
+		return fmt.Sprintf("http://127.0.0.1:%d", listenPort)
+	}
 	return normalizeWorkspaceOrigin(s.workspacePublicOrigin(workspace))
 }
 

@@ -141,10 +141,27 @@ The shared web UI is the only public origin. Workspace cores and the control pla
 
 ## Provision one workspace
 
-Use the helper script to create the workspace root and env file:
+Use the installed helper to create the packed-host instance root and runtime env
+file. The instance root is the deployment root used by backup and restore, with
+`workspace/`, `config/`, `metadata/`, and `backups/` under
+`/var/lib/oar/workspaces/<workspace-id>`:
 
 ```bash
-sudo scripts/hosted/provision-packed-workspace.sh   --workspace-id ws_example   --workspace-slug example   --workspace-root /var/lib/oar/workspaces/ws_example   --env-file /etc/oar/workspaces/ws_example.env   --listen-port 18001   --public-origin https://app.example.com   --control-plane-workspace-id ws_example   --control-plane-base-url http://127.0.0.1:8100   --control-plane-token-issuer https://app.example.com   --control-plane-token-audience oar-core   --control-plane-token-public-key REPLACE_ME   --workspace-service-id svc_ws_example   --workspace-service-private-key REPLACE_ME   --enable
+sudo /opt/oar/scripts/hosted/provision-packed-workspace.sh \
+  --workspace-id ws_example \
+  --workspace-slug example \
+  --workspace-root /var/lib/oar/workspaces/ws_example \
+  --env-file /etc/oar/workspaces/ws_example.env \
+  --listen-port 18001 \
+  --public-origin https://app.example.com \
+  --control-plane-workspace-id ws_example \
+  --control-plane-base-url http://127.0.0.1:8100 \
+  --control-plane-token-issuer https://app.example.com \
+  --control-plane-token-audience oar-core \
+  --control-plane-token-public-key REPLACE_ME \
+  --workspace-service-id svc_ws_example \
+  --workspace-service-private-key REPLACE_ME \
+  --enable
 ```
 
 Then verify:
@@ -152,6 +169,7 @@ Then verify:
 ```bash
 sudo systemctl status oar-core@ws_example
 curl -fsS http://127.0.0.1:18001/readyz
+sudo find /var/lib/oar/workspaces/ws_example -maxdepth 2 -type d | sort
 ```
 
 Projection maintenance defaults to `OAR_PROJECTION_MODE=background`. If a
@@ -196,7 +214,9 @@ Minimum production expectation:
 - at least one recent verified restore per release train
 
 Filesystem blobs:
-- back up SQLite + the hosted bundle's copied local blob store + metadata
+- back up the packed-host instance root, which includes SQLite under
+  `workspace/`, copied local blob content, config metadata, and hosted backup
+  receipts
 
 S3-compatible blobs:
 - back up SQLite + the hosted manifest/receipt material and keep operator
@@ -213,6 +233,9 @@ A deployment is not production-ready until a restore drill has been run on the s
 - restore verification result
 - active blob backend and effective blob location
 - operator date/time
+
+The hosted backup/restore helpers operate on the same packed-host instance root
+created above, for example `/var/lib/oar/workspaces/ws_example`.
 
 ## When to add a second host
 

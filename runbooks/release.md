@@ -52,6 +52,7 @@ For local validation or pre-release checks outside CI:
 make saas-smoke
 make saas-e2e
 make saas-load-smoke
+make packed-host-smoke
 ```
 
 ### Environment variables for load testing

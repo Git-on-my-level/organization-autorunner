@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -243,6 +244,9 @@ func TestControlPlaneWorkspaceProvisioningProducesReachableDeploymentAndRoutingM
 	if listenPort <= 0 {
 		t.Fatalf("expected positive listen_port in workspace response, got %d", listenPort)
 	}
+	if got := asString(t, workspace["core_origin"]); got != fmt.Sprintf("http://127.0.0.1:%d", listenPort) {
+		t.Fatalf("expected core_origin %q, got %q", fmt.Sprintf("http://127.0.0.1:%d", listenPort), got)
+	}
 	deploymentRoot := asString(t, workspace["deployment_root"])
 	if deploymentRoot == "" {
 		t.Fatal("expected deployment_root in workspace response")
@@ -265,6 +269,9 @@ func TestControlPlaneWorkspaceProvisioningProducesReachableDeploymentAndRoutingM
 	}
 	if got := int(asFloat(t, manifest["listen_port"])); got != listenPort {
 		t.Fatalf("expected routing manifest listen_port %d, got %d", listenPort, got)
+	}
+	if got := asString(t, manifest["core_origin"]); got != fmt.Sprintf("http://127.0.0.1:%d", listenPort) {
+		t.Fatalf("expected routing manifest core_origin %q, got %q", fmt.Sprintf("http://127.0.0.1:%d", listenPort), got)
 	}
 	if got := asString(t, manifest["deployment_root"]); got != deploymentRoot {
 		t.Fatalf("expected routing manifest deployment_root %q, got %q", deploymentRoot, got)

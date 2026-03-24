@@ -7,12 +7,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 source "${SCRIPT_DIR}/hosted/common.sh"
 
 ARTIFACT_DIR="${PACKED_HOST_SMOKE_ARTIFACT_DIR:-$REPO_ROOT/.tmp/packed-host-smoke}"
-CONTROL_PLANE_PORT="${CONTROL_PLANE_PORT:-18200}"
+CONTROL_PLANE_PORT="${CONTROL_PLANE_PORT:-$(pick_loopback_port)}"
 CONTROL_PLANE_HOST="127.0.0.1"
 CONTROL_PLANE_BASE_URL="http://${CONTROL_PLANE_HOST}:${CONTROL_PLANE_PORT}"
-UI_PORT="${UI_PORT:-14200}"
+UI_PORT="${UI_PORT:-$(pick_loopback_port)}"
 UI_HOST="127.0.0.1"
-UI_BASE_URL="http://${UI_HOST}:${UI_PORT}"
+UI_BASE_URL="http://localhost:${UI_PORT}"
 SMOKE_TIMEOUT_SECONDS="${PACKED_HOST_SMOKE_TIMEOUT_SECONDS:-180}"
 
 mkdir -p "$ARTIFACT_DIR"
@@ -21,6 +21,7 @@ CONTROL_PLANE_LOG="$TMP_DIR/control-plane.log"
 WORKSPACE1_LOG="$TMP_DIR/workspace1.log"
 WORKSPACE2_LOG="$TMP_DIR/workspace2.log"
 UI_LOG="$TMP_DIR/web-ui.log"
+UI_COOKIE_JAR="$TMP_DIR/ui-cookies.txt"
 CONTROL_PLANE_ROOT="$TMP_DIR/control-plane-root"
 WORKSPACE1_ROOT="$TMP_DIR/workspace1-root"
 WORKSPACE2_ROOT="$TMP_DIR/workspace2-root"
@@ -176,7 +177,7 @@ mkdir -p "$CONTROL_PLANE_ROOT"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_ISSUER="$CONTROL_PLANE_BASE_URL"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_AUDIENCE="oar-core"
   export OAR_CONTROL_PLANE_WORKSPACE_GRANT_SIGNING_KEY="$SERVICE_PRIVATE_KEY"
-  export OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE="http://127.0.0.1:%s"
+  export OAR_CONTROL_PLANE_WORKSPACE_URL_TEMPLATE="${UI_BASE_URL}/%s"
   export OAR_CONTROL_PLANE_INVITE_URL_TEMPLATE="${CONTROL_PLANE_BASE_URL}/invites/%s"
   cd "$REPO_ROOT/core"
   go run ./cmd/oar-control-plane \
@@ -268,7 +269,6 @@ echo "✓ Organization created (id=$ORG_ID)"
 echo ""
 echo "=== Step 4: Workspace 1 provisioning ==="
 
-WORKSPACE1_PORT="18201"
 WORKSPACE1_SERVICE_IDENTITY_ID="packed-host-ws1-service"
 CREATE_WS1_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
@@ -279,9 +279,10 @@ CREATE_WS1_RESPONSE=$(curl -sS \
 
 WS1_ID="$(json_get_first "$CREATE_WS1_RESPONSE" workspace.id id || true)"
 WS1_DEPLOYMENT_ROOT="$(json_get_first "$CREATE_WS1_RESPONSE" workspace.deployment_root deployment_root || true)"
+WORKSPACE1_PORT="$(json_get_first "$CREATE_WS1_RESPONSE" workspace.listen_port listen_port || true)"
 WS1_JOB_ID="$(json_get_first "$CREATE_WS1_RESPONSE" provisioning_job.id job_id || true)"
-if [[ -z "$WS1_ID" ]] || [[ -z "$WS1_DEPLOYMENT_ROOT" ]]; then
-  echo "failed to extract workspace id or deployment root" >&2
+if [[ -z "$WS1_ID" ]] || [[ -z "$WS1_DEPLOYMENT_ROOT" ]] || [[ -z "$WORKSPACE1_PORT" ]]; then
+  echo "failed to extract workspace 1 id, deployment root, or listen port" >&2
   echo "response: $CREATE_WS1_RESPONSE" >&2
   exit 1
 fi
@@ -298,7 +299,6 @@ echo "✓ Workspace 1 provisioned (id=$WS1_ID, slug=packed-ws-alpha)"
 echo ""
 echo "=== Step 5: Workspace 2 provisioning ==="
 
-WORKSPACE2_PORT="18202"
 WORKSPACE2_SERVICE_IDENTITY_ID="packed-host-ws2-service"
 CREATE_WS2_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
@@ -309,8 +309,9 @@ CREATE_WS2_RESPONSE=$(curl -sS \
 
 WS2_ID="$(json_get_first "$CREATE_WS2_RESPONSE" workspace.id id || true)"
 WS2_DEPLOYMENT_ROOT="$(json_get_first "$CREATE_WS2_RESPONSE" workspace.deployment_root deployment_root || true)"
-if [[ -z "$WS2_ID" ]] || [[ -z "$WS2_DEPLOYMENT_ROOT" ]]; then
-  echo "failed to extract workspace id or deployment root for ws2" >&2
+WORKSPACE2_PORT="$(json_get_first "$CREATE_WS2_RESPONSE" workspace.listen_port listen_port || true)"
+if [[ -z "$WS2_ID" ]] || [[ -z "$WS2_DEPLOYMENT_ROOT" ]] || [[ -z "$WORKSPACE2_PORT" ]]; then
+  echo "failed to extract workspace 2 id, deployment root, or listen port" >&2
   echo "response: $CREATE_WS2_RESPONSE" >&2
   exit 1
 fi
@@ -393,23 +394,29 @@ unset OAR_WORKSPACE_SERVICE_PRIVATE_KEY
 echo "✓ Both workspace cores started and healthy"
 
 echo ""
-echo "=== Step 7: Updating workspace core_origin for UI routing ==="
+echo "=== Step 7: Verifying control-plane routing metadata ==="
 
-UPDATE_WS1_RESPONSE=$(curl -sS \
-  -H "content-type: application/json" \
+WS1_WORKSPACE_RESPONSE=$(curl -sS \
   -H "authorization: Bearer $OWNER_TOKEN" \
-  -X PATCH \
-  -d "{\"core_origin\":\"$WS1_BASE_URL\"}" \
   "$CONTROL_PLANE_BASE_URL/workspaces/$WS1_ID")
-
-UPDATE_WS2_RESPONSE=$(curl -sS \
-  -H "content-type: application/json" \
+WS2_WORKSPACE_RESPONSE=$(curl -sS \
   -H "authorization: Bearer $OWNER_TOKEN" \
-  -X PATCH \
-  -d "{\"core_origin\":\"$WS2_BASE_URL\"}" \
   "$CONTROL_PLANE_BASE_URL/workspaces/$WS2_ID")
 
-echo "✓ Workspace core origins configured for UI routing"
+WS1_CORE_ORIGIN="$(json_get_first "$WS1_WORKSPACE_RESPONSE" workspace.core_origin core_origin || true)"
+WS2_CORE_ORIGIN="$(json_get_first "$WS2_WORKSPACE_RESPONSE" workspace.core_origin core_origin || true)"
+if [[ "$WS1_CORE_ORIGIN" != "$WS1_BASE_URL" ]]; then
+  echo "workspace 1 core_origin mismatch: expected $WS1_BASE_URL, got $WS1_CORE_ORIGIN" >&2
+  echo "response: $WS1_WORKSPACE_RESPONSE" >&2
+  exit 1
+fi
+if [[ "$WS2_CORE_ORIGIN" != "$WS2_BASE_URL" ]]; then
+  echo "workspace 2 core_origin mismatch: expected $WS2_BASE_URL, got $WS2_CORE_ORIGIN" >&2
+  echo "response: $WS2_WORKSPACE_RESPONSE" >&2
+  exit 1
+fi
+
+echo "✓ Control-plane routing metadata matches workspace listeners"
 
 echo ""
 echo "=== Step 8: Starting shared web UI ==="
@@ -431,7 +438,57 @@ fi
 echo "✓ Shared web UI started at $UI_BASE_URL"
 
 echo ""
-echo "=== Step 9: Workspace launch and session exchange ==="
+echo "=== Step 8b: Shared web UI login ==="
+
+START_UI_LOGIN_RESPONSE=$(curl -sS \
+  -c "$UI_COOKIE_JAR" \
+  -b "$UI_COOKIE_JAR" \
+  -H "content-type: application/json" \
+  -H "origin: $UI_BASE_URL" \
+  -X POST \
+  -d "{\"action\":\"login-start\",\"email\":\"$MOCK_EMAIL\"}" \
+  "$UI_BASE_URL/auth")
+
+UI_LOGIN_SESSION_ID="$(json_get_first "$START_UI_LOGIN_RESPONSE" session_id id || true)"
+UI_LOGIN_OPTIONS="$(json_get "$START_UI_LOGIN_RESPONSE" public_key_options || true)"
+UI_LOGIN_CHALLENGE="$(json_get "$UI_LOGIN_OPTIONS" challenge || true)"
+if [[ -z "$UI_LOGIN_SESSION_ID" ]] || [[ -z "$UI_LOGIN_CHALLENGE" ]]; then
+  echo "failed to start UI login" >&2
+  echo "response: $START_UI_LOGIN_RESPONSE" >&2
+  exit 1
+fi
+
+UI_LOGIN_CLIENT_DATA=$(python3 -c "
+import json, base64
+data = {'challenge': '$UI_LOGIN_CHALLENGE', 'origin': '$UI_BASE_URL', 'type': 'webauthn.get'}
+print(base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('='))
+")
+
+FINISH_UI_LOGIN_RESPONSE=$(curl -sS \
+  -c "$UI_COOKIE_JAR" \
+  -b "$UI_COOKIE_JAR" \
+  -H "content-type: application/json" \
+  -H "origin: $UI_BASE_URL" \
+  -X POST \
+  -d "{\"action\":\"login-finish\",\"session_id\":\"$UI_LOGIN_SESSION_ID\",\"credential\":{\"id\":\"$MOCK_CREDENTIAL_ID\",\"rawId\":\"$MOCK_CREDENTIAL_ID\",\"type\":\"public-key\",\"response\":{\"clientDataJSON\":\"$UI_LOGIN_CLIENT_DATA\"}}}" \
+  "$UI_BASE_URL/auth")
+
+UI_CONTROL_TOKEN="$(json_get_first "$FINISH_UI_LOGIN_RESPONSE" session.access_token access_token || true)"
+if [[ -z "$UI_CONTROL_TOKEN" ]]; then
+  echo "failed to finish UI login" >&2
+  echo "response: $FINISH_UI_LOGIN_RESPONSE" >&2
+  exit 1
+fi
+
+UI_DASHBOARD_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' \
+  -b "$UI_COOKIE_JAR" \
+  "$UI_BASE_URL/dashboard" || true)
+assert_http_status "200" "$UI_DASHBOARD_STATUS" "shared web UI dashboard"
+
+echo "✓ Shared web UI login succeeded"
+
+echo ""
+echo "=== Step 9: Direct workspace launch and session exchange ==="
 
 LAUNCH_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
@@ -504,7 +561,55 @@ THREAD_READ_STATUS=$(curl -sS -o /dev/null -w '%{http_code}' \
   "$WS1_BASE_URL/threads/$THREAD_ID" || true)
 assert_http_status "200" "$THREAD_READ_STATUS" "authenticated thread read"
 
+ME_RESPONSE=$(curl -sS \
+  -H "authorization: Bearer $WORKSPACE_GRANT_TOKEN" \
+  "$WS1_BASE_URL/agents/me")
+
+OWNER_ACTOR_ID="$(json_get_first "$ME_RESPONSE" agent.actor_id actor_id || true)"
+if [[ -z "$OWNER_ACTOR_ID" ]]; then
+  echo "failed to extract actor id from /agents/me" >&2
+  echo "response: $ME_RESPONSE" >&2
+  exit 1
+fi
+
 echo "✓ Workspace read/write works (thread_id=$THREAD_ID)"
+
+echo ""
+echo "=== Step 10a: Shared web UI launch ==="
+
+UI_LAUNCH_RESPONSE=$(curl -sS \
+  -c "$UI_COOKIE_JAR" \
+  -b "$UI_COOKIE_JAR" \
+  -H "content-type: application/json" \
+  -H "origin: $UI_BASE_URL" \
+  -X POST \
+  -d "{\"workspace_id\":\"$WS1_ID\",\"return_path\":\"/threads/$THREAD_ID\"}" \
+  "$UI_BASE_URL/dashboard/launch")
+
+UI_REDIRECT_TO="$(json_get_first "$UI_LAUNCH_RESPONSE" redirect_to || true)"
+if [[ "$UI_REDIRECT_TO" != "/packed-ws-alpha/threads/$THREAD_ID" ]]; then
+  echo "unexpected UI launch redirect: $UI_REDIRECT_TO" >&2
+  echo "response: $UI_LAUNCH_RESPONSE" >&2
+  exit 1
+fi
+
+UI_THREAD_PAGE_STATUS=$(curl -sS -o "$TMP_DIR/ui-thread-page.html" -w '%{http_code}' \
+  -b "$UI_COOKIE_JAR" \
+  "$UI_BASE_URL$UI_REDIRECT_TO" || true)
+assert_http_status "200" "$UI_THREAD_PAGE_STATUS" "shared web UI thread page"
+
+UI_PROXY_THREAD_STATUS=$(curl -sS -o "$TMP_DIR/ui-thread.json" -w '%{http_code}' \
+  -b "$UI_COOKIE_JAR" \
+  -H "x-oar-workspace-slug: packed-ws-alpha" \
+  "$UI_BASE_URL/threads/$THREAD_ID" || true)
+assert_http_status "200" "$UI_PROXY_THREAD_STATUS" "shared web UI proxied thread read"
+grep -F "\"$THREAD_ID\"" "$TMP_DIR/ui-thread.json" >/dev/null || {
+  echo "shared web UI proxied thread response missing thread id $THREAD_ID" >&2
+  cat "$TMP_DIR/ui-thread.json" >&2 || true
+  exit 1
+}
+
+echo "✓ Shared web UI launch and proxied thread read succeeded"
 
 echo ""
 echo "=== Step 10b: Create artifact for backup verification ==="
@@ -513,10 +618,10 @@ ARTIFACT_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
   -H "authorization: Bearer $WORKSPACE_GRANT_TOKEN" \
   -X POST \
-  -d "{\"actor_id\":\"$OWNER_ACTOR_ID\",\"artifact\":{\"kind\":\"evidence\",\"refs\[]},\"content\":\"packed-host-smoke-artifact-content\",\"content_type\":\"text/plain\"}" \
+  -d "{\"actor_id\":\"$OWNER_ACTOR_ID\",\"artifact\":{\"kind\":\"evidence\",\"refs\":[]},\"content\":\"packed-host-smoke-artifact-content\",\"content_type\":\"text/plain\"}" \
   "$WS1_BASE_URL/artifacts")
 
-ARTIFACT_ID="$(json_get_first "$ARTIFACT_RESPONSE" artifact_id id || true)"
+ARTIFACT_ID="$(json_get_first "$ARTIFACT_RESPONSE" artifact.id artifact_id id || true)"
 if [[ -z "$ARTIFACT_ID" ]]; then
   echo "failed to create artifact" >&2
   echo "response: $ARTIFACT_RESPONSE" >&2
@@ -623,13 +728,29 @@ fi
 
 echo "✓ Backup created (artifacts=$BACKUP_ARTIFACT_COUNT)"
 
+RESTORE_DRILL_RESPONSE=$(curl -sS \
+  -H "content-type: application/json" \
+  -H "authorization: Bearer $OWNER_TOKEN" \
+  -X POST \
+  -d "{\"backup_dir\":\"$BACKUP_DIR\"}" \
+  "$CONTROL_PLANE_BASE_URL/workspaces/$WS1_ID/restore-drills")
+
+RESTORE_DRILL_JOB_ID="$(json_get_first "$RESTORE_DRILL_RESPONSE" provisioning_job.id job_id || true)"
+RESTORE_DRILL_JOB_STATUS="$(json_get_first "$RESTORE_DRILL_RESPONSE" provisioning_job.status status || true)"
+if [[ -z "$RESTORE_DRILL_JOB_ID" ]] || [[ "$RESTORE_DRILL_JOB_STATUS" != "succeeded" ]]; then
+  echo "restore drill did not succeed" >&2
+  echo "response: $RESTORE_DRILL_RESPONSE" >&2
+  exit 1
+fi
+
+echo "✓ Restore drill recorded (job_id=$RESTORE_DRILL_JOB_ID)"
+
 RESTORED_ROOT="${TMP_DIR}/restored-ws1"
-RESTORED_PORT="18211"
 RESTORED_SERVICE_IDENTITY_ID="packed-host-restored-service"
 
 KEYS_RESTORED=$(generate_ed25519_key_base64)
 RESTORED_PUBLIC_KEY=$(echo "$KEYS_RESTORED" | sed -n '1p')
-RESTORED_PRIVATE_KEY=$(echo "$KEYS_RESTORED" | sed -n '2p")
+RESTORED_PRIVATE_KEY=$(echo "$KEYS_RESTORED" | sed -n '2p')
 
 CREATE_RESTORED_WS_RESPONSE=$(curl -sS \
   -H "content-type: application/json" \
@@ -640,9 +761,10 @@ CREATE_RESTORED_WS_RESPONSE=$(curl -sS \
 
 RESTORED_WS_ID="$(json_get_first "$CREATE_RESTORED_WS_RESPONSE" workspace.id id || true)"
 RESTORED_DEPLOYMENT_ROOT="$(json_get_first "$CREATE_RESTORED_WS_RESPONSE" workspace.deployment_root deployment_root || true)"
+RESTORED_PORT="$(json_get_first "$CREATE_RESTORED_WS_RESPONSE" workspace.listen_port listen_port || true)"
 
-if [[ -z "$RESTORED_WS_ID" ]] || [[ -z "$RESTORED_DEPLOYMENT_ROOT" ]]; then
-  echo "failed to create restored workspace" >&2
+if [[ -z "$RESTORED_WS_ID" ]] || [[ -z "$RESTORED_DEPLOYMENT_ROOT" ]] || [[ -z "$RESTORED_PORT" ]]; then
+  echo "failed to extract restored workspace id, deployment root, or listen port" >&2
   echo "response: $CREATE_RESTORED_WS_RESPONSE" >&2
   exit 1
 fi
@@ -671,7 +793,7 @@ RESTORED_LOG="$TMP_DIR/restored.log"
 export OAR_HUMAN_AUTH_MODE="control_plane"
 export OAR_CONTROL_PLANE_TOKEN_ISSUER="$CONTROL_PLANE_BASE_URL"
 export OAR_CONTROL_PLANE_TOKEN_AUDIENCE="oar-core"
-export OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY="$RESTORED_PUBLIC_KEY"
+export OAR_CONTROL_PLANE_TOKEN_PUBLIC_KEY="$SERVICE_PUBLIC_KEY"
 export OAR_CONTROL_PLANE_WORKSPACE_ID="$RESTORED_WS_ID"
 export OAR_WORKSPACE_SERVICE_ID="$RESTORED_SERVICE_IDENTITY_ID"
 export OAR_WORKSPACE_SERVICE_PRIVATE_KEY="$RESTORED_PRIVATE_KEY"
@@ -792,9 +914,11 @@ restored_workspace_id=${RESTORED_WS_ID}
 restored_workspace_base_url=${RESTORED_BASE_URL}
 thread_id=${THREAD_ID}
 owner_email=${MOCK_EMAIL}
+ui_launch_redirect_to=${UI_REDIRECT_TO}
 backup_artifact_count=${BACKUP_ARTIFACT_COUNT}
+restore_drill_job_id=${RESTORE_DRILL_JOB_ID}
 inventory_workspace_count=${VERIFY_WS_COUNT}
-coverage=control-plane,web-ui,multi-workspace,account,organization,workspace-provisioning,workspace-launch,session-exchange,workspace-rw,heartbeat,backup,restore,dynamic-workspace-routing
+coverage=control-plane,web-ui,shared-ui-login,shared-ui-launch,shared-ui-proxied-read,multi-workspace,account,organization,workspace-provisioning,workspace-launch,session-exchange,workspace-rw,heartbeat,backup,restore,restore-drill,dynamic-workspace-routing
 artifacts_dir=${TMP_DIR}
 SUMMARY
 

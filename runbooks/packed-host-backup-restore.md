@@ -4,6 +4,10 @@ This runbook covers backup and restore procedures for the packed-host SaaS shape
 
 For hosted-v1 single-workspace operations, see [`../deploy/managed-hosting.md`](../deploy/managed-hosting.md).
 
+Packed-host backup and restore operate on the workspace instance root created by
+`provision-packed-workspace.sh`, for example `/var/lib/oar/workspaces/ws_example`.
+That root contains `workspace/`, `config/`, `metadata/`, and `backups/`.
+
 ## PMF expectations
 
 Minimum production expectations:

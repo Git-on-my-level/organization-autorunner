@@ -118,7 +118,6 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 		CreatedAt:                nowText,
 		UpdatedAt:                nowText,
 	}
-	workspace.CoreOrigin = s.workspaceCoreOrigin(workspace)
 	workspace.InstanceID = workspace.ID
 
 	placement, err := s.allocateWorkspacePlacement(ctx, workspace)
@@ -129,6 +128,7 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 	workspace.HostLabel = placement.HostLabel
 	workspace.WorkspaceRoot = placement.WorkspaceRoot
 	workspace.ListenPort = placement.ListenPort
+	workspace.CoreOrigin = s.workspaceCoreOrigin(workspace)
 	workspace.DeploymentRoot = s.workspaceDeploymentRoot(workspace)
 	workspace.RoutingManifestPath = s.workspaceRoutingManifestPath(workspace)
 	if err := ensureWorkspaceDeploymentDirs(workspace); err != nil {
