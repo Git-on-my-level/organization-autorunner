@@ -1,0 +1,190 @@
+# Linux packed-host deployment
+
+This runbook is for the recommended PMF-friendly SaaS shape:
+
+- one shared control plane
+- one shared web UI
+- many isolated workspace cores
+- one Linux host first
+
+It assumes the implementation tickets in this pack are complete.
+
+## Target host layout
+
+```text
+/opt/oar/
+  bin/
+    oar-core
+    oar-control-plane
+  share/
+    oar-schema.yaml
+    meta/commands.json
+  web-ui/
+    build/
+  scripts/
+    hosted/
+
+/etc/oar/
+  control-plane.env
+  web-ui.env
+  workspaces/
+    ws_123.env
+    ws_456.env
+
+/var/lib/oar/
+  control-plane/
+  workspaces/
+    ws_123/
+    ws_456/
+```
+
+## Services
+
+- `oar-control-plane.service`
+- `oar-web-ui.service`
+- `oar-core@<workspace-id>.service`
+- `caddy.service`
+
+All OAR services bind to loopback. Caddy is the only public listener.
+
+## Recommended first-production defaults
+
+- OS: Ubuntu LTS
+- Reverse proxy: Caddy
+- Workspace DBs: local SQLite with WAL
+- Blob backend: `filesystem` first
+- Public hostname: one shared hostname, e.g. `app.example.com`
+- Workspace paths: `/<workspace-slug>/...`
+- Control-plane UI paths: `/dashboard`, `/auth`, `/invites`, `/control/...`
+
+Because workspace slugs live at the top level, the control plane must reserve shipped UI route names.
+
+## Install binaries and assets
+
+Build from the repo and install to `/opt/oar`:
+
+```bash
+sudo mkdir -p /opt/oar/bin /opt/oar/share/meta /opt/oar/web-ui /opt/oar/scripts
+sudo cp core/.bin/oar-core /opt/oar/bin/oar-core
+sudo cp core/.bin/oar-control-plane /opt/oar/bin/oar-control-plane
+sudo cp contracts/oar-schema.yaml /opt/oar/share/oar-schema.yaml
+sudo cp contracts/gen/meta/commands.json /opt/oar/share/meta/commands.json
+sudo rsync -a web-ui/build/ /opt/oar/web-ui/build/
+sudo rsync -a scripts/hosted/ /opt/oar/scripts/hosted/
+```
+
+Adjust to your own packaging process if you build OS packages or use release artifacts.
+
+## Base directories
+
+```bash
+sudo mkdir -p /etc/oar/workspaces
+sudo mkdir -p /var/lib/oar/control-plane
+sudo mkdir -p /var/lib/oar/workspaces
+sudo chown -R oar:oar /etc/oar /var/lib/oar /opt/oar
+```
+
+## Control plane env
+
+Copy `deploy/env/packed-host/control-plane.env.example` to `/etc/oar/control-plane.env` and fill in:
+
+- WebAuthn origin and RP ID
+- workspace URL template
+- workspace grant signing key
+- local packed-host placement defaults
+
+## Web UI env
+
+Copy `deploy/env/packed-host/web-ui.env.example` to `/etc/oar/web-ui.env` and fill in:
+
+- `ORIGIN=https://app.example.com`
+- `OAR_CONTROL_BASE_URL=http://127.0.0.1:8100`
+
+Do not rely on static `OAR_WORKSPACES` in SaaS mode after the dynamic-routing ticket lands. Keep that variable for self-host or fallback-only use.
+
+## Systemd units
+
+Install the shipped units:
+
+```bash
+sudo cp deploy/systemd/oar-control-plane.service /etc/systemd/system/
+sudo cp deploy/systemd/oar-web-ui.service /etc/systemd/system/
+sudo cp deploy/systemd/oar-core@.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Start shared services:
+
+```bash
+sudo systemctl enable --now oar-control-plane
+sudo systemctl enable --now oar-web-ui
+```
+
+## Caddy
+
+Install the example config:
+
+```bash
+sudo cp deploy/caddy/Caddyfile.packed-host.example /etc/caddy/Caddyfile
+sudo systemctl reload caddy
+```
+
+The shared web UI is the only public origin. Workspace cores and the control plane stay on loopback.
+
+## Provision one workspace
+
+Use the helper script to create the workspace root and env file:
+
+```bash
+sudo scripts/hosted/provision-packed-workspace.sh   --workspace-id ws_example   --workspace-slug example   --workspace-root /var/lib/oar/workspaces/ws_example   --env-file /etc/oar/workspaces/ws_example.env   --listen-port 18001   --public-origin https://app.example.com   --control-plane-workspace-id ws_example   --control-plane-base-url http://127.0.0.1:8100   --control-plane-token-issuer https://app.example.com   --control-plane-token-audience oar-core   --control-plane-token-public-key REPLACE_ME   --workspace-service-id svc_ws_example   --workspace-service-private-key REPLACE_ME   --enable
+```
+
+Then verify:
+
+```bash
+sudo systemctl status oar-core@ws_example
+curl -fsS http://127.0.0.1:18001/readyz
+```
+
+## Heartbeats
+
+After the heartbeat reporter ticket is complete, the workspace core should update control-plane status automatically. Verify in the control plane:
+
+- `last_heartbeat_at`
+- health summary
+- projection maintenance summary
+- usage summary
+
+## Backups
+
+Minimum production expectation:
+
+- nightly workspace backups
+- regular restore drills
+- at least one recent verified restore per release train
+
+Filesystem blobs:
+- back up SQLite + blob files + metadata
+
+S3-compatible blobs:
+- back up SQLite + manifest + bucket/prefix state according to the backend-aware backup ticket
+
+## Restore drills
+
+A deployment is not production-ready until a restore drill has been run on the same host shape. Use the hosted restore scripts and record:
+
+- restore source
+- restore destination
+- restore verification result
+- operator date/time
+
+## When to add a second host
+
+Add a second packed host only when one of these is true:
+
+- memory pressure becomes persistent
+- backups or restore drills become too slow
+- noisy-neighbor issues become real
+- one-host blast radius is no longer acceptable
+
+Do not add orchestration layers earlier than necessary.

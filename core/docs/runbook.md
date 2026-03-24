@@ -208,8 +208,19 @@ the readiness check passes, it also includes projection maintenance status:
 
 `/ops/usage-summary` is the workspace usage envelope for control-plane polling.
 It reports blob bytes, blob object count, canonical artifact/document/revision counts,
-and the configured quota limits. Use it when you need an explicit storage/usage snapshot
-without scraping filesystem layout.
+and the configured quota limits. Those blob totals now come from the workspace DB's
+blob usage ledger rather than a live filesystem walk or object-store listing. Use it
+when you need an explicit storage/usage snapshot without scraping filesystem layout.
+
+`POST /ops/blob-usage/rebuild` is the explicit blob-ledger repair tool. Use it after
+operator blob cleanup, backend drift, or older-workspace migration issues when the
+ledger must be reconciled against canonical `artifacts.content_hash` rows plus backend
+blob existence/size checks. The response includes:
+
+- `canonical_hash_count`: unique canonical content hashes considered from the DB
+- `missing_blob_objects`: hashes still referenced canonically but missing in the backend
+- `blob_bytes` / `blob_objects`: rebuilt totals now stored in the ledger
+- `rebuilt_at`: reconciliation timestamp
 
 Background projection maintenance is driven by:
 
