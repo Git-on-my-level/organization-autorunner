@@ -1,0 +1,17 @@
+[oar]
+base_url = "http://127.0.0.1:8000"
+workspace_id = "ws_main"
+workspace_name = "Main"
+workspace_url = "http://127.0.0.1:3000"
+verify_ssl = true
+
+[auth]
+state_path = ".state/router-auth.json"
+
+[router]
+state_path = ".state/router-state.json"
+principal_cache_ttl_seconds = 60
+reconnect_delay_seconds = 3
+
+[adapter]
+kind = "none"

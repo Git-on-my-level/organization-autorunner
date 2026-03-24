@@ -8,6 +8,7 @@ Monorepo for Organization Autorunner.
 - `core/`: Go backend (`oar-core`)
 - `cli/`: Go CLI (`oar`)
 - `web-ui/`: SvelteKit frontend (`oar-ui`)
+- `adapters/`: optional external runtime integrations vendored into the repo when needed
 
 ## Hosted v1
 
@@ -125,3 +126,9 @@ Useful `make serve` toggles:
 - `SEED_CORE=0`: skip seeding
 - `FORCE_SEED=1`: seed even when marker data is already present
 - `OAR_ENABLE_DEV_ACTOR_MODE=1`: enable development actor mode for legacy actor picker/creator UI (default: `false` / auth-first)
+
+## Adapter Integrations
+
+The vendored bridge package at `adapters/agent-bridge/` provides durable `@handle`
+wake routing plus local adapter daemons for Hermes ACP and ZeroClaw Gateway.
+Package-specific install and runtime notes live in `adapters/agent-bridge/README.md`.

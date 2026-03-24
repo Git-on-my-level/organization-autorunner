@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oar-agent-bridge"
+version = "0.1.0"
+description = "Agent-agnostic wake routing and local bridge adapters for OAR"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{name = "OpenAI", email = "support@openai.com"}]
+dependencies = [
+  "httpx>=0.27,<1.0",
+  "cryptography>=42,<47",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+oar-agent-bridge = "oar_agent_bridge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["oar_agent_bridge*"]
