@@ -33,9 +33,30 @@ const (
 )
 
 var (
-	slugPattern        = regexp.MustCompile(`^[a-z0-9]+(?:[-][a-z0-9]+)*$`)
-	emailSpacePattern  = regexp.MustCompile(`\s+`)
-	displayNamePattern = regexp.MustCompile(`\s+`)
+	slugPattern            = regexp.MustCompile(`^[a-z0-9]+(?:[-][a-z0-9]+)*$`)
+	emailSpacePattern      = regexp.MustCompile(`\s+`)
+	displayNamePattern     = regexp.MustCompile(`\s+`)
+	reservedWorkspaceSlugs = map[string]struct{}{
+		"actors":      {},
+		"api":         {},
+		"artifacts":   {},
+		"auth":        {},
+		"boards":      {},
+		"commitments": {},
+		"control":     {},
+		"dashboard":   {},
+		"docs":        {},
+		"events":      {},
+		"inbox":       {},
+		"invites":     {},
+		"login":       {},
+		"meta":        {},
+		"receipts":    {},
+		"reviews":     {},
+		"snapshots":   {},
+		"threads":     {},
+		"version":     {},
+	}
 )
 
 type Config struct {
@@ -45,6 +66,7 @@ type Config struct {
 	InviteTTL            time.Duration
 	WorkspaceURLTemplate string
 	InviteURLTemplate    string
+	PackedHosts          []PackedHost
 	WorkspaceGrantSigner *controlplaneauth.WorkspaceHumanGrantSigner
 	HostedScriptsDir     string
 	VerifyCoreBinaryPath string
@@ -61,6 +83,7 @@ type Service struct {
 	inviteTTL            time.Duration
 	workspaceURLTemplate string
 	inviteURLTemplate    string
+	packedHosts          []PackedHost
 	workspaceGrantSigner *controlplaneauth.WorkspaceHumanGrantSigner
 	hostedScriptsDir     string
 	verifyCoreBinaryPath string
@@ -129,6 +152,16 @@ func NewService(workspace *cpstorage.Workspace, config Config) *Service {
 	if verifySchemaPath == "" {
 		verifySchemaPath = detectSchemaPath()
 	}
+	packedHosts := config.PackedHosts
+	if len(packedHosts) == 0 {
+		packedHosts = []PackedHost{defaultPackedHost(workspace.Layout().RootDir)}
+	} else {
+		normalized := make([]PackedHost, 0, len(packedHosts))
+		for _, host := range packedHosts {
+			normalized = append(normalized, normalizePackedHost(host, workspace.Layout().RootDir))
+		}
+		packedHosts = normalized
+	}
 	return &Service{
 		db:                   workspace.DB(),
 		workspaceRoot:        workspace.Layout().RootDir,
@@ -138,6 +171,7 @@ func NewService(workspace *cpstorage.Workspace, config Config) *Service {
 		inviteTTL:            inviteTTL,
 		workspaceURLTemplate: workspaceURLTemplate,
 		inviteURLTemplate:    inviteURLTemplate,
+		packedHosts:          packedHosts,
 		workspaceGrantSigner: config.WorkspaceGrantSigner,
 		hostedScriptsDir:     hostedScriptsDir,
 		verifyCoreBinaryPath: verifyCoreBinaryPath,
@@ -1044,6 +1078,13 @@ func normalizeSlug(raw string) (string, error) {
 		return "", invalidRequest("slug must contain lowercase letters, numbers, and single dashes")
 	}
 	return slug, nil
+}
+
+func validateReservedWorkspaceSlug(slug string) error {
+	if _, reserved := reservedWorkspaceSlugs[slug]; reserved {
+		return invalidRequest("workspace slug is reserved for control-plane routes")
+	}
+	return nil
 }
 
 func normalizeWebAuthnInputs(rpID string, origin string) (string, string, error) {

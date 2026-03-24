@@ -19,7 +19,7 @@ func (s *Service) ListWorkspaces(ctx context.Context, identity RequestIdentity, 
 		return Page[Workspace]{}, invalidRequest("cursor is invalid")
 	}
 
-	query := `SELECT w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.public_origin, w.core_origin, w.deployment_root, w.instance_id, w.service_identity_id, w.service_identity_public_key, w.desired_state, w.desired_version, w.quota_config_ref, w.quota_envelope_ref, w.deployed_version, w.routing_manifest_path, w.last_heartbeat_at, w.heartbeat_version, w.heartbeat_build, w.heartbeat_health_summary_json, w.heartbeat_projection_maintenance_summary_json, w.heartbeat_usage_summary_json, w.last_successful_backup_at, w.created_at, w.updated_at
+	query := `SELECT w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.public_origin, w.core_origin, w.host_id, w.host_label, w.workspace_root, w.listen_port, w.deployment_root, w.instance_id, w.service_identity_id, w.service_identity_public_key, w.desired_state, w.desired_version, w.quota_config_ref, w.quota_envelope_ref, w.deployed_version, w.routing_manifest_path, w.last_heartbeat_at, w.heartbeat_version, w.heartbeat_build, w.heartbeat_health_summary_json, w.heartbeat_projection_maintenance_summary_json, w.heartbeat_usage_summary_json, w.last_successful_backup_at, w.created_at, w.updated_at
 		FROM workspaces w
 		JOIN organization_memberships m ON m.organization_id = w.organization_id
 		WHERE m.account_id = ? AND m.status = 'active'`
@@ -67,6 +67,9 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 	}
 	slug, err = normalizeSlug(slug)
 	if err != nil {
+		return Workspace{}, ProvisioningJob{}, err
+	}
+	if err := validateReservedWorkspaceSlug(slug); err != nil {
 		return Workspace{}, ProvisioningJob{}, err
 	}
 	displayName, err = normalizeDisplayName(displayName)
@@ -117,6 +120,15 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 	}
 	workspace.CoreOrigin = s.workspaceCoreOrigin(workspace)
 	workspace.InstanceID = workspace.ID
+
+	placement, err := s.allocateWorkspacePlacement(ctx, workspace)
+	if err != nil {
+		return Workspace{}, ProvisioningJob{}, err
+	}
+	workspace.HostID = placement.HostID
+	workspace.HostLabel = placement.HostLabel
+	workspace.WorkspaceRoot = placement.WorkspaceRoot
+	workspace.ListenPort = placement.ListenPort
 	workspace.DeploymentRoot = s.workspaceDeploymentRoot(workspace)
 	workspace.RoutingManifestPath = s.workspaceRoutingManifestPath(workspace)
 	if err := ensureWorkspaceDeploymentDirs(workspace); err != nil {
@@ -138,6 +150,9 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 			"display_name":     displayName,
 			"region":           region,
 			"workspace_tier":   workspaceTier,
+			"host_id":          workspace.HostID,
+			"workspace_root":   workspace.WorkspaceRoot,
+			"listen_port":      workspace.ListenPort,
 			"instance_root":    workspace.DeploymentRoot,
 			"public_origin":    workspace.PublicOrigin,
 			"core_instance_id": workspace.InstanceID,
@@ -154,13 +169,13 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 		ctx,
 		`INSERT INTO workspaces(
 			id, organization_id, slug, display_name, status, region, workspace_tier, workspace_path, base_url,
-			public_origin, core_origin, deployment_root, instance_id, service_identity_id, service_identity_public_key,
+			public_origin, core_origin, host_id, host_label, workspace_root, listen_port, deployment_root, instance_id, service_identity_id, service_identity_public_key,
 			desired_state, desired_version, quota_config_ref, quota_envelope_ref, deployed_version, routing_manifest_path,
 			last_heartbeat_at, heartbeat_version, heartbeat_build, heartbeat_health_summary_json,
 			heartbeat_projection_maintenance_summary_json, heartbeat_usage_summary_json, last_successful_backup_at,
 			routing_manifest_json, created_at, updated_at
 		)
-		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+		SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 		WHERE (SELECT COUNT(1) FROM workspaces WHERE organization_id = ?) < ?`,
 		workspace.ID,
 		workspace.OrganizationID,
@@ -173,6 +188,10 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 		workspace.BaseURL,
 		workspace.PublicOrigin,
 		workspace.CoreOrigin,
+		workspace.HostID,
+		workspace.HostLabel,
+		workspace.WorkspaceRoot,
+		workspace.ListenPort,
 		workspace.DeploymentRoot,
 		workspace.InstanceID,
 		workspace.ServiceIdentityID,
@@ -262,6 +281,9 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 		job.StderrTail = provisionResult.StderrTail
 		job.Retryable = false
 		job.Result = map[string]any{
+			"host_id":               workspace.HostID,
+			"workspace_root":        workspace.WorkspaceRoot,
+			"listen_port":           workspace.ListenPort,
 			"deployment_root":       workspace.DeploymentRoot,
 			"routing_manifest_path": workspace.RoutingManifestPath,
 			"exit_code":             provisionResult.ExitCode,
@@ -277,6 +299,9 @@ func (s *Service) CreateWorkspace(ctx context.Context, identity RequestIdentity,
 		job.StderrTail = provisionResult.StderrTail
 		job.Retryable = true
 		job.Result = map[string]any{
+			"host_id":               workspace.HostID,
+			"workspace_root":        workspace.WorkspaceRoot,
+			"listen_port":           workspace.ListenPort,
 			"deployment_root":       workspace.DeploymentRoot,
 			"routing_manifest_path": workspace.RoutingManifestPath,
 			"exit_code":             provisionResult.ExitCode,
@@ -520,6 +545,10 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 			w.base_url,
 			w.public_origin,
 			w.core_origin,
+			w.host_id,
+			w.host_label,
+			w.workspace_root,
+			w.listen_port,
 			w.deployment_root,
 			w.instance_id,
 			w.service_identity_id,
@@ -561,6 +590,10 @@ func (s *Service) ExchangeWorkspaceSession(ctx context.Context, workspaceID stri
 		&workspace.BaseURL,
 		&workspace.PublicOrigin,
 		&workspace.CoreOrigin,
+		&workspace.HostID,
+		&workspace.HostLabel,
+		&workspace.WorkspaceRoot,
+		&workspace.ListenPort,
 		&workspace.DeploymentRoot,
 		&workspace.InstanceID,
 		&workspace.ServiceIdentityID,
@@ -706,7 +739,7 @@ func (s *Service) requireWorkspaceAccess(ctx context.Context, identity RequestId
 	row := s.db.QueryRowContext(
 		ctx,
 		`SELECT
-			w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.public_origin, w.core_origin, w.deployment_root, w.instance_id, w.service_identity_id, w.service_identity_public_key, w.desired_state, w.desired_version, w.quota_config_ref, w.quota_envelope_ref, w.deployed_version, w.routing_manifest_path, w.last_heartbeat_at, w.heartbeat_version, w.heartbeat_build, w.heartbeat_health_summary_json, w.heartbeat_projection_maintenance_summary_json, w.heartbeat_usage_summary_json, w.last_successful_backup_at, w.created_at, w.updated_at,
+			w.id, w.organization_id, w.slug, w.display_name, w.status, w.region, w.workspace_tier, w.workspace_path, w.base_url, w.public_origin, w.core_origin, w.host_id, w.host_label, w.workspace_root, w.listen_port, w.deployment_root, w.instance_id, w.service_identity_id, w.service_identity_public_key, w.desired_state, w.desired_version, w.quota_config_ref, w.quota_envelope_ref, w.deployed_version, w.routing_manifest_path, w.last_heartbeat_at, w.heartbeat_version, w.heartbeat_build, w.heartbeat_health_summary_json, w.heartbeat_projection_maintenance_summary_json, w.heartbeat_usage_summary_json, w.last_successful_backup_at, w.created_at, w.updated_at,
 			m.id, m.account_id, m.role, m.status, m.created_at
 		 FROM workspaces w
 		 JOIN organization_memberships m ON m.organization_id = w.organization_id
@@ -735,6 +768,10 @@ func (s *Service) requireWorkspaceAccess(ctx context.Context, identity RequestId
 		&workspace.BaseURL,
 		&workspace.PublicOrigin,
 		&workspace.CoreOrigin,
+		&workspace.HostID,
+		&workspace.HostLabel,
+		&workspace.WorkspaceRoot,
+		&workspace.ListenPort,
 		&workspace.DeploymentRoot,
 		&workspace.InstanceID,
 		&workspace.ServiceIdentityID,

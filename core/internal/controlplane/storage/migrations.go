@@ -268,6 +268,24 @@ var migrations = []migration{
 			`CREATE UNIQUE INDEX IF NOT EXISTS idx_provisioning_jobs_workspace_backup_running ON provisioning_jobs (workspace_id) WHERE kind = 'workspace_backup' AND status = 'running';`,
 		},
 	},
+	{
+		Version: 6,
+		Statements: []string{
+			`ALTER TABLE workspaces ADD COLUMN host_id TEXT NOT NULL DEFAULT 'host_local';`,
+			`ALTER TABLE workspaces ADD COLUMN host_label TEXT NOT NULL DEFAULT 'Local packed host';`,
+			`ALTER TABLE workspaces ADD COLUMN workspace_root TEXT NOT NULL DEFAULT '';`,
+			`ALTER TABLE workspaces ADD COLUMN listen_port INTEGER NOT NULL DEFAULT 8000;`,
+			`UPDATE workspaces
+				SET host_id = CASE WHEN TRIM(host_id) = '' THEN 'host_local' ELSE host_id END,
+					host_label = CASE WHEN TRIM(host_label) = '' THEN 'Local packed host' ELSE host_label END,
+					workspace_root = CASE
+						WHEN TRIM(workspace_root) != '' THEN workspace_root
+						WHEN TRIM(deployment_root) != '' THEN deployment_root || '/workspace'
+						ELSE ''
+					END,
+					listen_port = CASE WHEN listen_port > 0 THEN listen_port ELSE 8000 END;`,
+		},
+	},
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
