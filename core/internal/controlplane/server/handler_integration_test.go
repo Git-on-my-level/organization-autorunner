@@ -473,6 +473,168 @@ func TestControlPlaneBillingCheckoutAndCustomerPortalSessions(t *testing.T) {
 	}
 }
 
+func TestControlPlaneStripeWebhookRetriesExistingUnprocessedEvent(t *testing.T) {
+	env := newControlPlaneTestEnvWithConfig(t, "", "", func(config *controlplane.Config) {
+		config.Stripe = controlplane.StripeConfig{
+			PlanPriceIDs: map[string]string{
+				"team":       "price_team_test",
+				"scale":      "price_scale_test",
+				"enterprise": "price_enterprise_test",
+			},
+		}
+	})
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner-webhook-retry@example.com", "Owner Webhook Retry", "cred-owner-webhook-retry")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "webhook-retry",
+		"display_name": "Webhook Retry",
+		"plan_tier":    "starter",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	nowText := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := env.workspace.DB().ExecContext(
+		context.Background(),
+		`INSERT INTO stripe_webhook_events(
+			event_id, event_type, verification_status, organization_id, stripe_customer_id, stripe_subscription_id,
+			received_at, processed_at, payload_json, signature_header, processing_error
+		) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+		"evt_retry_webhook",
+		"customer.subscription.updated",
+		"skipped",
+		organizationID,
+		"cus_retry_webhook",
+		"sub_retry_webhook",
+		nowText,
+		`{"id":"evt_retry_webhook"}`,
+		"",
+		"transient failure",
+	); err != nil {
+		t.Fatalf("seed webhook event: %v", err)
+	}
+
+	requestJSON(t, http.MethodPost, env.server.URL+"/billing/webhooks/stripe", map[string]any{
+		"id":   "evt_retry_webhook",
+		"type": "customer.subscription.updated",
+		"data": map[string]any{
+			"object": map[string]any{
+				"id":                   "sub_retry_webhook",
+				"customer":             "cus_retry_webhook",
+				"status":               "active",
+				"cancel_at_period_end": false,
+				"current_period_end":   float64(1775000000),
+				"metadata": map[string]any{
+					"organization_id": organizationID,
+				},
+				"items": map[string]any{
+					"data": []any{
+						map[string]any{
+							"price": map[string]any{
+								"id": "price_team_test",
+							},
+						},
+					},
+				},
+			},
+		},
+	}, http.StatusOK, nil)
+
+	billingResp := requestJSON(t, http.MethodGet, env.server.URL+"/organizations/"+organizationID+"/billing", nil, http.StatusOK, authHeaders(ownerToken))
+	billingSummary := asMap(t, billingResp["summary"])
+	if got := asString(t, billingSummary["plan_tier"]); got != "team" {
+		t.Fatalf("expected retried webhook to sync team plan, got %q", got)
+	}
+	billingAccount := asMap(t, billingSummary["billing_account"])
+	if got := asString(t, billingAccount["billing_status"]); got != "active" {
+		t.Fatalf("expected retried webhook to update billing status, got %q", got)
+	}
+
+	var (
+		processedAt     sql.NullString
+		processingError string
+	)
+	if err := env.workspace.DB().QueryRowContext(context.Background(), `SELECT processed_at, processing_error FROM stripe_webhook_events WHERE event_id = ?`, "evt_retry_webhook").Scan(&processedAt, &processingError); err != nil {
+		t.Fatalf("load webhook event: %v", err)
+	}
+	if !processedAt.Valid || strings.TrimSpace(processedAt.String) == "" {
+		t.Fatal("expected retried webhook event to be marked processed")
+	}
+	if strings.TrimSpace(processingError) != "" {
+		t.Fatalf("expected processing_error to be cleared, got %q", processingError)
+	}
+}
+
+func TestControlPlaneStripeWebhookFallsBackToSubscriptionLookup(t *testing.T) {
+	env := newControlPlaneTestEnvWithConfig(t, "", "", func(config *controlplane.Config) {
+		config.Stripe = controlplane.StripeConfig{
+			PlanPriceIDs: map[string]string{
+				"team":       "price_team_test",
+				"scale":      "price_scale_test",
+				"enterprise": "price_enterprise_test",
+			},
+		}
+	})
+	defer env.Close()
+
+	_, ownerSession := registerAccount(t, env, "owner-subscription-lookup@example.com", "Owner Subscription Lookup", "cred-owner-subscription-lookup")
+	ownerToken := asString(t, ownerSession["access_token"])
+
+	createOrganizationResp := requestJSON(t, http.MethodPost, env.server.URL+"/organizations", map[string]any{
+		"slug":         "subscription-lookup",
+		"display_name": "Subscription Lookup",
+		"plan_tier":    "starter",
+	}, http.StatusCreated, authHeaders(ownerToken))
+	organizationID := asString(t, asMap(t, createOrganizationResp["organization"])["id"])
+
+	if _, err := env.workspace.DB().ExecContext(
+		context.Background(),
+		`UPDATE organization_billing
+			SET stripe_subscription_id = ?, updated_at = ?
+		WHERE organization_id = ?`,
+		"sub_lookup_fallback",
+		time.Now().UTC().Format(time.RFC3339Nano),
+		organizationID,
+	); err != nil {
+		t.Fatalf("seed subscription lookup: %v", err)
+	}
+
+	requestJSON(t, http.MethodPost, env.server.URL+"/billing/webhooks/stripe", map[string]any{
+		"id":   "evt_subscription_lookup",
+		"type": "invoice.paid",
+		"data": map[string]any{
+			"object": map[string]any{
+				"subscription":         "sub_lookup_fallback",
+				"customer":             "cus_missing_lookup",
+				"status":               "active",
+				"cancel_at_period_end": false,
+				"current_period_end":   float64(1775000000),
+				"lines": map[string]any{
+					"data": []any{
+						map[string]any{
+							"price": map[string]any{
+								"id": "price_team_test",
+							},
+						},
+					},
+				},
+			},
+		},
+	}, http.StatusOK, nil)
+
+	billingResp := requestJSON(t, http.MethodGet, env.server.URL+"/organizations/"+organizationID+"/billing", nil, http.StatusOK, authHeaders(ownerToken))
+	billingSummary := asMap(t, billingResp["summary"])
+	if got := asString(t, billingSummary["plan_tier"]); got != "team" {
+		t.Fatalf("expected subscription lookup fallback to sync team plan, got %q", got)
+	}
+	billingAccount := asMap(t, billingSummary["billing_account"])
+	if got := asString(t, billingAccount["stripe_customer_id"]); got != "cus_missing_lookup" {
+		t.Fatalf("expected fallback webhook to update stripe customer id, got %q", got)
+	}
+}
+
 func TestControlPlaneCreateWorkspaceWritesPlanQuotaEnv(t *testing.T) {
 	env := newControlPlaneTestEnv(t, "")
 	defer env.Close()

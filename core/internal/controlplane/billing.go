@@ -355,7 +355,7 @@ func (s *Service) ReceiveStripeWebhook(ctx context.Context, payload []byte, sign
 		organizationID = resolvedOrganizationID
 	}
 
-	rowsAffected, err := s.insertStripeWebhookEvent(
+	eventState, err := s.recordStripeWebhookEvent(
 		ctx,
 		envelope.ID,
 		envelope.Type,
@@ -370,11 +370,13 @@ func (s *Service) ReceiveStripeWebhook(ctx context.Context, payload []byte, sign
 	if err != nil {
 		return StripeWebhookReceipt{}, err
 	}
-	if rowsAffected > 0 && organizationID != "" {
+	if eventState.ProcessedAt == nil && organizationID != "" {
 		if err := s.applyStripeWebhookToBilling(ctx, organizationID, stripeCustomerID, stripeSubscriptionID, stripePriceID, stripeSubscriptionStatus, currentPeriodEnd, cancelAtPeriodEnd, envelope.ID, envelope.Type, receivedAt); err != nil {
+			_ = s.markStripeWebhookFailed(ctx, envelope.ID, organizationID, err.Error())
 			return StripeWebhookReceipt{}, err
 		}
 		if err := s.markStripeWebhookProcessed(ctx, envelope.ID, organizationID); err != nil {
+			_ = s.markStripeWebhookFailed(ctx, envelope.ID, organizationID, err.Error())
 			return StripeWebhookReceipt{}, err
 		}
 	}
@@ -520,8 +522,7 @@ func (s *Service) loadOrganizationBilling(ctx context.Context, organizationID st
 }
 
 func (s *Service) resolveOrganizationIDForStripeObjects(ctx context.Context, stripeCustomerID string, stripeSubscriptionID string) (string, error) {
-	switch {
-	case strings.TrimSpace(stripeCustomerID) != "":
+	if strings.TrimSpace(stripeCustomerID) != "" {
 		var organizationID string
 		err := s.db.QueryRowContext(ctx, `SELECT organization_id FROM organization_billing WHERE stripe_customer_id = ?`, stripeCustomerID).Scan(&organizationID)
 		if err == nil {
@@ -530,7 +531,8 @@ func (s *Service) resolveOrganizationIDForStripeObjects(ctx context.Context, str
 		if err != nil && err != sql.ErrNoRows {
 			return "", internalError("failed to resolve stripe customer billing state")
 		}
-	case strings.TrimSpace(stripeSubscriptionID) != "":
+	}
+	if strings.TrimSpace(stripeSubscriptionID) != "" {
 		var organizationID string
 		err := s.db.QueryRowContext(ctx, `SELECT organization_id FROM organization_billing WHERE stripe_subscription_id = ?`, stripeSubscriptionID).Scan(&organizationID)
 		if err == nil {
@@ -543,8 +545,12 @@ func (s *Service) resolveOrganizationIDForStripeObjects(ctx context.Context, str
 	return "", nil
 }
 
-func (s *Service) insertStripeWebhookEvent(ctx context.Context, eventID string, eventType string, verificationStatus string, organizationID string, stripeCustomerID string, stripeSubscriptionID string, receivedAt string, signatureHeader string, payload []byte) (int64, error) {
-	result, err := s.db.ExecContext(
+type stripeWebhookEventState struct {
+	ProcessedAt *string
+}
+
+func (s *Service) recordStripeWebhookEvent(ctx context.Context, eventID string, eventType string, verificationStatus string, organizationID string, stripeCustomerID string, stripeSubscriptionID string, receivedAt string, signatureHeader string, payload []byte) (stripeWebhookEventState, error) {
+	if _, err := s.db.ExecContext(
 		ctx,
 		`INSERT OR IGNORE INTO stripe_webhook_events(
 			event_id, event_type, verification_status, organization_id, stripe_customer_id, stripe_subscription_id,
@@ -559,28 +565,66 @@ func (s *Service) insertStripeWebhookEvent(ctx context.Context, eventID string, 
 		receivedAt,
 		string(payload),
 		signatureHeader,
-	)
-	if err != nil {
-		return 0, internalError("failed to record stripe webhook")
+	); err != nil {
+		return stripeWebhookEventState{}, internalError("failed to record stripe webhook")
 	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return 0, internalError("failed to confirm stripe webhook recording")
+	if _, err := s.db.ExecContext(
+		ctx,
+		`UPDATE stripe_webhook_events
+			SET event_type = ?, verification_status = ?, organization_id = CASE WHEN organization_id = '' THEN ? ELSE organization_id END,
+				stripe_customer_id = CASE WHEN stripe_customer_id = '' THEN ? ELSE stripe_customer_id END,
+				stripe_subscription_id = CASE WHEN stripe_subscription_id = '' THEN ? ELSE stripe_subscription_id END,
+				signature_header = CASE WHEN processed_at IS NULL THEN ? ELSE signature_header END,
+				payload_json = CASE WHEN processed_at IS NULL THEN ? ELSE payload_json END,
+				received_at = CASE WHEN processed_at IS NULL THEN ? ELSE received_at END
+		WHERE event_id = ?`,
+		eventType,
+		verificationStatus,
+		organizationID,
+		stripeCustomerID,
+		stripeSubscriptionID,
+		signatureHeader,
+		string(payload),
+		receivedAt,
+		eventID,
+	); err != nil {
+		return stripeWebhookEventState{}, internalError("failed to refresh stripe webhook state")
 	}
-	return rowsAffected, nil
+
+	var processedAt sql.NullString
+	if err := s.db.QueryRowContext(ctx, `SELECT processed_at FROM stripe_webhook_events WHERE event_id = ?`, eventID).Scan(&processedAt); err != nil {
+		return stripeWebhookEventState{}, internalError("failed to load stripe webhook state")
+	}
+	return stripeWebhookEventState{ProcessedAt: nullableString(processedAt)}, nil
 }
 
 func (s *Service) markStripeWebhookProcessed(ctx context.Context, eventID string, organizationID string) error {
 	if _, err := s.db.ExecContext(
 		ctx,
 		`UPDATE stripe_webhook_events
-			SET processed_at = ?, organization_id = CASE WHEN organization_id = '' THEN ? ELSE organization_id END
+			SET processed_at = ?, organization_id = CASE WHEN organization_id = '' THEN ? ELSE organization_id END, processing_error = ''
 		WHERE event_id = ?`,
 		s.now().Format(time.RFC3339Nano),
 		organizationID,
 		eventID,
 	); err != nil {
 		return internalError("failed to mark stripe webhook processed")
+	}
+	return nil
+}
+
+func (s *Service) markStripeWebhookFailed(ctx context.Context, eventID string, organizationID string, processingError string) error {
+	if _, err := s.db.ExecContext(
+		ctx,
+		`UPDATE stripe_webhook_events
+			SET organization_id = CASE WHEN organization_id = '' THEN ? ELSE organization_id END,
+				processing_error = ?, processed_at = NULL
+		WHERE event_id = ?`,
+		organizationID,
+		strings.TrimSpace(processingError),
+		eventID,
+	); err != nil {
+		return internalError("failed to persist stripe webhook processing error")
 	}
 	return nil
 }
