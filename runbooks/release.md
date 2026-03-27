@@ -70,17 +70,31 @@ make saas-load-smoke
 
 Workflow: `.github/workflows/release-cli.yml`
 
-Trigger by pushing a release tag:
+Validate the packaging output locally before you push a tag:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+make cli-check
+./scripts/build-cli-release-artifacts.sh v0.0.1
 ```
 
-Release workflow outputs:
+This produces:
 
 - linux/darwin/windows archives for `amd64` + `arm64`
-- SHA256 checksum manifest (`checksums.txt`)
+- SHA-256 checksum manifest (`checksums.txt`)
+
+Cut a release by pushing an annotated tag:
+
+```bash
+git tag -a v0.0.1 -m "Release v0.0.1"
+git push origin v0.0.1
+```
+
+Then watch the GitHub workflow and confirm the published release:
+
+```bash
+gh run watch --workflow "Release CLI"
+gh release view v0.0.1
+```
 
 ## Installing the CLI on agent hosts
 
@@ -93,7 +107,7 @@ curl -sSfL https://raw.githubusercontent.com/Git-on-my-level/organization-autoru
 Pin a specific version:
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/Git-on-my-level/organization-autorunner/main/scripts/install-oar.sh | VERSION=v0.2.0 sh
+curl -sSfL https://raw.githubusercontent.com/Git-on-my-level/organization-autorunner/main/scripts/install-oar.sh | VERSION=v0.0.1 sh
 ```
 
 Custom install directory:
