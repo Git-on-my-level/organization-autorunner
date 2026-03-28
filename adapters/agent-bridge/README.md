@@ -26,12 +26,41 @@ That means you can run this today against the current OAR API surface without wa
 
 ## Install
 
+Canonical install path today:
+
+- `oar-agent-bridge` is shipped by this repo as a local Python package.
+- Python `3.11+` is required.
+- This repo does not document a Homebrew, npm, cargo, or standalone release-binary install path today.
+
+POSIX shells:
+
 ```bash
 cd adapters/agent-bridge
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
+
+Windows PowerShell:
+
+```powershell
+cd adapters/agent-bridge
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+Verify install:
+
+```bash
+oar-agent-bridge --help
+oar-agent-bridge --version
+python -m pip show oar-agent-bridge
+```
+
+The editable install writes the `oar-agent-bridge` console script into the active virtualenv's `bin/` directory on POSIX or `Scripts\` on Windows. If the shell still says `command not found`, activate the virtualenv or add that directory to your PATH.
 
 ## Commands
 
@@ -74,35 +103,113 @@ See:
 - `examples/hermes.toml`
 - `examples/zeroclaw.toml`
 
-## Minimal setup
+Minimum config contract:
 
-1. Edit the example TOML files with your OAR base URL, workspace identity, and local adapter settings.
-2. Register the router principal:
+- Every config requires `[oar] base_url`, `[oar] workspace_id`, and `[oar] workspace_name`.
+- Optional `[oar]` fields are `workspace_url` and `verify_ssl`.
+- `[auth] state_path` is optional; if omitted it defaults under `.state/`.
+- `router run` requires a `[router]` section.
+- `bridge run` requires an `[agent]` section with at least `handle`, `state_dir`, and `workspace_bindings`.
+- Hermes ACP bridges also require `[adapter] kind = "hermes_acp"`, `command`, `cwd_default`, and `[adapter.workspace_map]`.
+- ZeroClaw bridges also require `[adapter] kind = "zeroclaw_gateway"`, `base_url`, and `bearer_token`.
 
-```bash
-oar-agent-bridge auth register --config examples/router.toml --invite-token <token>
+Workspace id source of truth:
+
+- `workspace_id` must be the durable router workspace id, not a slug and not a UI path segment.
+- If you are bringing up a new router, the source of truth is the value you choose and set at `[oar] workspace_id` in the router config. Use the same value in each agent bridge config.
+- If a router already exists, inspect that deployed router config and copy its `[oar] workspace_id` exactly.
+- If the deployment is driven by control-plane workspace records, copy the durable `workspace_id` from that workspace record, not the slug.
+- The example value `ws_main` in this repo is only a sample.
+- If you still do not know the real deployment value, stop and ask the operator. Do not guess. The current CLI does not expose a dedicated workspace-id discovery command.
+
+Token choice:
+
+- Use `--bootstrap-token` when bootstrapping the first principal in an environment.
+- Use `--invite-token` for later principals after an invite has been created.
+
+Minimal router config:
+
+```toml
+[oar]
+base_url = "https://oar.example"
+workspace_id = "<workspace-id>"
+workspace_name = "Main"
+
+[auth]
+state_path = ".state/router-auth.json"
+
+[router]
+state_path = ".state/router-state.json"
+
+[adapter]
+kind = "none"
 ```
 
-3. Register a concrete agent and write its registration document:
+Minimal Hermes bridge config:
+
+```toml
+[oar]
+base_url = "https://oar.example"
+workspace_id = "<workspace-id>"
+workspace_name = "Main"
+
+[auth]
+state_path = ".state/hermes-auth.json"
+
+[agent]
+handle = "<handle>"
+driver_kind = "acp"
+adapter_kind = "hermes_acp"
+state_dir = ".state/hermes"
+workspace_bindings = ["<workspace-id>"]
+
+[adapter]
+kind = "hermes_acp"
+command = ["hermes", "acp"]
+cwd_default = "/absolute/path/to/your/hermes/workspace"
+
+[adapter.workspace_map]
+"<workspace-id>" = "/absolute/path/to/your/hermes/workspace"
+```
+
+## First-time operator path
+
+1. Install the package and verify `oar-agent-bridge --help` works.
+2. Copy or edit the example TOML files with your OAR base URL, durable workspace identity, and adapter-specific settings.
+3. Register the router principal. Use `--bootstrap-token` only for the first principal in a new environment; otherwise use an invite instead:
+
+```bash
+oar-agent-bridge auth register --config examples/router.toml --bootstrap-token <token>
+```
+
+4. Register a concrete agent and write its registration document in one step:
 
 ```bash
 oar-agent-bridge auth register --config examples/hermes.toml --invite-token <token> --apply-registration
 ```
 
-4. Start the router and one or more bridges:
+5. Start the router and one or more bridges:
 
 ```bash
 oar-agent-bridge router run --config examples/router.toml
 oar-agent-bridge bridge run --config examples/hermes.toml
 ```
 
-Post a thread message such as `@hermes summarize the latest onboarding blockers.` The expected trace is:
+6. Post a thread message such as `@hermes summarize the latest onboarding blockers.` The expected durable trace is:
 
 - existing `message_posted`
 - new `agent_wakeup_requested`
 - new `agent_wakeup_claimed`
 - new `message_posted` from the bridge
 - new `agent_wakeup_completed`
+
+7. If the registration document already exists and you want a bridge-managed upsert, run:
+
+```bash
+oar-agent-bridge registration apply --config examples/hermes.toml
+```
+
+If `oar docs create` or another manual write returns `conflict` for `agentreg.<handle>`, inspect the existing document and update it instead of retrying create blindly.
 
 ## File layout
 

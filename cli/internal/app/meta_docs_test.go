@@ -21,6 +21,9 @@ func TestRunMetaDocsPrintsBundledRuntimeReference(t *testing.T) {
 	if !strings.Contains(output, "## `agent-guide`") {
 		t.Fatalf("expected agent-guide topic in runtime docs output=%s", output)
 	}
+	if !strings.Contains(output, "## `agent-bridge`") {
+		t.Fatalf("expected agent-bridge topic in runtime docs output=%s", output)
+	}
 	if !strings.Contains(output, "## `wake-routing`") {
 		t.Fatalf("expected wake-routing topic in runtime docs output=%s", output)
 	}
@@ -77,6 +80,21 @@ func TestRunMetaDocPrintsAgentGuideMarkdown(t *testing.T) {
 	}
 }
 
+func TestRunMetaDocPrintsAgentBridgeMarkdown(t *testing.T) {
+	t.Parallel()
+
+	output := runHelpCommand(t, "meta", "doc", "agent-bridge")
+	if !strings.Contains(output, "## `agent-bridge`") {
+		t.Fatalf("expected agent-bridge markdown header output=%s", output)
+	}
+	if !strings.Contains(output, "oar-agent-bridge --version") {
+		t.Fatalf("expected install verification guidance output=%s", output)
+	}
+	if !strings.Contains(output, "Minimal router config") || !strings.Contains(output, "Minimal Hermes bridge config") {
+		t.Fatalf("expected first-run config guidance output=%s", output)
+	}
+}
+
 func TestRunMetaDocPrintsWakeRoutingMarkdown(t *testing.T) {
 	t.Parallel()
 
@@ -93,6 +111,9 @@ func TestRunMetaDocPrintsWakeRoutingMarkdown(t *testing.T) {
 	if !strings.Contains(output, "oar docs create --from-file wake-registration.json --json") {
 		t.Fatalf("expected docs create registration example output=%s", output)
 	}
+	if !strings.Contains(output, "oar docs update --document-id agentreg.<handle> --from-file wake-registration-update.json --json") {
+		t.Fatalf("expected docs update registration example output=%s", output)
+	}
 	if !strings.Contains(output, "agent-registration/v1") {
 		t.Fatalf("expected registration schema version output=%s", output)
 	}
@@ -102,8 +123,14 @@ func TestRunMetaDocPrintsWakeRoutingMarkdown(t *testing.T) {
 	if !strings.Contains(output, "oar.workspace_id") || !strings.Contains(output, "ws_main") {
 		t.Fatalf("expected workspace-id discovery guidance output=%s", output)
 	}
+	if !strings.Contains(output, "docs create` returns `conflict`") {
+		t.Fatalf("expected conflict recovery guidance output=%s", output)
+	}
 	if !strings.Contains(output, "server actor id as `<actor-id>`") {
 		t.Fatalf("expected actor-id sourcing guidance output=%s", output)
+	}
+	if !strings.Contains(output, "`updated_at` is advisory metadata") {
+		t.Fatalf("expected updated_at semantics output=%s", output)
 	}
 }
 

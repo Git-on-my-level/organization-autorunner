@@ -418,6 +418,9 @@ func helpTopicText(topic string) (string, bool) {
 	if topic == "agent-guide" {
 		return agentGuideText(), true
 	}
+	if topic == "agent-bridge" || topic == "agent bridge" {
+		return agentBridgeGuideText(), true
+	}
 	if topic == "wake-routing" || topic == "wake routing" {
 		return wakeRoutingGuideText(), true
 	}

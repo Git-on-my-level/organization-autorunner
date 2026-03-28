@@ -40,6 +40,7 @@ Self-serve registration
 
 Preferred path when you are using <<tick>>oar-agent-bridge<<tick>>
 
+- Install and first-run setup for the preferred bridge path are documented in <<tick>>oar meta doc agent-bridge<<tick>>.
 - During initial auth, register and write the wake registration in one step:
 
   oar-agent-bridge auth register --config <agent.toml> --invite-token <token> --apply-registration
@@ -48,7 +49,7 @@ Preferred path when you are using <<tick>>oar-agent-bridge<<tick>>
 
   oar-agent-bridge registration apply --config <agent.toml>
 
-Generic OAR CLI path
+Generic OAR CLI lifecycle
 
 1. Confirm the identity you are registering:
 
@@ -58,9 +59,11 @@ Generic OAR CLI path
 
 2. Resolve the durable workspace id you want to enable:
 
-  - If you are using <<tick>>oar-agent-bridge<<tick>>, read <<tick>>oar.workspace_id<<tick>> from your agent or router config file.
-  - The bundled example bridge configs use <<tick>>ws_main<<tick>>.
-  - Do not use a workspace slug or URL path segment here.
+  - If you are configuring the router yourself, the source of truth is the value you set at <<tick>>[oar] workspace_id<<tick>> in the router config.
+  - If a router already exists, inspect that deployed router config and copy its <<tick>>[oar] workspace_id<<tick>> exactly.
+  - If your deployment is driven by control-plane workspace records, copy the durable <<tick>>workspace_id<<tick>> from that workspace record, not the slug.
+  - The bundled example bridge configs use <<tick>>ws_main<<tick>> only as a sample value.
+  - Do not use a workspace slug or URL path segment here. If you still cannot determine the real value, stop and ask the operator; the current CLI does not expose a dedicated workspace-id discovery command.
 
 3. Create a file such as <<tick>>wake-registration.json<<tick>> with the exact registration payload:
 
@@ -85,7 +88,7 @@ Generic OAR CLI path
       "resume_policy": "resume_or_create",
       "status": "active",
       "adapter_kind": "custom",
-      "updated_at": "2026-01-01T00:00:00Z",
+      "updated_at": "<current-utc-timestamp>",
       "workspace_bindings": [
         {
           "workspace_id": "<workspace-id>",
@@ -95,9 +98,41 @@ Generic OAR CLI path
     }
   }
 
-4. Create the document:
+4. For first-time registration, create the document:
 
   oar docs create --from-file wake-registration.json --json
+
+5. If <<tick>>agentreg.<handle><<tick>> already exists, update it instead of retrying create:
+
+  oar docs get --document-id agentreg.<handle> --json
+
+  Use the returned <<tick>>revision.revision_id<<tick>> as <<tick>><current-revision-id><<tick>> and write an update payload such as:
+
+  {
+    "if_base_revision": "<current-revision-id>",
+    "content_type": "structured",
+    "content": {
+      "version": "agent-registration/v1",
+      "handle": "<handle>",
+      "actor_id": "<actor-id>",
+      "delivery_mode": "pull",
+      "driver_kind": "custom",
+      "resume_policy": "resume_or_create",
+      "status": "active",
+      "adapter_kind": "custom",
+      "updated_at": "<current-utc-timestamp>",
+      "workspace_bindings": [
+        {
+          "workspace_id": "<workspace-id>",
+          "enabled": true
+        }
+      ]
+    }
+  }
+
+  oar docs update --document-id agentreg.<handle> --from-file wake-registration-update.json --json
+
+6. If <<tick>>docs create<<tick>> returns <<tick>>conflict<<tick>>, do not keep retrying create. Inspect the existing document with <<tick>>docs get<<tick>> and use the update path above instead.
 
 Registration schema
 
@@ -115,7 +150,9 @@ Registration schema
   - <<tick>>content.adapter_kind<<tick>>
   - <<tick>>content.updated_at<<tick>>
 - <<tick>>workspace_bindings[].enabled<<tick>> defaults to true when omitted by bridge code, but setting it explicitly is clearer.
+- <<tick>>updated_at<<tick>> is advisory metadata. It is not the routing key. Set it to the current UTC time when you create or update the registration, or omit it and let bridge-generated flows populate it.
 - The workspace binding value must be the durable workspace id used by the router, typically <<tick>>oar.workspace_id<<tick>> in bridge config, not a URL slug or UI path segment.
+- If you do not know the real router workspace id for the deployment, inspect bridge/router config or ask the operator. Do not guess.
 
 Verification flow
 
@@ -157,6 +194,7 @@ Concrete wake example
   - new <<tick>>agent_wakeup_completed<<tick>>
 
 3. If the request is durable but never gets claimed, the registration may be valid while the router or bridge runtime is offline.
+4. Acceptance of the registration document alone does not prove <<tick>>workspace_id<<tick>> is correct. A live wake while the router and bridge are running is the real smoke test.
 
 Common failure modes
 

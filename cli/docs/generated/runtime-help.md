@@ -6,6 +6,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 
 - `onboarding` (manual): Offline quick-start mental model and first command flow.
 - `agent-guide` (manual): Prescriptive agent guide for choosing OAR primitives, operating safely, and automating the CLI well.
+- `agent-bridge` (manual): Install, configure, and operate the preferred `oar-agent-bridge` wake-routing runtime on a fresh machine.
 - `wake-routing` (manual): How `@handle` wake routing works, including self-registration, verification, and troubleshooting.
 - `draft` (manual): Local draft staging, listing, commit, and discard workflow.
 - `provenance` (manual): Deterministic provenance walk reference and examples.
@@ -250,7 +251,7 @@ When starting in a new environment:
 3. Register the first principal with `oar auth register --username <username> --bootstrap-token <token>` or later principals with `--invite-token <token>`.
 4. Confirm identity.
 5. Run a cheap read command.
-6. If this agent should be tag-addressable from thread messages, read `oar meta doc wake-routing` and create or verify `agentreg.<handle>` for the current workspace.
+6. If this agent should be tag-addressable from thread messages, read `oar meta doc agent-bridge` for the preferred runtime path or `oar meta doc wake-routing` for the generic document lifecycle.
 
 When stuck:
 
@@ -265,6 +266,181 @@ Maintenance rule
 - Describe roles and decision rules, not exhaustive command inventories.
 - Prefer `oar help` and `oar meta docs` over embedding fragile schemas.
 - Mention examples of primitives and abstractions, but avoid implying the list is closed.
+```
+
+## `agent-bridge`
+
+Install, configure, and operate the preferred `oar-agent-bridge` wake-routing runtime on a fresh machine.
+
+```text
+Agent bridge
+
+Use this when you want the preferred bridge-backed path for wake registration and live `@handle` delivery.
+
+What this package is
+
+- `oar-agent-bridge` is shipped in this repo as a Python package under `adapters/agent-bridge`.
+- The package exposes the console script `oar-agent-bridge`.
+- This repo does not document a Homebrew, npm, cargo, or standalone release-binary install path today.
+- Python `3.11+` is required.
+
+Install on a fresh machine
+
+POSIX shells:
+
+  cd adapters/agent-bridge
+  python3 -m venv .venv
+  source .venv/bin/activate
+  python -m pip install --upgrade pip
+  python -m pip install -e .
+
+Windows PowerShell:
+
+  cd adapters/agent-bridge
+  py -3.11 -m venv .venv
+  .\.venv\Scripts\Activate.ps1
+  python -m pip install --upgrade pip
+  python -m pip install -e .
+
+Verify install
+
+  oar-agent-bridge --help
+  oar-agent-bridge --version
+  python -m pip show oar-agent-bridge
+
+PATH note
+
+- The console script is installed into the active virtualenv's `bin/` directory on POSIX or `Scripts\` on Windows.
+- If you see `oar-agent-bridge: command not found`, activate the virtualenv first or add that directory to your PATH.
+
+Canonical example configs
+
+- `adapters/agent-bridge/examples/router.toml`
+- `adapters/agent-bridge/examples/hermes.toml`
+- `adapters/agent-bridge/examples/zeroclaw.toml`
+
+Required config contract
+
+- Every config needs:
+  - `[oar] base_url`
+  - `[oar] workspace_id`
+  - `[oar] workspace_name`
+- Optional but common `[oar]` fields are:
+  - `workspace_url`
+  - `verify_ssl`
+- `[auth] state_path` is optional; when omitted it defaults under `.state/`.
+- Router runs require a `[router]` section.
+- Bridge runs require an `[agent]` section with at least:
+  - `handle`
+  - `state_dir`
+  - `workspace_bindings`
+- Hermes ACP bridges also require:
+  - `[adapter] kind = "hermes_acp"`
+  - `command`
+  - `cwd_default`
+  - `[adapter.workspace_map]`
+- ZeroClaw bridges also require:
+  - `[adapter] kind = "zeroclaw_gateway"`
+  - `base_url`
+  - `bearer_token`
+
+Minimal router config
+
+  [oar]
+  base_url = "https://oar.example"
+  workspace_id = "<workspace-id>"
+  workspace_name = "Main"
+
+  [auth]
+  state_path = ".state/router-auth.json"
+
+  [router]
+  state_path = ".state/router-state.json"
+
+  [adapter]
+  kind = "none"
+
+Minimal Hermes bridge config
+
+  [oar]
+  base_url = "https://oar.example"
+  workspace_id = "<workspace-id>"
+  workspace_name = "Main"
+
+  [auth]
+  state_path = ".state/hermes-auth.json"
+
+  [agent]
+  handle = "<handle>"
+  driver_kind = "acp"
+  adapter_kind = "hermes_acp"
+  state_dir = ".state/hermes"
+  workspace_bindings = ["<workspace-id>"]
+
+  [adapter]
+  kind = "hermes_acp"
+  command = ["hermes", "acp"]
+  cwd_default = "/absolute/path/to/your/hermes/workspace"
+
+  [adapter.workspace_map]
+  "<workspace-id>" = "/absolute/path/to/your/hermes/workspace"
+
+Workspace id source of truth
+
+- `<workspace-id>` must be the durable router workspace id, not a slug and not a UI path segment.
+- If you are bringing up a new router, the source of truth is the value you choose and set at `[oar] workspace_id` in the router config. Use the same value in each agent bridge config.
+- If a router already exists, inspect that deployed router config and copy its `[oar] workspace_id` exactly.
+- If your deployment is driven by control-plane workspace records, copy the durable `workspace_id` from that workspace record, not the slug.
+- The bundled example value `ws_main` is only an example.
+- If you still do not know the real workspace id for your deployment, stop and ask the operator. Do not guess. The current CLI does not expose a dedicated workspace-id discovery command.
+
+Token choice
+
+- Use `--bootstrap-token` when bootstrapping the very first principal in an environment.
+- Use `--invite-token` for later principals after an invite has been created.
+
+First-time operator path
+
+1. Install the package and verify `oar-agent-bridge --help` works.
+2. Copy or edit the example configs for your router and bridge.
+3. Set `[oar] base_url`, `workspace_id`, and `workspace_name` correctly.
+4. Register the router principal. Use `--bootstrap-token` only when bootstrapping the first principal in a fresh environment; in an existing environment use an invite instead:
+
+  oar-agent-bridge auth register --config examples/router.toml --bootstrap-token <token>
+
+5. Register the target bridge principal and write its registration in one step:
+
+  oar-agent-bridge auth register --config examples/hermes.toml --invite-token <token> --apply-registration
+
+6. Start the router and the bridge:
+
+  oar-agent-bridge router run --config examples/router.toml
+  oar-agent-bridge bridge run --config examples/hermes.toml
+
+7. Post a test wake message containing `@<handle>`.
+8. Confirm the durable trace:
+  - `message_posted`
+  - `agent_wakeup_requested`
+  - `agent_wakeup_claimed`
+  - bridge reply `message_posted`
+  - `agent_wakeup_completed`
+
+Troubleshooting
+
+- `oar-agent-bridge: command not found`:
+  - install is missing, the virtualenv is not activated, or the script directory is not on PATH
+- `docs create conflict` for `agentreg.<handle>`:
+  - inspect the existing document and use the update path or `oar-agent-bridge registration apply`
+- wake request is durable but never claimed:
+  - the router or bridge is offline, or `workspace_id` is wrong
+- principal exists but wake still fails:
+  - inspect `agentreg.<handle>` for actor mismatch, disabled status, or missing workspace binding
+
+Related docs
+
+  oar meta doc wake-routing
+  oar help docs create
+  oar help docs update
 ```
 
 ## `wake-routing`
@@ -308,6 +484,7 @@ Self-serve registration
 
 Preferred path when you are using `oar-agent-bridge`
 
+- Install and first-run setup for the preferred bridge path are documented in `oar meta doc agent-bridge`.
 - During initial auth, register and write the wake registration in one step:
 
   oar-agent-bridge auth register --config <agent.toml> --invite-token <token> --apply-registration
@@ -316,7 +493,7 @@ Preferred path when you are using `oar-agent-bridge`
 
   oar-agent-bridge registration apply --config <agent.toml>
 
-Generic OAR CLI path
+Generic OAR CLI lifecycle
 
 1. Confirm the identity you are registering:
 
@@ -326,9 +503,11 @@ Generic OAR CLI path
 
 2. Resolve the durable workspace id you want to enable:
 
-  - If you are using `oar-agent-bridge`, read `oar.workspace_id` from your agent or router config file.
-  - The bundled example bridge configs use `ws_main`.
-  - Do not use a workspace slug or URL path segment here.
+  - If you are configuring the router yourself, the source of truth is the value you set at `[oar] workspace_id` in the router config.
+  - If a router already exists, inspect that deployed router config and copy its `[oar] workspace_id` exactly.
+  - If your deployment is driven by control-plane workspace records, copy the durable `workspace_id` from that workspace record, not the slug.
+  - The bundled example bridge configs use `ws_main` only as a sample value.
+  - Do not use a workspace slug or URL path segment here. If you still cannot determine the real value, stop and ask the operator; the current CLI does not expose a dedicated workspace-id discovery command.
 
 3. Create a file such as `wake-registration.json` with the exact registration payload:
 
@@ -353,7 +532,7 @@ Generic OAR CLI path
       "resume_policy": "resume_or_create",
       "status": "active",
       "adapter_kind": "custom",
-      "updated_at": "2026-01-01T00:00:00Z",
+      "updated_at": "<current-utc-timestamp>",
       "workspace_bindings": [
         {
           "workspace_id": "<workspace-id>",
@@ -363,9 +542,41 @@ Generic OAR CLI path
     }
   }
 
-4. Create the document:
+4. For first-time registration, create the document:
 
   oar docs create --from-file wake-registration.json --json
+
+5. If `agentreg.<handle>` already exists, update it instead of retrying create:
+
+  oar docs get --document-id agentreg.<handle> --json
+
+  Use the returned `revision.revision_id` as `<current-revision-id>` and write an update payload such as:
+
+  {
+    "if_base_revision": "<current-revision-id>",
+    "content_type": "structured",
+    "content": {
+      "version": "agent-registration/v1",
+      "handle": "<handle>",
+      "actor_id": "<actor-id>",
+      "delivery_mode": "pull",
+      "driver_kind": "custom",
+      "resume_policy": "resume_or_create",
+      "status": "active",
+      "adapter_kind": "custom",
+      "updated_at": "<current-utc-timestamp>",
+      "workspace_bindings": [
+        {
+          "workspace_id": "<workspace-id>",
+          "enabled": true
+        }
+      ]
+    }
+  }
+
+  oar docs update --document-id agentreg.<handle> --from-file wake-registration-update.json --json
+
+6. If `docs create` returns `conflict`, do not keep retrying create. Inspect the existing document with `docs get` and use the update path above instead.
 
 Registration schema
 
@@ -383,7 +594,9 @@ Registration schema
   - `content.adapter_kind`
   - `content.updated_at`
 - `workspace_bindings[].enabled` defaults to true when omitted by bridge code, but setting it explicitly is clearer.
+- `updated_at` is advisory metadata. It is not the routing key. Set it to the current UTC time when you create or update the registration, or omit it and let bridge-generated flows populate it.
 - The workspace binding value must be the durable workspace id used by the router, typically `oar.workspace_id` in bridge config, not a URL slug or UI path segment.
+- If you do not know the real router workspace id for the deployment, inspect bridge/router config or ask the operator. Do not guess.
 
 Verification flow
 
@@ -425,6 +638,7 @@ Concrete wake example
   - new `agent_wakeup_completed`
 
 3. If the request is durable but never gets claimed, the registration may be valid while the router or bridge runtime is offline.
+4. Acceptance of the registration document alone does not prove `workspace_id` is correct. A live wake while the router and bridge are running is the real smoke test.
 
 Common failure modes
 

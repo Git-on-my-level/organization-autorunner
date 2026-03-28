@@ -5,6 +5,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import __version__
 from .auth import AuthManager
 from .bridge import AgentBridge
 from .config import LoadedConfig, load_config
@@ -125,6 +126,7 @@ def cmd_bridge_run(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="oar-agent-bridge")
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--version", action="version", version=f"oar-agent-bridge {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     auth_parser = subparsers.add_parser("auth")
