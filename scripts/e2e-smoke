@@ -105,10 +105,16 @@ if (typeof cur === "object") {
 assert_contains() {
   local file="$1"
   local pattern="$2"
-  if ! rg -q "$pattern" "$file"; then
-    echo "assertion failed: expected pattern '$pattern' in $file" >&2
-    exit 1
+  if command -v rg >/dev/null 2>&1; then
+    if rg -q "$pattern" "$file"; then
+      return 0
+    fi
+  elif grep -Eq "$pattern" "$file"; then
+    return 0
   fi
+
+  echo "assertion failed: expected pattern '$pattern' in $file" >&2
+  exit 1
 }
 
 wait_for_pid() {
@@ -139,7 +145,6 @@ require_cmd curl
 require_cmd go
 require_cmd node
 require_cmd pnpm
-require_cmd rg
 
 # Build CLI binary once for deterministic smoke steps.
 (
