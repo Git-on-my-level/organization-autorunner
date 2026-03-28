@@ -119,6 +119,29 @@ test("does not repeat the username in principal rows", async ({ page }) => {
     });
   });
 
+  await page.route("**/docs/agentreg.m4-hermes", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        document: {
+          id: "agentreg.m4-hermes",
+          title: "Agent registration @m4-hermes",
+          status: "active",
+        },
+        revision: {
+          content: {
+            version: "agent-registration/v1",
+            handle: "m4-hermes",
+            actor_id: "actor-ops-ai",
+            status: "active",
+            workspace_bindings: [{ workspace_id: "local", enabled: true }],
+          },
+        },
+      }),
+    });
+  });
+
   await page.route("**/auth/audit?**", async (route) => {
     await route.fulfill({
       status: 200,
@@ -132,6 +155,10 @@ test("does not repeat the username in principal rows", async ({ page }) => {
   await expect(page.getByText("m4-hermes", { exact: true })).toBeVisible();
   await expect(
     page.getByText("agent via public_key", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Wakeable", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Wakeable as @m4-hermes.", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("m4-hermes • agent via public_key", { exact: true }),

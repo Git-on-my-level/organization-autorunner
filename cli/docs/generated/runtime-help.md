@@ -6,6 +6,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 
 - `onboarding` (manual): Offline quick-start mental model and first command flow.
 - `agent-guide` (manual): Prescriptive agent guide for choosing OAR primitives, operating safely, and automating the CLI well.
+- `wake-routing` (manual): How `@handle` wake routing works, what counts as wakeable, and how to inspect registrations.
 - `draft` (manual): Local draft staging, listing, commit, and discard workflow.
 - `provenance` (manual): Deterministic provenance walk reference and examples.
 - `auth whoami` (manual): Validate the active profile and print resolved identity metadata.
@@ -124,6 +125,7 @@ Use onboarding to get a working session quickly. For the fuller operating model,
 3. Confirm connectivity and identity with `oar doctor` and `oar auth whoami`.
 4. Run a cheap read command before any mutation.
 5. Use `oar meta skill cursor` if you want a bundled Cursor skill file generated from the shipped guide.
+6. Read `oar meta doc wake-routing` if this agent should be wakeable via thread-message `@handle` mentions.
 
 First commands to run
 
@@ -137,6 +139,7 @@ First commands to run
 Next step
 
   oar meta doc agent-guide
+  oar meta doc wake-routing
 ```
 
 ## `agent-guide`
@@ -216,6 +219,7 @@ Do not overfit to examples in this guide. Ask the CLI what exists now:
   oar help <group> <command>
   oar meta docs
   oar meta doc <topic>
+  oar meta doc wake-routing
 
 Use help output as the source of truth for exact flags, request shapes, enums, and newly added primitives.
 
@@ -246,6 +250,7 @@ When starting in a new environment:
 3. Register the first principal with `oar auth register --username <username> --bootstrap-token <token>` or later principals with `--invite-token <token>`.
 4. Confirm identity.
 5. Run a cheap read command.
+6. If this agent should be tag-addressable from thread messages, read `oar meta doc wake-routing`.
 
 When stuck:
 
@@ -260,6 +265,62 @@ Maintenance rule
 - Describe roles and decision rules, not exhaustive command inventories.
 - Prefer `oar help` and `oar meta docs` over embedding fragile schemas.
 - Mention examples of primitives and abstractions, but avoid implying the list is closed.
+```
+
+## `wake-routing`
+
+How `@handle` wake routing works, what counts as wakeable, and how to inspect registrations.
+
+```text
+Wake routing
+
+Use this when you want humans or agents to wake other agents from thread messages by tagging `@handle`.
+
+How it works
+
+- Wake routing is implemented by the adapter bridge layer, not by `oar-core` itself.
+- A tagged message becomes durable wake work only when the target agent has a registered handle and the router/bridge daemons are running.
+- The durable registration document id is `agentreg.<handle>`.
+
+What counts as wakeable
+
+- principal kind is `agent`
+- principal is not revoked
+- principal has a username/handle
+- registration document `agentreg.<handle>` exists
+- registration document `actor_id` matches the principal actor
+- registration status is active
+- registration has an enabled binding for the current workspace
+
+How humans discover it
+
+- In the web UI Access page, look for agent principals marked Wakeable and their `@handle`.
+- In a thread message composer, tagging `@handle` requests a wakeup for that agent.
+
+How agents discover it
+
+- Read this topic with `oar meta doc wake-routing`.
+- Use `oar auth whoami` to confirm your current username and agent id.
+- Use `oar auth principals list --json` to inspect known agent principals.
+- Use `oar docs get --document-id agentreg.<handle> --json` to inspect a specific registration document.
+
+Common failure modes
+
+- unknown handle: no matching agent principal username exists
+- missing registration: `agentreg.<handle>` does not exist
+- registration actor mismatch: the registration doc points at a different actor
+- workspace not bound: registration exists but is not enabled for this workspace
+- bridge offline: the wake request is durable in OAR, but no local bridge is consuming it
+
+Operational note
+
+- This mechanism is discoverable from the CLI and UI, but actual wake dispatch is owned by the `adapters/agent-bridge` runtime.
+
+Next steps
+
+  oar meta doc agent-guide
+  oar auth whoami
+  oar auth principals list --json
 ```
 
 ## `draft`

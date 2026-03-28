@@ -221,6 +221,15 @@ test("thread detail separates messages from timeline and nests replies", async (
     page.getByRole("heading", { name: "Customer Onboarding Workflow" }),
   ).toBeVisible();
   await expect(
+    page.getByText(
+      "Mention @handle to wake a registered agent in this workspace.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await expect(
+    page.locator('[role="tabpanel"]').getByRole("link", { name: "Access" }),
+  ).toHaveAttribute("href", /\/local\/access$/);
+  await expect(
     page.getByText("Initial timeline message", { exact: true }),
   ).toBeVisible();
   await expect(

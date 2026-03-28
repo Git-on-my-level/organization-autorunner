@@ -5,6 +5,10 @@
   import { coreClient } from "$lib/coreClient";
   import { formatAbsoluteDateTime, formatTimestamp } from "$lib/formatDate";
   import { buildRegistrationMessage } from "$lib/inviteRegistrationMessage";
+  import {
+    describeWakeRouting,
+    registrationDocumentId,
+  } from "$lib/wakeRouting";
   import { workspacePath } from "$lib/workspacePaths";
 
   let { data } = $props();
@@ -80,7 +84,9 @@
 
     if (principalsResult.status === "fulfilled") {
       const data = principalsResult.value;
-      principals = data?.principals ?? [];
+      principals = await enrichPrincipalsWithWakeRouting(
+        data?.principals ?? [],
+      );
       activeHumanPrincipalCount = data?.active_human_principal_count ?? 0;
       principalsCursor = data?.next_cursor ?? "";
       principalsHasMore = Boolean(data?.next_cursor);
@@ -136,7 +142,9 @@
         limit: 50,
         cursor: principalsCursor,
       });
-      const newPrincipals = result?.principals ?? [];
+      const newPrincipals = await enrichPrincipalsWithWakeRouting(
+        result?.principals ?? [],
+      );
       principals = [...principals, ...newPrincipals];
       activeHumanPrincipalCount =
         result?.active_human_principal_count ?? activeHumanPrincipalCount;
@@ -336,6 +344,50 @@
     if (error instanceof Error) return error.message || fallback;
     if (error.details) return error.details;
     return fallback;
+  }
+
+  async function enrichPrincipalsWithWakeRouting(principalList) {
+    const workspaceBindingTarget = data?.workspaceId || workspaceSlug;
+    const activeAgentHandles = [
+      ...new Set(
+        (principalList ?? [])
+          .filter(
+            (principal) =>
+              principal?.principal_kind === "agent" &&
+              !principal?.revoked &&
+              String(principal?.username ?? "").trim() !== "",
+          )
+          .map((principal) => String(principal.username).trim()),
+      ),
+    ];
+
+    const registrationDocs = new Map();
+    await Promise.all(
+      activeAgentHandles.map(async (handle) => {
+        try {
+          registrationDocs.set(handle, {
+            state: "ok",
+            document: await coreClient.getDocument(
+              registrationDocumentId(handle),
+            ),
+          });
+        } catch (error) {
+          registrationDocs.set(
+            handle,
+            error?.status === 404 ? { state: "missing" } : { state: "error" },
+          );
+        }
+      }),
+    );
+
+    return (principalList ?? []).map((principal) => ({
+      ...principal,
+      wakeRouting: describeWakeRouting(
+        principal,
+        registrationDocs.get(String(principal?.username ?? "").trim()) ?? null,
+        workspaceBindingTarget,
+      ),
+    }));
   }
 
   function workspaceHref(pathname = "/") {
@@ -768,6 +820,10 @@
       <h2 class="mb-2 text-[13px] font-semibold text-[var(--ui-text)]">
         Principals
       </h2>
+      <p class="mb-2 text-[12px] text-[var(--ui-text-muted)]">
+        Agent principals marked Wakeable can be tagged from thread messages with
+        <code>@handle</code>.
+      </p>
       {#if principalsState.status === SECTION_ERROR}
         <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
           {principalsState.error}
@@ -804,6 +860,19 @@
                   <p class="text-[11px] text-[var(--ui-text-muted)]">
                     {principalLabel(principal)}
                   </p>
+                  {#if principal.wakeRouting?.applicable}
+                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                      <span
+                        class="rounded px-1.5 py-0.5 text-[10px] font-medium {principal
+                          .wakeRouting.badgeClass}"
+                      >
+                        {principal.wakeRouting.badgeLabel}
+                      </span>
+                      <span class="text-[11px] text-[var(--ui-text-muted)]">
+                        {principal.wakeRouting.summary}
+                      </span>
+                    </div>
+                  {/if}
                   <p
                     class="mt-0.5 font-mono text-[10px] text-[var(--ui-text-muted)]"
                   >

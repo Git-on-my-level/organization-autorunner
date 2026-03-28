@@ -17,6 +17,7 @@ describe("access route", () => {
       workspace: {
         coreBaseUrl: "http://127.0.0.1:8002",
         publicOrigin: "https://stale.example.test/oar/scalingforever",
+        workspaceId: "ws-scalingforever",
       },
     });
 
@@ -31,6 +32,7 @@ describe("access route", () => {
 
     expect(result).toEqual({
       coreBaseUrl: "http://127.0.0.1:8002",
+      workspaceId: "ws-scalingforever",
       registrationBaseUrl:
         "https://m2-internal.scalingforever.com/oar/scalingforever",
     });
@@ -42,6 +44,7 @@ describe("access route", () => {
       workspace: {
         coreBaseUrl: "http://127.0.0.1:8002",
         publicOrigin: "https://m2-internal.tail7e1eb.ts.net",
+        workspaceId: "ws-scalingforever",
       },
     });
 
@@ -54,6 +57,7 @@ describe("access route", () => {
 
     expect(result).toEqual({
       coreBaseUrl: "http://127.0.0.1:8002",
+      workspaceId: "ws-scalingforever",
       registrationBaseUrl:
         "https://m2-internal.tail7e1eb.ts.net/oar/scalingforever",
     });
@@ -65,6 +69,7 @@ describe("access route", () => {
       workspace: {
         coreBaseUrl: "http://127.0.0.1:8002",
         publicOrigin: "https://m2-internal.tail7e1eb.ts.net",
+        workspaceId: "ws-scalingforever",
       },
     });
 
@@ -77,6 +82,7 @@ describe("access route", () => {
 
     expect(result).toEqual({
       coreBaseUrl: "http://127.0.0.1:8002",
+      workspaceId: "ws-scalingforever",
       registrationBaseUrl:
         "https://m2-internal.tail7e1eb.ts.net/oar/scalingforever",
     });

@@ -418,6 +418,9 @@ func helpTopicText(topic string) (string, bool) {
 	if topic == "agent-guide" {
 		return agentGuideText(), true
 	}
+	if topic == "wake-routing" || topic == "wake routing" {
+		return wakeRoutingGuideText(), true
+	}
 	if topic == "provenance" || topic == "provenance walk" {
 		return provenanceUsageText() + "\n", true
 	}
@@ -872,6 +875,7 @@ Use onboarding to get a working session quickly. For the fuller operating model,
 3. Confirm connectivity and identity with ` + "`oar doctor`" + ` and ` + "`oar auth whoami`" + `.
 4. Run a cheap read command before any mutation.
 5. Use ` + "`oar meta skill cursor`" + ` if you want a bundled Cursor skill file generated from the shipped guide.
+6. Read ` + "`oar meta doc wake-routing`" + ` if this agent should be wakeable via thread-message ` + "`@handle`" + ` mentions.
 
 First commands to run
 
@@ -884,7 +888,8 @@ First commands to run
 
 Next step
 
-  oar meta doc agent-guide`)
+  oar meta doc agent-guide
+  oar meta doc wake-routing`)
 }
 
 func mapRuntimePathToRegistryPath(path string) string {

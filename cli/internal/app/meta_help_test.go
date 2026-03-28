@@ -547,6 +547,9 @@ func TestRunOnboardingHelpTopic(t *testing.T) {
 	if !strings.Contains(output, "`oar meta doc agent-guide`") {
 		t.Fatalf("expected agent-guide pointer output=%s", output)
 	}
+	if !strings.Contains(output, "`oar meta doc wake-routing`") {
+		t.Fatalf("expected wake-routing pointer output=%s", output)
+	}
 	if !strings.Contains(output, "First commands to run") {
 		t.Fatalf("expected first-commands section output=%s", output)
 	}
@@ -556,7 +559,7 @@ func TestRunOnboardingHelpTopic(t *testing.T) {
 	if !strings.Contains(output, "1. Point the CLI at the core API") {
 		t.Fatalf("expected base-url step output=%s", output)
 	}
-	if !strings.Contains(output, "Next step") || !strings.Contains(output, "oar meta doc agent-guide") {
+	if !strings.Contains(output, "Next step") || !strings.Contains(output, "oar meta doc agent-guide") || !strings.Contains(output, "oar meta doc wake-routing") {
 		t.Fatalf("expected follow-up guidance output=%s", output)
 	}
 }
