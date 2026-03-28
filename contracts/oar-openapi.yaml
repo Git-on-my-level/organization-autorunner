@@ -3150,10 +3150,11 @@ components:
           type: string
           enum: [passkey, public_key]
         created_at: { type: string, format: date-time }
+        last_seen_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         revoked: { type: boolean }
         revoked_at: { type: string, format: date-time }
-      required: [agent_id, actor_id, username, principal_kind, auth_method, created_at, updated_at, revoked]
+      required: [agent_id, actor_id, username, principal_kind, auth_method, created_at, last_seen_at, updated_at, revoked]
 
     AuthPrincipalsResponse:
       type: object

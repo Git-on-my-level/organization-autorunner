@@ -3,7 +3,7 @@
 
   import { authenticatedAgent } from "$lib/authSession";
   import { coreClient } from "$lib/coreClient";
-  import { formatTimestamp } from "$lib/formatDate";
+  import { formatAbsoluteDateTime, formatTimestamp } from "$lib/formatDate";
   import { buildRegistrationMessage } from "$lib/inviteRegistrationMessage";
   import { workspacePath } from "$lib/workspacePaths";
 
@@ -810,9 +810,16 @@
                     {principal.agent_id}
                   </p>
                 </div>
-                <span class="text-[11px] text-[var(--ui-text-muted)]">
-                  {formatTimestamp(principal.created_at)}
-                </span>
+                <div
+                  class="shrink-0 min-w-[8.5rem] text-right text-[11px] leading-4 text-[var(--ui-text-muted)]"
+                >
+                  <p title={formatAbsoluteDateTime(principal.created_at)}>
+                    Joined {formatTimestamp(principal.created_at) || "—"}
+                  </p>
+                  <p title={formatAbsoluteDateTime(principal.last_seen_at)}>
+                    Last seen {formatTimestamp(principal.last_seen_at) || "—"}
+                  </p>
+                </div>
                 {#if !principal.revoked && !isCurrentPrincipal(principal)}
                   {@const lastHuman = isLastActiveHumanPrincipal(principal)}
                   <button

@@ -1077,10 +1077,11 @@ func (s *Store) getPrincipalSummaryQueryRow(ctx context.Context, queryRow func(c
 			%s,
 			%s,
 			a.created_at,
+			%s,
 			a.updated_at,
 			a.revoked_at
 		 FROM agents a
-		 WHERE a.id = ?`, principalKindExpr("a"), authMethodExpr("a")),
+		 WHERE a.id = ?`, principalKindExpr("a"), authMethodExpr("a"), principalLastSeenExpr("a")),
 		agentID,
 	).Scan(
 		&item.AgentID,
@@ -1089,6 +1090,7 @@ func (s *Store) getPrincipalSummaryQueryRow(ctx context.Context, queryRow func(c
 		&item.PrincipalKind,
 		&item.AuthMethod,
 		&item.CreatedAt,
+		&item.LastSeenAt,
 		&item.UpdatedAt,
 		&revokedRaw,
 	)

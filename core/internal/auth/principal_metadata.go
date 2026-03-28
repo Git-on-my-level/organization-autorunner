@@ -51,6 +51,16 @@ func authMethodExpr(agentAlias string) string {
 	)`, agentAlias, agentAlias)
 }
 
+func principalLastSeenExpr(agentAlias string) string {
+	return fmt.Sprintf(`CASE
+		WHEN %s = '%s' THEN %s.updated_at
+		ELSE COALESCE(
+			(SELECT MAX(t.created_at) FROM auth_access_tokens t WHERE t.agent_id = %s.id),
+			%s.created_at
+		)
+	END`, authMethodExpr(agentAlias), AuthMethodControlPlane, agentAlias, agentAlias, agentAlias)
+}
+
 func principalMetadataJSON(kind PrincipalKind, authMethod string, extra map[string]any) (string, error) {
 	payload := map[string]any{
 		"principal_kind": string(kind),
