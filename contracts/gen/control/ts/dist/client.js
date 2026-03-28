@@ -309,13 +309,13 @@ export const commandRegistry = [
         "method": "POST",
         "path": "/organizations/{organization_id}/billing/checkout-session",
         "operation_id": "createControlOrganizationBillingCheckoutSession",
-        "summary": "Create organization billing checkout scaffold session",
-        "why": "Prepare an org-scoped Stripe checkout flow while keeping product entitlements inside the control plane.",
+        "summary": "Create organization billing checkout session",
+        "why": "Create an org-scoped Stripe checkout flow while keeping product entitlements inside the control plane.",
         "input_mode": "json-body",
         "streaming": {
             "mode": "none"
         },
-        "output_envelope": "Returns `{ session }` with Stripe readiness details and any missing configuration values.",
+        "output_envelope": "Returns `{ session }` with a Stripe checkout URL or missing configuration details.",
         "error_codes": [
             "auth_required",
             "invalid_token",
@@ -331,10 +331,10 @@ export const commandRegistry = [
         ],
         "stability": "beta",
         "surface": "canonical",
-        "agent_notes": "Owner/admin only. This scaffold does not change entitlements by itself.",
+        "agent_notes": "Owner/admin only. Stripe manages payment collection, but entitlements still live in the control plane.",
         "examples": [
             {
-                "title": "Prepare checkout session",
+                "title": "Create checkout session",
                 "command": "oar api call --base-url https://control.oar.example --method POST --path /organizations/org_123/billing/checkout-session --body '{\"plan_tier\":\"team\"}' --header 'Authorization: Bearer \u003ccontrol-session\u003e'"
             }
         ],
@@ -380,13 +380,13 @@ export const commandRegistry = [
         "method": "POST",
         "path": "/organizations/{organization_id}/billing/customer-portal-session",
         "operation_id": "createControlOrganizationBillingCustomerPortalSession",
-        "summary": "Create organization billing customer portal scaffold session",
-        "why": "Prepare an org-scoped Stripe customer portal flow without moving entitlement logic out of the control plane.",
+        "summary": "Create organization billing customer portal session",
+        "why": "Create an org-scoped Stripe customer portal flow without moving entitlement logic out of the control plane.",
         "input_mode": "json-body",
         "streaming": {
             "mode": "none"
         },
-        "output_envelope": "Returns `{ session }` with Stripe portal readiness details and any missing configuration values.",
+        "output_envelope": "Returns `{ session }` with a Stripe customer-portal URL or missing configuration details.",
         "error_codes": [
             "auth_required",
             "invalid_token",
@@ -402,10 +402,10 @@ export const commandRegistry = [
         ],
         "stability": "beta",
         "surface": "canonical",
-        "agent_notes": "Owner/admin only. This scaffold does not change entitlements by itself.",
+        "agent_notes": "Owner/admin only. Stripe manages the portal surface, but entitlements still live in the control plane.",
         "examples": [
             {
-                "title": "Prepare customer portal session",
+                "title": "Create customer portal session",
                 "command": "oar api call --base-url https://control.oar.example --method POST --path /organizations/org_123/billing/customer-portal-session --body '{}' --header 'Authorization: Bearer \u003ccontrol-session\u003e'"
             }
         ],
