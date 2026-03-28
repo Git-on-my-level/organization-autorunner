@@ -59,6 +59,7 @@ LISTEN_HOST="127.0.0.1"
 LISTEN_PORT="8000"
 WEB_UI_PORT="3000"
 ALLOWED_ORIGINS=""
+NORMALIZED_ALLOWED_ORIGINS=""
 CORE_INSTANCE_ID=""
 BLOB_BACKEND="filesystem"
 BLOB_ROOT=""
@@ -138,6 +139,10 @@ if [[ -n "$ALLOWED_ORIGINS" ]]; then
     allowed_origin="${allowed_origin%"${allowed_origin##*[![:space:]]}"}"
     [[ -n "$allowed_origin" ]] || continue
     validate_origin "$allowed_origin"
+    if [[ -n "$NORMALIZED_ALLOWED_ORIGINS" ]]; then
+      NORMALIZED_ALLOWED_ORIGINS+=","
+    fi
+    NORMALIZED_ALLOWED_ORIGINS+="$allowed_origin"
   done
 fi
 validate_blob_backend "$BLOB_BACKEND"
@@ -156,6 +161,12 @@ BACKUPS_DIR="${INSTANCE_ROOT}/backups"
 ENV_FILE="${CONFIG_DIR}/env.production"
 INSTANCE_METADATA_FILE="${METADATA_DIR}/instance.env"
 WEBAUTHN_RPID="$(origin_host "$PUBLIC_ORIGIN")"
+if [[ -n "$NORMALIZED_ALLOWED_ORIGINS" ]]; then
+  IFS=',' read -r -a normalized_allowed_origin_values <<<"$NORMALIZED_ALLOWED_ORIGINS"
+  for allowed_origin in "${normalized_allowed_origin_values[@]}"; do
+    validate_webauthn_rpid_against_host "$WEBAUTHN_RPID" "$(origin_host "$allowed_origin")"
+  done
+fi
 
 case "$BLOB_BACKEND" in
   filesystem|object)
@@ -218,7 +229,7 @@ OAR_WEB_UI_ORIGIN=${PUBLIC_ORIGIN}
 OAR_ALLOW_UNAUTHENTICATED_WRITES=false
 OAR_WEBAUTHN_RPID=${WEBAUTHN_RPID}
 OAR_WEBAUTHN_ORIGIN=${PUBLIC_ORIGIN}
-OAR_WEBAUTHN_ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+OAR_WEBAUTHN_ALLOWED_ORIGINS=${NORMALIZED_ALLOWED_ORIGINS}
 OAR_WEBAUTHN_RP_DISPLAY_NAME=OAR
 OAR_CORS_ALLOWED_ORIGINS=
 OAR_CORE_INSTANCE_ID=${CORE_INSTANCE_ID}
