@@ -11,6 +11,7 @@ CORE_BASE_URL="http://${CORE_HOST}:${CORE_PORT}"
 UI_BASE_URL="http://${UI_HOST}:${UI_PORT}"
 UI_WORKSPACE_SLUG="${UI_WORKSPACE_SLUG:-${UI_PROJECT_SLUG:-local}}"
 SMOKE_TIMEOUT_SECONDS="${SMOKE_TIMEOUT_SECONDS:-25}"
+BOOTSTRAP_TOKEN="${BOOTSTRAP_TOKEN:-smoke-bootstrap-token}"
 
 mkdir -p "$ARTIFACT_DIR"
 TMP_DIR="$(mktemp -d "$ARTIFACT_DIR/run.XXXXXX")"
@@ -149,7 +150,7 @@ require_cmd rg
 # Start core.
 (
   cd "$ROOT_DIR/core"
-  go run ./cmd/oar-core \
+  OAR_BOOTSTRAP_TOKEN="$BOOTSTRAP_TOKEN" go run ./cmd/oar-core \
     --listen-addr "${CORE_HOST}:${CORE_PORT}" \
     --workspace-root "$TMP_DIR/workspace" \
     --schema-path "$ROOT_DIR/contracts/oar-schema.yaml" \
@@ -186,7 +187,7 @@ assert_contains "$TMP_DIR/core-handshake.json" '"schema_version"'
 assert_contains "$TMP_DIR/core-version.json" '"schema_version"'
 
 # Register + whoami.
-run_cli_json "$TMP_DIR/register.json" auth register --username "$USERNAME"
+run_cli_json "$TMP_DIR/register.json" auth register --username "$USERNAME" --bootstrap-token "$BOOTSTRAP_TOKEN"
 run_cli_json "$TMP_DIR/whoami.json" auth whoami
 
 # Explicit refresh token grant (API fallback) to exercise token lifecycle endpoint.
@@ -348,7 +349,8 @@ assert_contains "$TMP_DIR/board-workspace.json" "\"board_id\"[[:space:]]*:[[:spa
 assert_contains "$TMP_DIR/board-workspace.json" "\"thread_id\"[[:space:]]*:[[:space:]]*\"$BOARD_THREAD_B_ID\""
 assert_contains "$TMP_DIR/board-workspace.json" "\"column_key\"[[:space:]]*:[[:space:]]*\"review\""
 
-curl -fsS -H "x-oar-workspace-slug: ${UI_WORKSPACE_SLUG}" "$UI_BASE_URL/boards/${BOARD_ID}/workspace" >"$TMP_DIR/ui-board-workspace.json"
+ACCESS_TOKEN="$(node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(p.access_token||""));' "$PROFILE_PATH")"
+curl -fsS -H "x-oar-workspace-slug: ${UI_WORKSPACE_SLUG}" -H "Authorization: Bearer $ACCESS_TOKEN" "$UI_BASE_URL/boards/${BOARD_ID}/workspace" >"$TMP_DIR/ui-board-workspace.json"
 assert_contains "$TMP_DIR/ui-board-workspace.json" "\"board_id\"[[:space:]]*:[[:space:]]*\"$BOARD_ID\""
 
 # Event stream smoke: tail one event and then emit an event.
