@@ -21,6 +21,9 @@ func TestRunMetaDocsPrintsBundledRuntimeReference(t *testing.T) {
 	if !strings.Contains(output, "## `agent-guide`") {
 		t.Fatalf("expected agent-guide topic in runtime docs output=%s", output)
 	}
+	if !strings.Contains(output, "## `wake-routing`") {
+		t.Fatalf("expected wake-routing topic in runtime docs output=%s", output)
+	}
 	if !strings.Contains(output, "## `docs tombstone`") {
 		t.Fatalf("expected docs tombstone topic in runtime docs output=%s", output)
 	}
@@ -68,6 +71,21 @@ func TestRunMetaDocPrintsAgentGuideMarkdown(t *testing.T) {
 	}
 	if !strings.Contains(output, "`boards`") || !strings.Contains(output, "`docs`") {
 		t.Fatalf("expected higher-level abstractions in agent guide output=%s", output)
+	}
+}
+
+func TestRunMetaDocPrintsWakeRoutingMarkdown(t *testing.T) {
+	t.Parallel()
+
+	output := runHelpCommand(t, "meta", "doc", "wake-routing")
+	if !strings.Contains(output, "## `wake-routing`") {
+		t.Fatalf("expected wake-routing markdown header output=%s", output)
+	}
+	if !strings.Contains(output, "Use this when you want humans or agents to wake other agents") {
+		t.Fatalf("expected wake-routing overview output=%s", output)
+	}
+	if !strings.Contains(output, "`agentreg.<handle>`") {
+		t.Fatalf("expected registration doc guidance output=%s", output)
 	}
 }
 

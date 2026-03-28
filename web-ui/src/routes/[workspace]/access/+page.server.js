@@ -72,6 +72,8 @@ export async function load(event) {
   });
   return {
     coreBaseUrl: resolved.workspace?.coreBaseUrl ?? "",
+    workspaceId:
+      resolved.workspace?.workspaceId ?? resolved.workspace?.id ?? "",
     registrationBaseUrl: resolveRegistrationBaseUrl(event, resolved),
   };
 }

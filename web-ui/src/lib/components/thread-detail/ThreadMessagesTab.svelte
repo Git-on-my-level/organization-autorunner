@@ -1,4 +1,5 @@
 <script>
+  import { page } from "$app/stores";
   import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
   import ThreadMessageItem from "$lib/components/thread-detail/ThreadMessageItem.svelte";
   import {
@@ -6,12 +7,14 @@
     toMessageThreadView,
   } from "$lib/messageThreadUtils";
   import { threadDetailStore } from "$lib/threadDetailStore";
+  import { workspacePath } from "$lib/workspacePaths";
 
   let { threadId, onMessagePost } = $props();
 
   let timeline = $derived($threadDetailStore.timeline);
   let timelineLoading = $derived($threadDetailStore.timelineLoading);
   let timelineError = $derived($threadDetailStore.timelineError);
+  let workspaceSlug = $derived($page.params.workspace);
 
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
   let messageThreads = $derived(toMessageThreadView(timeline, { threadId }));
@@ -88,6 +91,15 @@
     placeholder="Write a message..."
     rows="3"
   ></textarea>
+  <p class="mt-2 text-[12px] text-[var(--ui-text-muted)]">
+    Mention <code>@handle</code> to wake a registered agent in this workspace.
+    See
+    <a
+      class="text-indigo-400 hover:text-indigo-300"
+      href={workspacePath(workspaceSlug, "/access")}>Access</a
+    >
+    for wakeable agents.
+  </p>
   <div class="mt-2 flex items-center justify-between gap-2">
     <div
       class="flex min-w-0 items-center gap-2 text-[12px] text-[var(--ui-text-muted)]"
