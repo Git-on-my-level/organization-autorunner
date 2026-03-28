@@ -44,6 +44,7 @@ async function refreshAndRetry(
   workspaceSlug,
   targetUrl,
   requestBody,
+  hadAccessToken,
 ) {
   if (!readWorkspaceRefreshToken(event, workspaceSlug)) {
     return null;
@@ -56,7 +57,7 @@ async function refreshAndRetry(
       coreBaseUrl,
     });
   } catch (error) {
-    if (!isLikelyStaleWorkspaceRefreshFailure(error)) {
+    if (!isLikelyStaleWorkspaceRefreshFailure(error, { hadAccessToken })) {
       clearWorkspaceAuthSession(event, workspaceSlug);
     }
     return null;
@@ -138,6 +139,7 @@ async function proxyToCore(event, coreBaseUrl, workspaceSlug) {
       workspaceSlug,
       targetUrl,
       requestBody,
+      Boolean(session?.accessToken),
     );
     if (retriedResponse) {
       upstreamResponse = retriedResponse;

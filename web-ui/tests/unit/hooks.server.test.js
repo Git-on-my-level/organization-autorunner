@@ -10,7 +10,9 @@ const envState = vi.hoisted(() => ({}));
 const authSessionMocks = vi.hoisted(() => ({
   clearWorkspaceAuthSession: vi.fn(),
   getWorkspaceAuthSession: vi.fn(() => authSessionState.currentSession),
-  isLikelyStaleWorkspaceRefreshFailure: vi.fn((error) => error?.status === 401),
+  isLikelyStaleWorkspaceRefreshFailure: vi.fn(
+    (error, options) => error?.status === 401 && options?.hadAccessToken,
+  ),
   readWorkspaceRefreshToken: vi.fn(() => "refresh-token"),
   refreshWorkspaceAuthSession: vi.fn(async () => {
     authSessionState.currentSession = { accessToken: "fresh-token" };
@@ -77,7 +79,7 @@ describe("hooks proxy retry", () => {
     vi.clearAllMocks();
     authSessionState.currentSession = { accessToken: "expired-token" };
     authSessionMocks.isLikelyStaleWorkspaceRefreshFailure.mockImplementation(
-      (error) => error?.status === 401,
+      (error, options) => error?.status === 401 && options?.hadAccessToken,
     );
     for (const key of Object.keys(envState)) {
       delete envState[key];
@@ -213,6 +215,53 @@ describe("hooks proxy retry", () => {
     });
 
     expect(response.status).toBe(401);
+    expect(authSessionMocks.clearWorkspaceAuthSession).toHaveBeenCalledWith(
+      expect.anything(),
+      "ops",
+    );
+  });
+
+  it("clears the workspace session on invalid refresh failures when no access token was present", async () => {
+    authSessionState.currentSession = { accessToken: "" };
+    authSessionMocks.refreshWorkspaceAuthSession.mockRejectedValueOnce(
+      Object.assign(new Error("invalid refresh token"), {
+        status: 401,
+        details: {
+          error: {
+            code: "invalid_token",
+          },
+        },
+      }),
+    );
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { code: "invalid_token" } }), {
+        status: 401,
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+    globalThis.fetch = fetchMock;
+
+    const response = await handle({
+      event: {
+        url: new URL("https://oar.example.test/api/threads"),
+        request: new Request("https://oar.example.test/api/threads", {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+          },
+        }),
+      },
+      resolve: vi.fn(),
+    });
+
+    expect(response.status).toBe(401);
+    expect(
+      authSessionMocks.isLikelyStaleWorkspaceRefreshFailure,
+    ).toHaveBeenCalledWith(expect.anything(), {
+      hadAccessToken: false,
+    });
     expect(authSessionMocks.clearWorkspaceAuthSession).toHaveBeenCalledWith(
       expect.anything(),
       "ops",

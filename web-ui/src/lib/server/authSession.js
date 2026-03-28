@@ -266,9 +266,14 @@ export async function refreshWorkspaceAuthSession({
   return applyRefreshResult(event, workspaceSlug, await refreshPromise);
 }
 
-export function isLikelyStaleWorkspaceRefreshFailure(error) {
+export function isLikelyStaleWorkspaceRefreshFailure(
+  error,
+  { hadAccessToken = false } = {},
+) {
   return (
-    error?.status === 401 && error?.details?.error?.code === "invalid_token"
+    hadAccessToken &&
+    error?.status === 401 &&
+    error?.details?.error?.code === "invalid_token"
   );
 }
 
@@ -326,11 +331,20 @@ export async function loadWorkspaceAuthenticatedAgent({
     }
     return await fetchCurrentAgent(accessToken);
   } catch (error) {
-    if (error?.status === 401 && !isLikelyStaleWorkspaceRefreshFailure(error)) {
+    if (
+      error?.status === 401 &&
+      !isLikelyStaleWorkspaceRefreshFailure(error, {
+        hadAccessToken: Boolean(accessToken),
+      })
+    ) {
       clearWorkspaceAuthSession(event, workspaceSlug);
       return null;
     }
-    if (isLikelyStaleWorkspaceRefreshFailure(error)) {
+    if (
+      isLikelyStaleWorkspaceRefreshFailure(error, {
+        hadAccessToken: Boolean(accessToken),
+      })
+    ) {
       return null;
     }
     throw error;
