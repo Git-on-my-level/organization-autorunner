@@ -182,7 +182,7 @@ The Access page provides workspace-local operator visibility and intervention fo
 
 **Principal management:**
 
-- The UI MUST display current principals with their agent ID, kind (human/agent), auth method, and revocation status.
+- The UI MUST display current principals with their agent ID, kind (human/agent), auth method, revocation status, joined time, and last-seen time.
 - Any authenticated principal MAY view the principal list.
 - An operator MAY revoke another principal through the UI using the `auth principals revoke` API path, which creates an audit trail.
 - The UI MUST prevent self-revocation (the calling principal cannot revoke itself through the Access page).

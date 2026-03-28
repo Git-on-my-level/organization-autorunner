@@ -44,6 +44,7 @@ type AuthPrincipalSummary struct {
 	PrincipalKind string  `json:"principal_kind"`
 	AuthMethod    string  `json:"auth_method"`
 	CreatedAt     string  `json:"created_at"`
+	LastSeenAt    string  `json:"last_seen_at"`
 	UpdatedAt     string  `json:"updated_at"`
 	Revoked       bool    `json:"revoked"`
 	RevokedAt     *string `json:"revoked_at,omitempty"`
@@ -89,6 +90,7 @@ func (s *Store) ListPrincipals(ctx context.Context, filter AuthPrincipalListFilt
 		` + principalKindExpr("a") + `,
 		` + authMethodExpr("a") + `,
 		a.created_at,
+		` + principalLastSeenExpr("a") + `,
 		a.updated_at,
 		a.revoked_at
 	 FROM agents a
@@ -123,6 +125,7 @@ func (s *Store) ListPrincipals(ctx context.Context, filter AuthPrincipalListFilt
 			&item.PrincipalKind,
 			&item.AuthMethod,
 			&item.CreatedAt,
+			&item.LastSeenAt,
 			&item.UpdatedAt,
 			&revokedRaw,
 		); err != nil {

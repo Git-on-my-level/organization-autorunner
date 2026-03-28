@@ -100,7 +100,8 @@ test("does not repeat the username in principal rows", async ({ page }) => {
             username: "m4-hermes",
             principal_kind: "agent",
             auth_method: "public_key",
-            created_at: "2026-03-28T10:00:00Z",
+            created_at: "2026-03-01T10:00:00Z",
+            last_seen_at: "2026-03-20T11:15:00Z",
             updated_at: "2026-03-28T10:00:00Z",
             revoked: false,
           },
@@ -135,4 +136,10 @@ test("does not repeat the username in principal rows", async ({ page }) => {
   await expect(
     page.getByText("m4-hermes • agent via public_key", { exact: true }),
   ).toHaveCount(0);
+  await expect(
+    page.getByText("Joined Mar 1, 2026", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Last seen Mar 20, 2026", { exact: true }),
+  ).toBeVisible();
 });
