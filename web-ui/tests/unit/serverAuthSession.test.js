@@ -1,9 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   clearWorkspaceAccessToken,
   clearWorkspaceRefreshToken,
   handleWorkspaceAuthVerifyResponse,
+  refreshWorkspaceAuthSession,
+  resetWorkspaceAuthRefreshStateForTests,
   writeWorkspaceAccessToken,
   writeWorkspaceRefreshToken,
 } from "../../src/lib/server/authSession.js";
@@ -11,22 +13,52 @@ import {
 function createCookieRecorder() {
   const setCalls = [];
   const deleteCalls = [];
+  const values = new Map();
   return {
     setCalls,
     deleteCalls,
+    values,
     cookies: {
-      get() {
-        return null;
+      get(name) {
+        return values.get(name) ?? null;
       },
       set(name, value, options) {
+        values.set(name, value);
         setCalls.push({ name, value, options });
       },
       delete(name, options) {
+        values.delete(name);
         deleteCalls.push({ name, options });
       },
     },
   };
 }
+
+function createSessionEvent({
+  refreshToken = "",
+  accessToken = "",
+  workspaceSlug = "alpha",
+} = {}) {
+  const recorder = createCookieRecorder();
+  if (refreshToken) {
+    recorder.values.set(`oar_ui_session_${workspaceSlug}`, refreshToken);
+  }
+  if (accessToken) {
+    recorder.values.set(`oar_ui_access_${workspaceSlug}`, accessToken);
+  }
+  return {
+    recorder,
+    event: {
+      url: new URL("https://oar.example.com/auth/session"),
+      cookies: recorder.cookies,
+    },
+  };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetWorkspaceAuthRefreshStateForTests();
+});
 
 describe("server auth session helpers", () => {
   it("writes HttpOnly and Secure refresh-token cookies on HTTPS", () => {
@@ -170,5 +202,112 @@ describe("server auth session helpers", () => {
         },
       },
     ]);
+  });
+
+  it("deduplicates concurrent refreshes that start with the same refresh token", async () => {
+    const first = createSessionEvent({ refreshToken: "refresh-token" });
+    const second = createSessionEvent({ refreshToken: "refresh-token" });
+    let resolveRefresh;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const firstRefresh = refreshWorkspaceAuthSession({
+      event: first.event,
+      workspaceSlug: "alpha",
+      coreBaseUrl: "https://core.example.com",
+    });
+    const secondRefresh = refreshWorkspaceAuthSession({
+      event: second.event,
+      workspaceSlug: "alpha",
+      coreBaseUrl: "https://core.example.com",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    resolveRefresh(
+      new Response(
+        JSON.stringify({
+          tokens: {
+            access_token: "next-access-token",
+            refresh_token: "next-refresh-token",
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+
+    await expect(firstRefresh).resolves.toEqual({
+      accessToken: "next-access-token",
+      refreshToken: "next-refresh-token",
+    });
+    await expect(secondRefresh).resolves.toEqual({
+      accessToken: "next-access-token",
+      refreshToken: "next-refresh-token",
+    });
+    expect(first.recorder.values.get("oar_ui_session_alpha")).toBe(
+      "next-refresh-token",
+    );
+    expect(second.recorder.values.get("oar_ui_session_alpha")).toBe(
+      "next-refresh-token",
+    );
+  });
+
+  it("reuses a freshly rotated refresh result for a stale follow-up request", async () => {
+    const first = createSessionEvent({ refreshToken: "refresh-token" });
+    const second = createSessionEvent({ refreshToken: "refresh-token" });
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            tokens: {
+              access_token: "next-access-token",
+              refresh_token: "next-refresh-token",
+            },
+          }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      refreshWorkspaceAuthSession({
+        event: first.event,
+        workspaceSlug: "alpha",
+        coreBaseUrl: "https://core.example.com",
+      }),
+    ).resolves.toEqual({
+      accessToken: "next-access-token",
+      refreshToken: "next-refresh-token",
+    });
+
+    await expect(
+      refreshWorkspaceAuthSession({
+        event: second.event,
+        workspaceSlug: "alpha",
+        coreBaseUrl: "https://core.example.com",
+      }),
+    ).resolves.toEqual({
+      accessToken: "next-access-token",
+      refreshToken: "next-refresh-token",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(second.recorder.values.get("oar_ui_session_alpha")).toBe(
+      "next-refresh-token",
+    );
+    expect(second.recorder.values.get("oar_ui_access_alpha")).toBe(
+      "next-access-token",
+    );
   });
 });
