@@ -69,4 +69,41 @@ describe("wakeRouting", () => {
       summary: "Registration status is unavailable right now.",
     });
   });
+
+  it("treats missing durable workspace ids as indeterminate", () => {
+    const result = describeWakeRouting(
+      {
+        principal_kind: "agent",
+        actor_id: "actor-ops-ai",
+        username: "m4-hermes",
+        revoked: false,
+      },
+      {
+        state: "ok",
+        document: {
+          document: {
+            id: "agentreg.m4-hermes",
+            status: "active",
+          },
+          revision: {
+            content: {
+              handle: "m4-hermes",
+              actor_id: "actor-ops-ai",
+              status: "active",
+              workspace_bindings: [{ workspace_id: "ws-123", enabled: true }],
+            },
+          },
+        },
+      },
+      "",
+    );
+
+    expect(result).toMatchObject({
+      applicable: true,
+      wakeable: false,
+      badgeLabel: "Unknown",
+      summary:
+        "Workspace binding status is unavailable because this workspace has no durable workspace ID.",
+    });
+  });
 });

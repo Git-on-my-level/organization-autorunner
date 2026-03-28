@@ -112,6 +112,16 @@ export function describeWakeRouting(principal, registrationDoc, workspaceId) {
     };
   }
 
+  if (!bindingTarget) {
+    return {
+      ...base,
+      badgeLabel: "Unknown",
+      badgeClass: "bg-slate-500/10 text-slate-300",
+      summary:
+        "Workspace binding status is unavailable because this workspace has no durable workspace ID.",
+    };
+  }
+
   const bindings = Array.isArray(content.workspace_bindings)
     ? content.workspace_bindings
     : [];

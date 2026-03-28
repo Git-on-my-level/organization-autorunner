@@ -347,7 +347,7 @@
   }
 
   async function enrichPrincipalsWithWakeRouting(principalList) {
-    const workspaceBindingTarget = data?.workspaceId || workspaceSlug;
+    const workspaceBindingTarget = data?.workspaceId ?? "";
     const activeAgentHandles = [
       ...new Set(
         (principalList ?? [])
