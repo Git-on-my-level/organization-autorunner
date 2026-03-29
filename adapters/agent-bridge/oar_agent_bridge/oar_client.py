@@ -147,7 +147,9 @@ class OARClient:
             document.setdefault("document_id", document_id)
             return self.create_document(document=document, content=content, content_type=content_type, request_key=request_key)
         revision = current["revision"]
-        return self.update_document(document_id, if_base_revision=str(revision["revision_id"]), document=document, content=content, content_type=content_type)
+        update_document = dict(document)
+        update_document.pop("document_id", None)
+        return self.update_document(document_id, if_base_revision=str(revision["revision_id"]), document=update_document, content=content, content_type=content_type)
 
     def create_event(self, *, event: dict[str, Any], request_key: str | None = None) -> dict[str, Any]:
         body: dict[str, Any] = {"event": event}
