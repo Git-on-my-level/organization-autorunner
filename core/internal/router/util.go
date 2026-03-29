@@ -42,8 +42,10 @@ func compactText(text string, limit int) string {
 
 func extractMessageText(event map[string]any) string {
 	if payload, ok := event["payload"].(map[string]any); ok {
-		if text := strings.TrimSpace(anyString(payload["text"])); text != "" {
-			return text
+		for _, key := range []string{"text", "body", "message", "content"} {
+			if text := strings.TrimSpace(anyString(payload[key])); text != "" {
+				return text
+			}
 		}
 	}
 	return strings.TrimSpace(anyString(event["summary"]))
@@ -64,6 +66,9 @@ func asSlice(value any) []any {
 }
 
 func anyString(value any) string {
+	if value == nil {
+		return ""
+	}
 	switch typed := value.(type) {
 	case string:
 		return typed
