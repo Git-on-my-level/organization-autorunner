@@ -448,6 +448,9 @@ test("thread detail separates messages from timeline and nests replies", async (
     /\/docs\/doc-onboarding-runbook\?revision=rev-onboarding-runbook-2$/,
   );
   await page.getByRole("tab", { name: "Messages" }).click();
+  await expect(page).toHaveURL(
+    /\/local\/threads\/thread-onboarding\?tab=messages$/,
+  );
 
   await expect(
     page.getByRole("heading", { name: "Customer Onboarding Workflow" }),
@@ -495,7 +498,23 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(page.getByRole("tab", { name: "Timeline" })).toBeVisible();
 
   await page.getByRole("tab", { name: "Timeline" }).click();
+  await expect(page).toHaveURL(
+    /\/local\/threads\/thread-onboarding\?tab=timeline$/,
+  );
   await expect(page.locator("#message-text")).toHaveCount(0);
+  await expect(
+    page.getByText("Message: Reply message from e2e", { exact: true }),
+  ).toBeVisible();
+
+  await page.reload();
+
+  await expect(page).toHaveURL(
+    /\/local\/threads\/thread-onboarding\?tab=timeline$/,
+  );
+  await expect(page.locator("#message-text")).toHaveCount(0);
+  await expect(
+    page.getByRole("tab", { name: "Timeline", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
   await expect(
     page.getByText("Message: Reply message from e2e", { exact: true }),
   ).toBeVisible();

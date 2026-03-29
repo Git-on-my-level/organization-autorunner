@@ -12,6 +12,10 @@ The UI targets a **dark-first, compact, information-dense** aesthetic inspired b
 - Flat over layered — single-level cards with dividers, not nested card stacks.
 - Monochromatic over colorful — semantic colors only for status/urgency, never decoration.
 - Readable over flashy — contrast ratios must pass WCAG AA on dark backgrounds.
+- Linkable over hidden — operator-visible view state that changes which records
+  or panels are shown SHOULD default to route/query state when practical, so
+  refresh and deep links restore the same view. Keep transient drafts and pure
+  presentation toggles out of the URL.
 
 ## Color System
 

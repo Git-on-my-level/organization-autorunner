@@ -93,6 +93,16 @@ The snapshot is interpretive and mutable. The timeline is durable and immutable.
 - `snapshot_updated` events SHOULD display `changed_fields` from the event payload when available.
 - Unknown event types MUST render without breaking the timeline.
 
+### 2.4 URL-backed view state
+
+- Operator-visible state that materially changes which content is shown SHOULD
+  be URL-backed when practical, so refresh, share, and back/forward navigation
+  restore the same view.
+- Examples include selected detail tabs, active filters, revision selectors,
+  and composer modes that change the operator's working context.
+- Transient form drafts and purely presentational preferences MAY stay outside
+  the URL.
+
 ---
 
 ## 3. Required UI surfaces (v0)

@@ -1,8 +1,15 @@
 <script>
+  import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import { onMount } from "svelte";
 
   import RefLink from "$lib/components/RefLink.svelte";
+  import {
+    DEFAULT_ARTIFACT_LIST_FILTERS,
+    buildArtifactListQuery,
+    buildArtifactListSearchString,
+    hasArtifactListFilters,
+    parseArtifactListSearchParams,
+  } from "$lib/artifactFilters";
   import { coreClient } from "$lib/coreClient";
   import {
     KIND_LABELS,
@@ -20,43 +27,26 @@
   let filtersOpen = $state(false);
   let workspaceSlug = $derived($page.params.workspace);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
-  let filters = $state({
-    kind: "",
-    thread_id: "",
-    created_after: "",
-    created_before: "",
-  });
+  let filters = $state({ ...DEFAULT_ARTIFACT_LIST_FILTERS });
 
   function workspaceHref(pathname = "/") {
     return workspacePath(workspaceSlug, pathname);
   }
 
-  onMount(async () => {
-    await loadArtifacts();
+  $effect(() => {
+    const parsed = parseArtifactListSearchParams($page.url.searchParams);
+    filters = { ...DEFAULT_ARTIFACT_LIST_FILTERS, ...parsed };
+    filtersOpen = hasArtifactListFilters(parsed);
+    void loadArtifactsFromState(parsed);
   });
 
-  function toIsoOrEmpty(value) {
-    if (!value) return "";
-    const parsed = Date.parse(String(value));
-    if (Number.isNaN(parsed)) return "";
-    return new Date(parsed).toISOString();
-  }
-
-  function buildArtifactQuery() {
-    return {
-      kind: filters.kind.trim(),
-      thread_id: filters.thread_id.trim(),
-      created_after: toIsoOrEmpty(filters.created_after),
-      created_before: toIsoOrEmpty(filters.created_before),
-    };
-  }
-
-  async function loadArtifacts() {
+  async function loadArtifactsFromState(state) {
     loading = true;
     error = "";
     try {
       artifacts =
-        (await coreClient.listArtifacts(buildArtifactQuery())).artifacts ?? [];
+        (await coreClient.listArtifacts(buildArtifactListQuery(state)))
+          .artifacts ?? [];
     } catch (e) {
       error = `Failed to load artifacts: ${e instanceof Error ? e.message : String(e)}`;
       artifacts = [];
@@ -66,17 +56,27 @@
   }
 
   async function applyFilters() {
-    await loadArtifacts();
+    const qs = buildArtifactListSearchString(filters);
+    const base = workspaceHref("/artifacts");
+    await goto(`${base}${qs ? `?${qs}` : ""}`, {
+      noScroll: true,
+      keepFocus: true,
+    });
   }
 
   async function clearFilters() {
-    filters = {
-      kind: "",
-      thread_id: "",
-      created_after: "",
-      created_before: "",
-    };
-    await loadArtifacts();
+    filters = { ...DEFAULT_ARTIFACT_LIST_FILTERS };
+    filtersOpen = false;
+
+    if ([...$page.url.searchParams.keys()].length === 0) {
+      await loadArtifactsFromState(DEFAULT_ARTIFACT_LIST_FILTERS);
+      return;
+    }
+
+    await goto(workspaceHref("/artifacts"), {
+      noScroll: true,
+      keepFocus: true,
+    });
   }
 
   function rowHeading(artifact) {

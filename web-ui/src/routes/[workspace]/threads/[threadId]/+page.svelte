@@ -1,9 +1,11 @@
 <script>
+  import { goto } from "$app/navigation";
   import { onMount, onDestroy } from "svelte";
   import { page } from "$app/stores";
 
   import { coreClient } from "$lib/coreClient";
   import { threadDetailStore } from "$lib/threadDetailStore";
+  import { readEnumSearchParam, withUpdatedSearchParams } from "$lib/urlState";
 
   import ThreadDetailHeader from "$lib/components/thread-detail/ThreadDetailHeader.svelte";
   import ThreadOverviewTab from "$lib/components/thread-detail/ThreadOverviewTab.svelte";
@@ -14,6 +16,8 @@
   import ThreadWorkTab from "$lib/components/thread-detail/ThreadWorkTab.svelte";
   import ThreadTimelineTab from "$lib/components/thread-detail/ThreadTimelineTab.svelte";
 
+  const THREAD_DETAIL_TABS = ["overview", "work", "messages", "timeline"];
+
   let { data } = $props();
   let threadId = $derived($page.params.threadId);
 
@@ -21,7 +25,15 @@
   let snapshotLoading = $derived($threadDetailStore.snapshotLoading);
   let snapshotError = $derived($threadDetailStore.snapshotError);
 
-  let activeTab = $state("overview");
+  let requestedTab = $derived(
+    readEnumSearchParam($page.url.searchParams, "tab", THREAD_DETAIL_TABS, ""),
+  );
+  let activeTab = $derived(
+    requestedTab ||
+      ($page.url.searchParams.get("compose") === "work-order"
+        ? "work"
+        : "overview"),
+  );
 
   let conflictWarning = $state("");
   let editNotice = $state("");
@@ -181,16 +193,17 @@
   }
 
   $effect(() => {
-    if ($page.url.searchParams.get("compose") === "work-order") {
-      activeTab = "work";
-    }
-  });
-
-  $effect(() => {
     if ((activeTab === "messages" || activeTab === "timeline") && threadId) {
       void threadDetailStore.loadTimeline(threadId);
     }
   });
+
+  async function setActiveTab(tabId) {
+    await goto(withUpdatedSearchParams($page.url, { tab: tabId }), {
+      noScroll: true,
+      keepFocus: true,
+    });
+  }
 </script>
 
 <ThreadDetailHeader {threadId} />
@@ -212,7 +225,7 @@
     {#each [["overview", "Overview"], ["work", "Work"], ["messages", "Messages"], ["timeline", "Timeline"]] as [tabId, tabLabel]}
       <button
         class={`relative cursor-pointer px-3 py-2 text-[13px] font-medium transition-colors ${activeTab === tabId ? "text-[var(--ui-text)]" : "text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"}`}
-        onclick={() => (activeTab = tabId)}
+        onclick={() => void setActiveTab(tabId)}
         type="button"
         role="tab"
         aria-selected={activeTab === tabId}
