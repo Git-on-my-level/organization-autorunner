@@ -64,8 +64,7 @@
 
       if (
         eventTs > latestEventTs ||
-        (eventTs === latestEventTs &&
-          eventId.localeCompare(latestEventId) > 0)
+        (eventTs === latestEventTs && eventId.localeCompare(latestEventId) > 0)
       ) {
         latestEventId = eventId;
         latestEventTs = eventTs;
