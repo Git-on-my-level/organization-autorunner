@@ -48,6 +48,75 @@ func TestStoreAppendAndGetEventUnknownTypeAccepted(t *testing.T) {
 	}
 }
 
+func TestListEventsAfterUsesChronologicalTimestampOrdering(t *testing.T) {
+	t.Parallel()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
+
+	insertEvent := func(eventID string, ts string) {
+		body := map[string]any{
+			"id":        eventID,
+			"type":      "message_posted",
+			"ts":        ts,
+			"actor_id":  "actor-1",
+			"thread_id": "thread-1",
+			"refs":      []string{"thread:thread-1"},
+			"payload":   map[string]any{"text": eventID},
+		}
+		bodyJSON, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("marshal event body: %v", err)
+		}
+		payloadJSON, err := json.Marshal(body["payload"])
+		if err != nil {
+			t.Fatalf("marshal event payload: %v", err)
+		}
+		refsJSON, err := json.Marshal(body["refs"])
+		if err != nil {
+			t.Fatalf("marshal event refs: %v", err)
+		}
+		if _, err := workspace.DB().ExecContext(
+			context.Background(),
+			`INSERT INTO events(id, type, ts, actor_id, thread_id, refs_json, payload_json, body_json, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+			eventID,
+			"message_posted",
+			ts,
+			"actor-1",
+			"thread-1",
+			string(refsJSON),
+			string(payloadJSON),
+			string(bodyJSON),
+		); err != nil {
+			t.Fatalf("insert raw event: %v", err)
+		}
+	}
+
+	insertEvent("event-whole", "2026-03-29T15:28:28Z")
+	insertEvent("event-fractional", "2026-03-29T15:28:28.1Z")
+
+	events, err := store.ListEventsAfter(context.Background(), primitives.EventListFilter{Types: []string{"message_posted"}}, primitives.EventCursor{
+		TS: "2026-03-29T15:28:28Z",
+		ID: "event-whole",
+	}, 10)
+	if err != nil {
+		t.Fatalf("list events after: %v", err)
+	}
+
+	if len(events) != 1 {
+		t.Fatalf("expected one event after cursor, got %#v", events)
+	}
+	if got := events[0]["id"]; got != "event-fractional" {
+		t.Fatalf("expected fractional event after cursor, got %#v", got)
+	}
+}
+
 func TestCreateArtifactAcceptsSafeIDAndRejectsUnsafeIDs(t *testing.T) {
 	t.Parallel()
 

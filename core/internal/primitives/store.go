@@ -1298,10 +1298,10 @@ func (s *Store) ListEventsAfter(ctx context.Context, filter EventListFilter, cur
 		query += ` AND type IN (` + strings.Join(placeholders, ",") + `)`
 	}
 	if strings.TrimSpace(cursor.TS) != "" {
-		query += ` AND (ts > ? OR (ts = ? AND id > ?))`
+		query += ` AND (julianday(ts) > julianday(?) OR (julianday(ts) = julianday(?) AND id > ?))`
 		args = append(args, strings.TrimSpace(cursor.TS), strings.TrimSpace(cursor.TS), strings.TrimSpace(cursor.ID))
 	}
-	query += ` ORDER BY ts ASC, id ASC LIMIT ?`
+	query += ` ORDER BY julianday(ts) ASC, id ASC LIMIT ?`
 	args = append(args, limit)
 
 	rows, err := s.db.QueryContext(ctx, query, args...)

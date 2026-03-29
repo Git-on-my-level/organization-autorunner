@@ -278,60 +278,63 @@ func main() {
 		DirtyBatchSize:    projectionBatchSize,
 		SystemActorID:     "oar-core",
 	})
-	routerState, err := router.NewStateStore(sidecarRouterStatePath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize router state: %v\n", err)
-		os.Exit(1)
+	sidecarHost := sidecar.NewHost()
+	if sidecarRouterEnabled {
+		routerState, err := router.NewStateStore(sidecarRouterStatePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to initialize router state: %v\n", err)
+			os.Exit(1)
+		}
+		routerService := router.NewService(router.Config{
+			BaseURL:           coreBaseURL,
+			WorkspaceID:       workspaceID,
+			WorkspaceName:     workspaceName,
+			StatePath:         sidecarRouterStatePath,
+			PrincipalCacheTTL: sidecarRouterCacheTTL,
+			PollInterval:      sidecarRouterPollInterval,
+			ActorID:           "oar-core",
+		}, router.Dependencies{
+			ListPrincipals: func(ctx context.Context, limit int) ([]auth.AuthPrincipalSummary, error) {
+				filter := auth.AuthPrincipalListFilter{}
+				if limit > 0 {
+					filter.Limit = &limit
+				}
+				principals, _, err := authStore.ListPrincipals(ctx, filter)
+				return principals, err
+			},
+			ListMessagePostedAfter: func(ctx context.Context, cursor primitives.EventCursor, limit int) ([]map[string]any, error) {
+				return primitiveStore.ListEventsAfter(ctx, primitives.EventListFilter{Types: []string{router.MessagePostedEvent}}, cursor, limit)
+			},
+			GetRegistrationContent: func(ctx context.Context, documentID string) (map[string]any, error) {
+				_, revision, err := primitiveStore.GetDocument(ctx, documentID)
+				if err != nil {
+					return nil, err
+				}
+				content, ok := revision["content"].(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("document %s content is not structured", documentID)
+				}
+				return content, nil
+			},
+			GetEvent:  primitiveStore.GetEvent,
+			GetThread: primitiveStore.GetThread,
+			CreateArtifact: func(ctx context.Context, actorID string, artifact map[string]any, content any, contentType string) error {
+				_, err := primitiveStore.CreateArtifact(ctx, actorID, artifact, content, contentType)
+				return err
+			},
+			AppendEvent: func(ctx context.Context, actorID string, event map[string]any) error {
+				_, err := primitiveStore.AppendEvent(ctx, actorID, event)
+				return err
+			},
+			MarkThreadDirty: func(ctx context.Context, threadID string, queuedAt time.Time) error {
+				return primitiveStore.MarkThreadProjectionsDirty(ctx, []string{threadID}, queuedAt)
+			},
+		}, routerState)
+		sidecarHost = sidecar.NewHost(sidecar.Registration{
+			Service: routerService,
+			Enabled: true,
+		})
 	}
-	routerService := router.NewService(router.Config{
-		BaseURL:           coreBaseURL,
-		WorkspaceID:       workspaceID,
-		WorkspaceName:     workspaceName,
-		StatePath:         sidecarRouterStatePath,
-		PrincipalCacheTTL: sidecarRouterCacheTTL,
-		PollInterval:      sidecarRouterPollInterval,
-		ActorID:           "oar-core",
-	}, router.Dependencies{
-		ListPrincipals: func(ctx context.Context, limit int) ([]auth.AuthPrincipalSummary, error) {
-			filter := auth.AuthPrincipalListFilter{}
-			if limit > 0 {
-				filter.Limit = &limit
-			}
-			principals, _, err := authStore.ListPrincipals(ctx, filter)
-			return principals, err
-		},
-		ListMessagePostedAfter: func(ctx context.Context, cursor primitives.EventCursor, limit int) ([]map[string]any, error) {
-			return primitiveStore.ListEventsAfter(ctx, primitives.EventListFilter{Types: []string{router.MessagePostedEvent}}, cursor, limit)
-		},
-		GetRegistrationContent: func(ctx context.Context, documentID string) (map[string]any, error) {
-			_, revision, err := primitiveStore.GetDocument(ctx, documentID)
-			if err != nil {
-				return nil, err
-			}
-			content, ok := revision["content"].(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("document %s content is not structured", documentID)
-			}
-			return content, nil
-		},
-		GetEvent:  primitiveStore.GetEvent,
-		GetThread: primitiveStore.GetThread,
-		CreateArtifact: func(ctx context.Context, actorID string, artifact map[string]any, content any, contentType string) error {
-			_, err := primitiveStore.CreateArtifact(ctx, actorID, artifact, content, contentType)
-			return err
-		},
-		AppendEvent: func(ctx context.Context, actorID string, event map[string]any) error {
-			_, err := primitiveStore.AppendEvent(ctx, actorID, event)
-			return err
-		},
-		MarkThreadDirty: func(ctx context.Context, threadID string, queuedAt time.Time) error {
-			return primitiveStore.MarkThreadProjectionsDirty(ctx, []string{threadID}, queuedAt)
-		},
-	}, routerState)
-	sidecarHost := sidecar.NewHost(sidecar.Registration{
-		Service: routerService,
-		Enabled: sidecarRouterEnabled,
-	})
 	var heartbeatReporter *heartbeat.Reporter
 	if strings.TrimSpace(controlPlaneBaseURL) != "" {
 		heartbeatReporter, err = heartbeat.NewReporter(heartbeat.ReporterConfig{
