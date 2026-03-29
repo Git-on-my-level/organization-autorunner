@@ -1158,9 +1158,8 @@
         can be tagged from thread messages with
         <code class="rounded bg-[var(--ui-border)] px-1 py-px text-[10px]"
           >@handle</code
-        >.
-        Pending or stale entries are registered but their bridge has not checked
-        in recently enough.
+        >. Pending or stale entries are registered but their bridge has not
+        checked in recently enough.
       </p>
       {#if principalsState.status === SECTION_ERROR}
         <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
