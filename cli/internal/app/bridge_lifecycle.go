@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -18,12 +19,13 @@ import (
 )
 
 var (
-	bridgeReadFile            = os.ReadFile
-	bridgeOpenFile            = os.OpenFile
-	bridgeStartManagedProcess = defaultBridgeStartManagedProcess
-	bridgeStopManagedProcess  = defaultBridgeStopManagedProcess
-	bridgeProcessAlive        = defaultBridgeProcessAlive
-	bridgeProcessCommandLine  = defaultBridgeProcessCommandLine
+	bridgeReadFile             = os.ReadFile
+	bridgeOpenFile             = os.OpenFile
+	bridgeStartManagedProcess  = defaultBridgeStartManagedProcess
+	bridgeStopManagedProcess   = defaultBridgeStopManagedProcess
+	bridgeProcessAlive         = defaultBridgeProcessAlive
+	bridgeProcessCommandLine   = defaultBridgeProcessCommandLine
+	bridgeSectionHeaderPattern = regexp.MustCompile(`^\s*\[([A-Za-z0-9_-]+)\]\s*(?:#.*)?$`)
 )
 
 type bridgeManagedRuntime struct {
@@ -558,7 +560,12 @@ func inferBridgeRuntimeKind(content string, configPath string) (runtimeKind stri
 func bridgeConfigHasSection(content string, section string) bool {
 	target := "[" + section + "]"
 	for _, line := range strings.Split(content, "\n") {
-		if strings.TrimSpace(line) == target {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == target {
+			return true
+		}
+		matches := bridgeSectionHeaderPattern.FindStringSubmatch(line)
+		if len(matches) == 2 && matches[1] == section {
 			return true
 		}
 	}

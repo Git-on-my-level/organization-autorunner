@@ -65,6 +65,21 @@ func TestLoadBridgeManagedConfigDetectsAgentConfig(t *testing.T) {
 	}
 }
 
+func TestLoadBridgeManagedConfigDetectsAgentConfigWithHeaderComment(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "agent.toml")
+	if err := os.WriteFile(configPath, []byte("[agent] # prod\nhandle = \"hermes\"\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := loadBridgeManagedConfig(configPath)
+	if err != nil {
+		t.Fatalf("loadBridgeManagedConfig: %v", err)
+	}
+	if cfg.RuntimeKind != "agent" || cfg.RunCommand != "bridge" {
+		t.Fatalf("unexpected managed config: %#v", cfg)
+	}
+}
+
 func TestBridgeStartPersistsManagedRuntimeState(t *testing.T) {
 	home := t.TempDir()
 	configPath := filepath.Join(t.TempDir(), "agent.toml")

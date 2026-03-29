@@ -20,21 +20,38 @@ const bridgeProofKeyPromise = (async () => {
   };
 })();
 
+function stableJsonValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableJsonValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((normalized, key) => {
+        normalized[key] = stableJsonValue(value[key]);
+        return normalized;
+      }, {});
+  }
+  return value;
+}
+
 async function signCheckinPayload(content) {
   const { privateKey } = await bridgeProofKeyPromise;
   const signature = await webcrypto.subtle.sign(
     { name: "ECDSA", hash: "SHA-256" },
     privateKey,
     Buffer.from(
-      JSON.stringify({
-        v: "agent-bridge-checkin-proof/v1",
-        handle: String(content.handle ?? "").trim(),
-        actor_id: String(content.actor_id ?? "").trim(),
-        workspace_id: String(content.workspace_id ?? "").trim(),
-        bridge_instance_id: String(content.bridge_instance_id ?? "").trim(),
-        checked_in_at: String(content.checked_in_at ?? "").trim(),
-        expires_at: String(content.expires_at ?? "").trim(),
-      }),
+      JSON.stringify(
+        stableJsonValue({
+          v: "agent-bridge-checkin-proof/v1",
+          handle: String(content.handle ?? "").trim(),
+          actor_id: String(content.actor_id ?? "").trim(),
+          workspace_id: String(content.workspace_id ?? "").trim(),
+          bridge_instance_id: String(content.bridge_instance_id ?? "").trim(),
+          checked_in_at: String(content.checked_in_at ?? "").trim(),
+          expires_at: String(content.expires_at ?? "").trim(),
+        }),
+      ),
       "utf8",
     ),
   );

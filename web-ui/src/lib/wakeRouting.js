@@ -36,16 +36,35 @@ function parseTimestamp(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function stableJsonValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableJsonValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((normalized, key) => {
+        normalized[key] = stableJsonValue(value[key]);
+        return normalized;
+      }, {});
+  }
+  return value;
+}
+
 function bridgeProofMessage(checkinContent) {
-  return JSON.stringify({
-    v: "agent-bridge-checkin-proof/v1",
-    handle: String(checkinContent?.handle ?? "").trim(),
-    actor_id: String(checkinContent?.actor_id ?? "").trim(),
-    workspace_id: String(checkinContent?.workspace_id ?? "").trim(),
-    bridge_instance_id: String(checkinContent?.bridge_instance_id ?? "").trim(),
-    checked_in_at: String(checkinContent?.checked_in_at ?? "").trim(),
-    expires_at: String(checkinContent?.expires_at ?? "").trim(),
-  });
+  return JSON.stringify(
+    stableJsonValue({
+      v: "agent-bridge-checkin-proof/v1",
+      handle: String(checkinContent?.handle ?? "").trim(),
+      actor_id: String(checkinContent?.actor_id ?? "").trim(),
+      workspace_id: String(checkinContent?.workspace_id ?? "").trim(),
+      bridge_instance_id: String(
+        checkinContent?.bridge_instance_id ?? "",
+      ).trim(),
+      checked_in_at: String(checkinContent?.checked_in_at ?? "").trim(),
+      expires_at: String(checkinContent?.expires_at ?? "").trim(),
+    }),
+  );
 }
 
 function base64ToBytes(value) {
