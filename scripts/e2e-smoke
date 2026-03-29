@@ -15,6 +15,13 @@ BOOTSTRAP_TOKEN="${BOOTSTRAP_TOKEN:-smoke-bootstrap-token}"
 
 mkdir -p "$ARTIFACT_DIR"
 TMP_DIR="$(mktemp -d "$ARTIFACT_DIR/run.XXXXXX")"
+
+if lsof -ti :${CORE_PORT} >/dev/null 2>&1; then
+  echo "port ${CORE_PORT} is already in use; aborting to avoid killing unrelated processes" >&2
+  lsof -i :${CORE_PORT} >&2 || true
+  exit 1
+fi
+
 CORE_LOG="$TMP_DIR/core.log"
 UI_LOG="$TMP_DIR/web-ui.log"
 EVENTS_TAIL_OUT="$TMP_DIR/events-tail.jsonl"
