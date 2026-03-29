@@ -215,31 +215,33 @@ export async function describeWakeRouting(
     };
   }
 
-  if (!bindingTarget) {
-    return {
-      ...base,
-      badgeLabel: "Unknown",
-      badgeClass: "bg-slate-500/10 text-slate-300",
-      summary:
-        "Workspace binding status is unavailable because this workspace has no durable workspace ID.",
-    };
-  }
-
   const bindings = Array.isArray(content.workspace_bindings)
     ? content.workspace_bindings
     : [];
+  const enabledBindings = bindings.filter((binding) => {
+    const workspaceId = String(binding?.workspace_id ?? "").trim();
+    return workspaceId && binding?.enabled !== false;
+  });
+
+  if (!bindingTarget && enabledBindings.length === 0) {
+    return {
+      ...base,
+      summary: "Registration is not enabled for any workspace.",
+    };
+  }
+
   const matchingBinding = bindings.find(
     (binding) => String(binding?.workspace_id ?? "").trim() === bindingTarget,
   );
 
-  if (!matchingBinding) {
+  if (bindingTarget && !matchingBinding) {
     return {
       ...base,
       summary: "Registration is not enabled for this workspace.",
     };
   }
 
-  if (matchingBinding.enabled === false) {
+  if (bindingTarget && matchingBinding.enabled === false) {
     return {
       ...base,
       summary: "Registration is disabled for this workspace.",
@@ -314,10 +316,22 @@ export async function describeWakeRouting(
   }
 
   const checkinWorkspaceId = String(checkinContent.workspace_id ?? "").trim();
-  if (checkinWorkspaceId !== bindingTarget) {
+  if (bindingTarget && checkinWorkspaceId !== bindingTarget) {
     return {
       ...base,
       summary: "Bridge check-in is for a different workspace.",
+    };
+  }
+  if (
+    !bindingTarget &&
+    !enabledBindings.some(
+      (binding) =>
+        String(binding?.workspace_id ?? "").trim() === checkinWorkspaceId,
+    )
+  ) {
+    return {
+      ...base,
+      summary: "Bridge check-in is for an unbound workspace.",
     };
   }
 
@@ -359,6 +373,17 @@ export async function describeWakeRouting(
     return {
       ...base,
       summary: "Bridge check-in is stale. Restart or reconnect the bridge.",
+    };
+  }
+
+  if (!bindingTarget) {
+    return {
+      applicable: true,
+      handle,
+      wakeable: true,
+      badgeLabel: "Wakeable",
+      badgeClass: "bg-emerald-500/10 text-emerald-400",
+      summary: `Wakeable for bound workspace ${checkinWorkspaceId}, but this page has no durable workspace ID to confirm the current workspace match.`,
     };
   }
 
