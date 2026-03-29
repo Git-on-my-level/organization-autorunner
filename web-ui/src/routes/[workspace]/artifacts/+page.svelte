@@ -1,8 +1,16 @@
 <script>
+  import { goto } from "$app/navigation";
   import { page } from "$app/stores";
-  import { onMount } from "svelte";
 
   import RefLink from "$lib/components/RefLink.svelte";
+  import {
+    DEFAULT_ARTIFACT_LIST_FILTERS,
+    buildArtifactListQuery,
+    buildArtifactListSearchString,
+    formatArtifactTimestampInputValue,
+    hasArtifactListFilters,
+    parseArtifactListSearchParams,
+  } from "$lib/artifactFilters";
   import { coreClient } from "$lib/coreClient";
   import {
     KIND_LABELS,
@@ -20,9 +28,8 @@
   let filtersOpen = $state(false);
   let workspaceSlug = $derived($page.params.workspace);
   let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
-  let filters = $state({
-    kind: "",
-    thread_id: "",
+  let filters = $state({ ...DEFAULT_ARTIFACT_LIST_FILTERS });
+  let dateInputs = $state({
     created_after: "",
     created_before: "",
   });
@@ -31,32 +38,24 @@
     return workspacePath(workspaceSlug, pathname);
   }
 
-  onMount(async () => {
-    await loadArtifacts();
+  $effect(() => {
+    const parsed = parseArtifactListSearchParams($page.url.searchParams);
+    filters = { ...DEFAULT_ARTIFACT_LIST_FILTERS, ...parsed };
+    dateInputs = {
+      created_after: formatArtifactTimestampInputValue(parsed.created_after),
+      created_before: formatArtifactTimestampInputValue(parsed.created_before),
+    };
+    filtersOpen = hasArtifactListFilters(parsed);
+    void loadArtifactsFromState(parsed);
   });
 
-  function toIsoOrEmpty(value) {
-    if (!value) return "";
-    const parsed = Date.parse(String(value));
-    if (Number.isNaN(parsed)) return "";
-    return new Date(parsed).toISOString();
-  }
-
-  function buildArtifactQuery() {
-    return {
-      kind: filters.kind.trim(),
-      thread_id: filters.thread_id.trim(),
-      created_after: toIsoOrEmpty(filters.created_after),
-      created_before: toIsoOrEmpty(filters.created_before),
-    };
-  }
-
-  async function loadArtifacts() {
+  async function loadArtifactsFromState(state) {
     loading = true;
     error = "";
     try {
       artifacts =
-        (await coreClient.listArtifacts(buildArtifactQuery())).artifacts ?? [];
+        (await coreClient.listArtifacts(buildArtifactListQuery(state)))
+          .artifacts ?? [];
     } catch (e) {
       error = `Failed to load artifacts: ${e instanceof Error ? e.message : String(e)}`;
       artifacts = [];
@@ -66,17 +65,28 @@
   }
 
   async function applyFilters() {
-    await loadArtifacts();
+    const qs = buildArtifactListSearchString(filters);
+    const base = workspaceHref("/artifacts");
+    await goto(`${base}${qs ? `?${qs}` : ""}`, {
+      noScroll: true,
+      keepFocus: true,
+    });
   }
 
   async function clearFilters() {
-    filters = {
-      kind: "",
-      thread_id: "",
-      created_after: "",
-      created_before: "",
-    };
-    await loadArtifacts();
+    filters = { ...DEFAULT_ARTIFACT_LIST_FILTERS };
+    dateInputs = { created_after: "", created_before: "" };
+    filtersOpen = false;
+
+    if ([...$page.url.searchParams.keys()].length === 0) {
+      await loadArtifactsFromState(DEFAULT_ARTIFACT_LIST_FILTERS);
+      return;
+    }
+
+    await goto(workspaceHref("/artifacts"), {
+      noScroll: true,
+      keepFocus: true,
+    });
   }
 
   function rowHeading(artifact) {
@@ -88,6 +98,11 @@
   function refPreview(artifact) {
     const refs = Array.isArray(artifact?.refs) ? artifact.refs : [];
     return refs.slice(0, 3);
+  }
+
+  function updateDateFilter(field, value) {
+    dateInputs = { ...dateInputs, [field]: value };
+    filters = { ...filters, [field]: value };
   }
 </script>
 
@@ -147,17 +162,21 @@
       <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Created after
         <input
-          bind:value={filters.created_after}
+          value={dateInputs.created_after}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           type="datetime-local"
+          oninput={(event) =>
+            updateDateFilter("created_after", event.currentTarget.value)}
         />
       </label>
       <label class="text-[12px] font-medium text-[var(--ui-text-muted)]">
         Created before
         <input
-          bind:value={filters.created_before}
+          value={dateInputs.created_before}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           type="datetime-local"
+          oninput={(event) =>
+            updateDateFilter("created_before", event.currentTarget.value)}
         />
       </label>
     </div>
