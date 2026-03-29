@@ -180,7 +180,7 @@ describe("wakeRouting", () => {
     });
   });
 
-  it("treats missing durable workspace ids as indeterminate", async () => {
+  it("keeps healthy bridge registrations wakeable when page workspace context is missing", async () => {
     const { publicKeyB64 } = await bridgeProofKeyPromise;
     const result = await describeWakeRouting(
       principal,
@@ -205,10 +205,10 @@ describe("wakeRouting", () => {
 
     expect(result).toMatchObject({
       applicable: true,
-      wakeable: false,
-      badgeLabel: "Unknown",
+      wakeable: true,
+      badgeLabel: "Wakeable",
       summary:
-        "Workspace binding status is unavailable because this workspace has no durable workspace ID.",
+        "Wakeable for bound workspace ws-123, but this page has no durable workspace ID to confirm the current workspace match.",
     });
   });
 
