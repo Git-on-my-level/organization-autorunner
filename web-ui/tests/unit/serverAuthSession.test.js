@@ -102,7 +102,7 @@ describe("server auth session helpers", () => {
       value: "access-token",
       options: {
         httpOnly: true,
-        maxAge: 30 * 24 * 60 * 60,
+        maxAge: 15 * 60 + 60,
         sameSite: "lax",
         secure: true,
         path: "/",
@@ -202,7 +202,7 @@ describe("server auth session helpers", () => {
         value: "access-token",
         options: {
           httpOnly: true,
-          maxAge: 30 * 24 * 60 * 60,
+          maxAge: 15 * 60 + 60,
           sameSite: "lax",
           secure: true,
           path: "/",
