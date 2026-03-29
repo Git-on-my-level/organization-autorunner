@@ -10,7 +10,7 @@ Use this when you want humans or agents to wake other agents from thread message
 
 How it works
 
-- Wake routing is implemented by the adapter bridge layer, not by <<tick>>oar-core<<tick>> itself.
+- Wake routing is provided by a workspace-owned service that runs alongside <<tick>>oar-core<<tick>>, not by the per-agent CLI.
 - The durable registration document id is <<tick>>agentreg.<handle><<tick>>.
 - The bridge-owned readiness proof is the latest <<tick>>agent_bridge_checked_in<<tick>> event referenced by <<tick>>agentreg.<handle><<tick>>.
 - A tagged message only becomes durable wake work when the target agent is both registered and bridge-ready.
@@ -43,7 +43,7 @@ How agents discover it
 
 - Read this topic with <<tick>>oar meta doc wake-routing<<tick>>.
 - Read the preferred runtime path with <<tick>>oar meta doc agent-bridge<<tick>>.
-- Use <<tick>>oar help bridge<<tick>> to bootstrap the runtime from the main CLI.
+- Use <<tick>>oar help bridge<<tick>> to bootstrap the per-agent bridge runtime from the main CLI.
 - Use <<tick>>oar bridge workspace-id --handle <handle><<tick>> when an existing registration doc is the easiest source of truth for the durable workspace id.
 - Use <<tick>>oar bridge import-auth --config ./agent.toml --from-profile <agent><<tick>> when matching <<tick>>oar<<tick>> auth already exists.
 - Use <<tick>>oar auth whoami<<tick>> to confirm your current username and actor id.
@@ -55,16 +55,17 @@ Preferred path when you are using <<tick>>oar-agent-bridge<<tick>>
 
   oar bridge install
 
-2. Generate configs:
+2. Confirm the workspace deployment already runs its wake-routing service and note the durable workspace id it uses.
 
-  oar bridge init-config --kind router --output ./router.toml --workspace-id <workspace-id>
+3. Generate the agent config:
+
   oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>
 
-3. If matching <<tick>>oar<<tick>> auth already exists, import it into the bridge config:
+4. If matching <<tick>>oar<<tick>> auth already exists, import it into the bridge config:
 
   oar bridge import-auth --config ./agent.toml --from-profile <agent>
 
-4. Register auth and write the initial pending registration when auth does not already exist:
+5. Register auth and write the initial pending registration when auth does not already exist:
 
   oar-agent-bridge auth register --config ./agent.toml --invite-token <token> --apply-registration
 
@@ -72,16 +73,17 @@ Preferred path when you are using <<tick>>oar-agent-bridge<<tick>>
 
   oar-agent-bridge registration apply --config <agent.toml>
 
-5. Start the router and target bridge:
+6. Start the target bridge:
 
-  oar bridge start --config ./router.toml
   oar bridge start --config ./agent.toml
 
-6. Verify the bridge has checked in before telling humans to use <<tick>>@handle<<tick>>:
+7. Verify the bridge has checked in before telling humans to use <<tick>>@handle<<tick>>:
 
   oar bridge status --config ./agent.toml
   oar bridge doctor --config ./agent.toml
   oar-agent-bridge registration status --config ./agent.toml
+
+8. If the bridge is wakeable but tagged delivery still does not work, ask the workspace operator to inspect the deployment-owned wake-routing service.
 
 Generic OAR CLI lifecycle
 
@@ -96,8 +98,7 @@ If you are writing the document manually, only create the pending registration s
 2. Resolve the durable workspace id you want to enable:
 
   - If an existing registration doc is available, start with <<tick>>oar bridge workspace-id --handle <handle><<tick>> or <<tick>>oar bridge workspace-id --document-id agentreg.<handle><<tick>>.
-  - If you are configuring the router yourself, the source of truth is <<tick>>[oar] workspace_id<<tick>> in the router config.
-  - If a router already exists, inspect that deployed router config and copy its <<tick>>workspace_id<<tick>> exactly.
+  - If the workspace deployment already documents the configured <<tick>>workspace_id<<tick>>, copy that exact value.
   - If your deployment is driven by control-plane workspace records, copy the durable workspace id from that record, not the slug.
   - The bundled example value <<tick>>ws_main<<tick>> is only a sample.
   - Do not use a workspace slug or URL path segment. If you cannot determine the real value, stop and ask the operator.
@@ -151,7 +152,7 @@ Registration schema notes
 - Fields required for routing correctness are:
   - <<tick>>content.handle<<tick>> matching the principal username
   - <<tick>>content.actor_id<<tick>> matching the principal actor id
-  - at least one enabled <<tick>>content.workspace_bindings[].workspace_id<<tick>> matching the router workspace id
+  - at least one enabled <<tick>>content.workspace_bindings[].workspace_id<<tick>> matching the current workspace id
 - Bridge readiness fields are:
   - <<tick>>content.bridge_checkin_event_id<<tick>> points at the latest <<tick>>agent_bridge_checked_in<<tick>> event
   - <<tick>>content.bridge_signing_public_key_spki_b64<<tick>> stores the bridge-managed public proof key
@@ -192,7 +193,7 @@ Verification flow
 
 Concrete wake example
 
-1. Ensure the router and target bridge are running, and the bridge doctor reports the registration as wakeable.
+1. Ensure the target bridge is running, the bridge doctor reports the registration as wakeable, and the workspace deployment is running its wake-routing service.
 2. Post a thread message containing <<tick>>@<handle><<tick>>, for example:
 
   @<handle> summarize the latest onboarding blockers.
@@ -212,11 +213,12 @@ Common failure modes
 - workspace not bound: registration exists but is not enabled for this workspace
 - bridge not checked in: the registration is still pending
 - stale bridge check-in: the bridge stopped refreshing readiness
-- wrong workspace id: the registration uses a slug or another id that does not match the router configuration
+- wake-routing service unavailable: the workspace deployment is not currently routing tagged messages
+- wrong workspace id: the registration uses a slug or another id that does not match the workspace deployment
 
 Operational note
 
-- This mechanism is discoverable from the CLI and UI, but actual wake dispatch is still owned by the <<tick>>adapters/agent-bridge<<tick>> runtime.
+- This mechanism is discoverable from the CLI and UI, but actual wake dispatch is owned by the workspace deployment plus the per-agent bridge runtime.
 
 Next steps
 

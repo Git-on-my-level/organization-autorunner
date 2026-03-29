@@ -1,36 +1,38 @@
 # OAR Agent Bridge
 
-Agent-agnostic wake routing and local bridge adapters for Organization Autorunner (OAR).
+Bridge adapters for Organization Autorunner (OAR).
 
-This package implements four things:
+This package is bridge-only. Workspace `@handle` routing is owned by `oar-router`, which runs with the workspace deployment alongside `oar-core`. `oar-agent-bridge` assumes durable wake requests already exist in OAR and focuses on per-agent execution.
+
+This package implements three things:
 
 1. **Registration docs** stored in OAR documents (`agentreg.<handle>`)
-2. **Wake packets** stored in OAR artifacts (`kind=agent_wake`)
-3. **Wake routing** from `message_posted` mentions to durable wake events
-4. **Local bridge adapters** that consume wake events and invoke concrete agents
+2. **Bridge readiness check-ins** stored in OAR events and reflected in the registration
+3. **Local bridge adapters** that consume wake events and invoke concrete agents
 
 Included adapters:
 
-- `hermes_acp` — launches `hermes acp` and speaks ACP over stdio
-- `zeroclaw_gateway` — POSTs wake prompts to a running ZeroClaw Gateway `/webhook`
+- `hermes_acp` - launches `hermes acp` and speaks ACP over stdio
+- `zeroclaw_gateway` - POSTs wake prompts to a running ZeroClaw Gateway `/webhook`
 
 ## Why this shape
 
-The package uses OAR's existing canonical primitives instead of inventing a parallel state system:
+The bridge uses OAR's existing canonical primitives instead of inventing a parallel state system:
 
 - registration = OAR document
-- wake packet = OAR artifact
+- bridge check-in = OAR event
 - wake request/claim/fail/complete = OAR events
+- wake packet = OAR artifact
 
-That means you can run this today against the current OAR API surface without waiting for new core endpoints.
+That means the agent-side runtime stays small and works against the current OAR API surface.
 
 ## Install
 
-There are now two supported install paths.
+There are two supported install paths.
 
 ### 1. Fresh machine with only `oar` installed
 
-This is the canonical bootstrap path for agents/operators:
+This is the canonical bootstrap path for agent operators:
 
 ```bash
 oar bridge install
@@ -56,9 +58,9 @@ oar bridge install --with-dev
 Use the adapter-local make targets:
 
 ```bash
-make bridge-setup
-make bridge-doctor
-make bridge-test
+make setup
+make doctor
+make test
 ```
 
 The equivalent manual path is:
@@ -70,8 +72,6 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e .[dev]
 ```
-
-The editable install writes the `oar-agent-bridge` console script into the active virtualenv's `bin/` directory on POSIX or `Scripts\` on Windows. If the shell still says `command not found`, activate the virtualenv or add that directory to your PATH.
 
 ## Commands
 
@@ -114,12 +114,6 @@ oar bridge workspace-id --handle hermes
 oar bridge workspace-id --document-id agentreg.hermes
 ```
 
-Run the mention router:
-
-```bash
-oar-agent-bridge router run --config examples/router.toml
-```
-
 Run a bridge for a concrete agent:
 
 ```bash
@@ -136,7 +130,6 @@ oar-agent-bridge bridge doctor --config examples/hermes.toml
 Preferred lifecycle management from the main CLI:
 
 ```bash
-oar bridge start --config examples/router.toml
 oar bridge start --config examples/hermes.toml
 oar bridge status --config examples/hermes.toml
 oar bridge logs --config examples/hermes.toml
@@ -147,7 +140,6 @@ oar bridge stop --config examples/hermes.toml
 
 See:
 
-- `examples/router.toml`
 - `examples/hermes.toml`
 - `examples/zeroclaw.toml`
 
@@ -156,7 +148,6 @@ Minimum config contract:
 - Every config requires `[oar] base_url`, `[oar] workspace_id`, and `[oar] workspace_name`.
 - Optional `[oar]` fields are `workspace_url` and `verify_ssl`.
 - `[auth] state_path` is optional; if omitted it defaults under `.state/`.
-- `router run` requires a `[router]` section.
 - `bridge run` requires an `[agent]` section with at least `handle`, `state_dir`, and `workspace_bindings`.
 - Bridge-managed agent configs also default to:
   - `status = "pending"`
@@ -170,16 +161,15 @@ Wakeability lifecycle:
 - Registration documents start `pending`.
 - The bridge runtime publishes the live readiness check-in event and flips the registration to `active`.
 - The registration also records the bridge-generated public proof key and the latest check-in event id.
-- Wake routing only treats the agent as ready when that event carries a valid bridge proof signature for the registered key.
+- The workspace router only treats the agent as ready when that event carries a valid bridge proof signature for the registered key.
 - Humans should not tag an agent until `oar bridge doctor --config <agent.toml>` or `oar-agent-bridge registration status --config <agent.toml>` says it is wakeable.
 - If the bridge stops checking in, the registration becomes stale and routing stops treating it as wakeable.
 
-Workspace id source of truth:
+Workspace identity:
 
-- `workspace_id` must be the durable router workspace id, not a slug and not a UI path segment.
+- `workspace_id` must be the durable workspace id, not a slug and not a UI path segment.
 - If an `agentreg.<handle>` document already exists, start with `oar bridge workspace-id --handle <handle>` to inspect its enabled workspace bindings.
-- If you are bringing up a new router, the source of truth is the value you choose and set at `[oar] workspace_id` in the router config. Use the same value in each agent bridge config.
-- If a router already exists, inspect that deployed router config and copy its `[oar] workspace_id` exactly.
+- If the workspace deployment already runs `oar-router`, copy its configured `workspace_id` exactly.
 - If the deployment is driven by control-plane workspace records, copy the durable `workspace_id` from that workspace record, not the slug.
 - The example value `ws_main` in this repo is only a sample.
 - If you still do not know the real deployment value, stop and ask the operator. Do not guess.
@@ -188,24 +178,6 @@ Token choice:
 
 - Use `--bootstrap-token` when bootstrapping the first principal in an environment.
 - Use `--invite-token` for later principals after an invite has been created.
-
-Minimal router config:
-
-```toml
-[oar]
-base_url = "https://oar.example"
-workspace_id = "<workspace-id>"
-workspace_name = "Main"
-
-[auth]
-state_path = ".state/router-auth.json"
-
-[router]
-state_path = ".state/router-state.json"
-
-[adapter]
-kind = "none"
-```
 
 Minimal Hermes bridge config:
 
@@ -243,36 +215,29 @@ cwd_default = "/absolute/path/to/your/hermes/workspace"
 1. Install the runtime and verify the wrapper exists:
 
 ```bash
-# requires Python 3.11+ and git on PATH
 oar bridge install
 oar-agent-bridge --version
 ```
 
-2. Generate or edit the config files with your OAR base URL, durable workspace identity, and adapter-specific settings:
+2. Confirm the workspace deployment already runs `oar-router` and note the durable `workspace_id` it uses.
+
+3. Generate or edit the agent config with your OAR base URL, durable workspace identity, and adapter-specific settings:
 
 ```bash
 oar bridge workspace-id --handle <handle>
-oar bridge init-config --kind router --output ./router.toml --workspace-id <workspace-id>
 oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>
 oar bridge import-auth --config ./agent.toml --from-profile <agent>
 ```
 
-3. Register the router principal. Use `--bootstrap-token` only for the first principal in a new environment; otherwise use an invite instead:
-
-```bash
-oar-agent-bridge auth register --config ./router.toml --bootstrap-token <token>
-```
-
-4. Register a concrete agent and write its initial pending registration document in one step:
+4. Register the agent and write its initial pending registration document in one step:
 
 ```bash
 oar-agent-bridge auth register --config ./agent.toml --invite-token <token> --apply-registration
 ```
 
-5. Start the router and one or more bridges through the main CLI process manager:
+5. Start the bridge through the main CLI process manager:
 
 ```bash
-oar bridge start --config ./router.toml
 oar bridge start --config ./agent.toml
 ```
 
@@ -306,8 +271,7 @@ If a human tags the agent before step 6 succeeds, that is expected to fail: the 
 
 ## File layout
 
-- `oar_agent_bridge/registry.py` - registration doc upsert
-- `oar_agent_bridge/router.py` - `@handle` mention resolution and durable wake creation
+- `oar_agent_bridge/registry.py` - registration doc upsert and check-in publication
 - `oar_agent_bridge/bridge.py` - wake claim, adapter dispatch, reply/failure writeback
 - `oar_agent_bridge/adapters/hermes_acp.py` - Hermes ACP adapter
 - `oar_agent_bridge/adapters/zeroclaw_gateway.py` - ZeroClaw Gateway adapter
@@ -366,6 +330,6 @@ Adapters map that stable key into their native session model.
 ## Tests
 
 ```bash
-make bridge-setup
-make bridge-test
+make setup
+make test
 ```

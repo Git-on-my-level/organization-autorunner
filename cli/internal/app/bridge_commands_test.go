@@ -25,6 +25,9 @@ func TestBridgeHelpTopic(t *testing.T) {
 	if !strings.Contains(output, "Bridge-managed registrations stay `pending`") {
 		t.Fatalf("expected readiness lifecycle guidance output=%s", output)
 	}
+	if strings.Contains(output, "router.toml") {
+		t.Fatalf("expected router bootstrap guidance to be removed output=%s", output)
+	}
 }
 
 func TestRenderBridgeHermesTemplateUsesPendingLifecycle(t *testing.T) {
@@ -141,8 +144,8 @@ func TestBridgeStartPersistsManagedRuntimeState(t *testing.T) {
 
 func TestBridgeStatusReportsNotManaged(t *testing.T) {
 	home := t.TempDir()
-	configPath := filepath.Join(t.TempDir(), "router.toml")
-	if err := os.WriteFile(configPath, []byte("[router]\nstate_path = \".state/router.json\"\n"), 0o600); err != nil {
+	configPath := filepath.Join(t.TempDir(), "agent.toml")
+	if err := os.WriteFile(configPath, []byte("[agent]\nhandle = \"hermes\"\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
 	app := New()
@@ -156,119 +159,13 @@ func TestBridgeStatusReportsNotManaged(t *testing.T) {
 	}
 }
 
-func TestBridgeStatusReportsRouterHealthFromStateFile(t *testing.T) {
-	originalAlive := bridgeProcessAlive
-	originalCmdline := bridgeProcessCommandLine
-	t.Cleanup(func() {
-		bridgeProcessAlive = originalAlive
-		bridgeProcessCommandLine = originalCmdline
-	})
-	bridgeProcessAlive = func(pid int) bool { return pid == 4242 }
-	bridgeProcessCommandLine = func(pid int) (string, error) {
-		return "/usr/bin/python oar-agent-bridge router run --config /tmp/router.toml", nil
-	}
-
-	configDir := t.TempDir()
-	configPath := filepath.Join(configDir, "router.toml")
+func TestLoadBridgeManagedConfigRejectsNonAgentConfig(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "router.toml")
 	if err := os.WriteFile(configPath, []byte("[router]\nstate_path = \".state/router-state.json\"\n"), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
-	if err := os.MkdirAll(filepath.Join(configDir, ".state"), 0o755); err != nil {
-		t.Fatalf("mkdir router state dir: %v", err)
-	}
-	routerStatePath := filepath.Join(configDir, ".state", "router-state.json")
-	if err := os.WriteFile(routerStatePath, []byte(`{
-  "last_event_id": "evt-9",
-  "router_last_tagged_message_event_id": "evt-10",
-  "router_last_tagged_message_seen_at": "2026-03-29T07:16:28Z",
-  "router_last_tagged_handles": ["m4-hermes"],
-  "router_last_tagged_message_preview": "@m4-hermes can you respond to this?",
-  "router_last_routed_event_id": "evt-10",
-  "router_last_routed_at": "2026-03-29T07:16:29Z",
-  "router_last_routed_handles": ["m4-hermes"],
-  "router_last_stream_error_at": "2026-03-29T07:15:00Z",
-  "router_last_stream_error": "RemoteProtocolError: incomplete chunked read"
-}`), 0o600); err != nil {
-		t.Fatalf("write router state: %v", err)
-	}
-
-	runtimeState := bridgeManagedRuntime{
-		Kind:             "router",
-		ConfigPath:       configPath,
-		ManagerDir:       bridgeManagerDir(configPath),
-		ProcessStatePath: filepath.Join(bridgeManagerDir(configPath), "process.json"),
-		LogPath:          filepath.Join(bridgeManagerDir(configPath), "current.log"),
-		PID:              4242,
-		StartedAt:        "2026-03-29T07:15:00Z",
-	}
-	if err := writeManagedRuntimeState(runtimeState); err != nil {
-		t.Fatalf("write runtime state: %v", err)
-	}
-
-	app := New()
-	result, err := app.runBridgeStatus(context.Background(), []string{"--config", configPath})
-	if err != nil {
-		t.Fatalf("runBridgeStatus: %v", err)
-	}
-	if !strings.Contains(result.Text, "Cursor: evt-9") {
-		t.Fatalf("expected cursor in output=%s", result.Text)
-	}
-	if !strings.Contains(result.Text, "Last routed mention: evt-10 at 2026-03-29T07:16:29Z for @m4-hermes") {
-		t.Fatalf("expected routed mention in output=%s", result.Text)
-	}
-	if !strings.Contains(result.Text, "Last stream error: 2026-03-29T07:15:00Z") {
-		t.Fatalf("expected stream error timestamp in output=%s", result.Text)
-	}
-	if !strings.Contains(result.Text, "Error detail: RemoteProtocolError: incomplete chunked read") {
-		t.Fatalf("expected stream error detail in output=%s", result.Text)
-	}
-}
-
-func TestBridgeStatusUsesDefaultRouterStatePathWhenConfigOmitsIt(t *testing.T) {
-	originalAlive := bridgeProcessAlive
-	originalCmdline := bridgeProcessCommandLine
-	t.Cleanup(func() {
-		bridgeProcessAlive = originalAlive
-		bridgeProcessCommandLine = originalCmdline
-	})
-	bridgeProcessAlive = func(pid int) bool { return pid == 4242 }
-	bridgeProcessCommandLine = func(pid int) (string, error) {
-		return "/usr/bin/python oar-agent-bridge router run --config /tmp/router.toml", nil
-	}
-
-	configDir := t.TempDir()
-	configPath := filepath.Join(configDir, "router.toml")
-	if err := os.WriteFile(configPath, []byte("[router]\n"), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-	if err := os.MkdirAll(filepath.Join(configDir, ".state"), 0o755); err != nil {
-		t.Fatalf("mkdir router state dir: %v", err)
-	}
-	routerStatePath := filepath.Join(configDir, ".state", "router.json")
-	if err := os.WriteFile(routerStatePath, []byte(`{"last_event_id":"evt-42"}`), 0o600); err != nil {
-		t.Fatalf("write router state: %v", err)
-	}
-
-	runtimeState := bridgeManagedRuntime{
-		Kind:             "router",
-		ConfigPath:       configPath,
-		ManagerDir:       bridgeManagerDir(configPath),
-		ProcessStatePath: filepath.Join(bridgeManagerDir(configPath), "process.json"),
-		LogPath:          filepath.Join(bridgeManagerDir(configPath), "current.log"),
-		PID:              4242,
-		StartedAt:        "2026-03-29T07:15:00Z",
-	}
-	if err := writeManagedRuntimeState(runtimeState); err != nil {
-		t.Fatalf("write runtime state: %v", err)
-	}
-
-	app := New()
-	result, err := app.runBridgeStatus(context.Background(), []string{"--config", configPath})
-	if err != nil {
-		t.Fatalf("runBridgeStatus: %v", err)
-	}
-	if !strings.Contains(result.Text, "Cursor: evt-42") {
-		t.Fatalf("expected default router state path to be used output=%s", result.Text)
+	if _, err := loadBridgeManagedConfig(configPath); err == nil {
+		t.Fatal("expected non-agent config to be rejected")
 	}
 }
 

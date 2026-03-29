@@ -72,9 +72,10 @@ Regenerate contract artifacts from the canonical OpenAPI contracts:
 make contract-gen
 ```
 
-`make serve` starts both services with the UI pointed at core:
+`make serve` starts the default local workspace stack with the UI pointed at core:
 
 - core: `http://127.0.0.1:8000`
+- router: runs alongside core and tails the same workspace
 - web-ui: `http://127.0.0.1:5173`
 - before UI startup, `web-ui/scripts/seed-core-from-mock.mjs` populates core using the mock dataset
 
@@ -104,7 +105,7 @@ oar update --check
 oar update
 ```
 
-If this agent or machine also needs the wake-routing bridge runtime, bootstrap it from the CLI itself:
+If this agent or machine also needs the per-agent wake bridge runtime, bootstrap the bridge from the CLI itself:
 
 ```bash
 # requires Python 3.11+ and git on PATH
@@ -159,9 +160,13 @@ Useful `make serve` toggles:
 
 ## Adapter Integrations
 
-The vendored bridge package at `adapters/agent-bridge/` provides durable `@handle`
-wake routing plus local adapter daemons for Hermes ACP and ZeroClaw Gateway.
+The vendored bridge package at `adapters/agent-bridge/` provides the per-agent
+bridge runtime and local adapter daemons for Hermes ACP and ZeroClaw Gateway.
 
-- CLI-only bootstrap: `oar bridge install`, `oar bridge init-config`, `oar bridge doctor`
+The workspace-owned `oar-router` service now lives under `core/` and runs
+alongside `oar-core` by default.
+
+- CLI-only bridge bootstrap: `oar bridge install`, `oar bridge init-config`, `oar bridge doctor`
 - Repo-local contributor workflow: `make bridge-setup`, `make bridge-doctor`, `make bridge-test`
-- Package-specific runtime notes: `adapters/agent-bridge/README.md`
+- Workspace-router runtime notes: `core/README.md`
+- Package-specific bridge runtime notes: `adapters/agent-bridge/README.md`

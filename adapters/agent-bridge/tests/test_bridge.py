@@ -75,7 +75,6 @@ def build_bridge(events):
             state_dir=Path("/tmp/oar-agent-bridge-test"),
             workspace_bindings=["ws_main"],
         ),
-        router=None,
         adapter=AdapterConfig(raw={}),
         auth_state_path=Path("/tmp/oar-agent-bridge-test-auth.json"),
     )

@@ -12,7 +12,6 @@ from .bridge import AgentBridge
 from .config import LoadedConfig, load_config
 from .oar_client import OARClient
 from .registry import apply_registration, registration_status
-from .router import WakeRouter
 from .adapters import HermesACPAdapter, ZeroClawGatewayAdapter
 from .state_store import JSONStateStore
 from .util import configure_logging
@@ -110,18 +109,6 @@ def cmd_registration_status(args: argparse.Namespace) -> int:
         client.close()
 
 
-def cmd_router_run(args: argparse.Namespace) -> int:
-    config = load_config(args.config)
-    if config.router is None:
-        raise ValueError("router run requires a [router] section")
-    auth = AuthManager(config.auth_state_path)
-    client = build_client(config, auth)
-    state = JSONStateStore(config.router.state_path)
-    router = WakeRouter(config, client, state)
-    router.run_forever()
-    return 0
-
-
 def cmd_bridge_run(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     if config.agent is None:
@@ -185,12 +172,6 @@ def build_parser() -> argparse.ArgumentParser:
     reg_status_parser = reg_sub.add_parser("status")
     reg_status_parser.add_argument("--config", required=True)
     reg_status_parser.set_defaults(func=cmd_registration_status)
-
-    router_parser = subparsers.add_parser("router")
-    router_sub = router_parser.add_subparsers(dest="router_command", required=True)
-    router_run = router_sub.add_parser("run")
-    router_run.add_argument("--config", required=True)
-    router_run.set_defaults(func=cmd_router_run)
 
     bridge_parser = subparsers.add_parser("bridge")
     bridge_sub = bridge_parser.add_subparsers(dest="bridge_command", required=True)

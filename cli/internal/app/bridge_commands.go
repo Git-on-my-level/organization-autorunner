@@ -81,15 +81,15 @@ func init() {
 		},
 		localHelperTopic{
 			Path:        "bridge init-config",
-			Summary:     "Write a minimal router or agent bridge TOML config with the pending-until-check-in lifecycle baked in.",
+			Summary:     "Write a minimal agent bridge TOML config with the pending-until-check-in lifecycle baked in.",
 			JSONShape:   "`kind`, `output`, `workspace_id`, `handle`, `content`",
 			Composition: "Pure local helper. Renders one minimal bridge config template with explicit workspace-id and readiness settings; optionally writes it to disk.",
 			Examples: []string{
-				"oar bridge init-config --kind router --output ./router.toml --workspace-id ws_main",
 				"oar bridge init-config --kind hermes --output ./agent.toml --workspace-id ws_main --handle hermes",
+				"oar bridge init-config --kind zeroclaw --output ./zeroclaw.toml --workspace-id ws_main --handle zeroclaw",
 			},
 			Flags: []localHelperFlag{
-				{Name: "--kind <router|hermes|zeroclaw>", Description: "Template kind to render."},
+				{Name: "--kind <hermes|zeroclaw>", Description: "Template kind to render."},
 				{Name: "--output <path>", Description: "Write the rendered TOML to a file. Omit to print it."},
 				{Name: "--workspace-id <id>", Description: "Durable OAR workspace id. Do not use a slug or UI path segment."},
 				{Name: "--handle <name>", Description: "Agent handle for bridge templates."},
@@ -172,7 +172,7 @@ func (a *App) runBridgeCommand(ctx context.Context, args []string, cfg config.Re
 func bridgeUsageText() string {
 	return strings.TrimSpace(`Bridge bootstrap
 
-Use `+"`oar bridge`"+` when you only have the main CLI installed and need to bootstrap, manage, or inspect the Python `+"`oar-agent-bridge`"+` runtime. This is the discoverable install/setup path for agents and operators. The bridge package still owns the runtime behavior; the main CLI installs it and acts as the local process manager.
+Use `+"`oar bridge`"+` when you only have the main CLI installed and need to bootstrap, manage, or inspect the Python `+"`oar-agent-bridge`"+` runtime for one agent. This is the discoverable install/setup path for agent operators. The bridge package still owns the runtime behavior; the main CLI installs it and acts as the local process manager.
 
 Bootstrap prerequisites
 
@@ -189,10 +189,10 @@ Subcommands
 
   bridge install      Install or refresh the managed `+"`oar-agent-bridge`"+` virtualenv and wrapper
   bridge import-auth  Copy an existing `+"`oar`"+` profile into bridge auth state
-  bridge init-config  Render a minimal router or bridge TOML config
-  bridge start        Start a managed router or bridge daemon for one config
-  bridge stop         Stop a managed router or bridge daemon for one config
-  bridge restart      Restart a managed router or bridge daemon for one config
+  bridge init-config  Render a minimal agent bridge TOML config
+  bridge start        Start a managed bridge daemon for one config
+  bridge stop         Stop a managed bridge daemon for one config
+  bridge restart      Restart a managed bridge daemon for one config
   bridge status       Inspect managed process state for one config
   bridge logs         Read recent log lines for one config
   bridge workspace-id Read workspace ids from an existing registration document
@@ -202,12 +202,17 @@ Recommended order
 
 1. `+"`oar bridge install`"+`
 2. `+"`oar bridge workspace-id --handle <handle>`"+` if a registration doc already exists and you need the real durable workspace id
-3. `+"`oar bridge init-config --kind router --output ./router.toml --workspace-id <workspace-id>`"+`
-4. `+"`oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>`"+`
-5. `+"`oar bridge import-auth --config ./agent.toml --from-profile <agent>`"+` when matching `+"`oar`"+` auth already exists
-6. `+"`oar-agent-bridge auth register ...`"+` for the router and agent principal when auth does not already exist
-7. `+"`oar bridge start --config ./router.toml`"+` and `+"`oar bridge start --config ./agent.toml`"+`
-8. `+"`oar bridge status --config ./agent.toml`"+` and `+"`oar bridge doctor --config ./agent.toml`"+` before telling humans to tag `+"`@handle`"+`
+3. `+"`oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>`"+`
+4. `+"`oar bridge import-auth --config ./agent.toml --from-profile <agent>`"+` when matching `+"`oar`"+` auth already exists
+5. `+"`oar-agent-bridge auth register ...`"+` for the agent principal when auth does not already exist
+6. `+"`oar bridge start --config ./agent.toml`"+`
+7. `+"`oar bridge status --config ./agent.toml`"+` and `+"`oar bridge doctor --config ./agent.toml`"+` before telling humans to tag `+"`@handle`"+`
+
+Workspace-owned wake routing
+
+- `+"`oar bridge`"+` only manages per-agent bridge daemons.
+- Tagged wake routing runs with the workspace deployment alongside `+"`oar-core`"+`.
+- If tagged delivery still fails after the bridge is wakeable, hand off to the workspace operator to inspect the deployment-owned wake-routing service.
 `) + "\n"
 }
 
@@ -304,7 +309,7 @@ func (a *App) runBridgeInstall(ctx context.Context, args []string) (*commandResu
 		"Python: " + pythonRuntime.Command + " (" + pythonRuntime.Version + ")",
 		"Installed ref: " + ref,
 		"Version: " + strings.TrimSpace(versionOut),
-		"Next step: oar bridge init-config --kind router --output ./router.toml --workspace-id <workspace-id>",
+		"Next step: oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>",
 		"Next step: oar bridge doctor --config ./agent.toml once the bridge has checked in",
 	}
 	if !bridgePathContains(a.Getenv, binDir) {
@@ -440,7 +445,7 @@ func (a *App) runBridgeInitConfig(args []string, cfg config.Resolved) (*commandR
 	var hermesCwdFlag trackedString
 	var zeroclawURLFlag trackedString
 	var zeroclawTokenFlag trackedString
-	fs.Var(&kindFlag, "kind", "Template kind: router, hermes, or zeroclaw")
+	fs.Var(&kindFlag, "kind", "Template kind: hermes or zeroclaw")
 	fs.Var(&outputFlag, "output", "Write the rendered TOML to a file")
 	fs.Var(&baseURLFlag, "base-url", "OAR base URL")
 	fs.Var(&workspaceIDFlag, "workspace-id", "Durable OAR workspace id")
@@ -780,27 +785,6 @@ func renderBridgeConfigTemplate(params bridgeTemplateParams) (string, string, er
 	baseURL := firstNonEmptyString(params.BaseURL, "http://127.0.0.1:8000")
 	workspaceName := firstNonEmptyString(params.WorkspaceName, "Main")
 	switch strings.TrimSpace(params.Kind) {
-	case "router":
-		authState := firstNonEmptyString(params.AuthStatePath, ".state/router-auth.json")
-		return strings.TrimSpace(fmt.Sprintf(`
-[oar]
-base_url = %q
-workspace_id = %q
-workspace_name = %q
-workspace_url = %q
-verify_ssl = true
-
-[auth]
-state_path = %q
-
-[router]
-state_path = ".state/router-state.json"
-principal_cache_ttl_seconds = 60
-reconnect_delay_seconds = 3
-
-[adapter]
-kind = "none"
-`, baseURL, params.WorkspaceID, workspaceName, params.WorkspaceURL, authState)) + "\n", "", nil
 	case "hermes":
 		handle := firstNonEmptyString(params.Handle, "<handle>")
 		authState := firstNonEmptyString(params.AuthStatePath, ".state/"+handle+"-auth.json")
@@ -872,7 +856,7 @@ request_timeout_seconds = 600
 session_header_name = "X-Session-Id"
 `, baseURL, params.WorkspaceID, workspaceName, params.WorkspaceURL, authState, handle, stateDir, params.WorkspaceID, firstNonEmptyString(params.ZeroClawURL, "http://127.0.0.1:42617"), firstNonEmptyString(params.ZeroClawToken, "REPLACE_WITH_ZEROCLAW_BEARER_TOKEN"))) + "\n", handle, nil
 	default:
-		return "", "", errnorm.Usage("invalid_request", "unknown bridge config kind; use router, hermes, or zeroclaw")
+		return "", "", errnorm.Usage("invalid_request", "unknown bridge config kind; use hermes or zeroclaw")
 	}
 }
 

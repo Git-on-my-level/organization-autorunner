@@ -1,6 +1,7 @@
 # oar-core Runbook
 
-This runbook covers reproducible local and production-like operation for `oar-core`.
+This runbook covers reproducible local and production-like operation for
+`oar-core` and the workspace-owned `oar-router` service that now runs beside it.
 
 The same Go module also ships `oar-control-plane`, the SaaS control-plane service
 for human accounts, organizations, workspace registry, invites, provisioning
@@ -65,6 +66,18 @@ For packed-host SaaS operations, see:
 | Write route burst | n/a | `OAR_WRITE_ROUTE_RATE_BURST` | `200` |
 | Graceful shutdown timeout | n/a | `OAR_SHUTDOWN_TIMEOUT` | `15s` |
 
+`oar-router` is a separate workspace service. It reads its own flags/env vars:
+
+| Purpose | Flag | Env | Default |
+|---|---|---|---|
+| Core base URL | `--base-url` | `OAR_ROUTER_BASE_URL` | `http://127.0.0.1:8000` |
+| Durable workspace id | `--workspace-id` | `OAR_ROUTER_WORKSPACE_ID` | `ws_main` |
+| Workspace name | `--workspace-name` | `OAR_ROUTER_WORKSPACE_NAME` | `Main` |
+| Local router state path | `--state-path` | `OAR_ROUTER_STATE_PATH` | `.oar-workspace/router/router-state.json` |
+| Router auth state path | `--auth-state-path` | `OAR_ROUTER_AUTH_STATE_PATH` | `.oar-workspace/router/router-auth.json` |
+| Principal cache TTL | `--principal-cache-ttl` | `OAR_ROUTER_PRINCIPAL_CACHE_TTL` | `60s` |
+| Stream reconnect delay | `--reconnect-delay` | `OAR_ROUTER_RECONNECT_DELAY` | `3s` |
+
 Filesystem blobs remain the default for self-hosted and first packed-host deployments.
 Set `OAR_BLOB_BACKEND=s3` only when you explicitly want S3-compatible object storage.
 When `OAR_BLOB_BACKEND=s3`, configure:
@@ -102,7 +115,12 @@ Starting the server against an empty workspace root is enough to initialize stor
 
 ```bash
 ./scripts/dev
+./scripts/dev-router
 ```
+
+`make serve` from the repo root now starts `oar-core`, seeds the dev workspace,
+then starts `oar-router` and the web UI. Starting the router after the seed step
+avoids replaying wake-routing logic over mock bootstrap data.
 
 ## Control-plane local development run
 
@@ -208,6 +226,7 @@ Use the production script (builds and runs the binary, no development `go run` l
 
 ```bash
 ./scripts/run-prod
+./scripts/run-prod-router
 ```
 
 Example with explicit config:
@@ -218,6 +237,11 @@ OAR_LISTEN_ADDR=0.0.0.0:8000 \
 OAR_WEBAUTHN_RPID=oar.example.com \
 OAR_WEBAUTHN_ALLOWED_ORIGINS=https://oar.example.com,https://oar.tailnet.ts.net \
 ./scripts/run-prod
+
+OAR_ROUTER_BASE_URL=http://127.0.0.1:8000 \
+OAR_ROUTER_WORKSPACE_ID=ws_example \
+OAR_ROUTER_WORKSPACE_NAME="Example" \
+./scripts/run-prod-router
 ```
 
 If `OAR_WEBAUTHN_RPID`, `OAR_WEBAUTHN_ORIGIN`, and
@@ -252,6 +276,18 @@ heartbeat payload includes:
 - usage summary
 - last successful backup timestamp when a standard hosted backup manifest is
   discoverable near the workspace root
+
+## Router responsibilities
+
+`oar-router` is the workspace-scoped service that:
+
+- tails `message_posted` from `oar-core`
+- resolves `@handle` mentions against registered agent principals
+- verifies bridge readiness from durable registration + bridge check-in state
+- writes the wake artifact plus `agent_wakeup_requested`
+
+Per-agent bridges remain separate runtimes. They do not communicate with the
+router directly; both services communicate through `oar-core` primitives.
 
 ## Verify server health
 

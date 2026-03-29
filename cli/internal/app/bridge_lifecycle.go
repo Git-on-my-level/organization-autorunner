@@ -30,26 +30,24 @@ func init() {
 	localHelperTopics = append(localHelperTopics,
 		localHelperTopic{
 			Path:        "bridge start",
-			Summary:     "Start a managed bridge or router daemon for one config file.",
+			Summary:     "Start a managed bridge daemon for one config file.",
 			JSONShape:   "`kind`, `config_path`, `pid`, `log_path`, `process_state_path`, `command`",
 			Composition: "Pure local helper. Resolves the installed `oar-agent-bridge` binary, infers the config role, launches the daemon in the background, and records pid/log metadata in a per-config manager directory.",
 			Examples: []string{
-				"oar bridge start --config ./router.toml",
 				"oar bridge start --config ./agent.toml",
 			},
 			Flags: []localHelperFlag{
-				{Name: "--config <path>", Description: "Bridge config to start. The role is inferred from `[router]` vs `[agent]`."},
+				{Name: "--config <path>", Description: "Bridge config to start. The config must contain `[agent]`."},
 				{Name: "--install-dir <dir>", Description: "Root directory for the managed bridge virtualenv."},
 				{Name: "--bin-dir <dir>", Description: "Directory where the managed `oar-agent-bridge` wrapper should exist."},
 			},
 		},
 		localHelperTopic{
 			Path:        "bridge stop",
-			Summary:     "Stop a managed bridge or router daemon for one config file.",
+			Summary:     "Stop a managed bridge daemon for one config file.",
 			JSONShape:   "`kind`, `config_path`, `pid`, `stopped_at`, `last_signal`",
 			Composition: "Pure local helper. Reads the per-config manager state, sends SIGTERM, and records the stopped timestamp once the daemon exits.",
 			Examples: []string{
-				"oar bridge stop --config ./router.toml",
 				"oar bridge stop --config ./agent.toml --force",
 			},
 			Flags: []localHelperFlag{
@@ -60,11 +58,10 @@ func init() {
 		},
 		localHelperTopic{
 			Path:        "bridge restart",
-			Summary:     "Restart a managed bridge or router daemon for one config file.",
+			Summary:     "Restart a managed bridge daemon for one config file.",
 			JSONShape:   "`kind`, `config_path`, `pid`, `log_path`, `process_state_path`",
 			Composition: "Pure local helper. Stops the existing managed process if one is present, then launches a fresh daemon and updates the manager state.",
 			Examples: []string{
-				"oar bridge restart --config ./router.toml",
 				"oar bridge restart --config ./agent.toml",
 			},
 			Flags: []localHelperFlag{
@@ -74,11 +71,10 @@ func init() {
 		},
 		localHelperTopic{
 			Path:        "bridge status",
-			Summary:     "Inspect managed process state for a bridge or router config.",
-			JSONShape:   "`kind`, `managed`, `running`, `pid`, `log_path`, `process_state_path`, `registration`, `router`",
-			Composition: "Pure local helper plus optional bridge CLI calls. Reports the background process state, log path, agent registration readiness when available, and router stream health from the local router state file when inspecting a router config.",
+			Summary:     "Inspect managed process state for a bridge config.",
+			JSONShape:   "`kind`, `managed`, `running`, `pid`, `log_path`, `process_state_path`, `registration`",
+			Composition: "Pure local helper plus optional bridge CLI calls. Reports the background process state, log path, and agent registration readiness when available.",
 			Examples: []string{
-				"oar bridge status --config ./router.toml",
 				"oar bridge status --config ./agent.toml",
 			},
 			Flags: []localHelperFlag{
@@ -89,11 +85,10 @@ func init() {
 		},
 		localHelperTopic{
 			Path:        "bridge logs",
-			Summary:     "Read recent log lines for a managed bridge or router config.",
+			Summary:     "Read recent log lines for a managed bridge config.",
 			JSONShape:   "`kind`, `config_path`, `log_path`, `lines`, `content`",
 			Composition: "Pure local helper. Reads the per-config managed log file and returns the last N lines without requiring direct shell access.",
 			Examples: []string{
-				"oar bridge logs --config ./router.toml",
 				"oar bridge logs --config ./agent.toml --lines 200",
 			},
 			Flags: []localHelperFlag{
@@ -340,12 +335,6 @@ func (a *App) runBridgeStatus(ctx context.Context, args []string) (*commandResul
 			_ = json.Unmarshal([]byte(statusOut), &registrationData)
 		}
 	}
-	routerData := map[string]any{}
-	if managedConfig.RuntimeKind == "router" && strings.TrimSpace(managedConfig.RouterStatePath) != "" {
-		if content, err := bridgeReadFile(managedConfig.RouterStatePath); err == nil {
-			_ = json.Unmarshal(content, &routerData)
-		}
-	}
 
 	runtimeState, ok := loadManagedRuntimeState(managedConfig.ProcessStatePath)
 	if !ok {
@@ -368,8 +357,6 @@ func (a *App) runBridgeStatus(ctx context.Context, args []string) (*commandResul
 				"log_path":           managedConfig.LogPath,
 				"process_state_path": managedConfig.ProcessStatePath,
 				"registration":       registrationData,
-				"router":             routerData,
-				"router_state_path":  managedConfig.RouterStatePath,
 			},
 		}, nil
 	}
@@ -406,29 +393,6 @@ func (a *App) runBridgeStatus(ctx context.Context, args []string) (*commandResul
 			lines = append(lines, "Registration: unavailable because oar-agent-bridge is not installed or not on PATH")
 		}
 	}
-	if managedConfig.RuntimeKind == "router" {
-		if strings.TrimSpace(managedConfig.RouterStatePath) != "" {
-			lines = append(lines, "Router state: "+managedConfig.RouterStatePath)
-		}
-		if cursor := strings.TrimSpace(anyString(routerData["last_event_id"])); cursor != "" {
-			lines = append(lines, "Cursor: "+cursor)
-		}
-		if lastSeen := bridgeStatusMoment("Last tagged message", routerData["router_last_tagged_message_event_id"], routerData["router_last_tagged_message_seen_at"], routerData["router_last_tagged_handles"]); lastSeen != "" {
-			lines = append(lines, lastSeen)
-		}
-		if preview := strings.TrimSpace(anyString(routerData["router_last_tagged_message_preview"])); preview != "" {
-			lines = append(lines, "Mention preview: "+preview)
-		}
-		if lastRouted := bridgeStatusMoment("Last routed mention", routerData["router_last_routed_event_id"], routerData["router_last_routed_at"], routerData["router_last_routed_handles"]); lastRouted != "" {
-			lines = append(lines, lastRouted)
-		}
-		if errAt := strings.TrimSpace(anyString(routerData["router_last_stream_error_at"])); errAt != "" {
-			lines = append(lines, "Last stream error: "+errAt)
-			if errDetail := strings.TrimSpace(anyString(routerData["router_last_stream_error"])); errDetail != "" {
-				lines = append(lines, "Error detail: "+errDetail)
-			}
-		}
-	}
 	return &commandResult{
 		Text: strings.Join(lines, "\n"),
 		Data: map[string]any{
@@ -440,8 +404,6 @@ func (a *App) runBridgeStatus(ctx context.Context, args []string) (*commandResul
 			"log_path":           runtimeState.LogPath,
 			"process_state_path": runtimeState.ProcessStatePath,
 			"registration":       registrationData,
-			"router":             routerData,
-			"router_state_path":  managedConfig.RouterStatePath,
 		},
 	}, nil
 }
@@ -545,77 +507,15 @@ func loadBridgeManagedConfig(configPath string) (bridgeManagedConfig, error) {
 		ManagerDir:       managerDir,
 		ProcessStatePath: filepath.Join(managerDir, "process.json"),
 		LogPath:          filepath.Join(managerDir, "current.log"),
-		RouterStatePath:  resolvedBridgeRouterStatePath(absPath, string(content), runtimeKind),
 	}, nil
 }
 
-func resolvedBridgeRouterStatePath(configPath string, content string, runtimeKind string) string {
-	if runtimeKind != "router" {
-		return ""
-	}
-	statePath := bridgeConfigStringValue(content, "router", "state_path")
-	if statePath == "" {
-		statePath = ".state/router.json"
-	}
-	resolved, err := expandBridgePath(filepath.Dir(configPath), statePath)
-	if err != nil {
-		return ""
-	}
-	return resolved
-}
-
-func bridgeStatusMoment(label string, eventID any, seenAt any, handles any) string {
-	id := strings.TrimSpace(anyString(eventID))
-	if id == "" {
-		return ""
-	}
-	line := label + ": " + id
-	if at := strings.TrimSpace(anyString(seenAt)); at != "" {
-		line += " at " + at
-	}
-	if handlesText := bridgeStatusHandles(handles); handlesText != "" {
-		line += " for " + handlesText
-	}
-	return line
-}
-
-func bridgeStatusHandles(raw any) string {
-	values := make([]string, 0)
-	switch typed := raw.(type) {
-	case []string:
-		values = append(values, typed...)
-	case []any:
-		for _, item := range typed {
-			value := strings.TrimSpace(anyString(item))
-			if value != "" {
-				values = append(values, value)
-			}
-		}
-	}
-	if len(values) == 0 {
-		return ""
-	}
-	for index, value := range values {
-		if !strings.HasPrefix(value, "@") {
-			values[index] = "@" + value
-		}
-	}
-	return strings.Join(values, ", ")
-}
-
 func inferBridgeRuntimeKind(content string, configPath string) (runtimeKind string, runCommand string, displayName string, err error) {
-	hasRouter := bridgeConfigHasSection(content, "router")
 	hasAgent := bridgeConfigHasSection(content, "agent")
-	switch {
-	case hasRouter && hasAgent:
-		return "", "", "", errnorm.Usage("invalid_request", "bridge config must contain either [router] or [agent], not both")
-	case hasRouter:
-		return "router", "router", filepath.Base(configPath), nil
-	case hasAgent:
+	if hasAgent {
 		return "agent", "bridge", filepath.Base(configPath), nil
-	default:
-		return "", "", "", errnorm.Usage("invalid_request", "bridge config must contain either [router] or [agent]")
 	}
+	return "", "", "", errnorm.Usage("invalid_request", "bridge config must contain an [agent] section")
 }
 
 func bridgeConfigHasSection(content string, section string) bool {
@@ -802,9 +702,6 @@ func bridgeManagedRuntimeRunning(runtimeState bridgeManagedRuntime) (bool, strin
 		return false, "pid_reused"
 	}
 	if !strings.Contains(cmdline, "oar-agent-bridge") || !strings.Contains(cmdline, runtimeState.ConfigPath) {
-		return false, "pid_reused"
-	}
-	if runtimeState.Kind == "router" && !strings.Contains(cmdline, "router") {
 		return false, "pid_reused"
 	}
 	if runtimeState.Kind == "agent" && !strings.Contains(cmdline, "bridge") {
