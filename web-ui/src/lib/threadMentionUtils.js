@@ -68,3 +68,18 @@ export function agentHandlesFromPrincipals(principals, displayNameForActor) {
   rows.sort((a, b) => a.handle.localeCompare(b.handle));
   return rows;
 }
+
+/**
+ * @param {object[]} principals
+ * @param {(actorId: string) => string} [displayNameForActor]
+ * @returns {{ handle: string, actorId: string, displayLabel: string }[]}
+ */
+export function wakeableAgentHandlesFromPrincipals(
+  principals,
+  displayNameForActor,
+) {
+  return agentHandlesFromPrincipals(
+    (principals ?? []).filter((principal) => principal?.wakeRouting?.wakeable),
+    displayNameForActor,
+  );
+}

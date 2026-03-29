@@ -5,11 +5,7 @@
   import { coreClient } from "$lib/coreClient";
   import { formatAbsoluteDateTime, formatTimestamp } from "$lib/formatDate";
   import { buildRegistrationMessage } from "$lib/inviteRegistrationMessage";
-  import {
-    bridgeCheckinEventId,
-    describeWakeRouting,
-    registrationDocumentId,
-  } from "$lib/wakeRouting";
+  import { enrichPrincipalsWithWakeRouting as loadPrincipalsWithWakeRouting } from "$lib/principalWakeRouting.js";
   import { workspacePath } from "$lib/workspacePaths";
   import {
     getAccessDevMockData,
@@ -368,70 +364,10 @@
   }
 
   async function enrichPrincipalsWithWakeRouting(principalList) {
-    const workspaceBindingTarget = data?.workspaceId ?? "";
-    const activeAgentHandles = [
-      ...new Set(
-        (principalList ?? [])
-          .filter(
-            (principal) =>
-              principal?.principal_kind === "agent" &&
-              !principal?.revoked &&
-              String(principal?.username ?? "").trim() !== "",
-          )
-          .map((principal) => String(principal.username).trim()),
-      ),
-    ];
-
-    const registrationDocs = new Map();
-    const bridgeCheckins = new Map();
-    await Promise.all(
-      activeAgentHandles.map(async (handle) => {
-        try {
-          const registrationDoc = {
-            state: "ok",
-            document: await coreClient.getDocument(
-              registrationDocumentId(handle),
-            ),
-          };
-          registrationDocs.set(handle, registrationDoc);
-          const checkinEventId = bridgeCheckinEventId(registrationDoc);
-          if (!checkinEventId) {
-            bridgeCheckins.set(handle, { state: "missing" });
-            return;
-          }
-          try {
-            bridgeCheckins.set(handle, {
-              state: "ok",
-              document: await coreClient.getEvent(checkinEventId),
-            });
-          } catch (error) {
-            bridgeCheckins.set(
-              handle,
-              error?.status === 404 ? { state: "missing" } : { state: "error" },
-            );
-          }
-        } catch (error) {
-          registrationDocs.set(
-            handle,
-            error?.status === 404 ? { state: "missing" } : { state: "error" },
-          );
-          bridgeCheckins.set(handle, { state: "missing" });
-        }
-      }),
-    );
-
-    return Promise.all(
-      (principalList ?? []).map(async (principal) => ({
-        ...principal,
-        wakeRouting: await describeWakeRouting(
-          principal,
-          registrationDocs.get(String(principal?.username ?? "").trim()) ??
-            null,
-          workspaceBindingTarget,
-          bridgeCheckins.get(String(principal?.username ?? "").trim()) ?? null,
-        ),
-      })),
-    );
+    return loadPrincipalsWithWakeRouting(principalList, {
+      workspaceBindingTarget: data?.workspaceId ?? "",
+      client: coreClient,
+    });
   }
 
   function workspaceHref(pathname = "/") {

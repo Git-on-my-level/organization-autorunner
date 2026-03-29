@@ -1,9 +1,62 @@
 import { expect, test } from "@playwright/test";
+import { webcrypto } from "node:crypto";
+
+const bridgeProofKeyPromise = (async () => {
+  const keyPair = await webcrypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"],
+  );
+  const publicKey = await webcrypto.subtle.exportKey("spki", keyPair.publicKey);
+  return {
+    privateKey: keyPair.privateKey,
+    publicKeyB64: Buffer.from(publicKey).toString("base64"),
+  };
+})();
+
+function stableJsonValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableJsonValue(item));
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((normalized, key) => {
+        normalized[key] = stableJsonValue(value[key]);
+        return normalized;
+      }, {});
+  }
+  return value;
+}
+
+async function signCheckinPayload(content) {
+  const { privateKey } = await bridgeProofKeyPromise;
+  const signature = await webcrypto.subtle.sign(
+    { name: "ECDSA", hash: "SHA-256" },
+    privateKey,
+    Buffer.from(
+      JSON.stringify(
+        stableJsonValue({
+          v: "agent-bridge-checkin-proof/v1",
+          handle: String(content.handle ?? "").trim(),
+          actor_id: String(content.actor_id ?? "").trim(),
+          workspace_id: String(content.workspace_id ?? "").trim(),
+          bridge_instance_id: String(content.bridge_instance_id ?? "").trim(),
+          checked_in_at: String(content.checked_in_at ?? "").trim(),
+          expires_at: String(content.expires_at ?? "").trim(),
+        }),
+      ),
+      "utf8",
+    ),
+  );
+  return Buffer.from(signature).toString("base64");
+}
 
 test("thread detail separates messages from timeline and nests replies", async ({
   page,
 }) => {
   const actorId = "actor-thread-detail-e2e";
+  const { publicKeyB64 } = await bridgeProofKeyPromise;
   let postedEvents = 0;
   let timeline = [
     {
@@ -22,6 +75,65 @@ test("thread detail separates messages from timeline and nests replies", async (
   await page.addInitScript((selectedActorId) => {
     window.localStorage.setItem("oar_ui_actor_id", selectedActorId);
   }, actorId);
+  await page.context().addCookies([
+    {
+      name: "oar_ui_session_local",
+      value: "test-refresh-token",
+      domain: "127.0.0.1",
+      path: "/",
+      httpOnly: true,
+    },
+  ]);
+
+  await page.route("**/auth/session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        agent: {
+          agent_id: "agent-ops-ai",
+          actor_id: actorId,
+          username: "ops-ai",
+        },
+      }),
+    });
+  });
+
+  await page.route("**/auth/principals?**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        principals: [
+          {
+            agent_id: "agent-m4-hermes",
+            actor_id: "actor-m4-hermes",
+            username: "m4-hermes",
+            principal_kind: "agent",
+            auth_method: "public_key",
+            revoked: false,
+          },
+          {
+            agent_id: "agent-jarvis",
+            actor_id: "actor-jarvis",
+            username: "jarvis",
+            principal_kind: "agent",
+            auth_method: "public_key",
+            revoked: false,
+          },
+          {
+            agent_id: "agent-clawd",
+            actor_id: "actor-clawd",
+            username: "clawd",
+            principal_kind: "agent",
+            auth_method: "public_key",
+            revoked: false,
+          },
+        ],
+      }),
+    });
+  });
 
   await page.route(/\/actors$/, async (route) => {
     await route.fulfill({
@@ -59,6 +171,126 @@ test("thread detail separates messages from timeline and nests replies", async (
           updated_at: "2026-03-04T00:00:00.000Z",
           updated_by: actorId,
           provenance: { sources: ["actor_statement:event-1001"] },
+        },
+      }),
+    });
+  });
+
+  await page.route("**/docs/agentreg.m4-hermes", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        document: {
+          id: "agentreg.m4-hermes",
+          status: "active",
+        },
+        revision: {
+          content: {
+            handle: "m4-hermes",
+            actor_id: "actor-m4-hermes",
+            status: "active",
+            bridge_signing_public_key_spki_b64: publicKeyB64,
+            bridge_checkin_event_id: "event-bridge-checkin-m4-hermes",
+            workspace_bindings: [{ workspace_id: "local", enabled: true }],
+          },
+        },
+      }),
+    });
+  });
+
+  await page.route("**/docs/agentreg.jarvis", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        document: {
+          id: "agentreg.jarvis",
+          status: "active",
+        },
+        revision: {
+          content: {
+            handle: "jarvis",
+            actor_id: "actor-jarvis",
+            status: "pending",
+            workspace_bindings: [{ workspace_id: "local", enabled: true }],
+          },
+        },
+      }),
+    });
+  });
+
+  await page.route("**/docs/agentreg.clawd", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        document: {
+          id: "agentreg.clawd",
+          status: "active",
+        },
+        revision: {
+          content: {
+            handle: "clawd",
+            actor_id: "actor-clawd",
+            status: "active",
+            bridge_signing_public_key_spki_b64: publicKeyB64,
+            bridge_checkin_event_id: "event-bridge-checkin-clawd",
+            workspace_bindings: [{ workspace_id: "local", enabled: true }],
+          },
+        },
+      }),
+    });
+  });
+
+  await page.route(
+    "**/events/event-bridge-checkin-m4-hermes",
+    async (route) => {
+      const payload = {
+        handle: "m4-hermes",
+        actor_id: "actor-m4-hermes",
+        workspace_id: "local",
+        bridge_instance_id: "bridge-hermes-1",
+        checked_in_at: "2099-03-20T12:00:00Z",
+        expires_at: "2099-03-20T12:05:00Z",
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          event: {
+            id: "event-bridge-checkin-m4-hermes",
+            type: "agent_bridge_checked_in",
+            payload: {
+              ...payload,
+              proof_signature_b64: await signCheckinPayload(payload),
+            },
+          },
+        }),
+      });
+    },
+  );
+
+  await page.route("**/events/event-bridge-checkin-clawd", async (route) => {
+    const payload = {
+      handle: "clawd",
+      actor_id: "actor-clawd",
+      workspace_id: "local",
+      bridge_instance_id: "bridge-clawd-1",
+      checked_in_at: "2026-03-20T12:00:00Z",
+      expires_at: "2026-03-20T12:05:00Z",
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        event: {
+          id: "event-bridge-checkin-clawd",
+          type: "agent_bridge_checked_in",
+          payload: {
+            ...payload,
+            proof_signature_b64: await signCheckinPayload(payload),
+          },
         },
       }),
     });
@@ -232,6 +464,16 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(
     page.getByText("Initial timeline message", { exact: true }),
   ).toBeVisible();
+  await page.locator("#message-text").fill("@");
+  await expect(page.locator("#message-mention-list")).toContainText(
+    "@m4-hermes",
+  );
+  await expect(page.locator("#message-mention-list")).not.toContainText(
+    "@jarvis",
+  );
+  await expect(page.locator("#message-mention-list")).not.toContainText(
+    "@clawd",
+  );
   await expect(
     page.locator("#message-evt-1001").getByRole("button", { name: "Reply" }),
   ).toBeVisible();
