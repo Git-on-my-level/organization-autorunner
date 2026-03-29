@@ -11,20 +11,21 @@
     isAccessDevPreview,
   } from "$lib/accessDevMock.js";
   import { coreClient } from "$lib/coreClient";
+  import { enrichPrincipalsWithWakeRouting } from "$lib/principalWakeRouting.js";
   import ThreadMessageItem from "$lib/components/thread-detail/ThreadMessageItem.svelte";
   import {
     flattenMessageThreadView,
     toMessageThreadView,
   } from "$lib/messageThreadUtils";
   import {
-    agentHandlesFromPrincipals,
     filterMentionCandidates,
     parseActiveMention,
+    wakeableAgentHandlesFromPrincipals,
   } from "$lib/threadMentionUtils.js";
   import { threadDetailStore } from "$lib/threadDetailStore";
   import { workspacePath } from "$lib/workspacePaths";
 
-  let { threadId, onMessagePost } = $props();
+  let { threadId, onMessagePost, workspaceId = "" } = $props();
 
   let timeline = $derived($threadDetailStore.timeline);
   let timelineLoading = $derived($threadDetailStore.timelineLoading);
@@ -50,6 +51,7 @@
   let mentionOpen = $state(false);
   let mentionQuery = $state("");
   let mentionHighlight = $state(0);
+  let mentionSignedIn = $state(false);
   let textareaRef = $state(null);
 
   let filteredMentions = $derived(
@@ -67,15 +69,23 @@
       const agent = get(authenticatedAgent);
       const reg = get(actorRegistry);
       const nameFn = (id) => lookupActorDisplayName(id, reg);
+      mentionSignedIn = Boolean(agent);
 
       if (agent) {
         const data = await coreClient.listPrincipals({ limit: 100 });
-        mentionCandidates = agentHandlesFromPrincipals(
+        const principals = await enrichPrincipalsWithWakeRouting(
           data?.principals ?? [],
+          {
+            workspaceBindingTarget: workspaceId,
+            client: coreClient,
+          },
+        );
+        mentionCandidates = wakeableAgentHandlesFromPrincipals(
+          principals,
           nameFn,
         );
       } else if (isAccessDevPreview) {
-        mentionCandidates = agentHandlesFromPrincipals(
+        mentionCandidates = wakeableAgentHandlesFromPrincipals(
           getAccessDevMockData().principals,
           nameFn,
         );
@@ -94,6 +104,7 @@
       return;
     }
     void $authenticatedAgent?.agent_id;
+    void workspaceId;
     void refreshMentionCandidates();
   });
 
@@ -251,10 +262,17 @@
             Loading handles…
           </p>
         {:else if mentionCandidates.length === 0}
-          <p class="px-3 py-2 text-[12px] text-[var(--ui-text-muted)]">
-            No agent handles in this workspace. Sign in or open Access to manage
-            agents.
-          </p>
+          {#if mentionSignedIn}
+            <p class="px-3 py-2 text-[12px] text-[var(--ui-text-muted)]">
+              No wakeable agents in this workspace. See Access to check bridge
+              status.
+            </p>
+          {:else}
+            <p class="px-3 py-2 text-[12px] text-[var(--ui-text-muted)]">
+              No agent handles in this workspace. Sign in or open Access to
+              manage agents.
+            </p>
+          {/if}
         {:else if filteredMentions.length === 0}
           <p class="px-3 py-2 text-[12px] text-[var(--ui-text-muted)]">
             No matching agents.

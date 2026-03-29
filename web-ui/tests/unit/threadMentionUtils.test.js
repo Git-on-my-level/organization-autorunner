@@ -4,6 +4,7 @@ import {
   agentHandlesFromPrincipals,
   filterMentionCandidates,
   parseActiveMention,
+  wakeableAgentHandlesFromPrincipals,
 } from "../../src/lib/threadMentionUtils.js";
 
 describe("parseActiveMention", () => {
@@ -80,5 +81,43 @@ describe("agentHandlesFromPrincipals", () => {
     expect(out.map((r) => r.handle)).toEqual(["a.first", "z.last"]);
     expect(out[0].displayLabel).toBe("Display A");
     expect(out[1].displayLabel).toBe("z.last");
+  });
+});
+
+describe("wakeableAgentHandlesFromPrincipals", () => {
+  it("keeps only wakeable agents", () => {
+    const out = wakeableAgentHandlesFromPrincipals(
+      [
+        {
+          principal_kind: "agent",
+          username: "wakeable.one",
+          actor_id: "a1",
+          revoked: false,
+          wakeRouting: { wakeable: true },
+        },
+        {
+          principal_kind: "agent",
+          username: "not-ready",
+          actor_id: "a2",
+          revoked: false,
+          wakeRouting: { wakeable: false },
+        },
+        {
+          principal_kind: "agent",
+          username: "unknown",
+          actor_id: "a3",
+          revoked: false,
+        },
+      ],
+      (id) => (id === "a1" ? "Wakeable One" : ""),
+    );
+
+    expect(out).toEqual([
+      {
+        handle: "wakeable.one",
+        actorId: "a1",
+        displayLabel: "Wakeable One",
+      },
+    ]);
   });
 });

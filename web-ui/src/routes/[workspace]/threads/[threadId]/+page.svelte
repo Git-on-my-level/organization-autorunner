@@ -14,6 +14,7 @@
   import ThreadWorkTab from "$lib/components/thread-detail/ThreadWorkTab.svelte";
   import ThreadTimelineTab from "$lib/components/thread-detail/ThreadTimelineTab.svelte";
 
+  let { data } = $props();
   let threadId = $derived($page.params.threadId);
 
   let snapshot = $derived($threadDetailStore.snapshot);
@@ -257,7 +258,11 @@
 
   {#if activeTab === "messages"}
     <div role="tabpanel" tabindex="0">
-      <ThreadMessagesTab {threadId} onMessagePost={handleMessagePost} />
+      <ThreadMessagesTab
+        {threadId}
+        onMessagePost={handleMessagePost}
+        workspaceId={data?.workspaceId ?? ""}
+      />
     </div>
   {/if}
 
