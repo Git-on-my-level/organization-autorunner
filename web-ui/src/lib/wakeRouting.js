@@ -92,7 +92,9 @@ export function registrationDocumentId(handle) {
 }
 
 export function bridgeCheckinEventId(registrationDoc) {
-  const content = documentContent(asObject(registrationLookup(registrationDoc))?.document);
+  const content = documentContent(
+    asObject(registrationLookup(registrationDoc))?.document,
+  );
   return String(content?.bridge_checkin_event_id ?? "").trim();
 }
 
@@ -300,7 +302,9 @@ export async function describeWakeRouting(
     };
   }
 
-  const bridgeInstanceId = String(checkinContent.bridge_instance_id ?? "").trim();
+  const bridgeInstanceId = String(
+    checkinContent.bridge_instance_id ?? "",
+  ).trim();
   if (!bridgeInstanceId) {
     return {
       ...base,

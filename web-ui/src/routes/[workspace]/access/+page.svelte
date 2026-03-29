@@ -405,7 +405,8 @@
         ...principal,
         wakeRouting: await describeWakeRouting(
           principal,
-          registrationDocs.get(String(principal?.username ?? "").trim()) ?? null,
+          registrationDocs.get(String(principal?.username ?? "").trim()) ??
+            null,
           workspaceBindingTarget,
           bridgeCheckins.get(String(principal?.username ?? "").trim()) ?? null,
         ),

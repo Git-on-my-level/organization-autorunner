@@ -41,9 +41,7 @@ test("renders the access page without auth seeding", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Select Actor Identity" }),
   ).toBeVisible();
-  await expect(
-    page.getByText("Prefer authenticated access?"),
-  ).toBeVisible();
+  await expect(page.getByText("Prefer authenticated access?")).toBeVisible();
   await expect(page.locator("body")).not.toContainText("oar_ui_refresh_token");
 });
 
