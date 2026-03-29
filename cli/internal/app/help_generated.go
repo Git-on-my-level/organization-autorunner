@@ -81,11 +81,12 @@ var localHelperTopics = []localHelperTopic{
 	},
 	{
 		Path:        "events explain",
-		Summary:     "Explain known event-type conventions, required refs, and validation hints for one type or the full catalog.",
+		Summary:     "Explain known event-type conventions, required refs, and validation hints, including which type surfaces as a visible thread message.",
 		JSONShape:   "`event_type`, `known`, `required_refs`, `payload_requirements`, `examples`, `hint`",
-		Composition: "Formats the embedded event reference and validation guidance into a human-readable reference without sending a request.",
+		Composition: "Formats the embedded event reference and validation guidance into a human-readable reference without sending a request. Use it to confirm when `message_posted` is required for a visible thread message in the web UI Messages tab.",
 		Examples: []string{
 			`oar events explain`,
+			`oar events explain message_posted`,
 			`oar events explain review_completed`,
 		},
 		Flags: []localHelperFlag{
@@ -726,7 +727,29 @@ func formatBodySchemaBlock(schema *registry.BodySchema) string {
 func formatCommandSpecificHelpBlock(cmd registry.Command) string {
 	switch strings.TrimSpace(cmd.CommandID) {
 	case "events.create":
-		return strings.TrimSpace(`Local CLI notes:
+		return strings.TrimSpace(`Common authoring types:
+  Communication: direct communication or important non-structured information
+  - ` + "`message_posted`" + `
+  Decisions: request or record decisions on the thread
+  - ` + "`decision_needed`" + `
+  - ` + "`decision_made`" + `
+  State and commitments: track state changes and commitments
+  - ` + "`snapshot_updated`" + `
+  - ` + "`commitment_created`" + `
+  - ` + "`commitment_status_changed`" + `
+  Exceptions: surface problems, risks, or escalations
+  - ` + "`exception_raised`" + `
+
+Usually emitted by higher-level commands:
+  - ` + "`work_order_created`" + `: prefer ` + "`oar work-orders create`" + `
+  - ` + "`receipt_added`" + `: prefer ` + "`oar receipts create`" + `
+  - ` + "`review_completed`" + `: prefer ` + "`oar reviews create`" + `
+  - ` + "`inbox_item_acknowledged`" + `: prefer ` + "`oar inbox ack`" + `
+
+Specialized raw-event type:
+  - ` + "`work_order_claimed`" + `: claim marker for work-order flows
+
+Local CLI notes:
   - Common open ` + "`event.type`" + ` values include ` + "`actor_statement`" + `; the enum list above is illustrative, not exhaustive.
   - Use ` + "`--dry-run`" + ` with ` + "`--from-file`" + ` to validate and preview the request without sending the mutation.`)
 	default:

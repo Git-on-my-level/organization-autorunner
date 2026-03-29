@@ -344,6 +344,12 @@ func TestDraftCreateHelpWithCommandShowsTargetSchema(t *testing.T) {
 	if !strings.Contains(output, "work_order_claimed") {
 		t.Fatalf("expected enum values in draft create help output=%s", output)
 	}
+	if !strings.Contains(output, "Communication: direct communication or important non-structured information") {
+		t.Fatalf("expected communication group hint in draft create help output=%s", output)
+	}
+	if !strings.Contains(output, "`work_order_claimed`: claim marker for work-order flows") {
+		t.Fatalf("expected specialized raw-event hint in draft create help output=%s", output)
+	}
 }
 
 func TestDraftCreateTreatsHelpAsFlagValue(t *testing.T) {

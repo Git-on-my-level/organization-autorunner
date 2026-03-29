@@ -90,7 +90,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `reviews create` (command): Create review packet artifact
 - `events list` (local-helper): Compose `threads timeline` responses with client-side thread/type/actor filters and preview summaries.
 - `events validate` (local-helper): Validate an `events create` payload locally from stdin or `--from-file` without sending it.
-- `events explain` (local-helper): Explain known event-type conventions, required refs, and validation hints for one type or the full catalog.
+- `events explain` (local-helper): Explain known event-type conventions, required refs, and validation hints, including which type surfaces as a visible thread message.
 - `artifacts inspect` (local-helper): Fetch artifact metadata and resolved content in one command for operator inspection.
 - `threads inspect` (local-helper): Canonical thread coordination read path: compose one view from `threads context` and related `inbox list` items.
 - `threads workspace` (local-helper): Single holistic thread coordination read: combine context, inbox, recommendation review, and related-thread signals in one command.
@@ -2491,6 +2491,28 @@ Body schema:
   Optional: actor_id (string), event.actor_id (string), event.payload (object), event.provenance.by_field (map<string, list<string>>), event.provenance.notes (string), event.thread_id (string), request_key (string)
   Enum values: event.type (open): board_card_added, board_card_moved, board_card_removed, board_card_updated, board_created, board_updated, commitment_created, commitment_status_changed, decision_made, decision_needed, document_created, document_tombstoned, document_updated, exception_raised, inbox_item_acknowledged, message_posted, receipt_added, review_completed, snapshot_updated, work_order_claimed, work_order_created
 
+Common authoring types:
+  Communication: direct communication or important non-structured information
+  - `message_posted`
+  Decisions: request or record decisions on the thread
+  - `decision_needed`
+  - `decision_made`
+  State and commitments: track state changes and commitments
+  - `snapshot_updated`
+  - `commitment_created`
+  - `commitment_status_changed`
+  Exceptions: surface problems, risks, or escalations
+  - `exception_raised`
+
+Usually emitted by higher-level commands:
+  - `work_order_created`: prefer `oar work-orders create`
+  - `receipt_added`: prefer `oar receipts create`
+  - `review_completed`: prefer `oar reviews create`
+  - `inbox_item_acknowledged`: prefer `oar inbox ack`
+
+Specialized raw-event type:
+  - `work_order_claimed`: claim marker for work-order flows
+
 Local CLI notes:
   - Common open `event.type` values include `actor_statement`; the enum list above is illustrative, not exhaustive.
   - Use `--dry-run` with `--from-file` to validate and preview the request without sending the mutation.
@@ -2999,17 +3021,18 @@ Global flags:
 
 ## `events explain`
 
-Explain known event-type conventions, required refs, and validation hints for one type or the full catalog.
+Explain known event-type conventions, required refs, and validation hints, including which type surfaces as a visible thread message.
 
 ```text
 Local Help: events explain
 
 - Kind: `local helper`
-- Summary: Explain known event-type conventions, required refs, and validation hints for one type or the full catalog.
-- Composition: Formats the embedded event reference and validation guidance into a human-readable reference without sending a request.
+- Summary: Explain known event-type conventions, required refs, and validation hints, including which type surfaces as a visible thread message.
+- Composition: Formats the embedded event reference and validation guidance into a human-readable reference without sending a request. Use it to confirm when `message_posted` is required for a visible thread message in the web UI Messages tab.
 - JSON body: `event_type`, `known`, `required_refs`, `payload_requirements`, `examples`, `hint`
 - Examples:
   - `oar events explain`
+  - `oar events explain message_posted`
   - `oar events explain review_completed`
 
 Flags:

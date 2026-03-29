@@ -108,23 +108,46 @@ type threadRecommendationsSelection struct {
 }
 
 type eventTypeGuidance struct {
-	Type        string
-	Summary     string
-	Constraints []string
+	Type             string
+	Group            string
+	Summary          string
+	Constraints      []string
+	PreferredCommand string
+}
+
+var eventTypeGroupOrder = []string{
+	"Communication",
+	"Decisions",
+	"State And Commitments",
+	"Exceptions",
+	"Packet Lifecycle",
+	"Inbox Lifecycle",
+}
+
+var eventTypeGroupDescriptions = map[string]string{
+	"Communication":         "Direct communication or important non-structured information.",
+	"Decisions":             "Request or record decisions on the thread.",
+	"State And Commitments": "Track state changes and commitments.",
+	"Exceptions":            "Surface problems, risks, or escalations.",
+	"Packet Lifecycle":      "Packet lifecycle facts, usually emitted by higher-level commands.",
+	"Inbox Lifecycle":       "Inbox lifecycle facts, usually emitted by higher-level commands.",
 }
 
 var knownEventTypeGuidance = []eventTypeGuidance{
 	{
 		Type:    "message_posted",
-		Summary: "Thread message or reply event.",
+		Group:   "Communication",
+		Summary: "Use for direct communication between entities on a thread.",
 		Constraints: []string{
 			"thread_id is required.",
+			"Use this type for messages, replies, or important non-structured information that should read like direct communication.",
 			`event.refs may include "event:<parent_event_id>" for replies and "artifact:<artifact_id>" mentions.`,
 		},
 	},
 	{
-		Type:    "work_order_created",
-		Summary: "Work order packet artifact created.",
+		Type:             "work_order_created",
+		Group:            "Packet Lifecycle",
+		PreferredCommand: "oar work-orders create",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.refs must include "artifact:<work_order_artifact_id>".`,
@@ -132,22 +155,25 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 	},
 	{
 		Type:    "work_order_claimed",
-		Summary: "Work order claim marker.",
+		Group:   "Packet Lifecycle",
+		Summary: "Claim marker for work-order flows.",
 		Constraints: []string{
-			"No specific reference-convention constraints are defined for this type.",
+			"Specialized type; most authors will not need to emit it directly.",
 		},
 	},
 	{
-		Type:    "receipt_added",
-		Summary: "Receipt packet artifact added to the thread.",
+		Type:             "receipt_added",
+		Group:            "Packet Lifecycle",
+		PreferredCommand: "oar receipts create",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.refs must include "artifact:<receipt_artifact_id>" and "artifact:<work_order_artifact_id>".`,
 		},
 	},
 	{
-		Type:    "review_completed",
-		Summary: "Review packet artifact added for a receipt/work order.",
+		Type:             "review_completed",
+		Group:            "Packet Lifecycle",
+		PreferredCommand: "oar reviews create",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.refs must include "artifact:<review_artifact_id>", "artifact:<receipt_artifact_id>", and "artifact:<work_order_artifact_id>".`,
@@ -155,24 +181,24 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 		},
 	},
 	{
-		Type:    "decision_needed",
-		Summary: "Decision request event.",
+		Type:  "decision_needed",
+		Group: "Decisions",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.refs may include "artifact:<related_id>" and "snapshot:<commitment_id>".`,
 		},
 	},
 	{
-		Type:    "decision_made",
-		Summary: "Decision outcome event.",
+		Type:  "decision_made",
+		Group: "Decisions",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.refs may include "artifact:<decision_artifact_id>" and "snapshot:<commitment_id>".`,
 		},
 	},
 	{
-		Type:    "snapshot_updated",
-		Summary: "Snapshot mutation event.",
+		Type:  "snapshot_updated",
+		Group: "State And Commitments",
 		Constraints: []string{
 			`thread_id is required when the updated snapshot is thread-scoped.`,
 			`event.refs must include "snapshot:<snapshot_id>".`,
@@ -180,16 +206,16 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 		},
 	},
 	{
-		Type:    "commitment_created",
-		Summary: "Commitment snapshot created.",
+		Type:  "commitment_created",
+		Group: "State And Commitments",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.refs must include "snapshot:<commitment_id>".`,
 		},
 	},
 	{
-		Type:    "commitment_status_changed",
-		Summary: "Commitment status transition.",
+		Type:  "commitment_status_changed",
+		Group: "State And Commitments",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.refs must include "snapshot:<commitment_id>".`,
@@ -198,18 +224,19 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 		},
 	},
 	{
-		Type:    "exception_raised",
-		Summary: "Exception signal event (for example, stale_thread).",
+		Type:  "exception_raised",
+		Group: "Exceptions",
 		Constraints: []string{
 			"thread_id is required.",
 			`event.payload must include "subtype".`,
 		},
 	},
 	{
-		Type:    "inbox_item_acknowledged",
-		Summary: "Inbox item acknowledgement event.",
+		Type:             "inbox_item_acknowledged",
+		Group:            "Inbox Lifecycle",
+		PreferredCommand: "oar inbox ack",
 		Constraints: []string{
-			"No specific reference-convention constraints are defined for this type.",
+			"Usually created through the inbox acknowledgement flow rather than by authoring a raw event.",
 		},
 	},
 }
@@ -2084,12 +2111,41 @@ func (a *App) runEventsExplainCommand(args []string) (*commandResult, error) {
 			"Known event types (open enum; unknown types are still accepted):",
 		}
 		items := make([]any, 0, len(knownEventTypeGuidance))
-		for _, guidance := range knownEventTypeGuidance {
-			textLines = append(textLines, "- "+guidance.Type+": "+guidance.Summary)
-			items = append(items, map[string]any{
-				"type":    guidance.Type,
-				"summary": guidance.Summary,
-			})
+		for _, group := range eventTypeGroupOrder {
+			groupItems := make([]eventTypeGuidance, 0)
+			for _, guidance := range knownEventTypeGuidance {
+				if guidance.Group == group {
+					groupItems = append(groupItems, guidance)
+				}
+			}
+			if len(groupItems) == 0 {
+				continue
+			}
+			if description := strings.TrimSpace(eventTypeGroupDescriptions[group]); description != "" {
+				textLines = append(textLines, "", group+": "+description)
+			} else {
+				textLines = append(textLines, "", group+":")
+			}
+			for _, guidance := range groupItems {
+				line := "- " + guidance.Type
+				summary := strings.TrimSpace(guidance.Summary)
+				switch {
+				case summary != "" && strings.TrimSpace(guidance.PreferredCommand) != "":
+					line += ": " + summary + " Prefer `" + guidance.PreferredCommand + "`."
+				case summary != "":
+					line += ": " + summary
+				case strings.TrimSpace(guidance.PreferredCommand) != "":
+					line += ": prefer `" + guidance.PreferredCommand + "`"
+				}
+				textLines = append(textLines, line)
+				items = append(items, map[string]any{
+					"type":              guidance.Type,
+					"group":             guidance.Group,
+					"group_description": eventTypeGroupDescriptions[guidance.Group],
+					"summary":           guidance.Summary,
+					"preferred_command": guidance.PreferredCommand,
+				})
+			}
 		}
 		textLines = append(textLines, "For details: oar events explain <event-type>")
 		data := map[string]any{
@@ -2109,16 +2165,25 @@ func (a *App) runEventsExplainCommand(args []string) (*commandResult, error) {
 
 	textLines := []string{
 		"Event type: " + guidance.Type,
-		"Summary: " + guidance.Summary,
-		"Constraints:",
+		"Group: " + guidance.Group,
 	}
+	if summary := strings.TrimSpace(guidance.Summary); summary != "" {
+		textLines = append(textLines, "Usage hint: "+summary)
+	}
+	if preferred := strings.TrimSpace(guidance.PreferredCommand); preferred != "" {
+		textLines = append(textLines, "Preferred command: "+preferred)
+	}
+	textLines = append(textLines, "Constraints:")
 	for _, constraint := range guidance.Constraints {
 		textLines = append(textLines, "- "+constraint)
 	}
 	data := map[string]any{
-		"event_type":  guidance.Type,
-		"summary":     guidance.Summary,
-		"constraints": append([]string(nil), guidance.Constraints...),
+		"event_type":        guidance.Type,
+		"group":             guidance.Group,
+		"group_description": eventTypeGroupDescriptions[guidance.Group],
+		"summary":           guidance.Summary,
+		"preferred_command": guidance.PreferredCommand,
+		"constraints":       append([]string(nil), guidance.Constraints...),
 	}
 	return &commandResult{Text: strings.Join(textLines, "\n"), Data: data}, nil
 }

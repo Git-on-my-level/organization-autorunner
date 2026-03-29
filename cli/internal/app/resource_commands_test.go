@@ -1496,11 +1496,54 @@ func TestEventsExplainListMode(t *testing.T) {
 	if !strings.Contains(raw, "Known event types") {
 		t.Fatalf("expected list heading in explain output, got %q", raw)
 	}
-	if !strings.Contains(raw, "review_completed") {
-		t.Fatalf("expected review_completed in explain output, got %q", raw)
+	if !strings.Contains(raw, "Communication: Direct communication or important non-structured information.") {
+		t.Fatalf("expected communication group in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "- message_posted: Use for direct communication between entities on a thread.") {
+		t.Fatalf("expected message_posted communication guidance in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "- review_completed: prefer `oar reviews create`") {
+		t.Fatalf("expected preferred command guidance in explain output, got %q", raw)
 	}
 	if !strings.Contains(raw, "oar events explain <event-type>") {
 		t.Fatalf("expected follow-up hint in explain output, got %q", raw)
+	}
+}
+
+func TestEventsExplainListModeJSON(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "events", "explain"})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	items, _ := data["known_event_types"].([]any)
+	if len(items) == 0 {
+		t.Fatalf("expected known_event_types in JSON output, payload=%#v", payload)
+	}
+
+	foundMessagePosted := false
+	foundReviewCompleted := false
+	for _, item := range items {
+		entry, _ := item.(map[string]any)
+		switch anyStringValue(entry["type"]) {
+		case "message_posted":
+			foundMessagePosted = true
+			if got := anyStringValue(entry["group"]); got != "Communication" {
+				t.Fatalf("expected message_posted group Communication, got %q entry=%#v", got, entry)
+			}
+		case "review_completed":
+			foundReviewCompleted = true
+			if got := anyStringValue(entry["preferred_command"]); got != "oar reviews create" {
+				t.Fatalf("expected review_completed preferred command, got %q entry=%#v", got, entry)
+			}
+		}
+	}
+	if !foundMessagePosted {
+		t.Fatalf("expected message_posted in JSON output, payload=%#v", payload)
+	}
+	if !foundReviewCompleted {
+		t.Fatalf("expected review_completed in JSON output, payload=%#v", payload)
 	}
 }
 
@@ -1534,6 +1577,22 @@ func TestEventsExplainSpecificTypeMode(t *testing.T) {
 	dataFlag, _ := payloadFlag["data"].(map[string]any)
 	if got := anyStringValue(dataFlag["event_type"]); got != "review_completed" {
 		t.Fatalf("expected event_type review_completed via --type, got %q payload=%#v", got, payloadFlag)
+	}
+}
+
+func TestEventsExplainMessagePostedGuidance(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"events", "explain", "message_posted"})
+	if !strings.Contains(raw, "Group: Communication") {
+		t.Fatalf("expected group heading in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "Usage hint: Use for direct communication between entities on a thread.") {
+		t.Fatalf("expected usage hint in explain output, got %q", raw)
+	}
+	if !strings.Contains(raw, "Use this type for messages, replies, or important non-structured information that should read like direct communication.") {
+		t.Fatalf("expected direct communication guidance in explain output, got %q", raw)
 	}
 }
 

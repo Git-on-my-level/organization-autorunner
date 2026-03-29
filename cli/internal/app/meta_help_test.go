@@ -637,6 +637,18 @@ func TestGeneratedCommandHelpIncludesBodySchemaAndEnums(t *testing.T) {
 	if !strings.Contains(output, "work_order_claimed") {
 		t.Fatalf("expected enum discoverability for work_order_claimed output=%s", output)
 	}
+	if !strings.Contains(output, "Communication:") {
+		t.Fatalf("expected authoring group heading output=%s", output)
+	}
+	if !strings.Contains(output, "Communication: direct communication or important non-structured information") {
+		t.Fatalf("expected communication description output=%s", output)
+	}
+	if !strings.Contains(output, "- `decision_needed`") {
+		t.Fatalf("expected decision_needed listing output=%s", output)
+	}
+	if !strings.Contains(output, "`work_order_created`: prefer `oar work-orders create`") {
+		t.Fatalf("expected higher-level command hint output=%s", output)
+	}
 	if !strings.Contains(output, "`actor_statement`") {
 		t.Fatalf("expected actor_statement discoverability note output=%s", output)
 	}
