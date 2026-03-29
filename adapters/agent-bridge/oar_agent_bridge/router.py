@@ -22,7 +22,7 @@ from .models import (
 )
 from .oar_client import OARClient, OARClientError
 from .state_store import JSONStateStore
-from .util import compact_text, verify_bridge_checkin_signature
+from .util import compact_text, utc_now_iso, verify_bridge_checkin_signature
 
 LOGGER = logging.getLogger(__name__)
 
@@ -48,15 +48,27 @@ class WakeRouter:
         while True:
             try:
                 last_event_id = self.state.last_event_id
+                self._update_router_state(
+                    router_last_stream_connected_at=utc_now_iso(),
+                    router_stream_resume_from_event_id=last_event_id or "",
+                )
                 for stream_message in self.client.stream_events(types=[MESSAGE_POSTED_EVENT], last_event_id=last_event_id):
                     event = self._decode_stream_event(stream_message)
                     if event is None:
                         continue
-                    self.handle_message_posted(event)
                     event_id = str(event.get("id", "")).strip()
+                    text = self.extract_message_text(event)
+                    handles = extract_mentions(text)
+                    self._record_message_seen(event_id=event_id, text=text, handles=handles)
+                    routed_handles = self.handle_message_posted(event)
+                    self._record_message_routed(event_id=event_id, handles=routed_handles)
                     if event_id:
                         self.state.last_event_id = event_id
-            except Exception:
+            except Exception as exc:
+                self._update_router_state(
+                    router_last_stream_error_at=utc_now_iso(),
+                    router_last_stream_error=f"{type(exc).__name__}: {exc}",
+                )
                 LOGGER.exception("Router stream loop failed; reconnecting")
                 time.sleep(router_cfg.reconnect_delay_seconds)
 
@@ -70,6 +82,34 @@ class WakeRouter:
         if isinstance(payload, dict):
             return payload
         return None
+
+    def _update_router_state(self, **updates: Any) -> None:
+        self.state.update({key: value for key, value in updates.items() if value is not None})
+
+    def _record_message_seen(self, *, event_id: str, text: str, handles: list[str]) -> None:
+        updates: dict[str, Any] = {
+            "router_last_message_seen_at": utc_now_iso(),
+            "router_last_message_seen_event_id": event_id,
+        }
+        if handles:
+            updates.update(
+                {
+                    "router_last_tagged_message_event_id": event_id,
+                    "router_last_tagged_message_seen_at": utc_now_iso(),
+                    "router_last_tagged_handles": handles,
+                    "router_last_tagged_message_preview": compact_text(text, 140),
+                }
+            )
+        self._update_router_state(**updates)
+
+    def _record_message_routed(self, *, event_id: str, handles: list[str]) -> None:
+        if not event_id or not handles:
+            return
+        self._update_router_state(
+            router_last_routed_event_id=event_id,
+            router_last_routed_at=utc_now_iso(),
+            router_last_routed_handles=handles,
+        )
 
     def _load_principals(self, force: bool = False) -> None:
         ttl = self.config.router.principal_cache_ttl_seconds if self.config.router else 60
@@ -87,41 +127,44 @@ class WakeRouter:
                 mapping[username] = principal
         self._principal_cache = PrincipalCache(loaded_at=time.time(), principals_by_handle=mapping)
 
-    def handle_message_posted(self, event: dict[str, Any]) -> None:
+    def handle_message_posted(self, event: dict[str, Any]) -> list[str]:
         text = self.extract_message_text(event)
         handles = extract_mentions(text)
         if not handles:
-            return
+            return []
         thread_id = str(event.get("thread_id", "")).strip()
         event_id = str(event.get("id", "")).strip()
         if not thread_id or not event_id:
             LOGGER.debug("Ignoring message_posted without thread_id or id: %s", event)
-            return
+            return []
         self._load_principals()
+        routed_handles: list[str] = []
         for handle in handles:
             try:
-                self._route_mention(handle=handle, event=event, text=text)
+                if self._route_mention(handle=handle, event=event, text=text):
+                    routed_handles.append(handle)
             except Exception:
                 LOGGER.exception("Failed routing mention @%s from event %s", handle, event_id)
                 self._emit_exception(thread_id, event_id, handle, "mention_routing_failed", f"Failed routing @%s" % handle)
+        return routed_handles
 
-    def _route_mention(self, *, handle: str, event: dict[str, Any], text: str) -> None:
+    def _route_mention(self, *, handle: str, event: dict[str, Any], text: str) -> bool:
         thread_id = str(event["thread_id"])
         event_id = str(event["id"])
         principal = self._principal_cache.principals_by_handle.get(handle)
         if principal is None:
             self._emit_exception(thread_id, event_id, handle, "unknown_agent_handle", f"Unknown tagged agent @{handle}")
-            return
+            return False
         registration = self._load_registration(handle)
         if registration is None:
             self._emit_exception(thread_id, event_id, handle, "missing_agent_registration", f"Tagged agent @{handle} has no registration document")
-            return
+            return False
         if registration.actor_id != str(principal.get("actor_id", "")).strip():
             self._emit_exception(thread_id, event_id, handle, "registration_actor_mismatch", f"Tagged agent @{handle} registration actor does not match principal")
-            return
+            return False
         if not registration.supports_workspace(self.config.oar.workspace_id):
             self._emit_exception(thread_id, event_id, handle, "agent_not_bound_to_workspace", f"Tagged agent @{handle} is not enabled for workspace {self.config.oar.workspace_id}")
-            return
+            return False
         if registration.status != "active":
             self._emit_exception(
                 thread_id,
@@ -130,7 +173,7 @@ class WakeRouter:
                 "agent_bridge_not_ready",
                 f"Tagged agent @{handle} is registered but not wakeable until its bridge checks in",
             )
-            return
+            return False
         if not registration.bridge_checkin_event_id:
             self._emit_exception(
                 thread_id,
@@ -139,7 +182,7 @@ class WakeRouter:
                 "agent_bridge_not_checked_in",
                 f"Tagged agent @{handle} has no bridge check-in event yet",
             )
-            return
+            return False
         checkin = self._load_bridge_checkin(registration.bridge_checkin_event_id)
         if checkin is None:
             self._emit_exception(
@@ -149,7 +192,7 @@ class WakeRouter:
                 "agent_bridge_not_checked_in",
                 f"Tagged agent @{handle} has no valid bridge check-in event yet",
             )
-            return
+            return False
         if checkin.handle and checkin.handle != handle:
             self._emit_exception(
                 thread_id,
@@ -158,7 +201,7 @@ class WakeRouter:
                 "agent_bridge_handle_mismatch",
                 f"Tagged agent @{handle} bridge check-in handle does not match registration",
             )
-            return
+            return False
         if not registration.bridge_signing_public_key_spki_b64:
             self._emit_exception(
                 thread_id,
@@ -167,7 +210,7 @@ class WakeRouter:
                 "agent_bridge_proof_missing",
                 f"Tagged agent @{handle} registration is missing its bridge proof key",
             )
-            return
+            return False
         if not verify_bridge_checkin_signature(
             registration.bridge_signing_public_key_spki_b64,
             checkin.proof_signature_b64,
@@ -185,7 +228,7 @@ class WakeRouter:
                 "agent_bridge_proof_invalid",
                 f"Tagged agent @{handle} has an invalid bridge readiness proof",
             )
-            return
+            return False
         if checkin.actor_id != registration.actor_id:
             self._emit_exception(
                 thread_id,
@@ -194,7 +237,7 @@ class WakeRouter:
                 "agent_bridge_actor_mismatch",
                 f"Tagged agent @{handle} bridge check-in actor does not match registration actor",
             )
-            return
+            return False
         if not checkin.is_ready_for_workspace(self.config.oar.workspace_id):
             self._emit_exception(
                 thread_id,
@@ -203,7 +246,7 @@ class WakeRouter:
                 "agent_bridge_checkin_stale",
                 f"Tagged agent @{handle} has a stale bridge check-in and is not wakeable right now",
             )
-            return
+            return False
 
         workspace = self.client.get_thread_workspace(thread_id)
         thread = workspace.get("thread") or {}
@@ -269,6 +312,7 @@ class WakeRouter:
             request_key=wakeup_request_key(self.config.oar.workspace_id, thread_id, event_id, registration.actor_id),
         )
         LOGGER.info("Queued wakeup %s for @%s in thread %s", wake_artifact_id, handle, thread_id)
+        return True
 
     def _load_registration(self, handle: str) -> AgentRegistration | None:
         doc_id = registration_document_id(handle)
