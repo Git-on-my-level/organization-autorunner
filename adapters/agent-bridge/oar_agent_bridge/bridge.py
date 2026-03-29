@@ -27,6 +27,7 @@ from .state_store import JSONStateStore
 from .util import compact_text, sign_bridge_checkin, utc_after_seconds_iso, utc_now_iso
 
 LOGGER = logging.getLogger(__name__)
+BRIDGE_RECONNECT_DELAY_SECONDS = 3
 
 
 class AgentBridge:
@@ -41,7 +42,6 @@ class AgentBridge:
         self.handle = config.agent.handle
 
     def run_forever(self) -> None:
-        reconnect_delay = self.config.router.reconnect_delay_seconds if self.config.router else 3
         handled = self.state.handled_wakeup_ids()
         self._start_checkin_loop()
         while True:
@@ -69,7 +69,7 @@ class AgentBridge:
                         self.state.last_event_id = event_id
             except Exception:
                 LOGGER.exception("Bridge loop failed; reconnecting")
-                time.sleep(reconnect_delay)
+                time.sleep(BRIDGE_RECONNECT_DELAY_SECONDS)
 
     def _start_checkin_loop(self) -> None:
         thread = threading.Thread(target=self._run_checkin_loop, name=f"oar-bridge-checkin-{self.handle}", daemon=True)

@@ -39,6 +39,15 @@ def test_bridge_doctor_subcommand_is_available():
     assert args.config == "agent.toml"
 
 
+def test_router_subcommand_is_not_available():
+    parser = build_parser()
+
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["router", "run", "--config", "router.toml"])
+
+    assert excinfo.value.code == 2
+
+
 def test_cmd_registration_status_serializes_slots_dataclass(monkeypatch, capsys):
     closed = {"value": False}
     config = argparse.Namespace(auth_state_path="state.json")

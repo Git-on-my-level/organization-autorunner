@@ -6,11 +6,11 @@ func agentBridgeGuideText() string {
 	const tickToken = "<<tick>>"
 	guide := strings.TrimSpace(`Agent bridge
 
-Use this when you want the preferred bridge-backed path for wake registration and live <<tick>>@handle<<tick>> delivery.
+Use this when you want the preferred per-agent bridge path for wake registration and live <<tick>>@handle<<tick>> delivery.
 
 What changed
 
-- The main CLI now owns the bootstrap path for fresh machines:
+- The main CLI now owns the per-agent bootstrap path for fresh machines:
   - <<tick>>oar bridge install<<tick>>
   - <<tick>>oar bridge import-auth<<tick>>
   - <<tick>>oar bridge init-config<<tick>>
@@ -19,7 +19,8 @@ What changed
   - <<tick>>oar bridge doctor<<tick>>
 - The Python package still owns runtime behavior:
   - <<tick>>oar-agent-bridge auth register<<tick>>
-  - <<tick>>oar-agent-bridge router run<<tick>> and <<tick>>bridge run<<tick>> under the hood
+  - <<tick>>oar-agent-bridge bridge run<<tick>> under the hood
+- The workspace wake-routing service is deployment-owned and runs inside <<tick>>oar-core<<tick>>, not through <<tick>>oar bridge<<tick>>.
 - Registrations are not wakeable until the bridge has actually checked in.
 
 Install on a fresh machine with only <<tick>>oar<<tick>>
@@ -41,16 +42,15 @@ Install on a fresh machine with only <<tick>>oar<<tick>>
 Contributor path from a repo checkout
 
 - For local development inside this repo, prefer:
-  - <<tick>>make bridge-setup<<tick>>
-  - <<tick>>make bridge-doctor<<tick>>
-  - <<tick>>make bridge-test<<tick>>
+  - <<tick>>make setup<<tick>>
+  - <<tick>>make doctor<<tick>>
+  - <<tick>>make test<<tick>>
 - Local contributor rules for the adapter live in <<tick>>adapters/agent-bridge/AGENTS.md<<tick>>.
 
 Config generation
 
 Generate minimal configs from the CLI:
 
-  oar bridge init-config --kind router --output ./router.toml --workspace-id <workspace-id>
   oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>
   oar bridge init-config --kind zeroclaw --output ./zeroclaw.toml --workspace-id <workspace-id> --handle <handle>
 
@@ -64,43 +64,36 @@ That is the guardrail: humans should not tag an agent until the bridge has check
 
 Workspace id source of truth
 
-- <<tick>><workspace-id><<tick>> must be the durable router workspace id, not a slug and not a UI path segment.
+- <<tick>><workspace-id><<tick>> must be the durable workspace id for the deployment, not a slug and not a UI path segment.
 - If an <<tick>>agentreg.<handle><<tick>> document already exists, use <<tick>>oar bridge workspace-id --handle <handle><<tick>> to read its enabled workspace bindings first.
-- If you are bringing up a new router, the source of truth is the value you choose and set at <<tick>>[oar] workspace_id<<tick>> in the router config. Use the same value in every bridge config.
-- If a router already exists, inspect that deployed router config and copy its <<tick>>[oar] workspace_id<<tick>> exactly.
+- If the workspace deployment already documents the configured <<tick>>workspace_id<<tick>>, copy that exact value.
 - If the deployment is driven by control-plane workspace records, copy the durable <<tick>>workspace_id<<tick>> from that workspace record, not the slug.
 - The bundled example value <<tick>>ws_main<<tick>> is only a sample.
 - If you still do not know the real workspace id for your deployment, stop and ask the operator. Do not guess.
 
-First-time operator path
+First-time agent-host path
 
 1. Install the runtime:
 
   oar bridge install
 
-2. Render config files:
+2. Render the agent config:
 
-  oar bridge init-config --kind router --output ./router.toml --workspace-id <workspace-id>
   oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>
 
 3. If a matching <<tick>>oar<<tick>> profile already exists for the target principal, import it into the bridge config:
 
   oar bridge import-auth --config ./agent.toml --from-profile <agent>
 
-4. Register the router principal. Use <<tick>>--bootstrap-token<<tick>> only for the very first principal in a fresh environment:
-
-  oar-agent-bridge auth register --config ./router.toml --bootstrap-token <token>
-
-5. Register the target bridge principal and write the initial pending registration when auth does not already exist:
+4. Register the target bridge principal and write the initial pending registration when auth does not already exist:
 
   oar-agent-bridge auth register --config ./agent.toml --invite-token <token> --apply-registration
 
-6. Start the managed router and bridge daemons from the main CLI:
+5. Start the managed bridge daemon from the main CLI:
 
-  oar bridge start --config ./router.toml
   oar bridge start --config ./agent.toml
 
-7. Confirm the process and readiness state before humans use <<tick>>@handle<<tick>>:
+6. Confirm the process and readiness state before humans use <<tick>>@handle<<tick>>:
 
   oar bridge status --config ./agent.toml
   oar bridge doctor --config ./agent.toml
@@ -109,21 +102,23 @@ First-time operator path
 
   The doctor should report both adapter readiness and the registration as wakeable. If it still says pending, stale, or adapter probe failed, fix that first.
 
-8. Post a test wake message containing <<tick>>@<handle><<tick>>.
+7. Post a test wake message containing <<tick>>@<handle><<tick>>.
 
-9. Confirm the durable trace:
+8. Confirm the durable trace:
   - <<tick>>message_posted<<tick>>
   - <<tick>>agent_wakeup_requested<<tick>>
   - <<tick>>agent_wakeup_claimed<<tick>>
   - bridge reply <<tick>>message_posted<<tick>>
   - <<tick>>agent_wakeup_completed<<tick>>
 
+9. If the bridge is wakeable but tagged delivery still fails, hand off to the workspace operator to inspect the embedded wake-routing sidecar in <<tick>>oar-core<<tick>>.
+
 Lifecycle note
 
 - <<tick>>oar-agent-bridge registration apply<<tick>> writes the registration document, but that alone does not make the agent taggable.
 - The bridge runtime refreshes registration readiness on check-in.
 - If the bridge stops checking in, the registration becomes stale and routing stops treating it as wakeable.
-- The preferred operational path is to manage the router/bridge daemons with <<tick>>oar bridge start|stop|restart|status|logs<<tick>>, not ad hoc shell backgrounding.
+- The preferred operational path is to manage the bridge daemon with <<tick>>oar bridge start|stop|restart|status|logs<<tick>>, not ad hoc shell backgrounding.
 
 Troubleshooting
 
@@ -134,7 +129,7 @@ Troubleshooting
 - bridge doctor says registration is stale:
   - the bridge stopped checking in; run <<tick>>oar bridge restart --config ./agent.toml<<tick>> and verify the config points at the right workspace
 - wake request is durable but never claimed:
-  - the router or bridge is offline, or <<tick>>workspace_id<<tick>> is wrong
+  - the bridge is offline, the embedded wake-routing sidecar in <<tick>>oar-core<<tick>> is unhealthy, or <<tick>>workspace_id<<tick>> is wrong
 - principal exists but wake still fails:
   - inspect <<tick>>agentreg.<handle><<tick>> for actor mismatch, disabled status, stale check-in, or missing workspace binding
 

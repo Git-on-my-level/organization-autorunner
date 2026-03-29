@@ -1,6 +1,7 @@
 # oar-core Runbook
 
-This runbook covers reproducible local and production-like operation for `oar-core`.
+This runbook covers reproducible local and production-like operation for
+`oar-core`, including the embedded workspace-owned `oar-router` sidecar.
 
 The same Go module also ships `oar-control-plane`, the SaaS control-plane service
 for human accounts, organizations, workspace registry, invites, provisioning
@@ -34,6 +35,13 @@ For packed-host SaaS operations, see:
 | Full listen address (overrides host+port) | `--listen-addr` | `OAR_LISTEN_ADDR` | unset |
 | Schema path | `--schema-path` | `OAR_SCHEMA_PATH` | `../contracts/oar-schema.yaml` |
 | Core instance identifier | `--core-instance-id` | `OAR_CORE_INSTANCE_ID` | `core-local` |
+| Core base URL for wake-packet links | n/a | `OAR_CORE_BASE_URL` | derived from listen address |
+| Durable workspace id for wake routing | n/a | `OAR_WORKSPACE_ID` | `OAR_CONTROL_PLANE_WORKSPACE_ID`, else `ws_main` |
+| Workspace display name for wake packets | n/a | `OAR_WORKSPACE_NAME` | `Main` |
+| Enable embedded wake-routing sidecar | n/a | `OAR_SIDECAR_ROUTER_ENABLED` | `true` |
+| Embedded router state path | n/a | `OAR_SIDECAR_ROUTER_STATE_PATH` | `<workspace-root>/router/router-state.json` |
+| Embedded router poll interval | n/a | `OAR_SIDECAR_ROUTER_POLL_INTERVAL` | `1s` |
+| Embedded router principal cache TTL | n/a | `OAR_SIDECAR_ROUTER_PRINCIPAL_CACHE_TTL` | `60s` |
 | Enable dev actor mode | n/a | `OAR_ENABLE_DEV_ACTOR_MODE` | `false` |
 | Allow unauthenticated writes | n/a | `OAR_ALLOW_UNAUTHENTICATED_WRITES` | `false` |
 | Bootstrap token for first principal registration | n/a | `OAR_BOOTSTRAP_TOKEN` | unset |
@@ -103,6 +111,9 @@ Starting the server against an empty workspace root is enough to initialize stor
 ```bash
 ./scripts/dev
 ```
+
+`make serve` from the repo root now starts `oar-core` with the embedded router
+enabled, seeds the dev workspace, and starts the web UI.
 
 ## Control-plane local development run
 
@@ -215,6 +226,8 @@ Example with explicit config:
 ```bash
 OAR_WORKSPACE_ROOT=/var/lib/oar/workspace \
 OAR_LISTEN_ADDR=0.0.0.0:8000 \
+OAR_WORKSPACE_ID=ws_example \
+OAR_WORKSPACE_NAME=Example \
 OAR_WEBAUTHN_RPID=oar.example.com \
 OAR_WEBAUTHN_ALLOWED_ORIGINS=https://oar.example.com,https://oar.tailnet.ts.net \
 ./scripts/run-prod
@@ -253,6 +266,18 @@ heartbeat payload includes:
 - last successful backup timestamp when a standard hosted backup manifest is
   discoverable near the workspace root
 
+## Router responsibilities
+
+`oar-router` is the embedded workspace-scoped sidecar inside `oar-core` that:
+
+- tails `message_posted` from `oar-core`
+- resolves `@handle` mentions against registered agent principals
+- verifies bridge readiness from durable registration + bridge check-in state
+- writes the wake artifact plus `agent_wakeup_requested`
+
+Per-agent bridges remain separate runtimes. They do not communicate with the
+router directly; both services communicate through `oar-core` primitives.
+
 ## Verify server health
 
 ```bash
@@ -267,11 +292,12 @@ when the process is alive.
 
 `/livez` is an explicit liveness alias with the same minimal payload.
 
-`/readyz` performs the workspace storage connectivity check before the instance
-is treated as ready.
+`/readyz` performs the workspace storage connectivity check and embedded sidecar
+readiness checks before the instance is treated as ready.
 
 `/ops/health` is for authenticated or loopback-only operator diagnostics. When
-the readiness check passes, it also includes projection maintenance status:
+the readiness check passes, it also includes projection maintenance status and
+the embedded sidecar snapshot:
 
 - `mode`: `background` when the async maintainer loop is running, `manual` when
   writes only queue dirty projections and operators are expected to trigger

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "oar-agent-bridge"
 version = "0.1.0"
-description = "Agent-agnostic wake routing and local bridge adapters for OAR"
+description = "Bridge adapters for durable OAR wake requests"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "OpenAI", email = "support@openai.com"}]

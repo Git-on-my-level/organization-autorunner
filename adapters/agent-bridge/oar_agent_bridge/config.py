@@ -32,13 +32,6 @@ class AgentConfig:
 
 
 @dataclass(slots=True)
-class RouterConfig:
-    state_path: Path
-    principal_cache_ttl_seconds: int = 60
-    reconnect_delay_seconds: int = 3
-
-
-@dataclass(slots=True)
 class AdapterConfig:
     raw: dict[str, Any]
 
@@ -76,7 +69,6 @@ class AdapterConfig:
 class LoadedConfig:
     oar: OARConfig
     agent: AgentConfig | None
-    router: RouterConfig | None
     adapter: AdapterConfig
     auth_state_path: Path
 
@@ -128,16 +120,6 @@ def load_config(path: str | os.PathLike[str]) -> LoadedConfig:
         if not agent_cfg.handle:
             raise ValueError("agent.handle is required when [agent] is present")
 
-    router_cfg = None
-    router_table = data.get("router") or None
-    if router_table:
-        state_path = _expand_path(base_dir, router_table.get("state_path"), ".state/router.json")
-        router_cfg = RouterConfig(
-            state_path=state_path,
-            principal_cache_ttl_seconds=int(router_table.get("principal_cache_ttl_seconds", 60)),
-            reconnect_delay_seconds=int(router_table.get("reconnect_delay_seconds", 3)),
-        )
-
     adapter = AdapterConfig(raw=data.get("adapter") or {})
 
-    return LoadedConfig(oar=oar, agent=agent_cfg, router=router_cfg, adapter=adapter, auth_state_path=auth_state_path)
+    return LoadedConfig(oar=oar, agent=agent_cfg, adapter=adapter, auth_state_path=auth_state_path)

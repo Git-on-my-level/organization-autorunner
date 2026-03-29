@@ -93,6 +93,9 @@ func TestRunMetaDocPrintsAgentBridgeMarkdown(t *testing.T) {
 	if !strings.Contains(output, "oar bridge init-config") || !strings.Contains(output, "oar bridge doctor --config ./agent.toml") {
 		t.Fatalf("expected first-run bootstrap guidance output=%s", output)
 	}
+	if strings.Contains(output, "router.toml") {
+		t.Fatalf("expected router bootstrap guidance to be removed output=%s", output)
+	}
 }
 
 func TestRunMetaDocPrintsWakeRoutingMarkdown(t *testing.T) {
@@ -120,7 +123,7 @@ func TestRunMetaDocPrintsWakeRoutingMarkdown(t *testing.T) {
 	if !strings.Contains(output, "oar-agent-bridge registration apply --config <agent.toml>") {
 		t.Fatalf("expected bridge registration shortcut output=%s", output)
 	}
-	if !strings.Contains(output, "[oar] workspace_id") || !strings.Contains(output, "ws_main") {
+	if !strings.Contains(output, "workspace records") || !strings.Contains(output, "ws_main") {
 		t.Fatalf("expected workspace-id discovery guidance output=%s", output)
 	}
 	if !strings.Contains(output, "docs create` returns `conflict`") {

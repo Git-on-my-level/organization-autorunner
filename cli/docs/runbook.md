@@ -44,16 +44,14 @@ Supported env vars:
 
 ## Bridge bootstrap
 
-If an agent/operator only has the `oar` binary installed and needs the wake-routing bridge runtime too, use the CLI-managed helpers:
+If an agent/operator only has the `oar` binary installed and needs the per-agent bridge runtime, use the CLI-managed helpers:
 
 ```bash
 # requires Python 3.11+ and git on PATH
 oar bridge install
 oar bridge workspace-id --handle <handle>
-oar bridge init-config --kind router --output ./router.toml --workspace-id <workspace-id>
 oar bridge init-config --kind hermes --output ./agent.toml --workspace-id <workspace-id> --handle <handle>
 oar bridge import-auth --config ./agent.toml --from-profile <agent>
-oar bridge start --config ./router.toml
 oar bridge start --config ./agent.toml
 oar bridge status --config ./agent.toml
 oar bridge doctor --config ./agent.toml
@@ -61,6 +59,8 @@ oar bridge logs --config ./agent.toml
 oar bridge restart --config ./agent.toml
 oar bridge stop --config ./agent.toml
 ```
+
+Wake routing is owned by the workspace deployment and runs inside `oar-core` by default. `oar bridge ...` only manages the per-agent bridge process.
 
 Lifecycle guardrail:
 

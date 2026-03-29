@@ -23,8 +23,30 @@ By default, the server initializes storage under `.oar-workspace/`:
 - `state.sqlite`: SQLite database (events, snapshots, artifacts metadata, actors, derived views)
 - `artifacts/content/`: immutable artifact content files
 - `logs/` and `tmp/`: reserved operational directories
+- `router/`: local sidecar state for the embedded wake router
 
 Config can be passed via flags or env vars:
 - `--workspace-root` / `OAR_WORKSPACE_ROOT`
 - `--host` + `--port` / `OAR_HOST` + `OAR_PORT`
 - `--listen-addr` / `OAR_LISTEN_ADDR` (overrides host+port)
+
+## Workspace Router
+
+`oar-router` is the embedded workspace wake-routing sidecar hosted by
+`oar-core`. It tails workspace `message_posted` events, resolves `@handle`
+mentions, verifies bridge readiness from durable registration/check-in state,
+and emits `agent_wakeup_requested` plus the wake artifact consumed by per-agent
+bridges.
+
+For local development:
+
+```bash
+./scripts/dev
+```
+
+For production-like local runs:
+
+```bash
+./scripts/build-prod
+./scripts/run-prod
+```
