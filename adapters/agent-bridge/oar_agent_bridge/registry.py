@@ -72,6 +72,8 @@ def publish_bridge_checkin(
         event={
             "type": BRIDGE_CHECKED_IN_EVENT,
             "summary": f"Agent bridge checked in @{config.agent.handle}",
+            "refs": [],
+            "provenance": {"sources": ["inferred"]},
             "payload": checkin.to_content(),
         },
         request_key=f"bridge-checkin-{sha256_text(config.agent.handle, state.actor_id, bridge_instance_id, checked_in_at, length=24)}",

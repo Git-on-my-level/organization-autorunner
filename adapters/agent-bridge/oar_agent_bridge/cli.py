@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from . import __version__
@@ -91,7 +92,7 @@ def cmd_registration_apply(args: argparse.Namespace) -> int:
     client = build_client(config, auth)
     try:
         result = apply_registration(config, auth, client)
-        print(json.dumps(result.__dict__, indent=2))
+        print(json.dumps(asdict(result), indent=2))
         return 0
     finally:
         client.close()
@@ -103,7 +104,7 @@ def cmd_registration_status(args: argparse.Namespace) -> int:
     client = build_client(config, auth)
     try:
         result = registration_status(config, auth, client)
-        print(json.dumps(result.__dict__, indent=2))
+        print(json.dumps(asdict(result), indent=2))
         return 0
     finally:
         client.close()

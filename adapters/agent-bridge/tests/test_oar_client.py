@@ -46,3 +46,27 @@ def test_create_document_includes_actor_id_from_auth_state(monkeypatch):
 
     assert captured["path"] == "/docs"
     assert captured["body"]["actor_id"] == "actor-123"
+
+
+def test_upsert_document_omits_document_id_on_patch(monkeypatch):
+    client = OARClient("http://oar.test", auth_manager=DummyAuthManager())
+    captured = {}
+
+    monkeypatch.setattr(client, "get_document", lambda _document_id: {"revision": {"revision_id": "rev-1"}})
+
+    def fake_update_document(document_id, **kwargs):
+        captured["document_id"] = document_id
+        captured["kwargs"] = kwargs
+        return {"ok": True}
+
+    monkeypatch.setattr(client, "update_document", fake_update_document)
+
+    client.upsert_document(
+        "doc-1",
+        document={"document_id": "doc-1", "title": "Title", "status": "active"},
+        content={"ok": True},
+    )
+
+    assert captured["document_id"] == "doc-1"
+    assert captured["kwargs"]["document"] == {"title": "Title", "status": "active"}
+    assert captured["kwargs"]["if_base_revision"] == "rev-1"

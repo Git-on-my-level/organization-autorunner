@@ -142,8 +142,11 @@ def test_bridge_checkin_upserts_active_registration():
     assert reg_payload["content"]["bridge_expires_at"] != ""
     assert reg_payload["content"]["bridge_checkin_event_id"] == "event-1"
     assert len(client.created_events) == 1
-    checkin_payload = client.created_events[0]["event"]["payload"]
-    assert client.created_events[0]["event"]["type"] == "agent_bridge_checked_in"
+    checkin_event = client.created_events[0]["event"]
+    checkin_payload = checkin_event["payload"]
+    assert checkin_event["type"] == "agent_bridge_checked_in"
+    assert checkin_event["refs"] == []
+    assert checkin_event["provenance"] == {"sources": ["inferred"]}
     assert checkin_payload["bridge_instance_id"] == "bridge-test"
     assert checkin_payload["workspace_id"] == "ws_main"
     assert checkin_payload["proof_signature_b64"] != ""
