@@ -25,6 +25,7 @@ jobs:
       cli: ${{ steps.filter.outputs.cli }}
       web_ui: ${{ steps.filter.outputs.web_ui }}
       auth_e2e_smoke: ${{ steps.filter.outputs.auth_e2e_smoke }}
+      platform_constraints: ${{ steps.filter.outputs.platform_constraints }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -65,6 +66,8 @@ jobs:
               - 'core/internal/auth/**'
               - 'core/internal/server/**'
               - 'scripts/e2e-smoke'
+            platform_constraints:
+              - 'scripts/check-platform-constraints.sh'
 
   workflow-checks:
     runs-on: ubuntu-latest
@@ -191,7 +194,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: changes
-    if: needs.changes.outputs.cli == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.go_shared == 'true'
+    if: needs.changes.outputs.cli == 'true' || needs.changes.outputs.core == 'true' || needs.changes.outputs.go_shared == 'true' || needs.changes.outputs.platform_constraints == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
