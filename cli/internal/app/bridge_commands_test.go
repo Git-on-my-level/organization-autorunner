@@ -249,6 +249,16 @@ func TestBridgeImportAuthCopiesExistingProfileIntoBridgeState(t *testing.T) {
 	if got := anyString(state["public_key_b64"]); got != base64.StdEncoding.EncodeToString(publicKey) {
 		t.Fatalf("unexpected public key material: %#v", state)
 	}
+	privateSeed, err := base64.StdEncoding.DecodeString(anyString(state["private_key_b64"]))
+	if err != nil {
+		t.Fatalf("decode private key seed: %v", err)
+	}
+	if len(privateSeed) != ed25519.SeedSize {
+		t.Fatalf("expected %d-byte private key seed, got %d", ed25519.SeedSize, len(privateSeed))
+	}
+	if got := base64.StdEncoding.EncodeToString(privateSeed); got != base64.StdEncoding.EncodeToString(privateKey.Seed()) {
+		t.Fatalf("unexpected private key seed material")
+	}
 }
 
 func TestBridgeWorkspaceIDReadsRegistrationBindings(t *testing.T) {
@@ -303,5 +313,27 @@ func TestDefaultBridgeCommandRunKeepsStderrOutOfStdout(t *testing.T) {
 	}
 	if strings.TrimSpace(stderr) != "log noise" {
 		t.Fatalf("expected stderr to contain log output, got %q", stderr)
+	}
+}
+
+func TestLoadBridgeConfigDetailsExpandsAuthStatePath(t *testing.T) {
+	home := t.TempDir()
+	originalHomeDir := bridgeUserHomeDir
+	t.Cleanup(func() { bridgeUserHomeDir = originalHomeDir })
+	bridgeUserHomeDir = func() (string, error) { return home, nil }
+	t.Setenv("BRIDGE_AUTH_SUBDIR", "custom-auth")
+
+	configPath := filepath.Join(t.TempDir(), "agent.toml")
+	if err := os.WriteFile(configPath, []byte("[auth]\nstate_path = \"~/$BRIDGE_AUTH_SUBDIR/bridge-auth.json\"\n\n[agent]\nhandle = \"hermes\"\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	details, err := loadBridgeConfigDetails(configPath)
+	if err != nil {
+		t.Fatalf("loadBridgeConfigDetails: %v", err)
+	}
+	want := filepath.Join(home, "custom-auth", "bridge-auth.json")
+	if details.AuthStatePath != want {
+		t.Fatalf("unexpected auth state path: got %q want %q", details.AuthStatePath, want)
 	}
 }

@@ -393,7 +393,7 @@ func (a *App) runBridgeImportAuth(args []string, cfg config.Resolved) (*commandR
 		"actor_id":         strings.TrimSpace(prof.ActorID),
 		"key_id":           strings.TrimSpace(prof.KeyID),
 		"public_key_b64":   base64.StdEncoding.EncodeToString(publicKey),
-		"private_key_b64":  base64.StdEncoding.EncodeToString(privateKey),
+		"private_key_b64":  base64.StdEncoding.EncodeToString(privateKey.Seed()),
 		"access_token":     strings.TrimSpace(prof.AccessToken),
 		"refresh_token":    strings.TrimSpace(prof.RefreshToken),
 		"token_type":       firstNonEmptyString(strings.TrimSpace(prof.TokenType), "Bearer"),
@@ -1065,8 +1065,9 @@ func loadBridgeConfigDetails(configPath string) (bridgeConfigDetails, error) {
 	if authStatePath == "" {
 		authStatePath = ".state/auth.json"
 	}
-	if !filepath.IsAbs(authStatePath) {
-		authStatePath = filepath.Join(filepath.Dir(absPath), authStatePath)
+	authStatePath, err = expandBridgePath(filepath.Dir(absPath), authStatePath)
+	if err != nil {
+		return bridgeConfigDetails{}, err
 	}
 	return bridgeConfigDetails{
 		ConfigPath:    absPath,
@@ -1121,6 +1122,29 @@ func parseBridgeConfigAssignment(line string) (string, string, bool) {
 		return "", "", false
 	}
 	return name, rawValue, true
+}
+
+func expandBridgePath(baseDir string, raw string) (string, error) {
+	pathValue := strings.TrimSpace(raw)
+	if pathValue == "" {
+		pathValue = "."
+	}
+	if pathValue == "~" || strings.HasPrefix(pathValue, "~/") {
+		home, err := bridgeUserHomeDir()
+		if err != nil {
+			return "", errnorm.Wrap(errnorm.KindLocal, "resolve_home_failed", "failed to resolve home directory", err)
+		}
+		if pathValue == "~" {
+			pathValue = home
+		} else {
+			pathValue = filepath.Join(home, strings.TrimPrefix(pathValue, "~/"))
+		}
+	}
+	pathValue = os.ExpandEnv(pathValue)
+	if !filepath.IsAbs(pathValue) {
+		pathValue = filepath.Join(baseDir, pathValue)
+	}
+	return filepath.Clean(pathValue), nil
 }
 
 func writeBridgeJSONFile(path string, payload map[string]any) error {
