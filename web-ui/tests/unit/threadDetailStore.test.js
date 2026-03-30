@@ -41,13 +41,23 @@ describe("threadDetailStore", () => {
     coreClientMocks.getThreadWorkspace.mockResolvedValueOnce({
       thread: { id: "thread-1", title: "Initial workspace" },
       context: {
-        recent_events: [],
+        recent_events: [{ id: "event-seed", type: "actor_statement" }],
         documents: [],
         open_commitments: [],
       },
     });
 
     await threadDetailStore.loadWorkspace("thread-1");
+
+    expect(get(threadDetailStore).timeline).toEqual([
+      { id: "event-seed", type: "actor_statement" },
+    ]);
+    expect(get(threadDetailStore).timelineThreadId).toBe("thread-1");
+
+    coreClientMocks.listThreadTimeline.mockResolvedValueOnce({
+      events: [{ id: "event-full", type: "message_posted" }],
+    });
+    await threadDetailStore.loadTimeline("thread-1");
 
     const pendingRefresh = deferred();
     coreClientMocks.getThreadWorkspace.mockReturnValueOnce(
@@ -77,12 +87,158 @@ describe("threadDetailStore", () => {
 
     expect(get(threadDetailStore)).toMatchObject({
       snapshot: { id: "thread-1", title: "Refreshed workspace" },
-      timeline: [{ id: "event-1", type: "actor_statement" }],
+      timelineThreadId: "thread-1",
+      timeline: [{ id: "event-full", type: "message_posted" }],
       documents: [{ id: "doc-1", title: "Doc 1" }],
       commitments: [{ id: "commit-1", status: "open" }],
       snapshotLoading: false,
       snapshotError: "",
       documentsError: "",
+    });
+  });
+
+  it("keeps the mounted timeline when a refresh fails", async () => {
+    coreClientMocks.listThreadTimeline.mockResolvedValueOnce({
+      events: [{ id: "event-1", type: "message_posted" }],
+    });
+
+    await threadDetailStore.loadTimeline("thread-1");
+
+    coreClientMocks.listThreadTimeline.mockRejectedValueOnce(
+      new Error("network down"),
+    );
+
+    await threadDetailStore.loadTimeline("thread-1");
+
+    expect(get(threadDetailStore)).toMatchObject({
+      timelineThreadId: "thread-1",
+      timeline: [{ id: "event-1", type: "message_posted" }],
+      timelineError: "Failed to load timeline: network down",
+      timelineLoading: false,
+    });
+  });
+
+  it("does not overwrite a newer timeline when workspace refresh resolves later", async () => {
+    const pendingWorkspace = deferred();
+
+    coreClientMocks.getThreadWorkspace
+      .mockResolvedValueOnce({
+        thread: { id: "thread-1", title: "Initial workspace" },
+        context: {
+          recent_events: [{ id: "event-seed", type: "message_posted" }],
+          documents: [],
+          open_commitments: [],
+        },
+      })
+      .mockReturnValueOnce(pendingWorkspace.promise);
+
+    coreClientMocks.listThreadTimeline
+      .mockResolvedValueOnce({
+        events: [{ id: "event-old", type: "message_posted" }],
+      })
+      .mockResolvedValueOnce({
+        events: [{ id: "event-new", type: "message_posted" }],
+      });
+
+    await threadDetailStore.loadWorkspace("thread-1");
+    await threadDetailStore.loadTimeline("thread-1");
+
+    const workspaceRefresh = threadDetailStore.loadWorkspace("thread-1");
+    await threadDetailStore.loadTimeline("thread-1");
+
+    pendingWorkspace.resolve({
+      thread: { id: "thread-1", title: "Refreshed workspace" },
+      context: {
+        recent_events: [{ id: "event-stale", type: "message_posted" }],
+        documents: [{ id: "doc-1", title: "Doc 1" }],
+        open_commitments: [],
+      },
+    });
+
+    await workspaceRefresh;
+
+    expect(get(threadDetailStore)).toMatchObject({
+      snapshot: { id: "thread-1", title: "Refreshed workspace" },
+      timelineThreadId: "thread-1",
+      timeline: [{ id: "event-new", type: "message_posted" }],
+      documents: [{ id: "doc-1", title: "Doc 1" }],
+    });
+  });
+
+  it("ignores stale timeline failures after a newer request succeeds", async () => {
+    const firstRequest = deferred();
+
+    coreClientMocks.listThreadTimeline
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockResolvedValueOnce({
+        events: [{ id: "event-new", type: "message_posted" }],
+      });
+
+    const firstLoad = threadDetailStore.loadTimeline("thread-1");
+    const secondLoad = threadDetailStore.loadTimeline("thread-1");
+
+    await secondLoad;
+
+    firstRequest.reject(new Error("old request failed"));
+    await expect(firstLoad).resolves.toBeUndefined();
+
+    expect(get(threadDetailStore)).toMatchObject({
+      timelineThreadId: "thread-1",
+      timeline: [{ id: "event-new", type: "message_posted" }],
+      timelineError: "",
+      timelineLoading: false,
+    });
+  });
+
+  it("does not reuse timeline state across different threads", async () => {
+    coreClientMocks.getThreadWorkspace
+      .mockResolvedValueOnce({
+        thread: { id: "thread-1", title: "Thread 1" },
+        context: {
+          recent_events: [{ id: "event-a", type: "message_posted" }],
+          documents: [],
+          open_commitments: [],
+        },
+      })
+      .mockResolvedValueOnce({
+        thread: { id: "thread-2", title: "Thread 2" },
+        context: {
+          recent_events: [{ id: "event-b", type: "message_posted" }],
+          documents: [],
+          open_commitments: [],
+        },
+      });
+
+    coreClientMocks.listThreadTimeline.mockResolvedValueOnce({
+      events: [{ id: "event-a-full", type: "message_posted" }],
+    });
+
+    await threadDetailStore.loadWorkspace("thread-1");
+    await threadDetailStore.loadTimeline("thread-1");
+    await threadDetailStore.loadWorkspace("thread-2");
+
+    expect(get(threadDetailStore)).toMatchObject({
+      snapshot: { id: "thread-2", title: "Thread 2" },
+      timelineThreadId: "thread-2",
+      timeline: [{ id: "event-b", type: "message_posted" }],
+    });
+  });
+
+  it("clears timeline on failure when the cached events belong to another thread", async () => {
+    coreClientMocks.listThreadTimeline
+      .mockResolvedValueOnce({
+        events: [{ id: "event-a", type: "message_posted" }],
+      })
+      .mockRejectedValueOnce(new Error("network down"));
+
+    await threadDetailStore.loadTimeline("thread-1");
+    await threadDetailStore.loadTimeline("thread-2");
+
+    expect(get(threadDetailStore)).toMatchObject({
+      timelineThreadId: "",
+      timeline: [],
+      timelineError: "Failed to load timeline: network down",
+      timelineLoading: false,
     });
   });
 

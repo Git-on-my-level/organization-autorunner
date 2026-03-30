@@ -15,6 +15,7 @@ function initialState() {
     commitmentsLoading: false,
     boardMemberships: [],
     ownedBoards: [],
+    timelineThreadId: "",
     timeline: [],
     timelineLoading: false,
     timelineError: "",
@@ -30,6 +31,7 @@ function createThreadDetailStore() {
   let queuedRefreshFlags = null;
   let queuedRefreshThreadId = "";
   let queuedRefreshPromise = null;
+  let timelineRequestSeq = 0;
 
   function mergeRefreshFlags(base, next) {
     const left = base ?? {};
@@ -76,6 +78,10 @@ function createThreadDetailStore() {
         workspace && typeof workspace.owned_boards === "object"
           ? workspace.owned_boards
           : {};
+      const latestState = get(store);
+      const canReuseTimeline =
+        latestState.timelineThreadId === threadId &&
+        latestState.timeline.length > 0;
       patchState({
         workspace,
         snapshot: workspace?.thread ?? null,
@@ -91,9 +97,20 @@ function createThreadDetailStore() {
         ownedBoards: Array.isArray(ownedBoardsData.items)
           ? ownedBoardsData.items
           : [],
-        timeline: Array.isArray(context.recent_events)
-          ? context.recent_events
-          : [],
+        // Seed timeline from workspace context only before the dedicated
+        // timeline fetch has populated the full event history. Background
+        // workspace refreshes should not replace the mounted message list
+        // with the smaller recent-events slice.
+        ...(canReuseTimeline
+          ? {}
+          : {
+              timeline: Array.isArray(context.recent_events)
+                ? context.recent_events
+                : [],
+              timelineThreadId: Array.isArray(context.recent_events)
+                ? threadId
+                : "",
+            }),
       });
       return workspace;
     } catch (error) {
@@ -126,18 +143,35 @@ function createThreadDetailStore() {
   }
 
   async function loadTimeline(threadId) {
+    const requestSeq = ++timelineRequestSeq;
+    const currentState = get(store);
+    const canReuseTimeline =
+      currentState.timelineThreadId === threadId &&
+      currentState.timeline.length > 0;
     patchState({ timelineLoading: true, timelineError: "" });
     try {
+      const nextTimeline =
+        (await coreClient.listThreadTimeline(threadId)).events ?? [];
+      if (requestSeq !== timelineRequestSeq) {
+        return;
+      }
       patchState({
-        timeline: (await coreClient.listThreadTimeline(threadId)).events ?? [],
+        timelineThreadId: threadId,
+        timeline: nextTimeline,
       });
     } catch (e) {
+      if (requestSeq !== timelineRequestSeq) {
+        return;
+      }
       patchState({
         timelineError: `Failed to load timeline: ${e instanceof Error ? e.message : String(e)}`,
-        timeline: [],
+        timelineThreadId: canReuseTimeline ? threadId : "",
+        timeline: canReuseTimeline ? currentState.timeline : [],
       });
     } finally {
-      patchState({ timelineLoading: false });
+      if (requestSeq === timelineRequestSeq) {
+        patchState({ timelineLoading: false });
+      }
     }
   }
 
@@ -228,8 +262,11 @@ function createThreadDetailStore() {
     patchState({ documents: value });
   }
 
-  function setTimeline(value) {
-    patchState({ timeline: value });
+  function setTimeline(value, threadId = "") {
+    patchState({
+      timeline: value,
+      timelineThreadId: threadId || "",
+    });
   }
 
   function setWorkOrders(value) {
