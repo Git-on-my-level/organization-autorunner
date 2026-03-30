@@ -218,13 +218,13 @@ class OARClient:
         if last_event_id:
             headers["Last-Event-ID"] = last_event_id
         timeout = httpx.Timeout(connect=10.0, read=heartbeat_timeout_seconds, write=10.0, pool=10.0)
-        try:
-            with httpx.stream("GET", f"{self.base_url}{path}", headers=headers, verify=self.verify_ssl, timeout=timeout) as response:
-                if response.status_code >= 400:
-                    raise self._decode_response(response)
-                current_id: str | None = None
-                current_event: str | None = None
-                data_lines: list[str] = []
+        with httpx.stream("GET", f"{self.base_url}{path}", headers=headers, verify=self.verify_ssl, timeout=timeout) as response:
+            if response.status_code >= 400:
+                raise self._decode_response(response)
+            current_id: str | None = None
+            current_event: str | None = None
+            data_lines: list[str] = []
+            try:
                 for raw_line in response.iter_lines():
                     line = raw_line if isinstance(raw_line, str) else raw_line.decode("utf-8")
                     if line == "":
@@ -249,10 +249,10 @@ class OARClient:
                         current_event = value
                     elif field == "data":
                         data_lines.append(value)
-                if data_lines:
-                    yield {"id": current_id, "event": current_event, "data": "\n".join(data_lines)}
-        except httpx.TransportError as exc:
-            raise OARStreamDisconnected(str(exc)) from exc
+            except (httpx.ReadError, httpx.RemoteProtocolError) as exc:
+                raise OARStreamDisconnected(str(exc)) from exc
+            if data_lines:
+                yield {"id": current_id, "event": current_event, "data": "\n".join(data_lines)}
 
 
 from typing import TYPE_CHECKING

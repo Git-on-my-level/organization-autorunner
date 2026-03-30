@@ -96,3 +96,15 @@ def test_stream_events_wraps_transport_disconnect(monkeypatch):
 
     with pytest.raises(OARStreamDisconnected, match="incomplete chunked read"):
         list(client.stream_events())
+
+
+def test_stream_events_preserves_connect_error(monkeypatch):
+    client = OARClient("http://oar.test", auth_manager=DummyAuthManager())
+
+    def raise_connect_error(*args, **kwargs):
+        raise httpx.ConnectError("dial failed")
+
+    monkeypatch.setattr("oar_agent_bridge.oar_client.httpx.stream", raise_connect_error)
+
+    with pytest.raises(httpx.ConnectError, match="dial failed"):
+        list(client.stream_events())
