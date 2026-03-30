@@ -293,3 +293,34 @@ func TestResolveExplicitBaseURLOverridesBridgeAmbiguity(t *testing.T) {
 		t.Fatalf("unexpected base url: %s", resolved.BaseURL)
 	}
 }
+
+func TestResolveIgnoresStaleDefaultProfileSelection(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	profilesDir := filepath.Join(home, ".config", "oar", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o700); err != nil {
+		t.Fatalf("mkdir profiles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "alpha.json"), []byte(`{"base_url":"http://alpha:8000"}`), 0o600); err != nil {
+		t.Fatalf("write alpha profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "beta.json"), []byte(`{"base_url":"http://beta:8000"}`), 0o600); err != nil {
+		t.Fatalf("write beta profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".config", "oar", "default-profile"), []byte("missing\n"), 0o600); err != nil {
+		t.Fatalf("write default profile: %v", err)
+	}
+
+	_, err := Resolve(Overrides{}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err == nil {
+		t.Fatal("expected resolve error with stale default profile and multiple local profiles")
+	}
+	if !strings.Contains(err.Error(), "multiple local profiles found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

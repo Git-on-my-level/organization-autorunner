@@ -163,9 +163,16 @@ func Resolve(overrides Overrides, env Environment) (Resolved, error) {
 			return Resolved{}, fmt.Errorf("load default profile: %w", err)
 		}
 		if ok {
-			resolved.Agent = defaultAgent
-			resolved.Sources["agent"] = "profile:default"
-		} else {
+			if _, profileExists, err := profile.Load(profile.ProfilePath(homeDir, defaultAgent)); err != nil {
+				return Resolved{}, fmt.Errorf("load default profile %q: %w", defaultAgent, err)
+			} else if profileExists {
+				resolved.Agent = defaultAgent
+				resolved.Sources["agent"] = "profile:default"
+			} else {
+				ok = false
+			}
+		}
+		if !ok {
 			agents, err := profile.ListAgents(homeDir)
 			if err != nil {
 				return Resolved{}, fmt.Errorf("list local profiles: %w", err)
