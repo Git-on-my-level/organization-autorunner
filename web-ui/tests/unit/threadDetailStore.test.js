@@ -118,6 +118,53 @@ describe("threadDetailStore", () => {
     });
   });
 
+  it("does not overwrite a newer timeline when workspace refresh resolves later", async () => {
+    const pendingWorkspace = deferred();
+
+    coreClientMocks.getThreadWorkspace
+      .mockResolvedValueOnce({
+        thread: { id: "thread-1", title: "Initial workspace" },
+        context: {
+          recent_events: [{ id: "event-seed", type: "message_posted" }],
+          documents: [],
+          open_commitments: [],
+        },
+      })
+      .mockReturnValueOnce(pendingWorkspace.promise);
+
+    coreClientMocks.listThreadTimeline
+      .mockResolvedValueOnce({
+        events: [{ id: "event-old", type: "message_posted" }],
+      })
+      .mockResolvedValueOnce({
+        events: [{ id: "event-new", type: "message_posted" }],
+      });
+
+    await threadDetailStore.loadWorkspace("thread-1");
+    await threadDetailStore.loadTimeline("thread-1");
+
+    const workspaceRefresh = threadDetailStore.loadWorkspace("thread-1");
+    await threadDetailStore.loadTimeline("thread-1");
+
+    pendingWorkspace.resolve({
+      thread: { id: "thread-1", title: "Refreshed workspace" },
+      context: {
+        recent_events: [{ id: "event-stale", type: "message_posted" }],
+        documents: [{ id: "doc-1", title: "Doc 1" }],
+        open_commitments: [],
+      },
+    });
+
+    await workspaceRefresh;
+
+    expect(get(threadDetailStore)).toMatchObject({
+      snapshot: { id: "thread-1", title: "Refreshed workspace" },
+      timelineThreadId: "thread-1",
+      timeline: [{ id: "event-new", type: "message_posted" }],
+      documents: [{ id: "doc-1", title: "Doc 1" }],
+    });
+  });
+
   it("ignores stale timeline failures after a newer request succeeds", async () => {
     const firstRequest = deferred();
 

@@ -48,9 +48,6 @@ function createThreadDetailStore() {
 
   async function loadWorkspace(threadId, filters = {}) {
     const currentState = get(store);
-    const canReuseTimeline =
-      currentState.timelineThreadId === threadId &&
-      currentState.timeline.length > 0;
     const hasWorkspaceData =
       currentState.workspace !== null ||
       currentState.snapshot !== null ||
@@ -81,6 +78,10 @@ function createThreadDetailStore() {
         workspace && typeof workspace.owned_boards === "object"
           ? workspace.owned_boards
           : {};
+      const latestState = get(store);
+      const canReuseTimeline =
+        latestState.timelineThreadId === threadId &&
+        latestState.timeline.length > 0;
       patchState({
         workspace,
         snapshot: workspace?.thread ?? null,
@@ -100,15 +101,16 @@ function createThreadDetailStore() {
         // timeline fetch has populated the full event history. Background
         // workspace refreshes should not replace the mounted message list
         // with the smaller recent-events slice.
-        timeline: canReuseTimeline
-          ? currentState.timeline
-          : Array.isArray(context.recent_events)
-            ? context.recent_events
-            : [],
-        timelineThreadId:
-          canReuseTimeline || Array.isArray(context.recent_events)
-            ? threadId
-            : "",
+        ...(canReuseTimeline
+          ? {}
+          : {
+              timeline: Array.isArray(context.recent_events)
+                ? context.recent_events
+                : [],
+              timelineThreadId: Array.isArray(context.recent_events)
+                ? threadId
+                : "",
+            }),
       });
       return workspace;
     } catch (error) {
