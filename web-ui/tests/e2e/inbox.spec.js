@@ -278,7 +278,157 @@ test("recording a decision marks only the selected inbox item", async ({
   await page.fill(`#decision-summary-${decidedItemId}`, "Approve path A");
   await decidedCard.getByRole("button", { name: "Submit decision" }).click();
 
-  await expect(decidedCard.getByText(/Decision recorded/)).toBeVisible();
-  await expect(otherCard.getByText(/Decision recorded/)).toHaveCount(0);
-  await expect(page.getByText(/Decision recorded/)).toHaveCount(1);
+  await expect(decidedCard).toHaveCount(0);
+  await expect(otherCard).toBeVisible();
+  await expect(page.getByText(/Decision recorded/)).toHaveCount(0);
+});
+
+test("inbox thread context shows commitment owners by actor name", async ({
+  page,
+}) => {
+  const actorId = "agent-ops-ai";
+  const ownerActorId = "agent-hermes-operator";
+  const threadId = "thread-onboarding";
+  let inboxRequestCount = 0;
+
+  await page.route("**/auth/session", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        agent: {
+          agent_id: actorId,
+          actor_id: actorId,
+          username: "ops-ai",
+        },
+      }),
+    });
+  });
+
+  await page.route(/\/auth\/principals(?:\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        principals: [
+          {
+            agent_id: actorId,
+            actor_id: actorId,
+            username: "ops-ai",
+            principal_kind: "agent",
+            auth_method: "public_key",
+            revoked: false,
+          },
+          {
+            agent_id: ownerActorId,
+            actor_id: ownerActorId,
+            username: "hermes-operator",
+            principal_kind: "agent",
+            auth_method: "public_key",
+            revoked: false,
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route(/\/actors(\?.*)?$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        actors: [
+          { id: actorId, display_name: "ops-ai", tags: ["agent"] },
+          {
+            id: ownerActorId,
+            display_name: "Hermes Operator",
+            tags: ["agent"],
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.route(/\/inbox(?:\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.resourceType() === "document") {
+      await route.continue();
+      return;
+    }
+    inboxRequestCount += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: [
+          {
+            id: "inbox-001",
+            category: "decision_needed",
+            title: "Approve onboarding exception handling",
+            recommended_action: "Record a decision on escalation path.",
+            thread_id: threadId,
+            refs: [`thread:${threadId}`],
+            source_event_time: hoursAgo(4),
+          },
+        ],
+        generated_at: "2026-03-04T00:00:00.000Z",
+      }),
+    });
+  });
+
+  await page.route(new RegExp(`/threads/${threadId}$`), async (route) => {
+    const request = route.request();
+    if (request.resourceType() === "document") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        thread: {
+          id: threadId,
+          title: "Customer Onboarding Workflow",
+          status: "active",
+          priority: "p1",
+          current_summary: "Escalation review in progress.",
+        },
+      }),
+    });
+  });
+
+  await page.route(
+    new RegExp(`/commitments\\?thread_id=${threadId}&status=active$`),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          commitments: [
+            {
+              id: "commitment-001",
+              description: "Confirm legal signoff",
+              status: "active",
+              owner: ownerActorId,
+              due_by: "2026-03-06T12:00:00.000Z",
+            },
+          ],
+        }),
+      });
+    },
+  );
+
+  await page.goto("/inbox");
+  await expect.poll(() => inboxRequestCount).toBeGreaterThan(0);
+
+  const card = page.getByTestId("inbox-card-inbox-001");
+  await card.getByRole("button", { name: "Decide" }).click();
+
+  await expect(
+    card.getByText("Hermes Operator", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    card.getByText(`Owner: ${ownerActorId}`, { exact: false }),
+  ).toHaveCount(0);
 });

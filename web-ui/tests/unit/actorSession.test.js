@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   ACTOR_STORAGE_KEY,
@@ -6,7 +6,9 @@ import {
   buildActorCreatePayload,
   chooseActor,
   initializeActorSession,
+  lookupActorDisplayName,
   loadStoredActorId,
+  replacePrincipalRegistry,
   saveSelectedActorId,
   shouldShowActorGate,
 } from "../../src/lib/actorSession.js";
@@ -26,6 +28,10 @@ function createMemoryStorage() {
     },
   };
 }
+
+afterEach(() => {
+  replacePrincipalRegistry([]);
+});
 
 describe("actor session / gate logic", () => {
   it("decides gate visibility from readiness + actor selection", () => {
@@ -65,5 +71,27 @@ describe("actor session / gate logic", () => {
         created_at: "2026-03-04T00:00:00.000Z",
       },
     });
+  });
+
+  it("prefers principal usernames for actor and agent identifiers", () => {
+    replacePrincipalRegistry([
+      {
+        agent_id: "agent-26",
+        actor_id: "actor-hermes",
+        username: "m4-hermes",
+      },
+    ]);
+
+    expect(
+      lookupActorDisplayName("actor-hermes", [
+        { id: "actor-hermes", display_name: "Hermes Operator" },
+      ]),
+    ).toBe("m4-hermes");
+    expect(lookupActorDisplayName("agent-26", [])).toBe("m4-hermes");
+    expect(
+      lookupActorDisplayName("actor-human", [
+        { id: "actor-human", display_name: "Ops Lead" },
+      ]),
+    ).toBe("Ops Lead");
   });
 });

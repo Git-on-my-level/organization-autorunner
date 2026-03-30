@@ -86,7 +86,7 @@ test("thread detail separates messages from timeline and nests replies", async (
       id: "evt-0999",
       ts: "2026-03-03T08:00:00.000Z",
       type: "message_posted",
-      actor_id: actorId,
+      actor_id: "agent-m4-hermes",
       thread_id: "thread-onboarding",
       refs: ["thread:thread-onboarding"],
       summary: "Earlier timeline-only message",
@@ -134,7 +134,7 @@ test("thread detail separates messages from timeline and nests replies", async (
     });
   });
 
-  await page.route("**/auth/principals?**", async (route) => {
+  await page.route(/\/auth\/principals(?:\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -499,6 +499,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(
     page.getByText("Latest workspace message", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator("#message-evt-1002")).toContainText("ops-ai");
   await expect(
     page.getByText("Loading messages...", { exact: true }),
   ).toHaveCount(0);
@@ -519,6 +520,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(
     page.getByText("Earlier timeline-only message", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator("#message-evt-0999")).toContainText("m4-hermes");
   await page.locator("#message-text").fill("@");
   await expect(page.locator("#message-mention-list")).toContainText(
     "@m4-hermes",
@@ -561,6 +563,8 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(
     page.getByText("Message: Reply message from e2e", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator("#event-evt-0999")).toContainText("m4-hermes");
+  await expect(page.locator("#event-event-new-1")).toContainText("ops-ai");
 
   await page.reload();
 

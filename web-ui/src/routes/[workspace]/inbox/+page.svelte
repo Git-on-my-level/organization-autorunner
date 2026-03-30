@@ -3,6 +3,7 @@
   import { page } from "$app/stores";
   import { onMount } from "svelte";
 
+  import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
@@ -34,6 +35,7 @@
   let categoryFilter = $state("all");
   let filtersOpen = $state(false);
   let workspaceSlug = $derived($page.params.workspace);
+  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
 
   let threadContextCache = $state({});
   let threadContextLoading = $state({});
@@ -849,7 +851,11 @@
                                     class="flex items-center gap-3 mt-0.5 text-[11px] text-[var(--ui-text-muted)]"
                                   >
                                     {#if commitment.owner}
-                                      <span>Owner: {commitment.owner}</span>
+                                      <span
+                                        >Owner: {actorName(
+                                          commitment.owner,
+                                        )}</span
+                                      >
                                     {/if}
                                     {#if commitment.due_by}
                                       <span

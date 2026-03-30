@@ -13,6 +13,7 @@
     initializeActorSession,
     lookupActorDisplayName,
     replaceActorRegistry,
+    replacePrincipalRegistry,
     selectedActorId,
     shouldShowActorGate,
   } from "$lib/actorSession";
@@ -107,11 +108,18 @@
       !$authenticatedAgent &&
       !$devActorModeReady,
   );
-  let selectedActorName = $derived(
-    lookupActorDisplayName(activeActorId, $actorRegistry) ||
-      $authenticatedAgent?.username ||
-      "Unknown identity",
-  );
+  let selectedActorName = $derived.by(() => {
+    const resolvedName = lookupActorDisplayName(activeActorId, $actorRegistry);
+    if (
+      $authenticatedAgent?.username &&
+      ($authenticatedAgent?.actor_id === activeActorId ||
+        resolvedName === activeActorId ||
+        resolvedName === "Unknown actor")
+    ) {
+      return $authenticatedAgent.username;
+    }
+    return resolvedName || "Unknown identity";
+  });
   let initials = $derived(
     selectedActorName
       ? selectedActorName
@@ -166,18 +174,33 @@
     void hydrateWorkspace(workspaceSlug);
   });
 
+  $effect(() => {
+    if (!browser) {
+      return;
+    }
+
+    const workspaceSlug = activeWorkspaceSlug;
+    if (!workspaceSlug || !$authSessionReady) {
+      return;
+    }
+
+    const seedPrincipal = $authenticatedAgent ? [$authenticatedAgent] : [];
+    void refreshPrincipals(workspaceSlug, seedPrincipal);
+  });
+
   async function hydrateWorkspace(workspaceSlug) {
     setDevActorModeReady(false);
     initializeActorSession(localStorage, workspaceSlug);
-    await initializeAuthSession({
+    const agent = await initializeAuthSession({
       fetchFn: globalThis.fetch.bind(globalThis),
       workspaceSlug,
     });
+    replacePrincipalRegistry(agent ? [agent] : [], workspaceSlug);
     try {
       const handshake = await coreClient.getHandshake();
       const devActorModeEnabled = handshake.dev_actor_mode === true;
       setDevActorMode(devActorModeEnabled);
-      if (devActorModeEnabled) {
+      if (devActorModeEnabled || agent?.actor_id) {
         await refreshActors(workspaceSlug);
       } else {
         actorError = "";
@@ -207,6 +230,49 @@
       replaceActorRegistry([], workspaceSlug);
     } finally {
       loadingActors = false;
+    }
+  }
+
+  function mergePrincipals(...principalLists) {
+    const seen = new Set();
+    const merged = [];
+
+    for (const principals of principalLists) {
+      for (const principal of principals ?? []) {
+        const agentId = String(principal?.agent_id ?? "").trim();
+        const actorId = String(principal?.actor_id ?? "").trim();
+        const username = String(principal?.username ?? "").trim();
+        const key = `${agentId}\n${actorId}\n${username}`;
+        if (!key.trim() || seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        merged.push(principal);
+      }
+    }
+
+    return merged;
+  }
+
+  async function refreshPrincipals(
+    workspaceSlug = activeWorkspaceSlug,
+    seedPrincipals = [],
+  ) {
+    const seeded = mergePrincipals(seedPrincipals);
+    replacePrincipalRegistry(seeded, workspaceSlug);
+
+    if (seeded.length === 0) {
+      return;
+    }
+
+    try {
+      const response = await coreClient.listPrincipals({ limit: 200 });
+      replacePrincipalRegistry(
+        mergePrincipals(response.principals ?? [], seeded),
+        workspaceSlug,
+      );
+    } catch {
+      replacePrincipalRegistry(seeded, workspaceSlug);
     }
   }
 
