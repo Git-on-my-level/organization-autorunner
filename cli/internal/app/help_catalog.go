@@ -42,6 +42,7 @@ var runtimeHelpManualDocTopics = []runtimeHelpDocTopic{
 	{Path: "provenance", Kind: "manual", Summary: "Deterministic provenance walk reference and examples."},
 	{Path: "auth whoami", Kind: "manual", Summary: "Validate the active profile, print resolved identity metadata, and point agents at wake-registration next steps."},
 	{Path: "auth list", Kind: "manual", Summary: "List local CLI profiles and the active profile."},
+	{Path: "auth default", Kind: "manual", Summary: "Persist the default CLI profile used when no explicit agent is selected."},
 	{Path: "auth update-username", Kind: "manual", Summary: "Rename the authenticated agent and sync the local profile."},
 	{Path: "auth rotate", Kind: "manual", Summary: "Rotate the active agent key and refresh stored credentials."},
 	{Path: "auth revoke", Kind: "manual", Summary: "Revoke the active agent and mark the local profile revoked. Use explicit human-lockout flags only for break-glass recovery."},

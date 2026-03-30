@@ -78,3 +78,23 @@ func TestGenerateSaveLoadPrivateKey(t *testing.T) {
 		t.Fatalf("unexpected key path extension: %s", keyPath)
 	}
 }
+
+func TestSaveLoadDefaultAgent(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	if err := SaveDefaultAgent(home, "agent-two"); err != nil {
+		t.Fatalf("save default agent: %v", err)
+	}
+
+	agent, ok, err := LoadDefaultAgent(home)
+	if err != nil {
+		t.Fatalf("load default agent: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected default agent to exist")
+	}
+	if agent != "agent-two" {
+		t.Fatalf("unexpected default agent: %q", agent)
+	}
+}

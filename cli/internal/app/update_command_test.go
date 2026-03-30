@@ -18,36 +18,54 @@ import (
 	"organization-autorunner-cli/internal/httpclient"
 )
 
-func TestRunUpdateCheckUsesHandshakeRecommendation(t *testing.T) {
+func TestRunUpdateCheckDoesNotCallHandshake(t *testing.T) {
 	restoreVersion := httpclient.CLIVersion
+	restoreBaseURL := updateReleaseBaseURL
 	httpclient.CLIVersion = "v0.0.1"
-	t.Cleanup(func() { httpclient.CLIVersion = restoreVersion })
+	t.Cleanup(func() {
+		httpclient.CLIVersion = restoreVersion
+		updateReleaseBaseURL = restoreBaseURL
+	})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/meta/handshake" {
-			http.NotFound(w, r)
-			return
+	handshakeCalled := false
+	coreServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/meta/handshake" {
+			handshakeCalled = true
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"min_cli_version":"0.0.1","recommended_cli_version":"0.0.2","cli_download_url":"https://example.com/oar"}`))
+		http.NotFound(w, r)
 	}))
-	defer server.Close()
+	defer coreServer.Close()
+
+	var releaseServer *httptest.Server
+	releaseServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/releases/latest":
+			http.Redirect(w, r, releaseServer.URL+"/releases/tag/v0.0.3", http.StatusFound)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer releaseServer.Close()
+	updateReleaseBaseURL = releaseServer.URL + "/releases"
 
 	home := t.TempDir()
-	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "--base-url", server.URL, "update", "--check"})
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "--base-url", coreServer.URL, "update", "--check"})
 	payload := assertEnvelopeOK(t, raw)
 	if got := anyStringValue(payload["command"]); got != "update" {
 		t.Fatalf("unexpected command: %#v", payload)
 	}
 	data, _ := payload["data"].(map[string]any)
-	if got := anyStringValue(data["target_version"]); got != "v0.0.2" {
-		t.Fatalf("expected handshake target version, got %#v", data)
+	if got := anyStringValue(data["target_version"]); got != "v0.0.3" {
+		t.Fatalf("expected latest release target version, got %#v", data)
 	}
-	if got := anyStringValue(data["source"]); got != "handshake" {
-		t.Fatalf("expected handshake source, got %#v", data)
+	if got := anyStringValue(data["source"]); got != "latest_release" {
+		t.Fatalf("expected latest release source, got %#v", data)
 	}
 	if got, _ := data["update_available"].(bool); !got {
 		t.Fatalf("expected update_available=true, got %#v", data)
+	}
+	if handshakeCalled {
+		t.Fatal("expected update check to avoid the core handshake endpoint")
 	}
 }
 

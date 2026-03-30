@@ -74,7 +74,7 @@ func (a *App) Run(args []string) int {
 	}
 	configLenient := cmdPeek == "version" || cmdPeek == "help" || cmdPeek == "--help" || cmdPeek == "-h" || cmdPeek == "meta" || cmdPeek == "update" || cmdPeek == "bridge" ||
 		(cmdPeek == "import" && isConfigLenientImportCommand(remaining[1:])) ||
-		(cmdPeek == "auth" && (subPeek == "list" || subPeek == "ls" || subPeek == "profiles"))
+		(cmdPeek == "auth" && (subPeek == "list" || subPeek == "ls" || subPeek == "profiles" || subPeek == "default"))
 
 	resolved, err := config.Resolve(overrides, config.Environment{
 		Getenv:      a.Getenv,

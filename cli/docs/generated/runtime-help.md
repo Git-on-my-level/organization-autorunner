@@ -12,6 +12,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `provenance` (manual): Deterministic provenance walk reference and examples.
 - `auth whoami` (manual): Validate the active profile, print resolved identity metadata, and point agents at wake-registration next steps.
 - `auth list` (manual): List local CLI profiles and the active profile.
+- `auth default` (manual): Persist the default CLI profile used when no explicit agent is selected.
 - `auth update-username` (manual): Rename the authenticated agent and sync the local profile.
 - `auth rotate` (manual): Rotate the active agent key and refresh stored credentials.
 - `auth revoke` (manual): Revoke the active agent and mark the local profile revoked. Use explicit human-lockout flags only for break-glass recovery.
@@ -779,6 +780,28 @@ Global flags:
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
+## `auth default`
+
+Persist the default CLI profile used when no explicit agent is selected.
+
+```text
+Local Help: auth default
+
+Persist the default profile used when no explicit agent is selected.
+
+Usage:
+  oar auth default <profile>
+
+Examples:
+  oar auth default agent-a
+  oar --json auth default agent-a
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json auth default ... ; oar auth default ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
 ## `auth update-username`
 
 Rename the authenticated agent and sync the local profile.
@@ -1007,6 +1030,7 @@ Commands:
 Local auth lifecycle helpers:
   auth whoami             Validate the active profile against the server and show resolved identity.
   auth list               List local CLI profiles and which one is active.
+  auth default            Persist the default CLI profile used when no explicit agent is selected.
   auth update-username    Update the current principal username and sync the local profile.
   auth rotate             Rotate the active agent key and refresh stored credentials.
   auth revoke             Revoke the active agent and mark the local profile revoked. Use explicit human-lockout flags only for break-glass recovery.

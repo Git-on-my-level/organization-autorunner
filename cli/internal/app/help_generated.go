@@ -580,6 +580,7 @@ func localGroupHelpSupplement(topic string) string {
 		return strings.TrimSpace(`Local auth lifecycle helpers:
   auth whoami             Validate the active profile against the server and show resolved identity.
   auth list               List local CLI profiles and which one is active.
+  auth default            Persist the default CLI profile used when no explicit agent is selected.
   auth update-username    Update the current principal username and sync the local profile.
   auth rotate             Rotate the active agent key and refresh stored credentials.
   auth revoke             Revoke the active agent and mark the local profile revoked. Use explicit human-lockout flags only for break-glass recovery.
@@ -1026,6 +1027,11 @@ func authLocalHelpText(topic string) (string, bool) {
 			summary:  "List local CLI profiles and identify the active one.",
 			usage:    "oar auth list",
 			examples: []string{"oar auth list", "oar --json auth list"},
+		},
+		"auth default": {
+			summary:  "Persist the default profile used when no explicit agent is selected.",
+			usage:    "oar auth default <profile>",
+			examples: []string{"oar auth default agent-a", "oar --json auth default agent-a"},
 		},
 		"auth update-username": {
 			summary:  "Update the authenticated agent username and sync the local profile copy.",

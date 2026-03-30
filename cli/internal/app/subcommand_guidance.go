@@ -29,12 +29,13 @@ var bridgeSubcommandSpec = subcommandSpec{
 
 var authSubcommandSpec = subcommandSpec{
 	command: "auth",
-	valid:   []string{"register", "whoami", "list", "update-username", "rotate", "revoke", "token-status", "invites", "bootstrap", "principals", "audit"},
+	valid:   []string{"register", "whoami", "list", "default", "update-username", "rotate", "revoke", "token-status", "invites", "bootstrap", "principals", "audit"},
 	examples: []string{
 		"oar auth register --username <username> --bootstrap-token <token>",
 		"oar auth register --username <username> --invite-token <token>",
 		"oar auth whoami",
 		"oar auth list",
+		"oar auth default <profile>",
 		"oar auth invites list",
 		"oar auth invites create --kind agent",
 		"oar auth bootstrap status",

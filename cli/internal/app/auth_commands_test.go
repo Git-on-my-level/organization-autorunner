@@ -274,6 +274,74 @@ func TestAuthRegisterPersistsProfileDefaults(t *testing.T) {
 	}
 }
 
+func TestAuthDefaultSelectsProfileForAdHocCommands(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	if err := profile.Save(profile.ProfilePath(home, "alpha"), profile.Profile{Agent: "alpha", BaseURL: "http://alpha:8000"}); err != nil {
+		t.Fatalf("save alpha profile: %v", err)
+	}
+	if err := profile.Save(profile.ProfilePath(home, "beta"), profile.Profile{Agent: "beta", BaseURL: "http://beta:8000"}); err != nil {
+		t.Fatalf("save beta profile: %v", err)
+	}
+
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "auth", "default", "beta"})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	if strings.TrimSpace(anyStr(data["default_profile"])) != "beta" {
+		t.Fatalf("unexpected auth default payload: %#v", payload)
+	}
+
+	versionRaw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "version"})
+	versionPayload := assertEnvelopeOK(t, versionRaw)
+	versionData, _ := versionPayload["data"].(map[string]any)
+	if strings.TrimSpace(anyStr(versionData["agent"])) != "beta" {
+		t.Fatalf("unexpected version agent: %#v", versionPayload)
+	}
+	if strings.TrimSpace(anyStr(versionData["base_url"])) != "http://beta:8000" {
+		t.Fatalf("unexpected version base url: %#v", versionPayload)
+	}
+}
+
+func TestAuthListShowsDefaultProfile(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	if err := profile.Save(profile.ProfilePath(home, "alpha"), profile.Profile{Agent: "alpha", BaseURL: "http://alpha:8000"}); err != nil {
+		t.Fatalf("save alpha profile: %v", err)
+	}
+	if err := profile.Save(profile.ProfilePath(home, "beta"), profile.Profile{Agent: "beta", BaseURL: "http://beta:8000"}); err != nil {
+		t.Fatalf("save beta profile: %v", err)
+	}
+	if err := profile.SaveDefaultAgent(home, "beta"); err != nil {
+		t.Fatalf("save default profile: %v", err)
+	}
+
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "--agent", "alpha", "auth", "list"})
+	payload := assertEnvelopeOK(t, raw)
+	data, _ := payload["data"].(map[string]any)
+	if strings.TrimSpace(anyStr(data["default_profile"])) != "beta" {
+		t.Fatalf("unexpected auth list payload: %#v", payload)
+	}
+	profiles, _ := data["profiles"].([]any)
+	if len(profiles) != 2 {
+		t.Fatalf("expected two profiles, got %#v", payload)
+	}
+	var beta map[string]any
+	for _, item := range profiles {
+		profileMap, _ := item.(map[string]any)
+		if strings.TrimSpace(anyStr(profileMap["agent"])) == "beta" {
+			beta = profileMap
+		}
+	}
+	if beta == nil {
+		t.Fatalf("expected beta profile summary, got %#v", payload)
+	}
+	if isDefault, _ := beta["default"].(bool); !isDefault {
+		t.Fatalf("expected beta to be marked default, got %#v", beta)
+	}
+}
+
 func TestAuthRegisterInternalErrorIsActionable(t *testing.T) {
 	t.Parallel()
 
