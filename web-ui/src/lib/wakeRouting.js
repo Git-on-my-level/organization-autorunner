@@ -79,6 +79,76 @@ function base64ToBytes(value) {
   return null;
 }
 
+function readDerLength(bytes, offset) {
+  const first = bytes[offset];
+  if (first == null) return null;
+  if ((first & 0x80) === 0) {
+    return { length: first, nextOffset: offset + 1 };
+  }
+  const byteCount = first & 0x7f;
+  if (byteCount === 0 || byteCount > 4) {
+    return null;
+  }
+  let length = 0;
+  for (let index = 0; index < byteCount; index += 1) {
+    const value = bytes[offset + 1 + index];
+    if (value == null) return null;
+    length = (length << 8) | value;
+  }
+  return { length, nextOffset: offset + 1 + byteCount };
+}
+
+function decodeDerInteger(bytes, offset, size) {
+  if (bytes[offset] !== 0x02) {
+    return null;
+  }
+  const parsedLength = readDerLength(bytes, offset + 1);
+  if (!parsedLength) return null;
+  const { length, nextOffset } = parsedLength;
+  const endOffset = nextOffset + length;
+  if (endOffset > bytes.length) {
+    return null;
+  }
+  let value = bytes.slice(nextOffset, endOffset);
+  while (value.length > 0 && value[0] === 0x00) {
+    value = value.slice(1);
+  }
+  if (value.length > size) {
+    return null;
+  }
+  const normalized = new Uint8Array(size);
+  normalized.set(value, size - value.length);
+  return { value: normalized, nextOffset: endOffset };
+}
+
+function derSignatureToP1363(signatureBytes, size = 32) {
+  if (!(signatureBytes instanceof Uint8Array)) {
+    return null;
+  }
+  if (signatureBytes.length === size * 2) {
+    return signatureBytes;
+  }
+  if (signatureBytes[0] !== 0x30) {
+    return null;
+  }
+  const parsedLength = readDerLength(signatureBytes, 1);
+  if (!parsedLength) return null;
+  const { length, nextOffset } = parsedLength;
+  if (nextOffset + length !== signatureBytes.length) {
+    return null;
+  }
+  const r = decodeDerInteger(signatureBytes, nextOffset, size);
+  if (!r) return null;
+  const s = decodeDerInteger(signatureBytes, r.nextOffset, size);
+  if (!s || s.nextOffset !== signatureBytes.length) {
+    return null;
+  }
+  const normalized = new Uint8Array(size * 2);
+  normalized.set(r.value, 0);
+  normalized.set(s.value, size);
+  return normalized;
+}
+
 async function verifyBridgeProof(publicKeyB64, checkinContent) {
   const subtle = globalThis?.crypto?.subtle;
   const publicKeyBytes = base64ToBytes(publicKeyB64);
@@ -94,11 +164,28 @@ async function verifyBridgeProof(publicKeyB64, checkinContent) {
       false,
       ["verify"],
     );
+    const messageBytes = new TextEncoder().encode(
+      bridgeProofMessage(checkinContent),
+    );
+    if (
+      await subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        publicKey,
+        signatureBytes,
+        messageBytes,
+      )
+    ) {
+      return true;
+    }
+    const normalizedSignature = derSignatureToP1363(signatureBytes);
+    if (!normalizedSignature || normalizedSignature === signatureBytes) {
+      return false;
+    }
     return subtle.verify(
       { name: "ECDSA", hash: "SHA-256" },
       publicKey,
-      signatureBytes,
-      new TextEncoder().encode(bridgeProofMessage(checkinContent)),
+      normalizedSignature,
+      messageBytes,
     );
   } catch {
     return false;
