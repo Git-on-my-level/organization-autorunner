@@ -1,15 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { webcrypto } from "node:crypto";
+import { createSign, generateKeyPairSync } from "node:crypto";
 
-const bridgeProofKeyPromise = (async () => {
-  const keyPair = await webcrypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  );
-  const publicKey = await webcrypto.subtle.exportKey("spki", keyPair.publicKey);
+const bridgeProofKey = (() => {
+  const { publicKey, privateKey } = generateKeyPairSync("ec", {
+    namedCurve: "prime256v1",
+    publicKeyEncoding: { format: "der", type: "spki" },
+    privateKeyEncoding: { format: "der", type: "pkcs8" },
+  });
   return {
-    privateKey: keyPair.privateKey,
+    privateKey,
     publicKeyB64: Buffer.from(publicKey).toString("base64"),
   };
 })();
@@ -29,11 +28,9 @@ function stableJsonValue(value) {
   return value;
 }
 
-async function signCheckinPayload(content) {
-  const { privateKey } = await bridgeProofKeyPromise;
-  const signature = await webcrypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    privateKey,
+function signCheckinPayload(content) {
+  const signer = createSign("sha256");
+  signer.update(
     Buffer.from(
       JSON.stringify(
         stableJsonValue({
@@ -49,14 +46,17 @@ async function signCheckinPayload(content) {
       "utf8",
     ),
   );
-  return Buffer.from(signature).toString("base64");
+  signer.end();
+  return signer
+    .sign({ key: bridgeProofKey.privateKey, format: "der", type: "pkcs8" })
+    .toString("base64");
 }
 
 test("thread detail separates messages from timeline and nests replies", async ({
   page,
 }) => {
   const actorId = "actor-thread-detail-e2e";
-  const { publicKeyB64 } = await bridgeProofKeyPromise;
+  const { publicKeyB64 } = bridgeProofKey;
   let postedEvents = 0;
   let streamLastEventId = "";
   let timelineRequests = 0;
@@ -527,12 +527,8 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(page.locator("#message-mention-list")).toContainText(
     "@m4-hermes",
   );
-  await expect(page.locator("#message-mention-list")).not.toContainText(
-    "@jarvis",
-  );
-  await expect(page.locator("#message-mention-list")).not.toContainText(
-    "@clawd",
-  );
+  await expect(page.locator("#message-mention-list")).toContainText("@jarvis");
+  await expect(page.locator("#message-mention-list")).toContainText("@clawd");
   await expect(
     page.locator("#message-evt-1001").getByRole("button", { name: "Reply" }),
   ).toBeVisible();

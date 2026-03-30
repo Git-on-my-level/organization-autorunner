@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { webcrypto } from "node:crypto";
+import { createSign, generateKeyPairSync } from "node:crypto";
 
 import {
   bridgeCheckinEventId,
@@ -7,15 +7,14 @@ import {
   registrationDocumentId,
 } from "../../src/lib/wakeRouting.js";
 
-const bridgeProofKeyPromise = (async () => {
-  const keyPair = await webcrypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  );
-  const publicKey = await webcrypto.subtle.exportKey("spki", keyPair.publicKey);
+const bridgeProofKey = (() => {
+  const { publicKey, privateKey } = generateKeyPairSync("ec", {
+    namedCurve: "prime256v1",
+    publicKeyEncoding: { format: "der", type: "spki" },
+    privateKeyEncoding: { format: "der", type: "pkcs8" },
+  });
   return {
-    privateKey: keyPair.privateKey,
+    privateKey,
     publicKeyB64: Buffer.from(publicKey).toString("base64"),
   };
 })();
@@ -35,11 +34,9 @@ function stableJsonValue(value) {
   return value;
 }
 
-async function signCheckinPayload(content) {
-  const { privateKey } = await bridgeProofKeyPromise;
-  const signature = await webcrypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    privateKey,
+function signCheckinPayload(content) {
+  const signer = createSign("sha256");
+  signer.update(
     Buffer.from(
       JSON.stringify(
         stableJsonValue({
@@ -55,7 +52,10 @@ async function signCheckinPayload(content) {
       "utf8",
     ),
   );
-  return Buffer.from(signature).toString("base64");
+  signer.end();
+  return signer
+    .sign({ key: bridgeProofKey.privateKey, format: "der", type: "pkcs8" })
+    .toString("base64");
 }
 
 function registrationDoc(content) {
@@ -98,7 +98,7 @@ describe("wakeRouting", () => {
   };
 
   it("marks an agent online when the durable workspace id is bound", async () => {
-    const { publicKeyB64 } = await bridgeProofKeyPromise;
+    const { publicKeyB64 } = bridgeProofKey;
     const result = await describeWakeRouting(
       principal,
       registrationDoc({
@@ -166,7 +166,7 @@ describe("wakeRouting", () => {
       summary: "Registration status is unavailable right now.",
     });
 
-    const { publicKeyB64 } = await bridgeProofKeyPromise;
+    const { publicKeyB64 } = bridgeProofKey;
     await expect(
       describeWakeRouting(
         principal,
@@ -193,7 +193,7 @@ describe("wakeRouting", () => {
   });
 
   it("keeps healthy bridge registrations online when page workspace context is missing", async () => {
-    const { publicKeyB64 } = await bridgeProofKeyPromise;
+    const { publicKeyB64 } = bridgeProofKey;
     const result = await describeWakeRouting(
       principal,
       registrationDoc({
@@ -228,7 +228,7 @@ describe("wakeRouting", () => {
   });
 
   it("keeps registered agents taggable but offline until the bridge checks in", async () => {
-    const { publicKeyB64 } = await bridgeProofKeyPromise;
+    const { publicKeyB64 } = bridgeProofKey;
     const result = await describeWakeRouting(
       principal,
       registrationDoc({
@@ -255,7 +255,7 @@ describe("wakeRouting", () => {
   });
 
   it("treats stale bridge check-ins as offline", async () => {
-    const { publicKeyB64 } = await bridgeProofKeyPromise;
+    const { publicKeyB64 } = bridgeProofKey;
     const result = await describeWakeRouting(
       principal,
       registrationDoc({

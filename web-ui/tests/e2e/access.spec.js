@@ -1,15 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { webcrypto } from "node:crypto";
+import { createSign, generateKeyPairSync } from "node:crypto";
 
-const bridgeProofKeyPromise = (async () => {
-  const keyPair = await webcrypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" },
-    true,
-    ["sign", "verify"],
-  );
-  const publicKey = await webcrypto.subtle.exportKey("spki", keyPair.publicKey);
+const bridgeProofKey = (() => {
+  const { publicKey, privateKey } = generateKeyPairSync("ec", {
+    namedCurve: "prime256v1",
+    publicKeyEncoding: { format: "der", type: "spki" },
+    privateKeyEncoding: { format: "der", type: "pkcs8" },
+  });
   return {
-    privateKey: keyPair.privateKey,
+    privateKey,
     publicKeyB64: Buffer.from(publicKey).toString("base64"),
   };
 })();
@@ -29,11 +28,9 @@ function stableJsonValue(value) {
   return value;
 }
 
-async function signCheckinPayload(content) {
-  const { privateKey } = await bridgeProofKeyPromise;
-  const signature = await webcrypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    privateKey,
+function signCheckinPayload(content) {
+  const signer = createSign("sha256");
+  signer.update(
     Buffer.from(
       JSON.stringify(
         stableJsonValue({
@@ -49,7 +46,10 @@ async function signCheckinPayload(content) {
       "utf8",
     ),
   );
-  return Buffer.from(signature).toString("base64");
+  signer.end();
+  return signer
+    .sign({ key: bridgeProofKey.privateKey, format: "der", type: "pkcs8" })
+    .toString("base64");
 }
 
 test("renders the access page without auth seeding", async ({ page }) => {
@@ -172,7 +172,7 @@ test("does not repeat the username in principal rows", async ({ page }) => {
   });
 
   await page.route("**/docs/agentreg.m4-hermes", async (route) => {
-    const { publicKeyB64 } = await bridgeProofKeyPromise;
+    const { publicKeyB64 } = bridgeProofKey;
     await route.fulfill({
       status: 200,
       headers: { "content-type": "application/json" },
