@@ -19,6 +19,7 @@ const authSessionMocks = vi.hoisted(() => ({
   refreshWorkspaceAuthSession: vi.fn(async () => {
     authSessionState.currentSession = { accessToken: "fresh-token" };
   }),
+  shouldClearWorkspaceAuthSessionAfterRetryableFailure: vi.fn(() => false),
 }));
 
 vi.mock("$app/environment", () => ({
@@ -48,6 +49,8 @@ vi.mock("$lib/server/authSession", () => ({
     authSessionMocks.isRetryableWorkspaceRefreshFailure,
   readWorkspaceRefreshToken: authSessionMocks.readWorkspaceRefreshToken,
   refreshWorkspaceAuthSession: authSessionMocks.refreshWorkspaceAuthSession,
+  shouldClearWorkspaceAuthSessionAfterRetryableFailure:
+    authSessionMocks.shouldClearWorkspaceAuthSessionAfterRetryableFailure,
 }));
 
 vi.mock("$lib/server/workspaceCatalog", () => ({
@@ -84,6 +87,9 @@ describe("hooks proxy retry", () => {
       (error, options) =>
         error?.status === 401 &&
         (options?.hadAccessToken || options?.hadRefreshToken),
+    );
+    authSessionMocks.shouldClearWorkspaceAuthSessionAfterRetryableFailure.mockReturnValue(
+      false,
     );
     for (const key of Object.keys(envState)) {
       delete envState[key];
@@ -265,7 +271,55 @@ describe("hooks proxy retry", () => {
       hadAccessToken: false,
       hadRefreshToken: true,
     });
+    expect(
+      authSessionMocks.shouldClearWorkspaceAuthSessionAfterRetryableFailure,
+    ).toHaveBeenCalledWith(expect.anything(), "ops");
     expect(authSessionMocks.clearWorkspaceAuthSession).not.toHaveBeenCalled();
+  });
+
+  it("clears the workspace session after repeated retryable refresh failures", async () => {
+    authSessionState.currentSession = { accessToken: "" };
+    authSessionMocks.shouldClearWorkspaceAuthSessionAfterRetryableFailure.mockReturnValue(
+      true,
+    );
+    authSessionMocks.refreshWorkspaceAuthSession.mockRejectedValueOnce(
+      Object.assign(new Error("invalid refresh token"), {
+        status: 401,
+        details: {
+          error: {
+            code: "invalid_token",
+          },
+        },
+      }),
+    );
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { code: "invalid_token" } }), {
+        status: 401,
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+    globalThis.fetch = fetchMock;
+
+    const response = await handle({
+      event: {
+        url: new URL("https://oar.example.test/api/threads"),
+        request: new Request("https://oar.example.test/api/threads", {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+          },
+        }),
+      },
+      resolve: vi.fn(),
+    });
+
+    expect(response.status).toBe(401);
+    expect(authSessionMocks.clearWorkspaceAuthSession).toHaveBeenCalledWith(
+      expect.anything(),
+      "ops",
+    );
   });
 
   it("adds configured CSP sources to document navigation responses", async () => {

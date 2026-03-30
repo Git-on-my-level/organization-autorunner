@@ -10,6 +10,7 @@ import {
   isRetryableWorkspaceRefreshFailure,
   readWorkspaceRefreshToken,
   refreshWorkspaceAuthSession,
+  shouldClearWorkspaceAuthSessionAfterRetryableFailure,
 } from "$lib/server/authSession";
 import { buildProxyRequestInit } from "$lib/server/coreProxy";
 import { resolveProxyTarget } from "$lib/server/proxyWorkspaceTarget";
@@ -58,13 +59,23 @@ async function refreshAndRetry(
     });
   } catch (error) {
     if (
-      !isRetryableWorkspaceRefreshFailure(error, {
+      isRetryableWorkspaceRefreshFailure(error, {
         hadAccessToken,
         hadRefreshToken: true,
       })
     ) {
-      clearWorkspaceAuthSession(event, workspaceSlug);
+      if (
+        shouldClearWorkspaceAuthSessionAfterRetryableFailure(
+          event,
+          workspaceSlug,
+        )
+      ) {
+        clearWorkspaceAuthSession(event, workspaceSlug);
+      }
+      return null;
     }
+
+    clearWorkspaceAuthSession(event, workspaceSlug);
     return null;
   }
 

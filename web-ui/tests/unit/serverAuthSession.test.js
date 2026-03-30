@@ -410,6 +410,7 @@ describe("server auth session helpers", () => {
     expect(recorder.values.get("oar_ui_access_alpha")).toBe(
       "expired-access-token",
     );
+    expect(recorder.values.get("oar_ui_auth_retry_alpha")).toBe("1");
     expect(recorder.deleteCalls).toEqual([]);
   });
 
@@ -445,13 +446,15 @@ describe("server auth session helpers", () => {
     });
 
     expect(recorder.values.get("oar_ui_session_alpha")).toBe("refresh-token");
+    expect(recorder.values.get("oar_ui_auth_retry_alpha")).toBe("1");
     expect(recorder.deleteCalls).toEqual([]);
   });
 
-  it("treats refresh-only invalid_token failures as retryable until session rehydration retries settle", async () => {
+  it("clears the workspace auth session after repeated retryable refresh failures", async () => {
     const { event, recorder } = createSessionEvent({
       refreshToken: "refresh-token",
     });
+    recorder.values.set("oar_ui_auth_retry_alpha", "1");
     const fetchMock = vi.fn().mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -474,13 +477,36 @@ describe("server auth session helpers", () => {
         workspaceSlug: "alpha",
         coreBaseUrl: "https://core.example.com",
       }),
-    ).rejects.toMatchObject({
-      status: 503,
-      code: "auth_session_retryable",
-    });
+    ).resolves.toBeNull();
 
-    expect(recorder.values.get("oar_ui_session_alpha")).toBe("refresh-token");
-    expect(recorder.deleteCalls).toEqual([]);
+    expect(recorder.values.get("oar_ui_session_alpha")).toBeUndefined();
+    expect(recorder.values.get("oar_ui_auth_retry_alpha")).toBeUndefined();
+    expect(recorder.deleteCalls).toEqual([
+      {
+        name: "oar_ui_auth_retry_alpha",
+        options: {
+          path: "/",
+        },
+      },
+      {
+        name: "oar_ui_session_alpha",
+        options: {
+          path: "/",
+        },
+      },
+      {
+        name: "oar_ui_access_alpha",
+        options: {
+          path: "/",
+        },
+      },
+      {
+        name: "oar_ui_auth_retry_alpha",
+        options: {
+          path: "/",
+        },
+      },
+    ]);
   });
 
   it("recovers the authenticated agent from a refresh-only session after the access token expired", async () => {
