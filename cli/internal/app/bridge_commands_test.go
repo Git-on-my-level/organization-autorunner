@@ -279,12 +279,12 @@ func TestBridgeWorkspaceIDReadsRegistrationBindings(t *testing.T) {
 		if got := strings.TrimSpace(r.Header.Get("Authorization")); got != "Bearer access-token" {
 			t.Fatalf("expected auth header, got %q", got)
 		}
-		if r.Method != http.MethodGet || r.URL.Path != "/docs/agentreg.hermes" {
+		if r.Method != http.MethodGet || r.URL.Path != "/auth/principals" {
 			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"document":{"id":"agentreg.hermes","status":"active"},"revision":{"content":{"handle":"hermes","actor_id":"actor_123","status":"active","workspace_bindings":[{"workspace_id":"ws_main","enabled":true},{"workspace_id":"ws_backup","enabled":true},{"workspace_id":"ws_disabled","enabled":false}]}}}`))
+		_, _ = w.Write([]byte(`{"principals":[{"agent_id":"agent-hermes","actor_id":"actor_123","username":"hermes","principal_kind":"agent","auth_method":"public_key","created_at":"2026-03-29T00:00:00Z","last_seen_at":"2026-03-29T00:00:00Z","updated_at":"2026-03-29T00:00:00Z","revoked":false,"registration":{"handle":"hermes","actor_id":"actor_123","status":"active","workspace_bindings":[{"workspace_id":"ws_main","enabled":true},{"workspace_id":"ws_backup","enabled":true},{"workspace_id":"ws_disabled","enabled":false}]}}],"active_human_principal_count":0}`))
 	}))
 	defer server.Close()
 
@@ -303,8 +303,8 @@ func TestBridgeWorkspaceIDReadsRegistrationBindings(t *testing.T) {
 	if data == nil {
 		t.Fatalf("expected data payload: %#v", payload)
 	}
-	if got := anyString(data["document_id"]); got != "agentreg.hermes" {
-		t.Fatalf("unexpected document id: %#v", data)
+	if got := anyString(data["agent_id"]); got != "agent-hermes" {
+		t.Fatalf("unexpected agent id: %#v", data)
 	}
 	workspaceIDs, _ := data["workspace_ids"].([]any)
 	if len(workspaceIDs) != 2 || anyString(workspaceIDs[0]) != "ws_main" || anyString(workspaceIDs[1]) != "ws_backup" {

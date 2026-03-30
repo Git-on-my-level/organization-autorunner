@@ -21,18 +21,6 @@ func TestRouteMentionSkipsSelfAuthoredMessages(t *testing.T) {
 			WorkspaceID: "ws-main",
 		},
 		Dependencies{
-			GetRegistrationContent: func(context.Context, string) (map[string]any, error) {
-				return map[string]any{
-					"handle":                             "m4-hermes",
-					"actor_id":                           "actor-m4-hermes",
-					"status":                             "active",
-					"bridge_checkin_event_id":            "event-checkin-1",
-					"bridge_signing_public_key_spki_b64": "not-needed-for-self-skip",
-					"workspace_bindings": []map[string]any{
-						{"workspace_id": "ws-main", "enabled": true},
-					},
-				}, nil
-			},
 			CreateArtifact: func(context.Context, string, map[string]any, any, string) error {
 				createArtifactCalls++
 				return nil
@@ -48,6 +36,16 @@ func TestRouteMentionSkipsSelfAuthoredMessages(t *testing.T) {
 		ActorID:       "actor-m4-hermes",
 		Username:      "m4-hermes",
 		PrincipalKind: "agent",
+		Registration: &auth.AgentRegistration{
+			Handle:                     "m4-hermes",
+			ActorID:                    "actor-m4-hermes",
+			Status:                     "active",
+			BridgeCheckinEventID:       "event-checkin-1",
+			BridgeSigningPublicKeySPKI: "not-needed-for-self-skip",
+			WorkspaceBindings: []auth.AgentRegistrationWorkspaceBinding{
+				{WorkspaceID: "ws-main", Enabled: true},
+			},
+		},
 	}
 
 	ok, err := service.routeMention(
@@ -88,16 +86,6 @@ func TestRouteMentionQueuesNotificationForOfflineRegisteredAgent(t *testing.T) {
 			WorkspaceID: "ws-main",
 		},
 		Dependencies{
-			GetRegistrationContent: func(context.Context, string) (map[string]any, error) {
-				return map[string]any{
-					"handle":   "m4-hermes",
-					"actor_id": "actor-m4-hermes",
-					"status":   "pending",
-					"workspace_bindings": []map[string]any{
-						{"workspace_id": "ws-main", "enabled": true},
-					},
-				}, nil
-			},
 			GetThread: func(context.Context, string) (map[string]any, error) {
 				return map[string]any{
 					"id":              "thread-1",
@@ -120,6 +108,14 @@ func TestRouteMentionQueuesNotificationForOfflineRegisteredAgent(t *testing.T) {
 		ActorID:       "actor-m4-hermes",
 		Username:      "m4-hermes",
 		PrincipalKind: "agent",
+		Registration: &auth.AgentRegistration{
+			Handle:  "m4-hermes",
+			ActorID: "actor-m4-hermes",
+			Status:  "pending",
+			WorkspaceBindings: []auth.AgentRegistrationWorkspaceBinding{
+				{WorkspaceID: "ws-main", Enabled: true},
+			},
+		},
 	}
 
 	ok, err := service.routeMention(

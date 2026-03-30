@@ -33,7 +33,6 @@ type Config struct {
 type Dependencies struct {
 	ListPrincipals         func(ctx context.Context, limit int) ([]auth.AuthPrincipalSummary, error)
 	ListMessagePostedAfter func(ctx context.Context, cursor primitives.EventCursor, limit int) ([]map[string]any, error)
-	GetRegistrationContent func(ctx context.Context, documentID string) (map[string]any, error)
 	GetEvent               func(ctx context.Context, eventID string) (map[string]any, error)
 	GetThread              func(ctx context.Context, threadID string) (map[string]any, error)
 	CreateArtifact         func(ctx context.Context, actorID string, artifact map[string]any, content any, contentType string) error
@@ -268,14 +267,11 @@ func (s *Service) routeMention(ctx context.Context, handle string, event map[str
 		return false, s.emitException(ctx, threadID, eventID, handle, "unknown_agent_handle", fmt.Sprintf("Unknown tagged agent @%s", handle))
 	}
 
-	registration, err := s.loadRegistration(ctx, handle)
-	if err != nil {
-		return false, err
-	}
+	registration := principal.Registration
 	if registration == nil {
-		return false, s.emitException(ctx, threadID, eventID, handle, "missing_agent_registration", fmt.Sprintf("Tagged agent @%s has no registration document", handle))
+		return false, s.emitException(ctx, threadID, eventID, handle, "missing_agent_registration", fmt.Sprintf("Tagged agent @%s has no registration", handle))
 	}
-	if registration.ActorID != strings.TrimSpace(principal.ActorID) {
+	if strings.TrimSpace(registration.ActorID) != strings.TrimSpace(principal.ActorID) {
 		return false, s.emitException(ctx, threadID, eventID, handle, "registration_actor_mismatch", fmt.Sprintf("Tagged agent @%s registration actor does not match principal", handle))
 	}
 	if strings.TrimSpace(anyString(event["actor_id"])) == registration.ActorID {
@@ -361,21 +357,6 @@ func (s *Service) routeMention(ctx context.Context, handle string, event map[str
 		return false, err
 	}
 	return true, nil
-}
-
-func (s *Service) loadRegistration(ctx context.Context, handle string) (*AgentRegistration, error) {
-	content, err := s.deps.GetRegistrationContent(ctx, RegistrationDocumentID(handle))
-	if err != nil {
-		if errors.Is(err, primitives.ErrNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	registration, err := decodeIntoMap[AgentRegistration](content)
-	if err != nil {
-		return nil, err
-	}
-	return &registration, nil
 }
 
 func (s *Service) emitException(ctx context.Context, threadID string, eventID string, handle string, code string, summary string) error {
