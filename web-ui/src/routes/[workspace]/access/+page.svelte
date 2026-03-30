@@ -5,6 +5,7 @@
   import { coreClient } from "$lib/coreClient";
   import { formatAbsoluteDateTime, formatTimestamp } from "$lib/formatDate";
   import { buildRegistrationMessage } from "$lib/inviteRegistrationMessage";
+  import { buildWakeRegistrationMessage } from "$lib/wakeRegistrationMessage.js";
   import { enrichPrincipalsWithWakeRouting as loadPrincipalsWithWakeRouting } from "$lib/principalWakeRouting.js";
   import { workspacePath } from "$lib/workspacePaths";
   import {
@@ -82,6 +83,7 @@
   let visibleInvites = $derived(showResolvedInvites ? invites : pendingInvites);
 
   let wakePopoverTarget = $state(null);
+  let wakeRegistrationMessageCopiedFor = $state("");
 
   $effect(() => {
     if (!canManageAccess) return;
@@ -370,6 +372,25 @@
     });
   }
 
+  async function copyWakeRegistrationMessage(principal) {
+    const handle = String(
+      principal?.wakeRouting?.handle ?? principal?.username ?? "",
+    ).trim();
+    if (!handle) return;
+    try {
+      await navigator.clipboard.writeText(
+        buildWakeRegistrationMessage(
+          data?.registrationBaseUrl,
+          data?.workspaceId,
+          handle,
+        ),
+      );
+      wakeRegistrationMessageCopiedFor = principal?.agent_id ?? "";
+    } catch {
+      wakeRegistrationMessageCopiedFor = "";
+    }
+  }
+
   function workspaceHref(pathname = "/") {
     return workspacePath(workspaceSlug, pathname);
   }
@@ -496,6 +517,7 @@
 
   function toggleWakePopover(agentId) {
     wakePopoverTarget = wakePopoverTarget === agentId ? null : agentId;
+    wakeRegistrationMessageCopiedFor = "";
   }
 
   function truncateId(id, maxLen = 20) {
@@ -678,6 +700,25 @@
                             >
                               {principal.wakeRouting.summary}
                             </p>
+                            {#if principal.wakeRouting.state === "unregistered"}
+                              <p
+                                class="mt-2 text-[11px] text-[var(--ui-text-muted)]"
+                              >
+                                Copy a sendable CLI setup snippet for this
+                                agent's existing OAR profile.
+                              </p>
+                              <button
+                                class="mt-2 cursor-pointer rounded border border-[var(--ui-border)] px-2 py-1 text-[11px] font-medium text-[var(--ui-text)] hover:bg-[var(--ui-border-subtle)]"
+                                onclick={() =>
+                                  copyWakeRegistrationMessage(principal)}
+                                type="button"
+                              >
+                                {wakeRegistrationMessageCopiedFor ===
+                                principal.agent_id
+                                  ? "Copied"
+                                  : "Copy registration steps"}
+                              </button>
+                            {/if}
                           </div>
                           <button
                             class="shrink-0 cursor-pointer text-[var(--ui-text-subtle)] hover:text-[var(--ui-text)]"
@@ -1184,6 +1225,25 @@
                                 >
                                   {principal.wakeRouting.summary}
                                 </p>
+                                {#if principal.wakeRouting.state === "unregistered"}
+                                  <p
+                                    class="mt-2 text-[11px] text-[var(--ui-text-muted)]"
+                                  >
+                                    Copy a sendable CLI setup snippet for this
+                                    agent's existing OAR profile.
+                                  </p>
+                                  <button
+                                    class="mt-2 cursor-pointer rounded border border-[var(--ui-border)] px-2 py-1 text-[11px] font-medium text-[var(--ui-text)] hover:bg-[var(--ui-border-subtle)]"
+                                    onclick={() =>
+                                      copyWakeRegistrationMessage(principal)}
+                                    type="button"
+                                  >
+                                    {wakeRegistrationMessageCopiedFor ===
+                                    principal.agent_id
+                                      ? "Copied"
+                                      : "Copy registration steps"}
+                                  </button>
+                                {/if}
                               </div>
                               <button
                                 class="shrink-0 cursor-pointer text-[var(--ui-text-subtle)] hover:text-[var(--ui-text)]"
