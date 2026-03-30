@@ -52,6 +52,7 @@ describe("threadDetailStore", () => {
     expect(get(threadDetailStore).timeline).toEqual([
       { id: "event-seed", type: "actor_statement" },
     ]);
+    expect(get(threadDetailStore).timelineThreadId).toBe("thread-1");
 
     coreClientMocks.listThreadTimeline.mockResolvedValueOnce({
       events: [{ id: "event-full", type: "message_posted" }],
@@ -86,6 +87,7 @@ describe("threadDetailStore", () => {
 
     expect(get(threadDetailStore)).toMatchObject({
       snapshot: { id: "thread-1", title: "Refreshed workspace" },
+      timelineThreadId: "thread-1",
       timeline: [{ id: "event-full", type: "message_posted" }],
       documents: [{ id: "doc-1", title: "Doc 1" }],
       commitments: [{ id: "commit-1", status: "open" }],
@@ -109,6 +111,7 @@ describe("threadDetailStore", () => {
     await threadDetailStore.loadTimeline("thread-1");
 
     expect(get(threadDetailStore)).toMatchObject({
+      timelineThreadId: "thread-1",
       timeline: [{ id: "event-1", type: "message_posted" }],
       timelineError: "Failed to load timeline: network down",
       timelineLoading: false,
@@ -133,8 +136,61 @@ describe("threadDetailStore", () => {
     await expect(firstLoad).resolves.toBeUndefined();
 
     expect(get(threadDetailStore)).toMatchObject({
+      timelineThreadId: "thread-1",
       timeline: [{ id: "event-new", type: "message_posted" }],
       timelineError: "",
+      timelineLoading: false,
+    });
+  });
+
+  it("does not reuse timeline state across different threads", async () => {
+    coreClientMocks.getThreadWorkspace
+      .mockResolvedValueOnce({
+        thread: { id: "thread-1", title: "Thread 1" },
+        context: {
+          recent_events: [{ id: "event-a", type: "message_posted" }],
+          documents: [],
+          open_commitments: [],
+        },
+      })
+      .mockResolvedValueOnce({
+        thread: { id: "thread-2", title: "Thread 2" },
+        context: {
+          recent_events: [{ id: "event-b", type: "message_posted" }],
+          documents: [],
+          open_commitments: [],
+        },
+      });
+
+    coreClientMocks.listThreadTimeline.mockResolvedValueOnce({
+      events: [{ id: "event-a-full", type: "message_posted" }],
+    });
+
+    await threadDetailStore.loadWorkspace("thread-1");
+    await threadDetailStore.loadTimeline("thread-1");
+    await threadDetailStore.loadWorkspace("thread-2");
+
+    expect(get(threadDetailStore)).toMatchObject({
+      snapshot: { id: "thread-2", title: "Thread 2" },
+      timelineThreadId: "thread-2",
+      timeline: [{ id: "event-b", type: "message_posted" }],
+    });
+  });
+
+  it("clears timeline on failure when the cached events belong to another thread", async () => {
+    coreClientMocks.listThreadTimeline
+      .mockResolvedValueOnce({
+        events: [{ id: "event-a", type: "message_posted" }],
+      })
+      .mockRejectedValueOnce(new Error("network down"));
+
+    await threadDetailStore.loadTimeline("thread-1");
+    await threadDetailStore.loadTimeline("thread-2");
+
+    expect(get(threadDetailStore)).toMatchObject({
+      timelineThreadId: "",
+      timeline: [],
+      timelineError: "Failed to load timeline: network down",
       timelineLoading: false,
     });
   });

@@ -15,6 +15,7 @@ function initialState() {
     commitmentsLoading: false,
     boardMemberships: [],
     ownedBoards: [],
+    timelineThreadId: "",
     timeline: [],
     timelineLoading: false,
     timelineError: "",
@@ -47,6 +48,9 @@ function createThreadDetailStore() {
 
   async function loadWorkspace(threadId, filters = {}) {
     const currentState = get(store);
+    const canReuseTimeline =
+      currentState.timelineThreadId === threadId &&
+      currentState.timeline.length > 0;
     const hasWorkspaceData =
       currentState.workspace !== null ||
       currentState.snapshot !== null ||
@@ -96,12 +100,15 @@ function createThreadDetailStore() {
         // timeline fetch has populated the full event history. Background
         // workspace refreshes should not replace the mounted message list
         // with the smaller recent-events slice.
-        timeline:
-          currentState.timeline.length > 0
-            ? currentState.timeline
-            : Array.isArray(context.recent_events)
-              ? context.recent_events
-              : [],
+        timeline: canReuseTimeline
+          ? currentState.timeline
+          : Array.isArray(context.recent_events)
+            ? context.recent_events
+            : [],
+        timelineThreadId:
+          canReuseTimeline || Array.isArray(context.recent_events)
+            ? threadId
+            : "",
       });
       return workspace;
     } catch (error) {
@@ -136,6 +143,9 @@ function createThreadDetailStore() {
   async function loadTimeline(threadId) {
     const requestSeq = ++timelineRequestSeq;
     const currentState = get(store);
+    const canReuseTimeline =
+      currentState.timelineThreadId === threadId &&
+      currentState.timeline.length > 0;
     patchState({ timelineLoading: true, timelineError: "" });
     try {
       const nextTimeline =
@@ -144,6 +154,7 @@ function createThreadDetailStore() {
         return;
       }
       patchState({
+        timelineThreadId: threadId,
         timeline: nextTimeline,
       });
     } catch (e) {
@@ -152,7 +163,8 @@ function createThreadDetailStore() {
       }
       patchState({
         timelineError: `Failed to load timeline: ${e instanceof Error ? e.message : String(e)}`,
-        timeline: currentState.timeline,
+        timelineThreadId: canReuseTimeline ? threadId : "",
+        timeline: canReuseTimeline ? currentState.timeline : [],
       });
     } finally {
       if (requestSeq === timelineRequestSeq) {
@@ -248,8 +260,11 @@ function createThreadDetailStore() {
     patchState({ documents: value });
   }
 
-  function setTimeline(value) {
-    patchState({ timeline: value });
+  function setTimeline(value, threadId = "") {
+    patchState({
+      timeline: value,
+      timelineThreadId: threadId || "",
+    });
   }
 
   function setWorkOrders(value) {
