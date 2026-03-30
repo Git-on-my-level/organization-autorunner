@@ -38,6 +38,7 @@ class StubClient:
         self._events = list(events)
         self.upserts = []
         self.created_events = []
+        self.list_notification_calls = []
         self.notification_reads = []
         self.notifications = []
 
@@ -55,6 +56,7 @@ class StubClient:
         return {"event": {"id": f"event-{len(self.created_events)}", **kwargs.get("event", {})}}
 
     def list_agent_notifications(self, *, statuses=None, order="desc"):
+        self.list_notification_calls.append({"statuses": list(statuses or []), "order": order})
         return list(self.notifications)
 
     def mark_agent_notification_read(self, wakeup_id):
@@ -216,7 +218,7 @@ def test_bridge_retries_when_startup_notification_drain_fails(monkeypatch, caplo
 
 
 def test_handle_notification_marks_read_after_dispatch():
-    bridge, _state, client = build_bridge([])
+    bridge, state, client = build_bridge([])
 
     bridge._handle_notification(
         {
@@ -229,6 +231,7 @@ def test_handle_notification_marks_read_after_dispatch():
     )
 
     assert client.notification_reads == ["wake-1"]
+    assert "wake-1" in state.handled_wakeup_ids()
 
 
 def test_handle_notification_leaves_notification_unread_when_completion_fails():
@@ -255,6 +258,74 @@ def test_handle_notification_leaves_notification_unread_when_completion_fails():
         )
 
     assert client.notification_reads == []
+
+
+def test_handle_notification_does_not_emit_failed_when_read_ack_fails(monkeypatch):
+    bridge, _state, client = build_bridge([])
+    failures = {"count": 0}
+
+    def fail_mark_read(_wakeup_id):
+        failures["count"] += 1
+        raise RuntimeError("read ack failed")
+
+    client.mark_agent_notification_read = fail_mark_read
+    monkeypatch.setattr("oar_agent_bridge.bridge.time.sleep", lambda _seconds: None)
+
+    bridge._handle_notification(
+        {
+            "wakeup_id": "wake-1",
+            "target_actor_id": "actor-hermes",
+            "thread_id": "thread-1",
+            "request_event_id": "evt-request",
+            "trigger_event_id": "evt-trigger",
+        }
+    )
+
+    assert failures["count"] == 3
+    event_types = [entry["event"]["type"] for entry in client.created_events]
+    assert "agent_wakeup_completed" in event_types
+    assert "agent_wakeup_failed" not in event_types
+
+
+def test_handle_notification_skips_redispatch_for_handled_wakeup():
+    bridge, state, client = build_bridge([])
+    state.mark_wakeup_handled("wake-1")
+    dispatch_calls = {"count": 0}
+
+    def fail_dispatch(*_args, **_kwargs):
+        dispatch_calls["count"] += 1
+        raise AssertionError("handled wakeup should not dispatch again")
+
+    bridge.adapter.dispatch = fail_dispatch
+
+    bridge._handle_notification(
+        {
+            "wakeup_id": "wake-1",
+            "status": "unread",
+            "target_actor_id": "actor-hermes",
+            "thread_id": "thread-1",
+            "request_event_id": "evt-request",
+            "trigger_event_id": "evt-trigger",
+        }
+    )
+
+    assert dispatch_calls["count"] == 0
+    assert client.notification_reads == ["wake-1"]
+    assert client.created_events == []
+
+
+def test_drain_notifications_includes_read_status():
+    bridge, _state, client = build_bridge([])
+
+    def noop_handle(_notification):
+        return None
+
+    bridge._handle_notification = noop_handle
+    client.notifications = [{"wakeup_id": "wake-1", "status": "read", "thread_id": "thread-1"}]
+
+    bridge._drain_notifications()
+
+    assert client.list_notification_calls == [{"statuses": ["unread", "read"], "order": "asc"}]
 
 
 def test_bridge_checkin_upserts_active_registration():
