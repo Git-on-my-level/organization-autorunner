@@ -28,6 +28,9 @@ func (a *App) runAuth(ctx context.Context, args []string, cfg config.Resolved) (
 	case "list":
 		result, err := a.runAuthList(cfg)
 		return result, "auth list", err
+	case "default":
+		result, err := a.runAuthDefault(args[1:])
+		return result, "auth default", err
 	case "update-username":
 		result, err := a.runAuthUpdateUsername(ctx, service, args[1:])
 		return result, "auth update-username", err
@@ -601,6 +604,35 @@ func (a *App) runAuthTokenStatus(ctx context.Context, service *authcli.Service) 
 	return &commandResult{Text: text, Data: status}, nil
 }
 
+func (a *App) runAuthDefault(args []string) (*commandResult, error) {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+		return nil, errnorm.Usage("profile_required", "usage: oar auth default <profile>")
+	}
+	agentName := strings.TrimSpace(args[0])
+	homeDir, err := a.UserHomeDir()
+	if err != nil {
+		return nil, errnorm.Wrap(errnorm.KindLocal, "home_dir", "failed to determine home directory", err)
+	}
+	profilePath := profile.ProfilePath(homeDir, agentName)
+	if _, ok, err := profile.Load(profilePath); err != nil {
+		return nil, errnorm.Wrap(errnorm.KindLocal, "profile_read_failed", "failed to read profile", err)
+	} else if !ok {
+		return nil, errnorm.Local("profile_not_found", "profile not found; run `oar auth list` to inspect available profiles")
+	}
+	if err := profile.SaveDefaultAgent(homeDir, agentName); err != nil {
+		return nil, errnorm.Wrap(errnorm.KindLocal, "default_profile_persist_failed", "failed to persist default profile selection", err)
+	}
+	return &commandResult{
+		Text: "Default profile: " + agentName,
+		Data: map[string]any{
+			"agent":             agentName,
+			"default_profile":   agentName,
+			"default_file_path": profile.DefaultAgentPath(homeDir),
+			"profile_path":      profilePath,
+		},
+	}, nil
+}
+
 func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
 	homeDir, err := a.UserHomeDir()
 	if err != nil {
@@ -616,6 +648,10 @@ func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
 			Data: map[string]any{"profiles": []any{}, "count": 0},
 		}, nil
 	}
+	defaultAgent, hasDefaultAgent, err := profile.LoadDefaultAgent(homeDir)
+	if err != nil {
+		return nil, errnorm.Wrap(errnorm.KindLocal, "default_profile_read_failed", "failed to read default profile selection", err)
+	}
 
 	type profileSummary struct {
 		Agent    string `json:"agent"`
@@ -624,6 +660,7 @@ func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
 		Username string `json:"username,omitempty"`
 		Revoked  bool   `json:"revoked,omitempty"`
 		Active   bool   `json:"active"`
+		Default  bool   `json:"default"`
 		Path     string `json:"path"`
 	}
 
@@ -635,19 +672,24 @@ func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
 		prof, ok, loadErr := profile.Load(path)
 		if loadErr != nil || !ok {
 			summaries = append(summaries, profileSummary{
-				Agent:  agentName,
-				Active: agentName == cfg.Agent,
-				Path:   path,
+				Agent:   agentName,
+				Active:  agentName == cfg.Agent,
+				Default: hasDefaultAgent && agentName == defaultAgent,
+				Path:    path,
 			})
 			status := "(unreadable)"
 			if agentName == cfg.Agent {
 				status += " *active*"
+			}
+			if hasDefaultAgent && agentName == defaultAgent {
+				status += " (default)"
 			}
 			lines = append(lines, fmt.Sprintf("  %s  %s", agentName, status))
 			continue
 		}
 
 		active := agentName == cfg.Agent
+		isDefault := hasDefaultAgent && agentName == defaultAgent
 		summaries = append(summaries, profileSummary{
 			Agent:    agentName,
 			BaseURL:  prof.BaseURL,
@@ -655,6 +697,7 @@ func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
 			Username: prof.Username,
 			Revoked:  prof.Revoked,
 			Active:   active,
+			Default:  isDefault,
 			Path:     path,
 		})
 
@@ -669,6 +712,9 @@ func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
 		if prof.Username != "" {
 			status = prof.Username + "  " + status
 		}
+		if isDefault {
+			status += " (default)"
+		}
 		lines = append(lines, fmt.Sprintf("%s%-16s %s", marker, agentName, status))
 	}
 
@@ -677,7 +723,11 @@ func (a *App) runAuthList(cfg config.Resolved) (*commandResult, error) {
 
 	return &commandResult{
 		Text: text,
-		Data: map[string]any{"profiles": summaries, "count": len(summaries)},
+		Data: map[string]any{
+			"profiles":        summaries,
+			"count":           len(summaries),
+			"default_profile": defaultAgent,
+		},
 	}, nil
 }
 

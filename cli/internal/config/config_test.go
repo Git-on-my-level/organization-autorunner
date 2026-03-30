@@ -173,3 +173,154 @@ func TestResolveFailsWithMultipleProfilesWithoutAgentSelection(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestResolveUsesDefaultProfileSelection(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	profilesDir := filepath.Join(home, ".config", "oar", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o700); err != nil {
+		t.Fatalf("mkdir profiles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "alpha.json"), []byte(`{"base_url":"http://alpha:8000"}`), 0o600); err != nil {
+		t.Fatalf("write alpha profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "beta.json"), []byte(`{"base_url":"http://beta:8000"}`), 0o600); err != nil {
+		t.Fatalf("write beta profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".config", "oar", "default-profile"), []byte("beta\n"), 0o600); err != nil {
+		t.Fatalf("write default profile: %v", err)
+	}
+
+	resolved, err := Resolve(Overrides{}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err != nil {
+		t.Fatalf("resolve with default profile: %v", err)
+	}
+	if resolved.Agent != "beta" {
+		t.Fatalf("unexpected selected agent: %s", resolved.Agent)
+	}
+	if resolved.BaseURL != "http://beta:8000" {
+		t.Fatalf("unexpected base url: %s", resolved.BaseURL)
+	}
+	if resolved.Sources["agent"] != "profile:default" {
+		t.Fatalf("unexpected agent source: %s", resolved.Sources["agent"])
+	}
+}
+
+func TestResolveUsesSingleBridgeConfigBaseURLFallback(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	bridgeDir := filepath.Join(home, ".config", "oar-bridge", "workspace-a")
+	if err := os.MkdirAll(bridgeDir, 0o700); err != nil {
+		t.Fatalf("mkdir bridge dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(bridgeDir, "agent.toml"), []byte("[oar]\nbase_url = \"https://bridge.example\"\n"), 0o600); err != nil {
+		t.Fatalf("write bridge config: %v", err)
+	}
+
+	resolved, err := Resolve(Overrides{}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err != nil {
+		t.Fatalf("resolve with bridge fallback: %v", err)
+	}
+	if resolved.BaseURL != "https://bridge.example" {
+		t.Fatalf("unexpected base url: %s", resolved.BaseURL)
+	}
+	if resolved.Sources["base_url"] != "bridge:auto-single" {
+		t.Fatalf("unexpected base url source: %s", resolved.Sources["base_url"])
+	}
+}
+
+func TestResolveFailsWithMultipleBridgeConfigsWithoutExplicitBaseURL(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	for _, workspace := range []string{"workspace-a", "workspace-b"} {
+		bridgeDir := filepath.Join(home, ".config", "oar-bridge", workspace)
+		if err := os.MkdirAll(bridgeDir, 0o700); err != nil {
+			t.Fatalf("mkdir bridge dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(bridgeDir, "agent.toml"), []byte("[oar]\nbase_url = \"https://"+workspace+".example\"\n"), 0o600); err != nil {
+			t.Fatalf("write bridge config: %v", err)
+		}
+	}
+
+	_, err := Resolve(Overrides{}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err == nil {
+		t.Fatal("expected resolve error with multiple bridge configs")
+	}
+	if !strings.Contains(err.Error(), "multiple bridge configs found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveExplicitBaseURLOverridesBridgeAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	for _, workspace := range []string{"workspace-a", "workspace-b"} {
+		bridgeDir := filepath.Join(home, ".config", "oar-bridge", workspace)
+		if err := os.MkdirAll(bridgeDir, 0o700); err != nil {
+			t.Fatalf("mkdir bridge dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(bridgeDir, "agent.toml"), []byte("[oar]\nbase_url = \"https://"+workspace+".example\"\n"), 0o600); err != nil {
+			t.Fatalf("write bridge config: %v", err)
+		}
+	}
+
+	baseURL := "https://flag.example"
+	resolved, err := Resolve(Overrides{BaseURL: &baseURL}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err != nil {
+		t.Fatalf("resolve with explicit base url: %v", err)
+	}
+	if resolved.BaseURL != baseURL {
+		t.Fatalf("unexpected base url: %s", resolved.BaseURL)
+	}
+}
+
+func TestResolveIgnoresStaleDefaultProfileSelection(t *testing.T) {
+	t.Parallel()
+
+	home := t.TempDir()
+	profilesDir := filepath.Join(home, ".config", "oar", "profiles")
+	if err := os.MkdirAll(profilesDir, 0o700); err != nil {
+		t.Fatalf("mkdir profiles dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "alpha.json"), []byte(`{"base_url":"http://alpha:8000"}`), 0o600); err != nil {
+		t.Fatalf("write alpha profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "beta.json"), []byte(`{"base_url":"http://beta:8000"}`), 0o600); err != nil {
+		t.Fatalf("write beta profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(home, ".config", "oar", "default-profile"), []byte("missing\n"), 0o600); err != nil {
+		t.Fatalf("write default profile: %v", err)
+	}
+
+	_, err := Resolve(Overrides{}, Environment{
+		Getenv:      func(string) string { return "" },
+		UserHomeDir: func() (string, error) { return home, nil },
+		ReadFile:    os.ReadFile,
+	})
+	if err == nil {
+		t.Fatal("expected resolve error with stale default profile and multiple local profiles")
+	}
+	if !strings.Contains(err.Error(), "multiple local profiles found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,17 +37,13 @@ var (
 )
 
 type updatePlan struct {
-	CurrentVersion        string
-	TargetVersion         string
-	MinCLIVersion         string
-	RecommendedCLIVersion string
-	CLIDownloadURL        string
-	InstallPath           string
-	ArchiveName           string
-	Source                string
-	HandshakeWarning      string
-	UpdateAvailable       bool
-	AlreadyCurrent        bool
+	CurrentVersion  string
+	TargetVersion   string
+	InstallPath     string
+	ArchiveName     string
+	Source          string
+	UpdateAvailable bool
+	AlreadyCurrent  bool
 }
 
 func (a *App) runUpdate(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, error) {
@@ -108,33 +103,12 @@ func buildUpdatePlan(ctx context.Context, cfg config.Resolved, requestedVersion 
 		return plan, nil
 	}
 
-	handshake, handshakeErr := fetchUpdateHandshake(ctx, cfg)
-	if handshakeErr == nil {
-		plan.MinCLIVersion = normalizeReleaseTag(anyString(handshake["min_cli_version"]))
-		plan.RecommendedCLIVersion = normalizeReleaseTag(anyString(handshake["recommended_cli_version"]))
-		plan.CLIDownloadURL = strings.TrimSpace(anyString(handshake["cli_download_url"]))
-		plan.TargetVersion = firstNonEmpty(plan.RecommendedCLIVersion, plan.MinCLIVersion)
-		if plan.TargetVersion != "" {
-			plan.Source = "handshake"
-		}
-	} else {
-		plan.HandshakeWarning = handshakeErr.Error()
+	latest, latestErr := resolveLatestReleaseTag(ctx, cfg.Timeout)
+	if latestErr != nil {
+		return updatePlan{}, errnorm.Wrap(errnorm.KindNetwork, "update_unavailable", "failed to resolve latest release version", latestErr)
 	}
-
-	if plan.TargetVersion == "" {
-		latest, latestErr := resolveLatestReleaseTag(ctx, cfg.Timeout)
-		if latestErr != nil {
-			if plan.HandshakeWarning != "" {
-				return updatePlan{}, errnorm.WithDetails(
-					errnorm.Wrap(errnorm.KindNetwork, "update_unavailable", "failed to resolve an update target from handshake or latest release", latestErr),
-					map[string]any{"handshake_error": plan.HandshakeWarning},
-				)
-			}
-			return updatePlan{}, errnorm.Wrap(errnorm.KindNetwork, "update_unavailable", "failed to resolve latest release version", latestErr)
-		}
-		plan.TargetVersion = latest
-		plan.Source = "latest_release"
-	}
+	plan.TargetVersion = latest
+	plan.Source = "latest_release"
 	plan.ArchiveName, err = updateArchiveName(plan.TargetVersion)
 	if err != nil {
 		return updatePlan{}, err
@@ -152,18 +126,14 @@ func buildUpdatePlan(ctx context.Context, cfg config.Resolved, requestedVersion 
 
 func renderUpdatePlan(plan updatePlan, updated bool) *commandResult {
 	data := map[string]any{
-		"current_version":         plan.CurrentVersion,
-		"target_version":          plan.TargetVersion,
-		"min_cli_version":         plan.MinCLIVersion,
-		"recommended_cli_version": plan.RecommendedCLIVersion,
-		"cli_download_url":        plan.CLIDownloadURL,
-		"install_path":            plan.InstallPath,
-		"archive_name":            plan.ArchiveName,
-		"source":                  plan.Source,
-		"update_available":        plan.UpdateAvailable,
-		"already_current":         plan.AlreadyCurrent,
-		"updated":                 updated,
-		"handshake_warning":       plan.HandshakeWarning,
+		"current_version":  plan.CurrentVersion,
+		"target_version":   plan.TargetVersion,
+		"install_path":     plan.InstallPath,
+		"archive_name":     plan.ArchiveName,
+		"source":           plan.Source,
+		"update_available": plan.UpdateAvailable,
+		"already_current":  plan.AlreadyCurrent,
+		"updated":          updated,
 	}
 
 	lines := []string{
@@ -174,18 +144,6 @@ func renderUpdatePlan(plan updatePlan, updated bool) *commandResult {
 		"Install path: " + displayValue(plan.InstallPath),
 		"Archive: " + displayValue(plan.ArchiveName),
 	}
-	if plan.RecommendedCLIVersion != "" {
-		lines = append(lines, "Recommended version: "+plan.RecommendedCLIVersion)
-	}
-	if plan.MinCLIVersion != "" {
-		lines = append(lines, "Minimum version: "+plan.MinCLIVersion)
-	}
-	if plan.CLIDownloadURL != "" {
-		lines = append(lines, "Download URL: "+plan.CLIDownloadURL)
-	}
-	if plan.HandshakeWarning != "" {
-		lines = append(lines, "Handshake warning: "+plan.HandshakeWarning)
-	}
 	switch {
 	case updated:
 		lines = append(lines, "Status: updated in place; re-run `oar version` to confirm the active binary.")
@@ -195,27 +153,6 @@ func renderUpdatePlan(plan updatePlan, updated bool) *commandResult {
 		lines = append(lines, "Status: update available.")
 	}
 	return &commandResult{Data: data, Text: strings.Join(lines, "\n")}
-}
-
-func fetchUpdateHandshake(ctx context.Context, cfg config.Resolved) (map[string]any, error) {
-	client, err := httpclient.New(cfg)
-	if err != nil {
-		return nil, err
-	}
-	callCtx, cancel := httpclient.WithTimeout(ctx, cfg.Timeout)
-	defer cancel()
-	resp, err := client.RawCall(callCtx, httpclient.RawRequest{Method: http.MethodGet, Path: "/meta/handshake"})
-	if err != nil {
-		return nil, errnorm.Wrap(errnorm.KindNetwork, "request_failed", "handshake request failed", err)
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		return nil, errnorm.FromHTTPFailure(resp.StatusCode, resp.Body)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(resp.Body, &payload); err != nil {
-		return nil, errnorm.Wrap(errnorm.KindRemote, "invalid_response", "handshake response is not valid JSON", err)
-	}
-	return payload, nil
 }
 
 func resolveLatestReleaseTag(ctx context.Context, timeout time.Duration) (string, error) {
@@ -505,13 +442,11 @@ Options:
   --version <tag>  install a specific release tag instead of the recommended/latest version
 
 Behavior:
-  - prefers the recommended version from /meta/handshake when core is reachable
-  - falls back to the latest GitHub release when handshake metadata is unavailable
+  - resolves the latest release from GitHub when no explicit version is provided
   - downloads the matching release archive for the current OS/arch and replaces the current binary
 
 Examples:
   oar update --check
-  oar --base-url https://example.com/oar/team-a update --check
   oar update
   oar update --version v1.2.3`)
 }

@@ -53,6 +53,10 @@ func DraftsDir(homeDir string) string {
 	return filepath.Join(RootDir(homeDir), "drafts")
 }
 
+func DefaultAgentPath(homeDir string) string {
+	return filepath.Join(RootDir(homeDir), "default-profile")
+}
+
 func ProfilePath(homeDir string, agent string) string {
 	agent = strings.TrimSpace(agent)
 	if agent == "" {
@@ -79,6 +83,40 @@ func EnsureDirs(homeDir string) error {
 		}
 	}
 	return nil
+}
+
+func SaveDefaultAgent(homeDir string, agent string) error {
+	agent = strings.TrimSpace(agent)
+	if agent == "" {
+		return fmt.Errorf("default agent is required")
+	}
+	rootDir := RootDir(homeDir)
+	if err := os.MkdirAll(rootDir, 0o700); err != nil {
+		return fmt.Errorf("mkdir root dir: %w", err)
+	}
+	path := DefaultAgentPath(homeDir)
+	if err := os.WriteFile(path, []byte(agent+"\n"), 0o600); err != nil {
+		return fmt.Errorf("write default agent file: %w", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("chmod default agent file: %w", err)
+	}
+	return nil
+}
+
+func LoadDefaultAgent(homeDir string) (string, bool, error) {
+	content, err := os.ReadFile(DefaultAgentPath(homeDir))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("read default agent file: %w", err)
+	}
+	agent := strings.TrimSpace(string(content))
+	if agent == "" {
+		return "", false, nil
+	}
+	return agent, true, nil
 }
 
 func Save(path string, profile Profile) error {

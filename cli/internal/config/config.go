@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"organization-autorunner-cli/internal/bridgeconfig"
 	"organization-autorunner-cli/internal/profile"
 )
 
@@ -156,16 +158,32 @@ func Resolve(overrides Overrides, env Environment) (Resolved, error) {
 	}
 
 	if !explicitAgent {
-		agents, err := profile.ListAgents(homeDir)
+		defaultAgent, ok, err := profile.LoadDefaultAgent(homeDir)
 		if err != nil {
-			return Resolved{}, fmt.Errorf("list local profiles: %w", err)
+			return Resolved{}, fmt.Errorf("load default profile: %w", err)
 		}
-		if len(agents) == 1 {
-			resolved.Agent = agents[0]
-			resolved.Sources["agent"] = "profile:auto-single"
+		if ok {
+			if _, profileExists, err := profile.Load(profile.ProfilePath(homeDir, defaultAgent)); err != nil {
+				return Resolved{}, fmt.Errorf("load default profile %q: %w", defaultAgent, err)
+			} else if profileExists {
+				resolved.Agent = defaultAgent
+				resolved.Sources["agent"] = "profile:default"
+			} else {
+				ok = false
+			}
 		}
-		if len(agents) > 1 {
-			return Resolved{}, fmt.Errorf("multiple local profiles found (%s); select one using --agent or OAR_AGENT", strings.Join(agents, ", "))
+		if !ok {
+			agents, err := profile.ListAgents(homeDir)
+			if err != nil {
+				return Resolved{}, fmt.Errorf("list local profiles: %w", err)
+			}
+			if len(agents) == 1 {
+				resolved.Agent = agents[0]
+				resolved.Sources["agent"] = "profile:auto-single"
+			}
+			if len(agents) > 1 {
+				return Resolved{}, fmt.Errorf("multiple local profiles found (%s); select one using --agent, OAR_AGENT, or `oar auth default <profile>`", strings.Join(agents, ", "))
+			}
 		}
 	}
 
@@ -217,7 +235,34 @@ func Resolve(overrides Overrides, env Environment) (Resolved, error) {
 		resolved.CoreInstanceID = strings.TrimSpace(profile.CoreInstanceID)
 	}
 
-	if envBaseURL := strings.TrimSpace(getenv("OAR_BASE_URL")); envBaseURL != "" {
+	envBaseURL := strings.TrimSpace(getenv("OAR_BASE_URL"))
+	flagBaseURL := ""
+	if overrides.BaseURL != nil {
+		flagBaseURL = strings.TrimSpace(*overrides.BaseURL)
+	}
+	if resolved.Sources["base_url"] == "default" && envBaseURL == "" && flagBaseURL == "" {
+		configs, err := bridgeconfig.Discover(homeDir)
+		if err != nil {
+			return Resolved{}, fmt.Errorf("scan bridge configs: %w", err)
+		}
+		switch len(configs) {
+		case 1:
+			resolved.BaseURL = configs[0].BaseURL
+			resolved.Sources["base_url"] = "bridge:auto-single"
+		case 0:
+		default:
+			labels := make([]string, 0, len(configs))
+			for _, cfg := range configs {
+				label, relErr := filepath.Rel(bridgeconfig.RootDir(homeDir), cfg.Path)
+				if relErr != nil {
+					label = cfg.Path
+				}
+				labels = append(labels, label)
+			}
+			return Resolved{}, fmt.Errorf("multiple bridge configs found (%s); select a profile with `--agent` or `oar auth default <profile>`, or pass --base-url", strings.Join(labels, ", "))
+		}
+	}
+	if envBaseURL != "" {
 		resolved.BaseURL = envBaseURL
 		resolved.Sources["base_url"] = "env:OAR_BASE_URL"
 	}
@@ -249,8 +294,8 @@ func Resolve(overrides Overrides, env Environment) (Resolved, error) {
 		resolved.AccessToken = envToken
 	}
 
-	if overrides.BaseURL != nil && strings.TrimSpace(*overrides.BaseURL) != "" {
-		resolved.BaseURL = strings.TrimSpace(*overrides.BaseURL)
+	if flagBaseURL != "" {
+		resolved.BaseURL = flagBaseURL
 		resolved.Sources["base_url"] = "flag:--base-url"
 	}
 	if overrides.NoColor != nil {
