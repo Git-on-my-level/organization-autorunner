@@ -43,9 +43,9 @@ class AgentBridge:
 
     def run_forever(self) -> None:
         self._start_checkin_loop()
-        self._drain_notifications()
         while True:
             try:
+                self._drain_notifications()
                 for stream_message in self.client.stream_events(types=[WAKE_REQUEST_EVENT], last_event_id=self.state.last_event_id):
                     event = self._decode_stream_event(stream_message)
                     if event is None:

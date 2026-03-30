@@ -192,6 +192,29 @@ def test_bridge_logs_transport_disconnect_without_traceback(monkeypatch, caplog)
     assert "Bridge loop failed; reconnecting" not in caplog.text
 
 
+def test_bridge_retries_when_startup_notification_drain_fails(monkeypatch, caplog):
+    bridge, _state, _client = build_bridge([])
+    caplog.set_level(logging.INFO)
+    calls = {"drain": 0}
+
+    monkeypatch.setattr(bridge, "_start_checkin_loop", lambda: None)
+
+    def flaky_drain():
+        calls["drain"] += 1
+        if calls["drain"] == 1:
+            raise RuntimeError("temporary drain failure")
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(bridge, "_drain_notifications", flaky_drain)
+    monkeypatch.setattr("oar_agent_bridge.bridge.time.sleep", lambda _seconds: None)
+
+    with pytest.raises(KeyboardInterrupt):
+        bridge.run_forever()
+
+    assert calls["drain"] == 2
+    assert "Bridge loop failed; reconnecting" in caplog.text
+
+
 def test_handle_notification_marks_read_after_dispatch():
     bridge, _state, client = build_bridge([])
 
