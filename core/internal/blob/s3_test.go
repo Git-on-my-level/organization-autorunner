@@ -268,6 +268,17 @@ func (c *fakeS3Client) GetObject(ctx context.Context, params *s3.GetObjectInput,
 	}, nil
 }
 
+func (c *fakeS3Client) DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if _, ok := c.objects[*params.Key]; !ok {
+		return nil, fakeS3APIError{code: "NoSuchKey", message: "missing"}
+	}
+	delete(c.objects, *params.Key)
+	return &s3.DeleteObjectOutput{}, nil
+}
+
 func (c *fakeS3Client) HeadObject(ctx context.Context, params *s3.HeadObjectInput, _ ...func(*s3.Options)) (*s3.HeadObjectOutput, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

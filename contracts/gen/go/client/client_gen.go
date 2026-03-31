@@ -156,7 +156,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "stable",
 		Concepts:   []string{"artifacts", "content"},
-		Adjacent:   []string{"artifacts.create", "artifacts.get", "artifacts.list", "artifacts.tombstone"},
+		Adjacent:   []string{"artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone"},
 		Examples: []Example{
 			{
 				Title:   "Download content",
@@ -173,7 +173,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "file-and-body",
 		Stability: "stable",
 		Concepts:  []string{"artifacts", "evidence"},
-		Adjacent:  []string{"artifacts.content.get", "artifacts.get", "artifacts.list", "artifacts.tombstone"},
+		Adjacent:  []string{"artifacts.content.get", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone"},
 		Examples: []Example{
 			{
 				Title:   "Create structured artifact",
@@ -191,7 +191,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "stable",
 		Concepts:   []string{"artifacts"},
-		Adjacent:   []string{"artifacts.content.get", "artifacts.create", "artifacts.list", "artifacts.tombstone"},
+		Adjacent:   []string{"artifacts.content.get", "artifacts.create", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone"},
 		Examples: []Example{
 			{
 				Title:   "Get artifact",
@@ -208,11 +208,47 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "stable",
 		Concepts:  []string{"artifacts", "filtering"},
-		Adjacent:  []string{"artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.tombstone"},
+		Adjacent:  []string{"artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.purge", "artifacts.restore", "artifacts.tombstone"},
 		Examples: []Example{
 			{
 				Title:   "List work orders for a thread",
 				Command: "oar artifacts list --kind work_order --thread-id thread_123 --json",
+			},
+		},
+	},
+	{
+		CommandID:  "artifacts.purge",
+		CLIPath:    "artifacts purge",
+		Group:      "artifacts",
+		Method:     "POST",
+		Path:       "/artifacts/{artifact_id}/purge",
+		PathParams: []string{"artifact_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"artifacts", "lifecycle"},
+		Adjacent:   []string{"artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.restore", "artifacts.tombstone"},
+		Examples: []Example{
+			{
+				Title:   "Purge artifact",
+				Command: "oar artifacts purge --artifact-id artifact_123 --json",
+			},
+		},
+	},
+	{
+		CommandID:  "artifacts.restore",
+		CLIPath:    "artifacts restore",
+		Group:      "artifacts",
+		Method:     "POST",
+		Path:       "/artifacts/{artifact_id}/restore",
+		PathParams: []string{"artifact_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"artifacts", "lifecycle"},
+		Adjacent:   []string{"artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.tombstone"},
+		Examples: []Example{
+			{
+				Title:   "Restore artifact",
+				Command: "oar artifacts restore --artifact-id artifact_123 --json",
 			},
 		},
 	},
@@ -226,7 +262,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"artifacts", "lifecycle"},
-		Adjacent:   []string{"artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list"},
+		Adjacent:   []string{"artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore"},
 		Examples: []Example{
 			{
 				Title:   "Tombstone artifact",
@@ -1581,6 +1617,14 @@ func (c *Client) ArtifactsGet(ctx context.Context, pathParams map[string]string,
 
 func (c *Client) ArtifactsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "artifacts.list", nil, opts)
+}
+
+func (c *Client) ArtifactsPurge(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "artifacts.purge", pathParams, opts)
+}
+
+func (c *Client) ArtifactsRestore(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "artifacts.restore", pathParams, opts)
 }
 
 func (c *Client) ArtifactsTombstone(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {

@@ -16,6 +16,7 @@ export function GET({ url }) {
     created_before: params.get("created_before") ?? undefined,
     created_after: params.get("created_after") ?? undefined,
     include_tombstoned: params.get("include_tombstoned") ?? undefined,
+    tombstoned_only: params.get("tombstoned_only") ?? undefined,
   };
 
   return json({

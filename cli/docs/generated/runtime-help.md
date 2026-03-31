@@ -55,6 +55,8 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `artifacts create` (command): Create artifact
 - `artifacts content` (command): Get artifact raw content
 - `artifacts tombstone` (command): Tombstone an artifact (soft-delete)
+- `artifacts restore` (command): Restore a tombstoned artifact
+- `artifacts purge` (command): Permanently delete a tombstoned artifact (human-only)
 - `boards list` (command): List boards with derived summary data
 - `boards create` (command): Create board
 - `boards get` (command): Get board metadata
@@ -1126,6 +1128,8 @@ Commands:
   artifacts create         Create artifact
   artifacts get            Get artifact metadata by id
   artifacts list           List artifact metadata
+  artifacts purge          Permanently delete a tombstoned artifact (human-only)
+  artifacts restore        Restore a tombstoned artifact
   artifacts tombstone      Tombstone an artifact (soft-delete)
 
 Local inspection helper:
@@ -1864,7 +1868,7 @@ Generated Help: artifacts list
 - Error codes: `invalid_request`
 - Concepts: `artifacts`, `filtering`
 - Agent notes: Safe and idempotent.
-- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts get`, `artifacts tombstone`
+- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts get`, `artifacts purge`, `artifacts restore`, `artifacts tombstone`
 - Examples:
   - List work orders for a thread: `oar artifacts list --kind work_order --thread-id thread_123 --json`
 
@@ -1892,7 +1896,7 @@ Generated Help: artifacts get
 - Error codes: `not_found`
 - Concepts: `artifacts`
 - Agent notes: Safe and idempotent.
-- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts list`, `artifacts tombstone`
+- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts list`, `artifacts purge`, `artifacts restore`, `artifacts tombstone`
 - Examples:
   - Get artifact: `oar artifacts get --artifact-id artifact_123 --json`
 
@@ -1920,7 +1924,7 @@ Generated Help: artifacts create
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`
 - Concepts: `artifacts`, `evidence`
 - Agent notes: Treat as non-idempotent unless caller controls artifact id collisions.
-- Adjacent commands: `artifacts content get`, `artifacts get`, `artifacts list`, `artifacts tombstone`
+- Adjacent commands: `artifacts content get`, `artifacts get`, `artifacts list`, `artifacts purge`, `artifacts restore`, `artifacts tombstone`
 - Examples:
   - Create structured artifact: `oar artifacts create --from-file artifact-create.json --json`
 
@@ -1951,7 +1955,7 @@ Generated Help: artifacts content
 - Error codes: `not_found`
 - Concepts: `artifacts`, `content`
 - Agent notes: Stream to file for large payloads.
-- Adjacent commands: `artifacts create`, `artifacts get`, `artifacts list`, `artifacts tombstone`
+- Adjacent commands: `artifacts create`, `artifacts get`, `artifacts list`, `artifacts purge`, `artifacts restore`, `artifacts tombstone`
 - Examples:
   - Download content: `oar artifacts content get --artifact-id artifact_123 > artifact.bin`
 
@@ -1979,7 +1983,7 @@ Generated Help: artifacts tombstone
 - Error codes: `invalid_json`, `invalid_request`, `not_found`
 - Concepts: `artifacts`, `lifecycle`
 - Agent notes: Idempotent; repeated tombstone calls on the same artifact are safe.
-- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts get`, `artifacts list`
+- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts get`, `artifacts list`, `artifacts purge`, `artifacts restore`
 - Examples:
   - Tombstone artifact: `oar artifacts tombstone --artifact-id artifact_123 --reason "superseded by newer version" --json`
 
@@ -1990,6 +1994,68 @@ Body schema:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json artifacts tombstone ... ; oar artifacts tombstone ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `artifacts restore`
+
+Restore a tombstoned artifact
+
+```text
+Generated Help: artifacts restore
+
+- Command ID: `artifacts.restore`
+- CLI path: `artifacts restore`
+- HTTP: `POST /artifacts/{artifact_id}/restore`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Reverse a tombstone on an artifact, making it active and visible in default list queries again.
+- Output: Returns `{ artifact }` with tombstone metadata cleared.
+- Error codes: `invalid_json`, `invalid_request`, `not_found`, `not_tombstoned`
+- Concepts: `artifacts`, `lifecycle`
+- Agent notes: Returns 409 if the artifact is not currently tombstoned.
+- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts get`, `artifacts list`, `artifacts purge`, `artifacts tombstone`
+- Examples:
+  - Restore artifact: `oar artifacts restore --artifact-id artifact_123 --json`
+
+Body schema:
+  Required: actor_id (string)
+  Optional: reason (string)
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json artifacts restore ... ; oar artifacts restore ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `artifacts purge`
+
+Permanently delete a tombstoned artifact (human-only)
+
+```text
+Generated Help: artifacts purge
+
+- Command ID: `artifacts.purge`
+- CLI path: `artifacts purge`
+- HTTP: `POST /artifacts/{artifact_id}/purge`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Permanently remove a tombstoned artifact and reclaim storage. Human-only to prevent accidental data loss by automated agents.
+- Output: Returns `{ purged: true, artifact_id }` on success.
+- Error codes: `invalid_json`, `not_found`, `not_tombstoned`, `artifact_in_use`, `human_only`
+- Concepts: `artifacts`, `lifecycle`
+- Agent notes: 403 if the caller is not a human principal. 409 if the artifact is not tombstoned or is still referenced by document revisions.
+- Adjacent commands: `artifacts content get`, `artifacts create`, `artifacts get`, `artifacts list`, `artifacts restore`, `artifacts tombstone`
+- Examples:
+  - Purge artifact: `oar artifacts purge --artifact-id artifact_123 --json`
+
+Body schema:
+  Required: none
+  Optional: reason (string)
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json artifacts purge ... ; oar artifacts purge ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 

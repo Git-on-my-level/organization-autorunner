@@ -384,6 +384,8 @@ export const commandRegistry = [
             "artifacts.create",
             "artifacts.get",
             "artifacts.list",
+            "artifacts.purge",
+            "artifacts.restore",
             "artifacts.tombstone"
         ],
         "go_method": "ArtifactsContentGet",
@@ -447,6 +449,8 @@ export const commandRegistry = [
             "artifacts.content.get",
             "artifacts.get",
             "artifacts.list",
+            "artifacts.purge",
+            "artifacts.restore",
             "artifacts.tombstone"
         ],
         "go_method": "ArtifactsCreate",
@@ -488,6 +492,8 @@ export const commandRegistry = [
             "artifacts.content.get",
             "artifacts.create",
             "artifacts.list",
+            "artifacts.purge",
+            "artifacts.restore",
             "artifacts.tombstone"
         ],
         "go_method": "ArtifactsGet",
@@ -527,10 +533,129 @@ export const commandRegistry = [
             "artifacts.content.get",
             "artifacts.create",
             "artifacts.get",
+            "artifacts.purge",
+            "artifacts.restore",
             "artifacts.tombstone"
         ],
         "go_method": "ArtifactsList",
         "ts_method": "artifactsList"
+    },
+    {
+        "command_id": "artifacts.purge",
+        "cli_path": "artifacts purge",
+        "group": "artifacts",
+        "method": "POST",
+        "path": "/artifacts/{artifact_id}/purge",
+        "operation_id": "purgeArtifact",
+        "summary": "Permanently delete a tombstoned artifact (human-only)",
+        "why": "Permanently remove a tombstoned artifact and reclaim storage. Human-only to prevent accidental data loss by automated agents.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ purged: true, artifact_id }` on success.",
+        "error_codes": [
+            "invalid_json",
+            "not_found",
+            "not_tombstoned",
+            "artifact_in_use",
+            "human_only"
+        ],
+        "concepts": [
+            "artifacts",
+            "lifecycle"
+        ],
+        "stability": "beta",
+        "surface": "canonical",
+        "agent_notes": "403 if the caller is not a human principal. 409 if the artifact is not tombstoned or is still referenced by document revisions.",
+        "examples": [
+            {
+                "title": "Purge artifact",
+                "command": "oar artifacts purge --artifact-id artifact_123 --json"
+            }
+        ],
+        "body_schema": {
+            "optional": [
+                {
+                    "name": "reason",
+                    "type": "string"
+                }
+            ]
+        },
+        "path_params": [
+            "artifact_id"
+        ],
+        "adjacent_commands": [
+            "artifacts.content.get",
+            "artifacts.create",
+            "artifacts.get",
+            "artifacts.list",
+            "artifacts.restore",
+            "artifacts.tombstone"
+        ],
+        "go_method": "ArtifactsPurge",
+        "ts_method": "artifactsPurge"
+    },
+    {
+        "command_id": "artifacts.restore",
+        "cli_path": "artifacts restore",
+        "group": "artifacts",
+        "method": "POST",
+        "path": "/artifacts/{artifact_id}/restore",
+        "operation_id": "restoreArtifact",
+        "summary": "Restore a tombstoned artifact",
+        "why": "Reverse a tombstone on an artifact, making it active and visible in default list queries again.",
+        "input_mode": "json-body",
+        "streaming": {
+            "mode": "none"
+        },
+        "output_envelope": "Returns `{ artifact }` with tombstone metadata cleared.",
+        "error_codes": [
+            "invalid_json",
+            "invalid_request",
+            "not_found",
+            "not_tombstoned"
+        ],
+        "concepts": [
+            "artifacts",
+            "lifecycle"
+        ],
+        "stability": "beta",
+        "surface": "canonical",
+        "agent_notes": "Returns 409 if the artifact is not currently tombstoned.",
+        "examples": [
+            {
+                "title": "Restore artifact",
+                "command": "oar artifacts restore --artifact-id artifact_123 --json"
+            }
+        ],
+        "body_schema": {
+            "required": [
+                {
+                    "name": "actor_id",
+                    "type": "string"
+                }
+            ],
+            "optional": [
+                {
+                    "name": "reason",
+                    "type": "string"
+                }
+            ]
+        },
+        "path_params": [
+            "artifact_id"
+        ],
+        "adjacent_commands": [
+            "artifacts.content.get",
+            "artifacts.create",
+            "artifacts.get",
+            "artifacts.list",
+            "artifacts.purge",
+            "artifacts.tombstone"
+        ],
+        "go_method": "ArtifactsRestore",
+        "ts_method": "artifactsRestore"
     },
     {
         "command_id": "artifacts.tombstone",
@@ -585,7 +710,9 @@ export const commandRegistry = [
             "artifacts.content.get",
             "artifacts.create",
             "artifacts.get",
-            "artifacts.list"
+            "artifacts.list",
+            "artifacts.purge",
+            "artifacts.restore"
         ],
         "go_method": "ArtifactsTombstone",
         "ts_method": "artifactsTombstone"
@@ -4720,6 +4847,12 @@ export class OarClient {
     }
     artifactsList(options = {}) {
         return this.invoke("artifacts.list", {}, options);
+    }
+    artifactsPurge(pathParams, options = {}) {
+        return this.invoke("artifacts.purge", pathParams, options);
+    }
+    artifactsRestore(pathParams, options = {}) {
+        return this.invoke("artifacts.restore", pathParams, options);
     }
     artifactsTombstone(pathParams, options = {}) {
         return this.invoke("artifacts.tombstone", pathParams, options);

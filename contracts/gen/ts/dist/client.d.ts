@@ -54,6 +54,8 @@ export declare class OarClient {
     artifactsCreate(options?: RequestOptions): Promise<InvokeResult>;
     artifactsGet(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     artifactsList(options?: RequestOptions): Promise<InvokeResult>;
+    artifactsPurge(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
+    artifactsRestore(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     artifactsTombstone(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     authAgentsRegister(options?: RequestOptions): Promise<InvokeResult>;
     authAuditList(options?: RequestOptions): Promise<InvokeResult>;

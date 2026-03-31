@@ -436,6 +436,13 @@ func isAgentPrincipal(principal *auth.Principal) bool {
 	return strings.TrimSpace(principal.PrincipalKind) == string(auth.PrincipalKindAgent)
 }
 
+func isHumanPrincipal(principal *auth.Principal) bool {
+	if principal == nil {
+		return false
+	}
+	return strings.TrimSpace(principal.PrincipalKind) == string(auth.PrincipalKindHuman)
+}
+
 func agentNotificationRequestKey(action string, actorID string, wakeupID string) string {
 	sum := sha256.Sum256([]byte(action + "\n" + actorID + "\n" + wakeupID))
 	return hex.EncodeToString(sum[:])[:24]

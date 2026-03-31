@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"organization-autorunner-core/internal/actors"
+	"organization-autorunner-core/internal/auth"
 	"organization-autorunner-core/internal/primitives"
 	"organization-autorunner-core/internal/schema"
 	"organization-autorunner-core/internal/storage"
@@ -1147,9 +1148,10 @@ func TestGetSnapshotByID(t *testing.T) {
 }
 
 type primitivesTestHarness struct {
-	workspace  *storage.Workspace
-	baseURL    string
-	maintainer *ProjectionMaintainer
+	workspace        *storage.Workspace
+	baseURL          string
+	maintainer       *ProjectionMaintainer
+	humanAccessToken string
 }
 
 func newPrimitivesTestServer(t *testing.T) primitivesTestHarness {
@@ -1191,7 +1193,62 @@ func newPrimitivesTestServer(t *testing.T) primitivesTestHarness {
 		_ = workspace.Close()
 	})
 
-	return primitivesTestHarness{workspace: workspace, baseURL: server.URL, maintainer: maintainer}
+	return primitivesTestHarness{workspace: workspace, baseURL: server.URL, maintainer: maintainer, humanAccessToken: ""}
+}
+
+func newPrimitivesTestServerWithHumanPrincipal(t *testing.T) primitivesTestHarness {
+	t.Helper()
+
+	workspace, err := storage.InitializeWorkspace(context.Background(), t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	contractPath := filepath.Join("..", "..", "..", "contracts", "oar-schema.yaml")
+	contract, err := schema.Load(contractPath)
+	if err != nil {
+		_ = workspace.Close()
+		t.Fatalf("load schema contract: %v", err)
+	}
+
+	registry := actors.NewStore(workspace.DB())
+	primitiveStore := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
+	authStore := auth.NewStore(workspace.DB())
+	passkeySessionStore := auth.NewPasskeySessionStore(auth.DefaultPasskeySessionTTL)
+	maintainer := NewProjectionMaintainer(ProjectionMaintainerConfig{
+		PrimitiveStore:   primitiveStore,
+		Contract:         contract,
+		InboxRiskHorizon: defaultInboxRiskHorizon,
+		DirtyBatchSize:   100,
+		SystemActorID:    "oar-core",
+	})
+	humanToken := "human-primitives-purge-token-test-ok-32"
+	seedHumanPrincipalForLockoutTest(t, context.Background(), workspace.DB(), "human-purge-principal-agent", "human-purge-principal-actor", "human.purge.primitives.test", humanToken)
+
+	handler := NewHandler(
+		contract.Version,
+		WithHealthCheck(workspace.Ping),
+		WithActorRegistry(registry),
+		WithPrimitiveStore(primitiveStore),
+		WithSchemaContract(contract),
+		WithProjectionMaintainer(maintainer),
+		WithAuthStore(authStore),
+		WithPasskeySessionStore(passkeySessionStore),
+		WithAllowUnauthenticatedWrites(true),
+		WithEnableDevActorMode(true),
+	)
+	server := httptest.NewServer(newProjectionMaintainerAutoStepHandler(handler, maintainer))
+	t.Cleanup(func() {
+		server.Close()
+		passkeySessionStore.Close()
+		_ = workspace.Close()
+	})
+
+	return primitivesTestHarness{
+		workspace:        workspace,
+		baseURL:          server.URL,
+		maintainer:       maintainer,
+		humanAccessToken: humanToken,
+	}
 }
 
 func newProjectionMaintainerAutoStepHandler(inner http.Handler, maintainer *ProjectionMaintainer) http.Handler {
@@ -1229,6 +1286,30 @@ func postJSONExpectStatus(t *testing.T, url string, body string, expectedStatus 
 	t.Helper()
 
 	resp, err := http.Post(url, "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST %s failed: %v", url, err)
+	}
+	if resp.StatusCode != expectedStatus {
+		defer resp.Body.Close()
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST %s unexpected status: got %d want %d body=%s", url, resp.StatusCode, expectedStatus, string(bodyBytes))
+	}
+	return resp
+}
+
+func postJSONExpectStatusBearer(t *testing.T, url string, body string, bearerToken string, expectedStatus int) *http.Response {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("POST %s create request: %v", url, err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(bearerToken) != "" {
+		req.Header.Set("Authorization", "Bearer "+bearerToken)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("POST %s failed: %v", url, err)
 	}
@@ -1394,6 +1475,353 @@ func TestArtifactTombstoneLifecycle(t *testing.T) {
 	if reTombstoned["artifact"]["tombstone_reason"] != tombstoned["artifact"]["tombstone_reason"] {
 		t.Fatalf("expected repeated tombstone to preserve tombstone_reason, first=%v second=%v", tombstoned["artifact"]["tombstone_reason"], reTombstoned["artifact"]["tombstone_reason"])
 	}
+}
+
+func TestArtifactRestoreLifecycle(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"kind":"blob",
+			"refs":["thread:thread-1"],
+			"summary":"restore test"
+		},
+		"content":"restore test content",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create artifact response: %v", err)
+	}
+	artifactID, _ := created["artifact"]["id"].(string)
+	if artifactID == "" {
+		t.Fatal("expected created artifact id")
+	}
+
+	postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/tombstone", `{
+		"actor_id":"actor-1",
+		"reason":"tmp"
+	}`, http.StatusOK).Body.Close()
+
+	restoreResp := postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/restore", `{"actor_id":"actor-1"}`, http.StatusOK)
+	defer restoreResp.Body.Close()
+
+	var restored map[string]map[string]any
+	if err := json.NewDecoder(restoreResp.Body).Decode(&restored); err != nil {
+		t.Fatalf("decode restore response: %v", err)
+	}
+	if restored["artifact"]["tombstoned_at"] != nil {
+		t.Fatalf("expected tombstoned_at cleared, got %#v", restored["artifact"]["tombstoned_at"])
+	}
+	if restored["artifact"]["tombstoned_by"] != nil {
+		t.Fatalf("expected tombstoned_by cleared, got %#v", restored["artifact"]["tombstoned_by"])
+	}
+	if restored["artifact"]["tombstone_reason"] != nil {
+		t.Fatalf("expected tombstone_reason cleared, got %#v", restored["artifact"]["tombstone_reason"])
+	}
+
+	reRestoreResp, err := http.Post(h.baseURL+"/artifacts/"+artifactID+"/restore", "application/json", strings.NewReader(`{"actor_id":"actor-1"}`))
+	if err != nil {
+		t.Fatalf("POST restore again: %v", err)
+	}
+	defer reRestoreResp.Body.Close()
+	if reRestoreResp.StatusCode != http.StatusConflict {
+		bodyBytes, _ := io.ReadAll(reRestoreResp.Body)
+		t.Fatalf("expected 409 on second restore, got %d body=%s", reRestoreResp.StatusCode, string(bodyBytes))
+	}
+
+	listResp, err := http.Get(h.baseURL + "/artifacts")
+	if err != nil {
+		t.Fatalf("GET /artifacts: %v", err)
+	}
+	defer listResp.Body.Close()
+	var listed map[string][]map[string]any
+	if err := json.NewDecoder(listResp.Body).Decode(&listed); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	found := false
+	for _, a := range listed["artifacts"] {
+		if a["id"] == artifactID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected restored artifact in default list")
+	}
+}
+
+func TestArtifactPurgeLifecycle(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServerWithHumanPrincipal(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"kind":"blob",
+			"refs":["thread:thread-1"],
+			"summary":"purge test"
+		},
+		"content":"purge test content bytes",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create artifact response: %v", err)
+	}
+	artifactID, _ := created["artifact"]["id"].(string)
+	if artifactID == "" {
+		t.Fatal("expected created artifact id")
+	}
+
+	postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/tombstone", `{
+		"actor_id":"actor-1",
+		"reason":"gone"
+	}`, http.StatusOK).Body.Close()
+
+	purgeResp := postJSONExpectStatusBearer(t, h.baseURL+"/artifacts/"+artifactID+"/purge", `{}`, h.humanAccessToken, http.StatusOK)
+	defer purgeResp.Body.Close()
+
+	var purged map[string]any
+	if err := json.NewDecoder(purgeResp.Body).Decode(&purged); err != nil {
+		t.Fatalf("decode purge response: %v", err)
+	}
+	if purged["purged"] != true {
+		t.Fatalf("expected purged true, got %#v", purged["purged"])
+	}
+	if purged["artifact_id"] != artifactID {
+		t.Fatalf("expected artifact_id %q, got %#v", artifactID, purged["artifact_id"])
+	}
+
+	getResp, err := http.Get(h.baseURL + "/artifacts/" + artifactID)
+	if err != nil {
+		t.Fatalf("GET artifact after purge: %v", err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 after purge, got %d", getResp.StatusCode)
+	}
+
+	listResp, err := http.Get(h.baseURL + "/artifacts?include_tombstoned=true")
+	if err != nil {
+		t.Fatalf("GET /artifacts: %v", err)
+	}
+	defer listResp.Body.Close()
+	var listed map[string][]map[string]any
+	if err := json.NewDecoder(listResp.Body).Decode(&listed); err != nil {
+		t.Fatalf("decode list response: %v", err)
+	}
+	for _, a := range listed["artifacts"] {
+		if a["id"] == artifactID {
+			t.Fatal("purged artifact must not appear in list")
+		}
+	}
+}
+
+func TestArtifactPurgeUnauthenticatedDevHumanTaggedActor(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-human-dev","display_name":"Human Dev","created_at":"2026-03-04T10:00:00Z","tags":["human"]}}`, http.StatusCreated)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-bot-dev","display_name":"Bot Dev","created_at":"2026-03-04T10:01:00Z","tags":["agent"]}}`, http.StatusCreated)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:02:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{"kind":"blob","refs":["thread:thread-1"],"summary":"dev purge"},
+		"content":"x",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create artifact response: %v", err)
+	}
+	artifactID, _ := created["artifact"]["id"].(string)
+	if artifactID == "" {
+		t.Fatal("expected created artifact id")
+	}
+
+	postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/tombstone", `{
+		"actor_id":"actor-1",
+		"reason":"dev purge prep"
+	}`, http.StatusOK).Body.Close()
+
+	purgeResp := postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/purge", `{"actor_id":"actor-human-dev"}`, http.StatusOK)
+	defer purgeResp.Body.Close()
+
+	var purged map[string]any
+	if err := json.NewDecoder(purgeResp.Body).Decode(&purged); err != nil {
+		t.Fatalf("decode purge response: %v", err)
+	}
+	if purged["purged"] != true {
+		t.Fatalf("expected purged true, got %#v", purged["purged"])
+	}
+}
+
+func TestArtifactPurgeUnauthenticatedDevRejectsNonHumanTag(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-bot-dev","display_name":"Bot Dev","created_at":"2026-03-04T10:00:00Z","tags":["agent"]}}`, http.StatusCreated)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:01:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{"kind":"blob","refs":["thread:thread-1"],"summary":"reject purge"},
+		"content":"y",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create artifact response: %v", err)
+	}
+	artifactID, _ := created["artifact"]["id"].(string)
+	if artifactID == "" {
+		t.Fatal("expected created artifact id")
+	}
+
+	postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/tombstone", `{
+		"actor_id":"actor-1",
+		"reason":"dev purge prep"
+	}`, http.StatusOK).Body.Close()
+
+	rejectResp := postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/purge", `{"actor_id":"actor-bot-dev"}`, http.StatusForbidden)
+	defer rejectResp.Body.Close()
+	assertErrorCode(t, rejectResp, "human_only")
+}
+
+func TestArtifactPurgeNotTombstoned(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServerWithHumanPrincipal(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{
+			"kind":"blob",
+			"refs":["thread:thread-1"],
+			"summary":"live artifact"
+		},
+		"content":"x",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createResp.Body.Close()
+
+	var created map[string]map[string]any
+	if err := json.NewDecoder(createResp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode create artifact response: %v", err)
+	}
+	artifactID, _ := created["artifact"]["id"].(string)
+	if artifactID == "" {
+		t.Fatal("expected created artifact id")
+	}
+
+	purgeResp := postJSONExpectStatusBearer(t, h.baseURL+"/artifacts/"+artifactID+"/purge", `{}`, h.humanAccessToken, http.StatusConflict)
+	defer purgeResp.Body.Close()
+	assertErrorCode(t, purgeResp, "not_tombstoned")
+}
+
+func TestArtifactTombstonedOnlyListFilter(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	createA := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{"kind":"blob","refs":["thread:thread-1"],"summary":"a"},
+		"content":"a",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createA.Body.Close()
+	var payloadA map[string]map[string]any
+	if err := json.NewDecoder(createA.Body).Decode(&payloadA); err != nil {
+		t.Fatalf("decode artifact a: %v", err)
+	}
+	idA, _ := payloadA["artifact"]["id"].(string)
+
+	createB := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
+		"actor_id":"actor-1",
+		"artifact":{"kind":"blob","refs":["thread:thread-1"],"summary":"b"},
+		"content":"b",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer createB.Body.Close()
+	var payloadB map[string]map[string]any
+	if err := json.NewDecoder(createB.Body).Decode(&payloadB); err != nil {
+		t.Fatalf("decode artifact b: %v", err)
+	}
+	idB, _ := payloadB["artifact"]["id"].(string)
+
+	postJSONExpectStatus(t, h.baseURL+"/artifacts/"+idA+"/tombstone", `{"actor_id":"actor-1","reason":"x"}`, http.StatusOK).Body.Close()
+
+	onlyResp, err := http.Get(h.baseURL + "/artifacts?tombstoned_only=true")
+	if err != nil {
+		t.Fatalf("GET tombstoned_only: %v", err)
+	}
+	defer onlyResp.Body.Close()
+	var onlyListed map[string][]map[string]any
+	if err := json.NewDecoder(onlyResp.Body).Decode(&onlyListed); err != nil {
+		t.Fatalf("decode tombstoned_only list: %v", err)
+	}
+	if len(onlyListed["artifacts"]) != 1 {
+		t.Fatalf("expected exactly one tombstoned artifact, got %d", len(onlyListed["artifacts"]))
+	}
+	if onlyListed["artifacts"][0]["id"] != idA {
+		t.Fatalf("expected tombstoned id %s, got %#v", idA, onlyListed["artifacts"][0]["id"])
+	}
+	for _, a := range onlyListed["artifacts"] {
+		if a["id"] == idB {
+			t.Fatal("non-tombstoned artifact must not appear in tombstoned_only list")
+		}
+	}
+}
+
+func TestArtifactPurgeReferencedByDocRevision(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServerWithHumanPrincipal(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	docResp := postJSONExpectStatus(t, h.baseURL+"/docs", `{
+		"actor_id":"actor-1",
+		"document":{"title":"Doc With Revision Artifact","thread_id":"thread-1"},
+		"content":"body",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer docResp.Body.Close()
+
+	var docPayload struct {
+		Revision map[string]any `json:"revision"`
+	}
+	if err := json.NewDecoder(docResp.Body).Decode(&docPayload); err != nil {
+		t.Fatalf("decode create doc: %v", err)
+	}
+	artifactID, _ := docPayload.Revision["artifact_id"].(string)
+	if artifactID == "" {
+		t.Fatal("expected revision artifact_id")
+	}
+
+	postJSONExpectStatus(t, h.baseURL+"/artifacts/"+artifactID+"/tombstone", `{"actor_id":"actor-1","reason":"try purge"}`, http.StatusOK).Body.Close()
+
+	conflictResp := postJSONExpectStatusBearer(t, h.baseURL+"/artifacts/"+artifactID+"/purge", `{}`, h.humanAccessToken, http.StatusConflict)
+	defer conflictResp.Body.Close()
+	assertErrorCode(t, conflictResp, "artifact_in_use")
 }
 
 func TestDocumentTombstoneLifecycle(t *testing.T) {

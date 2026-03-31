@@ -13,6 +13,7 @@ import (
 )
 
 var ErrAlreadyExists = errors.New("actor already exists")
+var ErrActorNotFound = errors.New("actor not found")
 var ErrInvalidCursor = errors.New("invalid cursor")
 
 const SystemActorID = "oar-core"
@@ -230,4 +231,32 @@ func (s *Store) Exists(ctx context.Context, actorID string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// Get returns a single actor by id, or ErrActorNotFound.
+func (s *Store) Get(ctx context.Context, actorID string) (Actor, error) {
+	if s == nil || s.db == nil {
+		return Actor{}, fmt.Errorf("actor store database is not initialized")
+	}
+
+	var actor Actor
+	var tagsJSON string
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT id, display_name, tags_json, created_at FROM actors WHERE id = ?`,
+		actorID,
+	).Scan(&actor.ID, &actor.DisplayName, &tagsJSON, &actor.CreatedAt)
+	if err == sql.ErrNoRows {
+		return Actor{}, ErrActorNotFound
+	}
+	if err != nil {
+		return Actor{}, fmt.Errorf("get actor: %w", err)
+	}
+	if err := json.Unmarshal([]byte(tagsJSON), &actor.Tags); err != nil {
+		return Actor{}, fmt.Errorf("decode actor tags: %w", err)
+	}
+	if actor.Tags == nil {
+		actor.Tags = []string{}
+	}
+	return actor, nil
 }

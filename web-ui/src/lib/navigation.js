@@ -40,6 +40,12 @@ export const settingsNavItems = [
     hint: "Work orders, receipts, reviews",
   },
   {
+    label: "Trash",
+    href: "/trash",
+    icon: "trash",
+    hint: "Tombstoned artifacts",
+  },
+  {
     label: "Access",
     href: "/access",
     icon: "access",
@@ -72,6 +78,11 @@ const SHELL_CONTENT_RULES = [
     match: /^\/docs\/[^/]+/,
     mode: "fluid",
     maxWidth: "112rem",
+  },
+  {
+    match: /^\/trash$/,
+    mode: "wide",
+    maxWidth: "88rem",
   },
   {
     match: /^\/(threads|artifacts|docs|boards)$/,

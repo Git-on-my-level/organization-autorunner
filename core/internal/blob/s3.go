@@ -84,6 +84,7 @@ type s3Client interface {
 	PutObject(ctx context.Context, params *s3.PutObjectInput, optFns ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(ctx context.Context, params *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	HeadObject(ctx context.Context, params *s3.HeadObjectInput, optFns ...func(*s3.Options)) (*s3.HeadObjectOutput, error)
+	DeleteObject(ctx context.Context, params *s3.DeleteObjectInput, optFns ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 	ListObjectsV2(ctx context.Context, params *s3.ListObjectsV2Input, optFns ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
 }
 
@@ -191,6 +192,20 @@ func (b *S3Backend) Stat(ctx context.Context, hash string) (Stat, error) {
 	}
 
 	return Stat{Bytes: derefInt64(output.ContentLength)}, nil
+}
+
+func (b *S3Backend) Delete(ctx context.Context, hash string) error {
+	_, err := b.client.DeleteObject(contextOrBackground(ctx), &s3.DeleteObjectInput{
+		Bucket: &b.config.Bucket,
+		Key:    stringPtr(b.objectKey(hash)),
+	})
+	if err != nil {
+		if isS3ObjectNotFound(err) {
+			return ErrBlobNotFound
+		}
+		return fmt.Errorf("delete blob %q: %w", strings.TrimSpace(hash), err)
+	}
+	return nil
 }
 
 func (b *S3Backend) Usage(ctx context.Context) (Usage, error) {

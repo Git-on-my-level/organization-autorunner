@@ -187,6 +187,55 @@ func (s *Store) applyBlobLedgerWritePlanTx(ctx context.Context, tx *sql.Tx, plan
 	return nil
 }
 
+func (s *Store) removeBlobLedgerEntryTx(ctx context.Context, tx *sql.Tx, contentHash string) error {
+	contentHash = strings.TrimSpace(contentHash)
+	if contentHash == "" {
+		return nil
+	}
+
+	var sizeBytes int64
+	err := tx.QueryRowContext(
+		ctx,
+		`SELECT size_bytes FROM blob_usage_ledger WHERE content_hash = ?`,
+		contentHash,
+	).Scan(&sizeBytes)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("query blob ledger entry for removal: %w", err)
+	}
+
+	res, err := tx.ExecContext(ctx, `DELETE FROM blob_usage_ledger WHERE content_hash = ?`, contentHash)
+	if err != nil {
+		return fmt.Errorf("delete blob usage ledger entry: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read blob ledger delete rows: %w", err)
+	}
+	if n == 0 {
+		return nil
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE blob_usage_totals
+		    SET blob_bytes = blob_bytes - ?,
+		        blob_objects = blob_objects - 1,
+		        updated_at = ?
+		  WHERE id = ?`,
+		sizeBytes,
+		now,
+		blobUsageTotalsRowID,
+	); err != nil {
+		return fmt.Errorf("decrement blob usage totals: %w", err)
+	}
+
+	return nil
+}
+
 func (s *Store) RebuildBlobUsageLedger(ctx context.Context) (BlobUsageLedgerRebuildResult, error) {
 	if s == nil || s.db == nil {
 		return BlobUsageLedgerRebuildResult{}, fmt.Errorf("primitives store database is not initialized")

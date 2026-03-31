@@ -72,8 +72,15 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatThreadTimeline(body)
 	case "commitments.get", "commitments.create", "commitments.patch":
 		return formatCommitmentRecord(extractNestedMap(body, "commitment"))
-	case "artifacts.get", "artifacts.create", "artifacts.tombstone":
+	case "artifacts.get", "artifacts.create", "artifacts.tombstone", "artifacts.restore":
 		return formatArtifactRecord(extractNestedMap(body, "artifact"))
+	case "artifacts.purge":
+		root := asMap(body)
+		id, _ := root["artifact_id"].(string)
+		if id != "" {
+			return "Artifact " + id + " permanently deleted"
+		}
+		return formatPrettyBody(body)
 	case "artifacts.inspect":
 		return formatArtifactInspect(body)
 	case "events.get", "events.create":

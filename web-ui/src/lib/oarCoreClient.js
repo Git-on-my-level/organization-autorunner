@@ -603,6 +603,27 @@ export function createOarCoreClient(options = {}) {
       invokeJSON("artifacts.get", () =>
         generated.artifactsGet({ artifact_id: String(artifactId) }),
       ),
+    tombstoneArtifact: (artifactId, payload) =>
+      invokeJSON("artifacts.tombstone", () =>
+        generated.artifactsTombstone(
+          { artifact_id: String(artifactId) },
+          { body: withActorId(payload) },
+        ),
+      ),
+    restoreArtifact: (artifactId, payload) =>
+      invokeJSON("artifacts.restore", () =>
+        generated.artifactsRestore(
+          { artifact_id: String(artifactId) },
+          { body: withActorId(payload) },
+        ),
+      ),
+    purgeArtifact: (artifactId, payload) =>
+      invokeJSON("artifacts.purge", () =>
+        generated.artifactsPurge(
+          { artifact_id: String(artifactId) },
+          { body: payload || {} },
+        ),
+      ),
     getArtifactContent: async (artifactId) => {
       const response = await invokeRaw("artifacts.content.get", {
         artifact_id: String(artifactId),

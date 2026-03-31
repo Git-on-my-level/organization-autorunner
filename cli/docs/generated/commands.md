@@ -4,7 +4,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 - OpenAPI version: `3.1.0`
 - Contract version: `0.2.3`
-- Commands: `77`
+- Commands: `79`
 
 ## `actors.list`
 
@@ -158,6 +158,36 @@ Generated from `contracts/oar-openapi.yaml`.
 - Agent notes: Safe and idempotent.
 - Examples:
   - List work orders for a thread: `oar artifacts list --kind work_order --thread-id thread_123 --json`
+
+## `artifacts.purge`
+
+- CLI path: `artifacts purge`
+- HTTP: `POST /artifacts/{artifact_id}/purge`
+- Stability: `beta`
+- Surface: `canonical`
+- Input mode: `json-body`
+- Why: Permanently remove a tombstoned artifact and reclaim storage. Human-only to prevent accidental data loss by automated agents.
+- Concepts: `artifacts`, `lifecycle`
+- Error codes: `invalid_json`, `not_found`, `not_tombstoned`, `artifact_in_use`, `human_only`
+- Output: Returns `{ purged: true, artifact_id }` on success.
+- Agent notes: 403 if the caller is not a human principal. 409 if the artifact is not tombstoned or is still referenced by document revisions.
+- Examples:
+  - Purge artifact: `oar artifacts purge --artifact-id artifact_123 --json`
+
+## `artifacts.restore`
+
+- CLI path: `artifacts restore`
+- HTTP: `POST /artifacts/{artifact_id}/restore`
+- Stability: `beta`
+- Surface: `canonical`
+- Input mode: `json-body`
+- Why: Reverse a tombstone on an artifact, making it active and visible in default list queries again.
+- Concepts: `artifacts`, `lifecycle`
+- Error codes: `invalid_json`, `invalid_request`, `not_found`, `not_tombstoned`
+- Output: Returns `{ artifact }` with tombstone metadata cleared.
+- Agent notes: Returns 409 if the artifact is not currently tombstoned.
+- Examples:
+  - Restore artifact: `oar artifacts restore --artifact-id artifact_123 --json`
 
 ## `artifacts.tombstone`
 

@@ -79,6 +79,22 @@ func TestStoreRegisterListAndExists(t *testing.T) {
 	if list[0].ID != "actor-a" || list[1].ID != "actor-b" {
 		t.Fatalf("expected stable ordering by created_at asc, got %#v", list)
 	}
+
+	got, err := store.Get(context.Background(), "actor-a")
+	if err != nil {
+		t.Fatalf("get actor-a: %v", err)
+	}
+	if got.ID != "actor-a" || got.DisplayName != "Actor A" {
+		t.Fatalf("unexpected actor from Get: %#v", got)
+	}
+	if !reflect.DeepEqual(got.Tags, []string{"human"}) {
+		t.Fatalf("unexpected tags from Get: %#v", got.Tags)
+	}
+
+	_, err = store.Get(context.Background(), "missing-actor")
+	if !errors.Is(err, actors.ErrActorNotFound) {
+		t.Fatalf("expected ErrActorNotFound, got %v", err)
+	}
 }
 
 func TestStoreEnsureSystemActorIdempotent(t *testing.T) {

@@ -14,12 +14,14 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `artifacts`
 
-- Commands: `7`
+- Commands: `9`
 - Command IDs:
   - `artifacts.content.get`
   - `artifacts.create`
   - `artifacts.get`
   - `artifacts.list`
+  - `artifacts.purge`
+  - `artifacts.restore`
   - `artifacts.tombstone`
   - `threads.context`
   - `threads.workspace`
@@ -220,8 +222,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `lifecycle`
 
-- Commands: `2`
+- Commands: `4`
 - Command IDs:
+  - `artifacts.purge`
+  - `artifacts.restore`
   - `artifacts.tombstone`
   - `docs.tombstone`
 

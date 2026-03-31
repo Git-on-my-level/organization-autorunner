@@ -92,6 +92,19 @@ func (b *FilesystemBackend) Usage(ctx context.Context) (Usage, error) {
 	return usageForRoot(b.rootDir, ".cas-")
 }
 
+func (b *FilesystemBackend) Delete(ctx context.Context, hash string) error {
+	_ = ctx
+	path := b.blobPath(hash)
+	err := os.Remove(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrBlobNotFound
+		}
+		return err
+	}
+	return nil
+}
+
 func (b *FilesystemBackend) blobPath(hash string) string {
 	return filepath.Join(b.rootDir, hash)
 }
@@ -217,6 +230,19 @@ func (b *ObjectStoreBackend) Stat(ctx context.Context, hash string) (Stat, error
 func (b *ObjectStoreBackend) Usage(ctx context.Context) (Usage, error) {
 	_ = ctx
 	return usageForRoot(b.rootDir, ".obj-")
+}
+
+func (b *ObjectStoreBackend) Delete(ctx context.Context, hash string) error {
+	_ = ctx
+	path := b.objectPath(hash)
+	err := os.Remove(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrBlobNotFound
+		}
+		return err
+	}
+	return nil
 }
 
 func (b *ObjectStoreBackend) objectPath(hash string) string {

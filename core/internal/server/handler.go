@@ -34,6 +34,7 @@ type ActorRegistry interface {
 	Register(ctx context.Context, actor actors.Actor) (actors.Actor, error)
 	List(ctx context.Context, filter actors.ActorListFilter) ([]actors.Actor, string, error)
 	Exists(ctx context.Context, actorID string) (bool, error)
+	Get(ctx context.Context, actorID string) (actors.Actor, error)
 }
 
 type PrimitiveStore interface {
@@ -94,6 +95,8 @@ type PrimitiveStore interface {
 	ListRecentEventsByThread(ctx context.Context, threadID string, limit int) ([]map[string]any, error)
 	ListEvents(ctx context.Context, filter primitives.EventListFilter) ([]map[string]any, error)
 	TombstoneArtifact(ctx context.Context, actorID string, artifactID string, reason string) (map[string]any, error)
+	RestoreArtifact(ctx context.Context, actorID string, artifactID string) (map[string]any, error)
+	PurgeTombstonedArtifact(ctx context.Context, artifactID string) error
 	TombstoneDocument(ctx context.Context, actorID string, documentID string, reason string) (map[string]any, map[string]any, error)
 }
 
@@ -1305,6 +1308,16 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return routeAccessRequirement{}
 		}
 		switch {
+		case strings.HasSuffix(remainder, "/restore"):
+			if r.Method == http.MethodPost {
+				return routeAccessRequirement{bucket: routeAccessWorkspaceBusiness, supported: true}
+			}
+			return routeAccessRequirement{}
+		case strings.HasSuffix(remainder, "/purge"):
+			if r.Method == http.MethodPost {
+				return routeAccessRequirement{bucket: routeAccessWorkspaceBusiness, supported: true}
+			}
+			return routeAccessRequirement{}
 		case strings.HasSuffix(remainder, "/tombstone"):
 			if r.Method == http.MethodPost {
 				return routeAccessRequirement{bucket: routeAccessWorkspaceBusiness, supported: true}
@@ -1326,6 +1339,36 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		remainder := strings.TrimPrefix(r.URL.Path, "/artifacts/")
 		if remainder == "" {
 			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+			return
+		}
+
+		if strings.HasSuffix(remainder, "/restore") {
+			if r.Method != http.MethodPost {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+				return
+			}
+			artifactID := strings.TrimSuffix(remainder, "/restore")
+			artifactID = strings.TrimSuffix(artifactID, "/")
+			if artifactID == "" || strings.Contains(artifactID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleRestoreArtifact(w, r, opts, artifactID)
+			return
+		}
+
+		if strings.HasSuffix(remainder, "/purge") {
+			if r.Method != http.MethodPost {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+				return
+			}
+			artifactID := strings.TrimSuffix(remainder, "/purge")
+			artifactID = strings.TrimSuffix(artifactID, "/")
+			if artifactID == "" || strings.Contains(artifactID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handlePurgeArtifact(w, r, opts, artifactID)
 			return
 		}
 

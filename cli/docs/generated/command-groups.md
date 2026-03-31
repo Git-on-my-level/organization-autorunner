@@ -24,12 +24,14 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `artifacts`
 
-- Commands: `5`
+- Commands: `7`
 - Command IDs:
   - `artifacts.content.get` (`artifacts content get`)
   - `artifacts.create` (`artifacts create`)
   - `artifacts.get` (`artifacts get`)
   - `artifacts.list` (`artifacts list`)
+  - `artifacts.purge` (`artifacts purge`)
+  - `artifacts.restore` (`artifacts restore`)
   - `artifacts.tombstone` (`artifacts tombstone`)
 
 ## `auth`

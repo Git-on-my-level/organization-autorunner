@@ -46,6 +46,19 @@ describe("mockCoreData parity behaviors", () => {
     });
   });
 
+  describe("artifacts trash list (tombstoned_only)", () => {
+    it("returns only tombstoned artifacts when tombstoned_only is true", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const trashed = mod.listMockArtifacts({ tombstoned_only: true });
+      const ids = trashed.map((a) => a.id).sort();
+
+      expect(ids).toContain("artifact-dev-trash-onboarding-draft");
+      expect(ids).toContain("artifact-dev-trash-ops-scratch");
+      expect(ids).toContain("artifact-tombstoned-doc");
+      expect(trashed.every((a) => a.tombstoned_at != null)).toBe(true);
+    });
+  });
+
   describe("boards parity behaviors", () => {
     it("returns nested board memberships in thread workspace", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");

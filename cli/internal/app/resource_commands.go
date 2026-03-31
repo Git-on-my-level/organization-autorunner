@@ -1281,11 +1281,13 @@ func (a *App) runArtifactsCommand(ctx context.Context, args []string, cfg config
 		fs := newSilentFlagSet("artifacts list")
 		var kindFlag, threadIDFlag, beforeFlag, afterFlag trackedString
 		var includeTombstoned bool
+		var tombstonedOnly bool
 		fs.Var(&kindFlag, "kind", "Filter by artifact kind")
 		fs.Var(&threadIDFlag, "thread-id", "Filter by thread id")
 		fs.Var(&beforeFlag, "created-before", "Filter by created_at upper bound")
 		fs.Var(&afterFlag, "created-after", "Filter by created_at lower bound")
 		fs.BoolVar(&includeTombstoned, "include-tombstoned", false, "Include tombstoned artifacts")
+		fs.BoolVar(&tombstonedOnly, "tombstoned-only", false, "Show only tombstoned artifacts")
 		if err := fs.Parse(args[1:]); err != nil {
 			return nil, "artifacts list", errnorm.Usage("invalid_flags", err.Error())
 		}
@@ -1302,13 +1304,16 @@ func (a *App) runArtifactsCommand(ctx context.Context, args []string, cfg config
 				resolvedThreadID = resolved[0]
 			}
 		}
-		query := make([]queryParam, 0, 5)
+		query := make([]queryParam, 0, 6)
 		addSingleQuery(&query, "kind", kindFlag.value)
 		addSingleQuery(&query, "thread_id", resolvedThreadID)
 		addSingleQuery(&query, "created_before", beforeFlag.value)
 		addSingleQuery(&query, "created_after", afterFlag.value)
 		if includeTombstoned {
 			query = append(query, queryParam{name: "include_tombstoned", values: []string{"true"}})
+		}
+		if tombstonedOnly {
+			query = append(query, queryParam{name: "tombstoned_only", values: []string{"true"}})
 		}
 		result, err := a.invokeTypedJSON(ctx, cfg, "artifacts list", "artifacts.list", nil, query, nil)
 		return result, "artifacts list", err
@@ -1391,6 +1396,71 @@ func (a *App) runArtifactsCommand(ctx context.Context, args []string, cfg config
 		}
 		result, callErr := a.invokeTypedJSON(ctx, cfg, "artifacts tombstone", "artifacts.tombstone", map[string]string{"artifact_id": id}, nil, body)
 		return result, "artifacts tombstone", callErr
+	case "restore":
+		fs := newSilentFlagSet("artifacts restore")
+		var artifactIDFlag trackedString
+		var actorIDFlag trackedString
+		var reasonFlag trackedString
+		fs.Var(&artifactIDFlag, "artifact-id", "Artifact id to restore")
+		fs.Var(&actorIDFlag, "actor-id", "Actor id")
+		fs.Var(&reasonFlag, "reason", "Reason for restoring")
+		if err := fs.Parse(args[1:]); err != nil {
+			return nil, "artifacts restore", errnorm.Usage("invalid_flags", err.Error())
+		}
+		positionals := fs.Args()
+		id := strings.TrimSpace(artifactIDFlag.value)
+		if id == "" && len(positionals) > 0 {
+			id = strings.TrimSpace(positionals[0])
+			positionals = positionals[1:]
+		}
+		if err := validateID(id, "artifact id"); err != nil {
+			return nil, "artifacts restore", err
+		}
+		if len(positionals) > 0 {
+			return nil, "artifacts restore", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar artifacts restore`")
+		}
+		body := map[string]any{}
+		actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
+		if err != nil {
+			return nil, "artifacts restore", err
+		}
+		if actorID != "" {
+			body["actor_id"] = actorID
+		} else if strings.TrimSpace(cfg.ActorID) != "" {
+			body["actor_id"] = strings.TrimSpace(cfg.ActorID)
+		}
+		if strings.TrimSpace(reasonFlag.value) != "" {
+			body["reason"] = strings.TrimSpace(reasonFlag.value)
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "artifacts restore", "artifacts.restore", map[string]string{"artifact_id": id}, nil, body)
+		return result, "artifacts restore", callErr
+	case "purge":
+		fs := newSilentFlagSet("artifacts purge")
+		var artifactIDFlag trackedString
+		var reasonFlag trackedString
+		fs.Var(&artifactIDFlag, "artifact-id", "Artifact id to purge")
+		fs.Var(&reasonFlag, "reason", "Reason for purging")
+		if err := fs.Parse(args[1:]); err != nil {
+			return nil, "artifacts purge", errnorm.Usage("invalid_flags", err.Error())
+		}
+		positionals := fs.Args()
+		id := strings.TrimSpace(artifactIDFlag.value)
+		if id == "" && len(positionals) > 0 {
+			id = strings.TrimSpace(positionals[0])
+			positionals = positionals[1:]
+		}
+		if err := validateID(id, "artifact id"); err != nil {
+			return nil, "artifacts purge", err
+		}
+		if len(positionals) > 0 {
+			return nil, "artifacts purge", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar artifacts purge`")
+		}
+		body := map[string]any{}
+		if strings.TrimSpace(reasonFlag.value) != "" {
+			body["reason"] = strings.TrimSpace(reasonFlag.value)
+		}
+		result, callErr := a.invokeTypedJSON(ctx, cfg, "artifacts purge", "artifacts.purge", map[string]string{"artifact_id": id}, nil, body)
+		return result, "artifacts purge", callErr
 	default:
 		return nil, "artifacts", artifactsSubcommandSpec.unknownError(args[0])
 	}

@@ -2331,6 +2331,12 @@ paths:
           name: include_tombstoned
           schema: { type: boolean }
           description: "Include tombstoned artifacts in the list. Defaults to false."
+        - in: query
+          name: tombstoned_only
+          schema: { type: boolean }
+          description: >
+            When true, return only tombstoned artifacts (tombstoned_at IS NOT NULL).
+            Mutually exclusive with include_tombstoned; if both are set, tombstoned_only wins.
       responses:
         '200':
           description: Artifact list
@@ -2446,6 +2452,103 @@ paths:
         '400':
           $ref: '#/components/responses/ErrorResponse'
         '404':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /artifacts/{artifact_id}/restore:
+    post:
+      operationId: restoreArtifact
+      summary: Restore a tombstoned artifact
+      tags: [artifacts]
+      x-oar-surface: "canonical"
+      x-oar-command-id: "artifacts.restore"
+      x-oar-cli-path: "artifacts restore"
+      x-oar-why: "Reverse a tombstone on an artifact, making it active and visible in default list queries again."
+      x-oar-examples:
+        - title: Restore artifact
+          command: oar artifacts restore --artifact-id artifact_123 --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ artifact }` with tombstone metadata cleared."
+      x-oar-error-codes: [invalid_json, invalid_request, not_found, not_tombstoned]
+      x-oar-concepts: [artifacts, lifecycle]
+      x-oar-stability: "beta"
+      x-oar-agent-notes: "Returns 409 if the artifact is not currently tombstoned."
+      parameters:
+        - $ref: '#/components/parameters/ArtifactID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TombstoneRequest'
+      responses:
+        '200':
+          description: Artifact restored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArtifactResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+
+  /artifacts/{artifact_id}/purge:
+    post:
+      operationId: purgeArtifact
+      summary: Permanently delete a tombstoned artifact (human-only)
+      tags: [artifacts]
+      x-oar-surface: "canonical"
+      x-oar-command-id: "artifacts.purge"
+      x-oar-cli-path: "artifacts purge"
+      x-oar-why: "Permanently remove a tombstoned artifact and reclaim storage. Human-only to prevent accidental data loss by automated agents."
+      x-oar-examples:
+        - title: Purge artifact
+          command: oar artifacts purge --artifact-id artifact_123 --json
+      x-oar-input-mode: "json-body"
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ purged: true, artifact_id }` on success."
+      x-oar-error-codes: [invalid_json, not_found, not_tombstoned, artifact_in_use, human_only]
+      x-oar-concepts: [artifacts, lifecycle]
+      x-oar-stability: "beta"
+      x-oar-agent-notes: "403 if the caller is not a human principal. 409 if the artifact is not tombstoned or is still referenced by document revisions."
+      parameters:
+        - $ref: '#/components/parameters/ArtifactID'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Optional reason for permanent deletion
+                actor_id:
+                  type: string
+                  description: >
+                    Optional acting actor id. Ignored when the request is authenticated as a human principal.
+                    In local development only (`OAR_ALLOW_UNAUTHENTICATED_WRITES` + `OAR_ENABLE_DEV_ACTOR_MODE`),
+                    an unauthenticated purge may succeed when this matches a registered actor whose tags include `human`.
+      responses:
+        '200':
+          description: Artifact permanently deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purged:
+                    type: boolean
+                  artifact_id:
+                    type: string
+        '403':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+        '409':
           $ref: '#/components/responses/ErrorResponse'
 
   /docs/{document_id}/tombstone:

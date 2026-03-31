@@ -18,6 +18,7 @@ type Backend interface {
 	Exists(ctx context.Context, hash string) (bool, error)
 	Stat(ctx context.Context, hash string) (Stat, error)
 	Usage(ctx context.Context) (Usage, error)
+	Delete(ctx context.Context, hash string) error
 }
 
 type Stat struct {

@@ -264,6 +264,24 @@ async function seedDocuments() {
   }
 }
 
+async function tombstoneSeedArtifactIfNeeded(sourceArtifact) {
+  if (!sourceArtifact?.tombstoned_at) {
+    return;
+  }
+  const id = String(sourceArtifact.id ?? "").trim();
+  if (!id) {
+    return;
+  }
+  await request("POST", `/artifacts/${encodeURIComponent(id)}/tombstone`, {
+    actor_id: pickActorId(
+      sourceArtifact.tombstoned_by ?? sourceArtifact.created_by,
+    ),
+    reason:
+      sourceArtifact.tombstone_reason ??
+      "Tombstoned while seeding mock data.",
+  });
+}
+
 async function seedArtifacts() {
   const packetOrder = {
     work_order: 1,
@@ -299,9 +317,11 @@ async function seedArtifacts() {
             context_refs: mapRefs(sourceArtifact.packet?.context_refs),
           },
         });
+        await tombstoneSeedArtifactIfNeeded(sourceArtifact);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (isAlreadyExistsConflict(msg)) {
+          await tombstoneSeedArtifactIfNeeded(sourceArtifact);
           continue;
         }
         throw err;
@@ -330,9 +350,11 @@ async function seedArtifacts() {
             ),
           },
         });
+        await tombstoneSeedArtifactIfNeeded(sourceArtifact);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (isAlreadyExistsConflict(msg)) {
+          await tombstoneSeedArtifactIfNeeded(sourceArtifact);
           continue;
         }
         throw err;
@@ -357,9 +379,11 @@ async function seedArtifacts() {
             evidence_refs: mapRefs(sourceArtifact.packet?.evidence_refs),
           },
         });
+        await tombstoneSeedArtifactIfNeeded(sourceArtifact);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (isAlreadyExistsConflict(msg)) {
+          await tombstoneSeedArtifactIfNeeded(sourceArtifact);
           continue;
         }
         throw err;
@@ -395,9 +419,11 @@ async function seedArtifacts() {
         content_type: contentType,
         content,
       });
+      await tombstoneSeedArtifactIfNeeded(sourceArtifact);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (isAlreadyExistsConflict(msg)) {
+        await tombstoneSeedArtifactIfNeeded(sourceArtifact);
         continue;
       }
       throw err;

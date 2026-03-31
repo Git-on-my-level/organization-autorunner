@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -270,6 +271,126 @@ func handleGetArtifact(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	writeJSON(w, http.StatusOK, map[string]any{"artifact": artifact})
 }
 
+func handleRestoreArtifact(w http.ResponseWriter, r *http.Request, opts handlerOptions, artifactID string) {
+	if opts.primitiveStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
+		return
+	}
+
+	var req struct {
+		ActorID string `json:"actor_id"`
+		Reason  string `json:"reason"`
+	}
+	if !decodeJSONBody(w, r, &req) {
+		return
+	}
+
+	actorID, ok := resolveWriteActorID(w, r, opts, req.ActorID)
+	if !ok {
+		return
+	}
+
+	artifact, err := opts.primitiveStore.RestoreArtifact(r.Context(), actorID, artifactID)
+	if err != nil {
+		if errors.Is(err, primitives.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "artifact not found")
+			return
+		}
+		if errors.Is(err, primitives.ErrNotTombstoned) {
+			writeError(w, http.StatusConflict, "not_tombstoned", "artifact is not currently tombstoned")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to restore artifact")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"artifact": artifact})
+}
+
+func actorRegistryActorHasHumanTag(ctx context.Context, registry ActorRegistry, actorID string) bool {
+	if registry == nil || strings.TrimSpace(actorID) == "" {
+		return false
+	}
+	act, err := registry.Get(ctx, actorID)
+	if err != nil {
+		return false
+	}
+	for _, tag := range act.Tags {
+		if strings.EqualFold(strings.TrimSpace(tag), "human") {
+			return true
+		}
+	}
+	return false
+}
+
+func handlePurgeArtifact(w http.ResponseWriter, r *http.Request, opts handlerOptions, artifactID string) {
+	if opts.primitiveStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
+		return
+	}
+
+	principal, ok := resolveOptionalPrincipal(w, r, opts)
+	if !ok {
+		return
+	}
+
+	if principal != nil {
+		if !isHumanPrincipal(principal) {
+			writeError(w, http.StatusForbidden, "human_only", "only human principals may permanently delete artifacts")
+			return
+		}
+	} else {
+		if !opts.allowUnauthenticatedWrites || !opts.enableDevActorMode {
+			writeError(w, http.StatusUnauthorized, "auth_required", "authorization header is required")
+			return
+		}
+		if opts.actorRegistry == nil {
+			writeError(w, http.StatusServiceUnavailable, "actor_registry_unavailable", "actor registry is not configured")
+			return
+		}
+		var req struct {
+			ActorID string `json:"actor_id"`
+			Reason  string `json:"reason"`
+		}
+		if !decodeJSONBodyAllowEmpty(w, r, &req) {
+			return
+		}
+		actorID := strings.TrimSpace(req.ActorID)
+		if actorID == "" {
+			writeError(w, http.StatusForbidden, "human_only", "only human principals may permanently delete artifacts; in development, include actor_id for an actor tagged `human` in the JSON body")
+			return
+		}
+		registeredID, ok := requireRegisteredActorID(w, r, opts.actorRegistry, actorID)
+		if !ok {
+			return
+		}
+		if !actorRegistryActorHasHumanTag(r.Context(), opts.actorRegistry, registeredID) {
+			writeError(w, http.StatusForbidden, "human_only", "only human-tagged actors may purge without authenticated passkey credentials")
+			return
+		}
+	}
+
+	err := opts.primitiveStore.PurgeTombstonedArtifact(r.Context(), artifactID)
+	if err != nil {
+		if errors.Is(err, primitives.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "artifact not found")
+			return
+		}
+		if errors.Is(err, primitives.ErrNotTombstoned) {
+			writeError(w, http.StatusConflict, "not_tombstoned", "artifact is not currently tombstoned")
+			return
+		}
+		if errors.Is(err, primitives.ErrArtifactInUse) {
+			writeError(w, http.StatusConflict, "artifact_in_use", "artifact is referenced by document revisions")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to purge artifact")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"purged": true, "artifact_id": artifactID})
+}
+
 func handleGetArtifactContent(w http.ResponseWriter, r *http.Request, opts handlerOptions, artifactID string) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
@@ -344,6 +465,7 @@ func handleListArtifacts(w http.ResponseWriter, r *http.Request, opts handlerOpt
 	}
 
 	includeTombstoned := strings.TrimSpace(query.Get("include_tombstoned")) == "true"
+	tombstonedOnly := strings.TrimSpace(query.Get("tombstoned_only")) == "true"
 
 	var limitPtr *int
 	if limitStr := strings.TrimSpace(query.Get("limit")); limitStr != "" {
@@ -360,6 +482,7 @@ func handleListArtifacts(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		CreatedBefore:     strings.TrimSpace(query.Get("created_before")),
 		CreatedAfter:      strings.TrimSpace(query.Get("created_after")),
 		IncludeTombstoned: includeTombstoned,
+		TombstonedOnly:    tombstonedOnly,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to list artifacts")

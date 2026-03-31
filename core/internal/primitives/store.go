@@ -25,6 +25,8 @@ import (
 
 var ErrNotFound = errors.New("not found")
 var ErrConflict = errors.New("conflict")
+var ErrNotTombstoned = errors.New("artifact is not tombstoned")
+var ErrArtifactInUse = errors.New("artifact is referenced by document revisions")
 var ErrInvalidCommitmentTransition = errors.New("invalid commitment transition")
 var ErrInvalidArtifactID = errors.New("invalid artifact id")
 var ErrInvalidDocumentRequest = errors.New("invalid document request")
@@ -40,6 +42,7 @@ type ArtifactListFilter struct {
 	CreatedBefore     string
 	CreatedAfter      string
 	IncludeTombstoned bool
+	TombstonedOnly    bool
 }
 
 type DocumentListFilter struct {
@@ -572,6 +575,141 @@ func (s *Store) TombstoneArtifact(ctx context.Context, actorID string, artifactI
 	}
 
 	return metadata, nil
+}
+
+func (s *Store) RestoreArtifact(ctx context.Context, actorID, artifactID string) (map[string]any, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("primitives store database is not initialized")
+	}
+	actorID = strings.TrimSpace(actorID)
+	if actorID == "" {
+		return nil, fmt.Errorf("actor_id is required")
+	}
+	artifactID = strings.TrimSpace(artifactID)
+	if artifactID == "" {
+		return nil, fmt.Errorf("artifact_id is required")
+	}
+
+	var metadataJSON string
+	var tombstonedAt sql.NullString
+	var tombstonedBy sql.NullString
+	var tombstoneReason sql.NullString
+	err := s.db.QueryRowContext(
+		ctx,
+		`SELECT metadata_json, tombstoned_at, tombstoned_by, tombstone_reason FROM artifacts WHERE id = ?`,
+		artifactID,
+	).Scan(&metadataJSON, &tombstonedAt, &tombstonedBy, &tombstoneReason)
+	_ = tombstonedBy
+	_ = tombstoneReason
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("query artifact for restore: %w", err)
+	}
+
+	if !tombstonedAt.Valid || strings.TrimSpace(tombstonedAt.String) == "" {
+		return nil, ErrNotTombstoned
+	}
+
+	metadata, err := decodeArtifactMetadataJSON(metadataJSON)
+	if err != nil {
+		return nil, err
+	}
+	delete(metadata, "tombstoned_at")
+	delete(metadata, "tombstoned_by")
+	delete(metadata, "tombstone_reason")
+
+	updatedMetadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return nil, fmt.Errorf("encode restored artifact metadata: %w", err)
+	}
+
+	_, err = s.db.ExecContext(ctx,
+		`UPDATE artifacts SET tombstoned_at = NULL, tombstoned_by = NULL, tombstone_reason = NULL, metadata_json = ? WHERE id = ?`,
+		string(updatedMetadataJSON), artifactID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("restore artifact: %w", err)
+	}
+
+	return metadata, nil
+}
+
+func (s *Store) PurgeTombstonedArtifact(ctx context.Context, artifactID string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("primitives store database is not initialized")
+	}
+	artifactID = strings.TrimSpace(artifactID)
+	if artifactID == "" {
+		return fmt.Errorf("artifact_id is required")
+	}
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin purge transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var contentHash string
+	err = tx.QueryRowContext(ctx,
+		`SELECT content_hash FROM artifacts WHERE id = ? AND tombstoned_at IS NOT NULL`,
+		artifactID,
+	).Scan(&contentHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		var one int
+		err2 := tx.QueryRowContext(ctx, `SELECT 1 FROM artifacts WHERE id = ?`, artifactID).Scan(&one)
+		if errors.Is(err2, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err2 != nil {
+			return fmt.Errorf("check artifact existence: %w", err2)
+		}
+		return ErrNotTombstoned
+	}
+	if err != nil {
+		return fmt.Errorf("select tombstoned artifact: %w", err)
+	}
+
+	var ref int
+	err = tx.QueryRowContext(ctx, `SELECT 1 FROM document_revisions WHERE artifact_id = ? LIMIT 1`, artifactID).Scan(&ref)
+	if err == nil {
+		return ErrArtifactInUse
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("check document revisions referencing artifact: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM artifacts WHERE id = ?`, artifactID); err != nil {
+		return fmt.Errorf("delete artifact: %w", err)
+	}
+
+	contentHash = strings.TrimSpace(contentHash)
+	var shouldDeleteBlob bool
+	if contentHash != "" {
+		var cnt int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM artifacts WHERE content_hash = ?`, contentHash).Scan(&cnt); err != nil {
+			return fmt.Errorf("count artifact blob references: %w", err)
+		}
+		if cnt == 0 {
+			if err := s.removeBlobLedgerEntryTx(ctx, tx, contentHash); err != nil {
+				return err
+			}
+			shouldDeleteBlob = true
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit purge transaction: %w", err)
+	}
+
+	if shouldDeleteBlob && s.blob != nil {
+		if err := s.blob.Delete(ctx, contentHash); err != nil && !errors.Is(err, blob.ErrBlobNotFound) {
+			return fmt.Errorf("delete blob object: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *Store) GetSnapshot(ctx context.Context, id string) (map[string]any, error) {
@@ -2179,7 +2317,10 @@ func buildListArtifactsQuery(filter ArtifactListFilter) (string, []any) {
 		secondaryClauses := []string{"COALESCE(thread_id, '') <> ?", "EXISTS (SELECT 1 FROM json_each(refs_json) WHERE value = ?)"}
 		primaryArgs := []any{threadID}
 		secondaryArgs := []any{threadID, "thread:" + threadID}
-		if !filter.IncludeTombstoned {
+		if filter.TombstonedOnly {
+			primaryClauses = append(primaryClauses, "tombstoned_at IS NOT NULL")
+			secondaryClauses = append(secondaryClauses, "tombstoned_at IS NOT NULL")
+		} else if !filter.IncludeTombstoned {
 			primaryClauses = append(primaryClauses, "tombstoned_at IS NULL")
 			secondaryClauses = append(secondaryClauses, "tombstoned_at IS NULL")
 		}
@@ -2221,7 +2362,9 @@ func buildListArtifactsQuery(filter ArtifactListFilter) (string, []any) {
 
 	query := `SELECT metadata_json FROM artifacts WHERE 1=1`
 	args := make([]any, 0, 8)
-	if !filter.IncludeTombstoned {
+	if filter.TombstonedOnly {
+		query += ` AND tombstoned_at IS NOT NULL`
+	} else if !filter.IncludeTombstoned {
 		query += ` AND tombstoned_at IS NULL`
 	}
 	if kind := strings.TrimSpace(filter.Kind); kind != "" {

@@ -8,6 +8,12 @@ const now = Date.now();
 
 const actors = [
   {
+    id: "actor-dev-human-operator",
+    display_name: "Jordan (Human operator)",
+    tags: ["human", "operator"],
+    created_at: "2026-01-01T07:55:00.000Z",
+  },
+  {
     id: "actor-ops-ai",
     display_name: "Zara (OpsAI)",
     tags: ["ops", "coordinator"],
@@ -1575,6 +1581,40 @@ const artifacts = [
     },
     tombstoned_at: null,
   },
+  // Tombstoned after seed create (see seed-core-from-mock.mjs) for Trash / purge in local dev.
+  {
+    id: "artifact-dev-trash-onboarding-draft",
+    kind: "evidence",
+    thread_id: "thread-onboarding",
+    summary: "Obsolete onboarding checklist (dev trash sample)",
+    refs: ["thread:thread-onboarding"],
+    content_type: "text/plain",
+    content_text:
+      "Dev seed: superseded onboarding notes. Safe to purge — not linked to any document revision.",
+    created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    provenance: { sources: ["actor_statement:dev-trash-seed"] },
+    tombstoned_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    tombstoned_by: "actor-ops-ai",
+    tombstone_reason:
+      "Dev seed: removed from active use so operators can exercise Trash and purge locally.",
+  },
+  {
+    id: "artifact-dev-trash-ops-scratch",
+    kind: "evidence",
+    thread_id: "thread-onboarding",
+    summary: "Scratch export — dev trash sample",
+    refs: ["thread:thread-onboarding"],
+    content_type: "text/plain",
+    content_text:
+      "Dev seed: ephemeral export blob. Purge from Trash to verify permanent delete.",
+    created_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-flavor-ai",
+    provenance: { sources: ["actor_statement:dev-trash-seed"] },
+    tombstoned_at: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    tombstoned_by: "actor-ops-ai",
+    tombstone_reason: "Dev seed: tombstoned for local purge workflow testing.",
+  },
   {
     id: "artifact-tombstoned-doc",
     kind: "doc",
@@ -2574,16 +2614,24 @@ export function createMockWorkOrder({ actor_id, artifact = {}, packet = {} }) {
 }
 
 export function listMockArtifacts(filters = {}) {
+  const tombstonedOnly =
+    filters.tombstoned_only === true ||
+    String(filters.tombstoned_only) === "true";
   const includeTombstoned =
+    tombstonedOnly ||
     filters.include_tombstoned === true ||
     String(filters.include_tombstoned) === "true";
 
   return artifacts.filter((artifact) => {
-    if (
-      !includeTombstoned &&
+    const isTombstoned =
       artifact.tombstoned_at != null &&
-      String(artifact.tombstoned_at).trim() !== ""
-    ) {
+      String(artifact.tombstoned_at).trim() !== "";
+
+    if (tombstonedOnly) {
+      if (!isTombstoned) {
+        return false;
+      }
+    } else if (!includeTombstoned && isTombstoned) {
       return false;
     }
 

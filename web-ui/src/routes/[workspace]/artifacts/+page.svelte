@@ -29,6 +29,8 @@
   let artifacts = $state([]);
   let loading = $state(false);
   let error = $state("");
+  let trashConfirmId = $state("");
+  let trashBusyId = $state("");
   let filtersOpen = $state(false);
   let workspaceSlug = $derived($page.params.workspace);
   let actorName = $derived((id) =>
@@ -104,6 +106,23 @@
   function refPreview(artifact) {
     const refs = Array.isArray(artifact?.refs) ? artifact.refs : [];
     return refs.slice(0, 3);
+  }
+
+  async function trashArtifact(artifactId) {
+    const id = String(artifactId ?? "").trim();
+    if (!id || trashBusyId) return;
+    trashBusyId = id;
+    error = "";
+    try {
+      await coreClient.tombstoneArtifact(id, {});
+      trashConfirmId = "";
+      const parsed = parseArtifactListSearchParams($page.url.searchParams);
+      await loadArtifactsFromState(parsed);
+    } catch (e) {
+      error = `Trash failed: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      trashBusyId = "";
+    }
   }
 
   function updateDateFilter(field, value) {
@@ -241,15 +260,17 @@
     class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
   >
     {#each artifacts as artifact, i}
-      <a
-        class="block px-4 py-3 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
+      <div
+        class="px-4 py-3 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
         0
           ? 'border-t border-[var(--ui-border)]'
           : ''}"
-        href={workspaceHref(`/artifacts/${artifact.id}`)}
       >
         <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0 flex-1">
+          <a
+            class="min-w-0 flex-1"
+            href={workspaceHref(`/artifacts/${artifact.id}`)}
+          >
             <div class="flex flex-wrap items-center gap-2">
               <span
                 class="inline-flex rounded px-1.5 py-0.5 text-[11px] font-semibold {kindColor(
@@ -272,17 +293,72 @@
                 artifact.created_by,
               )}
             </p>
+          </a>
+          <div class="flex shrink-0 items-center gap-2">
+            <span class="text-[11px] text-[var(--ui-text-subtle)]">
+              {(artifact.refs ?? []).length} ref{(artifact.refs ?? [])
+                .length === 1
+                ? ""
+                : "s"}
+            </span>
+            {#if trashConfirmId !== artifact.id}
+              <button
+                class="cursor-pointer rounded-md p-1 text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border)] hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={Boolean(trashBusyId)}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  trashConfirmId = artifact.id;
+                }}
+                title="Move to trash"
+                type="button"
+              >
+                <svg
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                  />
+                </svg>
+              </button>
+            {:else}
+              <div class="flex items-center gap-1">
+                <button
+                  class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    trashConfirmId = "";
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  class="cursor-pointer rounded-md bg-red-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={trashBusyId === artifact.id}
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    void trashArtifact(artifact.id);
+                  }}
+                  type="button"
+                >
+                  Trash
+                </button>
+              </div>
+            {/if}
           </div>
-          <span class="shrink-0 text-[11px] text-[var(--ui-text-subtle)]">
-            {(artifact.refs ?? []).length} ref{(artifact.refs ?? []).length ===
-            1
-              ? ""
-              : "s"}
-          </span>
         </div>
 
         {#if refPreview(artifact).length > 0 || artifact.thread_id}
-          <div class="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+          <a
+            class="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]"
+            href={workspaceHref(`/artifacts/${artifact.id}`)}
+          >
             {#if artifact.thread_id}
               <RefLink
                 humanize
@@ -307,9 +383,9 @@
                 >+{artifact.refs.length - 3} more</span
               >
             {/if}
-          </div>
+          </a>
         {/if}
-      </a>
+      </div>
     {/each}
   </div>
 {/if}
