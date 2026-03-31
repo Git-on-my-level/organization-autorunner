@@ -12,6 +12,7 @@
     clearSelectedActor,
     initializeActorSession,
     lookupActorDisplayName,
+    principalRegistry,
     replaceActorRegistry,
     replacePrincipalRegistry,
     selectedActorId,
@@ -23,6 +24,7 @@
     initializeAuthSession,
     logoutAuthSession,
   } from "$lib/authSession";
+  import { listAllPrincipals } from "$lib/authPrincipals";
   import CommandPalette from "$lib/components/CommandPalette.svelte";
   import { coreClient } from "$lib/coreClient";
   import {
@@ -109,7 +111,11 @@
       !$devActorModeReady,
   );
   let selectedActorName = $derived.by(() => {
-    const resolvedName = lookupActorDisplayName(activeActorId, $actorRegistry);
+    const resolvedName = lookupActorDisplayName(
+      activeActorId,
+      $actorRegistry,
+      $principalRegistry,
+    );
     if (
       $authenticatedAgent?.username &&
       ($authenticatedAgent?.actor_id === activeActorId ||
@@ -266,9 +272,10 @@
     }
 
     try {
-      const response = await coreClient.listPrincipals({ limit: 200 });
+      const principals = await listAllPrincipals(coreClient, { limit: 200 });
+
       replacePrincipalRegistry(
-        mergePrincipals(response.principals ?? [], seeded),
+        mergePrincipals(principals, seeded),
         workspaceSlug,
       );
     } catch {

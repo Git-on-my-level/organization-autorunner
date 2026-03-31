@@ -3,7 +3,11 @@
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
   import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
   import SearchableMultiEntityPicker from "$lib/components/SearchableMultiEntityPicker.svelte";
-  import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
+  import {
+    actorRegistry,
+    lookupActorDisplayName,
+    principalRegistry,
+  } from "$lib/actorSession";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import {
@@ -55,7 +59,9 @@
 
   let workspaceSlug = $derived($page.params.workspace);
   let boardId = $derived($page.params.boardId);
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
   let enrichedInboxItems = $derived(
     (workspace?.inbox?.items ?? []).map((item) => enrichInboxItem(item)),
   );

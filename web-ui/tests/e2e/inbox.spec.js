@@ -290,6 +290,7 @@ test("inbox thread context shows commitment owners by actor name", async ({
   const ownerActorId = "agent-hermes-operator";
   const threadId = "thread-onboarding";
   let inboxRequestCount = 0;
+  let principalRequestCount = 0;
 
   await page.route("**/auth/session", async (route) => {
     await route.fulfill({
@@ -307,28 +308,37 @@ test("inbox thread context shows commitment owners by actor name", async ({
   });
 
   await page.route(/\/auth\/principals(?:\?.*)?$/, async (route) => {
+    principalRequestCount += 1;
+    const cursor = route.request().url().includes("cursor=page-2")
+      ? "page-2"
+      : "";
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        principals: [
-          {
-            agent_id: actorId,
-            actor_id: actorId,
-            username: "ops-ai",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-          },
-          {
-            agent_id: ownerActorId,
-            actor_id: ownerActorId,
-            username: "hermes-operator",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-          },
-        ],
+        principals:
+          cursor === "page-2"
+            ? [
+                {
+                  agent_id: ownerActorId,
+                  actor_id: ownerActorId,
+                  username: "hermes-operator",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                },
+              ]
+            : [
+                {
+                  agent_id: actorId,
+                  actor_id: actorId,
+                  username: "ops-ai",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                },
+              ],
+        ...(cursor === "page-2" ? {} : { next_cursor: "page-2" }),
       }),
     });
   });
@@ -421,12 +431,13 @@ test("inbox thread context shows commitment owners by actor name", async ({
 
   await page.goto("/inbox");
   await expect.poll(() => inboxRequestCount).toBeGreaterThan(0);
+  await expect.poll(() => principalRequestCount).toBe(2);
 
   const card = page.getByTestId("inbox-card-inbox-001");
   await card.getByRole("button", { name: "Decide" }).click();
 
   await expect(
-    card.getByText("Hermes Operator", { exact: false }),
+    card.getByText("hermes-operator", { exact: false }),
   ).toBeVisible();
   await expect(
     card.getByText(`Owner: ${ownerActorId}`, { exact: false }),

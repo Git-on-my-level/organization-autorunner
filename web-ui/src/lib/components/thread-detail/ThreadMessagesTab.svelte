@@ -4,12 +4,17 @@
   import { tick } from "svelte";
   import { get } from "svelte/store";
 
-  import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
+  import {
+    actorRegistry,
+    lookupActorDisplayName,
+    principalRegistry,
+  } from "$lib/actorSession";
   import { authenticatedAgent } from "$lib/authSession";
   import {
     getAccessDevMockData,
     isAccessDevPreview,
   } from "$lib/accessDevMock.js";
+  import { listAllPrincipals } from "$lib/authPrincipals";
   import { coreClient } from "$lib/coreClient";
   import { enrichPrincipalsWithWakeRouting } from "$lib/principalWakeRouting.js";
   import ThreadMessageItem from "$lib/components/thread-detail/ThreadMessageItem.svelte";
@@ -32,7 +37,9 @@
   let timelineError = $derived($threadDetailStore.timelineError);
   let workspaceSlug = $derived($page.params.workspace);
 
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
   let messageThreads = $derived(toMessageThreadView(timeline, { threadId }));
   let allMessages = $derived(flattenMessageThreadView(messageThreads));
   let hasMessages = $derived(messageThreads.length > 0);
@@ -70,20 +77,23 @@
     try {
       const agent = get(authenticatedAgent);
       const reg = get(actorRegistry);
-      const nameFn = (id) => lookupActorDisplayName(id, reg);
+      const principals = get(principalRegistry);
+      const nameFn = (id) => lookupActorDisplayName(id, reg, principals);
       mentionSignedIn = Boolean(agent);
 
       if (agent) {
-        const data = await coreClient.listPrincipals({ limit: 100 });
-        const principals = await enrichPrincipalsWithWakeRouting(
-          data?.principals ?? [],
+        const fetchedPrincipals = await listAllPrincipals(coreClient, {
+          limit: 100,
+        });
+        const enrichedPrincipals = await enrichPrincipalsWithWakeRouting(
+          fetchedPrincipals,
           {
             workspaceBindingTarget: workspaceId,
             client: coreClient,
           },
         );
         mentionCandidates = taggableAgentHandlesFromPrincipals(
-          principals,
+          enrichedPrincipals,
           nameFn,
         );
       } else if (isAccessDevPreview) {

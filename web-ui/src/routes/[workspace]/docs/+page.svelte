@@ -7,7 +7,11 @@
   import { formatTimestamp } from "$lib/formatDate";
   import { searchThreads as searchThreadRecords } from "$lib/searchHelpers";
   import { workspacePath } from "$lib/workspacePaths";
-  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import {
+    lookupActorDisplayName,
+    actorRegistry,
+    principalRegistry,
+  } from "$lib/actorSession";
 
   const DOC_STATUS_LABELS = { draft: "Draft", active: "Active" };
 
@@ -18,7 +22,9 @@
   let scopedThreadId = $derived(
     String($page.url.searchParams.get("thread_id") ?? "").trim(),
   );
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
 
   let groupByLabel = $state(
     browser && localStorage.getItem("oar-docs-group-by-label") === "true",

@@ -3,7 +3,11 @@
   import { page } from "$app/stores";
   import { onMount } from "svelte";
 
-  import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
+  import {
+    actorRegistry,
+    lookupActorDisplayName,
+    principalRegistry,
+  } from "$lib/actorSession";
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { coreClient } from "$lib/coreClient";
@@ -35,7 +39,9 @@
   let categoryFilter = $state("all");
   let filtersOpen = $state(false);
   let workspaceSlug = $derived($page.params.workspace);
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
 
   let threadContextCache = $state({});
   let threadContextLoading = $state({});

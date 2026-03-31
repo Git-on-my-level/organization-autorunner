@@ -60,6 +60,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   let postedEvents = 0;
   let streamLastEventId = "";
   let timelineRequests = 0;
+  let principalRequestCount = 0;
   let allowFirstTimelineResponse;
   let allowSecondTimelineResponse;
   const firstTimelineResponseGate = new Promise((resolve) => {
@@ -135,36 +136,45 @@ test("thread detail separates messages from timeline and nests replies", async (
   });
 
   await page.route(/\/auth\/principals(?:\?.*)?$/, async (route) => {
+    principalRequestCount += 1;
+    const cursor = route.request().url().includes("cursor=page-2")
+      ? "page-2"
+      : "";
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        principals: [
-          {
-            agent_id: "agent-m4-hermes",
-            actor_id: "actor-m4-hermes",
-            username: "m4-hermes",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-          },
-          {
-            agent_id: "agent-jarvis",
-            actor_id: "actor-jarvis",
-            username: "jarvis",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-          },
-          {
-            agent_id: "agent-clawd",
-            actor_id: "actor-clawd",
-            username: "clawd",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-          },
-        ],
+        principals:
+          cursor === "page-2"
+            ? [
+                {
+                  agent_id: "agent-m4-hermes",
+                  actor_id: "actor-m4-hermes",
+                  username: "m4-hermes",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                },
+                {
+                  agent_id: "agent-clawd",
+                  actor_id: "actor-clawd",
+                  username: "clawd",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                },
+              ]
+            : [
+                {
+                  agent_id: "agent-jarvis",
+                  actor_id: "actor-jarvis",
+                  username: "jarvis",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                },
+              ],
+        ...(cursor === "page-2" ? {} : { next_cursor: "page-2" }),
       }),
     });
   });
@@ -473,6 +483,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   });
 
   await page.goto("/threads/thread-onboarding");
+  await expect.poll(() => principalRequestCount).toBe(2);
   await expect.poll(() => streamLastEventId).toBe("evt-1002");
 
   await expect(

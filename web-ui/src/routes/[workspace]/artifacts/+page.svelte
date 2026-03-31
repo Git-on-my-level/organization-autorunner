@@ -20,14 +20,20 @@
   } from "$lib/artifactKinds";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
-  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import {
+    lookupActorDisplayName,
+    actorRegistry,
+    principalRegistry,
+  } from "$lib/actorSession";
 
   let artifacts = $state([]);
   let loading = $state(false);
   let error = $state("");
   let filtersOpen = $state(false);
   let workspaceSlug = $derived($page.params.workspace);
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
   let filters = $state({ ...DEFAULT_ARTIFACT_LIST_FILTERS });
   let dateInputs = $state({
     created_after: "",
