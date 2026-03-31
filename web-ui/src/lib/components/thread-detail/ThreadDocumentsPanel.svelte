@@ -1,6 +1,10 @@
 <script>
   import { page } from "$app/stores";
-  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import {
+    lookupActorDisplayName,
+    actorRegistry,
+    principalRegistry,
+  } from "$lib/actorSession";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
   import { threadDetailStore } from "$lib/threadDetailStore";
@@ -13,7 +17,9 @@
   let documentsLoading = $derived($threadDetailStore.documentsLoading);
   let documentsError = $derived($threadDetailStore.documentsError);
   let workspaceSlug = $derived($page.params.workspace);
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
 
   function workspaceHref(pathname = "/") {
     return workspacePath(workspaceSlug, pathname);

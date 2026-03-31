@@ -12,7 +12,11 @@
   import { buildReviewPayload } from "$lib/reviewUtils";
   import { toTimelineView } from "$lib/timelineUtils";
   import { parseRef } from "$lib/typedRefs";
-  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import {
+    lookupActorDisplayName,
+    actorRegistry,
+    principalRegistry,
+  } from "$lib/actorSession";
 
   const KNOWN_PACKET_ARTIFACT_KINDS = new Set([
     "work_order",
@@ -22,7 +26,9 @@
 
   let artifactId = $derived($page.params.artifactId);
   let workspaceSlug = $derived($page.params.workspace);
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
   let artifact = $state(null);
   let artifactContent = $state(null);
   let artifactContentType = $state("");

@@ -60,6 +60,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   let postedEvents = 0;
   let streamLastEventId = "";
   let timelineRequests = 0;
+  let principalRequestCount = 0;
   let allowFirstTimelineResponse;
   let allowSecondTimelineResponse;
   const firstTimelineResponseGate = new Promise((resolve) => {
@@ -86,7 +87,7 @@ test("thread detail separates messages from timeline and nests replies", async (
       id: "evt-0999",
       ts: "2026-03-03T08:00:00.000Z",
       type: "message_posted",
-      actor_id: actorId,
+      actor_id: "agent-m4-hermes",
       thread_id: "thread-onboarding",
       refs: ["thread:thread-onboarding"],
       summary: "Earlier timeline-only message",
@@ -134,59 +135,74 @@ test("thread detail separates messages from timeline and nests replies", async (
     });
   });
 
-  await page.route("**/auth/principals?**", async (route) => {
+  await page.route(/\/auth\/principals(?:\?.*)?$/, async (route) => {
+    principalRequestCount += 1;
+    const cursor = route.request().url().includes("cursor=page-2")
+      ? "page-2"
+      : "";
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        principals: [
-          {
-            agent_id: "agent-m4-hermes",
-            actor_id: "actor-m4-hermes",
-            username: "m4-hermes",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-            registration: {
-              handle: "m4-hermes",
-              actor_id: "actor-m4-hermes",
-              status: "active",
-              bridge_signing_public_key_spki_b64: publicKeyB64,
-              bridge_checkin_event_id: "event-bridge-checkin-m4-hermes",
-              workspace_bindings: [{ workspace_id: "local", enabled: true }],
-            },
-          },
-          {
-            agent_id: "agent-jarvis",
-            actor_id: "actor-jarvis",
-            username: "jarvis",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-            registration: {
-              handle: "jarvis",
-              actor_id: "actor-jarvis",
-              status: "pending",
-              workspace_bindings: [{ workspace_id: "local", enabled: true }],
-            },
-          },
-          {
-            agent_id: "agent-clawd",
-            actor_id: "actor-clawd",
-            username: "clawd",
-            principal_kind: "agent",
-            auth_method: "public_key",
-            revoked: false,
-            registration: {
-              handle: "clawd",
-              actor_id: "actor-clawd",
-              status: "active",
-              bridge_signing_public_key_spki_b64: publicKeyB64,
-              bridge_checkin_event_id: "event-bridge-checkin-clawd",
-              workspace_bindings: [{ workspace_id: "local", enabled: true }],
-            },
-          },
-        ],
+        principals:
+          cursor === "page-2"
+            ? [
+                {
+                  agent_id: "agent-m4-hermes",
+                  actor_id: "actor-m4-hermes",
+                  username: "m4-hermes",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                  registration: {
+                    handle: "m4-hermes",
+                    actor_id: "actor-m4-hermes",
+                    status: "active",
+                    bridge_signing_public_key_spki_b64: publicKeyB64,
+                    bridge_checkin_event_id: "event-bridge-checkin-m4-hermes",
+                    workspace_bindings: [
+                      { workspace_id: "local", enabled: true },
+                    ],
+                  },
+                },
+                {
+                  agent_id: "agent-clawd",
+                  actor_id: "actor-clawd",
+                  username: "clawd",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                  registration: {
+                    handle: "clawd",
+                    actor_id: "actor-clawd",
+                    status: "active",
+                    bridge_signing_public_key_spki_b64: publicKeyB64,
+                    bridge_checkin_event_id: "event-bridge-checkin-clawd",
+                    workspace_bindings: [
+                      { workspace_id: "local", enabled: true },
+                    ],
+                  },
+                },
+              ]
+            : [
+                {
+                  agent_id: "agent-jarvis",
+                  actor_id: "actor-jarvis",
+                  username: "jarvis",
+                  principal_kind: "agent",
+                  auth_method: "public_key",
+                  revoked: false,
+                  registration: {
+                    handle: "jarvis",
+                    actor_id: "actor-jarvis",
+                    status: "pending",
+                    workspace_bindings: [
+                      { workspace_id: "local", enabled: true },
+                    ],
+                  },
+                },
+              ],
+        ...(cursor === "page-2" ? {} : { next_cursor: "page-2" }),
       }),
     });
   });
@@ -428,6 +444,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   });
 
   await page.goto("/threads/thread-onboarding");
+  await expect.poll(() => principalRequestCount).toBe(2);
   await expect.poll(() => streamLastEventId).toBe("evt-1002");
 
   await expect(
@@ -454,6 +471,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(
     page.getByText("Latest workspace message", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator("#message-evt-1002")).toContainText("ops-ai");
   await expect(
     page.getByText("Loading messages...", { exact: true }),
   ).toHaveCount(0);
@@ -474,6 +492,7 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(
     page.getByText("Earlier timeline-only message", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator("#message-evt-0999")).toContainText("m4-hermes");
   await page.locator("#message-text").fill("@");
   await expect(page.locator("#message-mention-list")).toContainText(
     "@m4-hermes",
@@ -516,6 +535,8 @@ test("thread detail separates messages from timeline and nests replies", async (
   await expect(
     page.getByText("Message: Reply message from e2e", { exact: true }),
   ).toBeVisible();
+  await expect(page.locator("#event-evt-0999")).toContainText("m4-hermes");
+  await expect(page.locator("#event-event-new-1")).toContainText("ops-ai");
 
   await page.reload();
 

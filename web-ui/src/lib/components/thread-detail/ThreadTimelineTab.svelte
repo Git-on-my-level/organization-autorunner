@@ -1,6 +1,10 @@
 <script>
   import { threadDetailStore } from "$lib/threadDetailStore";
-  import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
+  import {
+    actorRegistry,
+    lookupActorDisplayName,
+    principalRegistry,
+  } from "$lib/actorSession";
   import { formatTimestamp } from "$lib/formatDate";
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
@@ -12,7 +16,9 @@
   let timelineLoading = $derived($threadDetailStore.timelineLoading);
   let timelineError = $derived($threadDetailStore.timelineError);
 
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
 
   let timelineView = $derived(toTimelineView(timeline, { threadId }));
   let hasTimelineEvents = $derived(timelineView.length > 0);
