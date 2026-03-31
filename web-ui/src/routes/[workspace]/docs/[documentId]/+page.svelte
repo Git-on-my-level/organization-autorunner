@@ -7,14 +7,20 @@
   import { formatTimestamp } from "$lib/formatDate";
   import { searchThreads as searchThreadRecords } from "$lib/searchHelpers";
   import { workspacePath } from "$lib/workspacePaths";
-  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import {
+    lookupActorDisplayName,
+    actorRegistry,
+    principalRegistry,
+  } from "$lib/actorSession";
 
   let documentId = $derived($page.params.documentId);
   let workspaceSlug = $derived($page.params.workspace);
   let requestedRevisionId = $derived(
     String($page.url.searchParams.get("revision") ?? "").trim(),
   );
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
 
   let document = $state(null);
   let headRevision = $state(null);

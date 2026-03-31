@@ -11,7 +11,11 @@
     searchThreads as searchThreadRecords,
   } from "$lib/searchHelpers";
   import { workspacePath } from "$lib/workspacePaths";
-  import { lookupActorDisplayName, actorRegistry } from "$lib/actorSession";
+  import {
+    lookupActorDisplayName,
+    actorRegistry,
+    principalRegistry,
+  } from "$lib/actorSession";
   import {
     BOARD_STATUS_LABELS,
     CANONICAL_BOARD_COLUMNS,
@@ -38,7 +42,9 @@
   let createPinnedRefs = $state("");
 
   let workspaceSlug = $derived($page.params.workspace);
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
   let actorOptions = $derived(
     $actorRegistry.map((actor) => ({
       id: actor.id,

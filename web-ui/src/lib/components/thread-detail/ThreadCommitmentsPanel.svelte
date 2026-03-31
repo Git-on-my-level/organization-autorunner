@@ -3,6 +3,7 @@
   import {
     actorRegistry,
     lookupActorDisplayName,
+    principalRegistry,
     selectedActorId,
   } from "$lib/actorSession";
   import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
@@ -33,7 +34,9 @@
   let commitmentsLoading = $derived($threadDetailStore.commitmentsLoading);
   let timeline = $derived($threadDetailStore.timeline);
 
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
 
   let evidenceRefSuggestions = $derived(buildEvidenceRefSuggestions(timeline));
 

@@ -15,6 +15,7 @@ export const ACTOR_STORAGE_KEY = "oar_ui_actor_id";
 export const actorSessionReady = writable(false);
 export const selectedActorId = writable("");
 export const actorRegistry = writable([]);
+export const principalRegistry = writable([]);
 
 const actorStateByWorkspace = new Map();
 
@@ -23,6 +24,7 @@ function createEmptyActorState() {
     ready: false,
     selectedActorId: "",
     actorRegistry: [],
+    principalRegistry: [],
   };
 }
 
@@ -40,6 +42,7 @@ function syncCurrentWorkspaceStores(workspaceSlug = getCurrentWorkspaceSlug()) {
   actorSessionReady.set(state.ready);
   selectedActorId.set(state.selectedActorId);
   actorRegistry.set([...state.actorRegistry]);
+  principalRegistry.set([...state.principalRegistry]);
   return state;
 }
 
@@ -140,6 +143,16 @@ export function replaceActorRegistry(
   return state.actorRegistry;
 }
 
+export function replacePrincipalRegistry(
+  principals,
+  workspaceSlug = getCurrentWorkspaceSlug(),
+) {
+  const state = ensureActorState(workspaceSlug);
+  state.principalRegistry = [...(principals ?? [])];
+  syncCurrentWorkspaceStores(workspaceSlug);
+  return state.principalRegistry;
+}
+
 export function shouldShowActorGate(isReady, actorId) {
   return Boolean(isReady) && !actorId;
 }
@@ -160,21 +173,57 @@ export function buildActorCreatePayload({
   };
 }
 
-export function buildActorNameMap(actors) {
-  return new Map(
-    (actors ?? []).map((actor) => [
-      actor.id,
-      actor.display_name || actor.id || "Unknown actor",
-    ]),
-  );
+export function buildActorNameMap(actors, principals = get(principalRegistry)) {
+  const map = new Map();
+
+  for (const actor of actors ?? []) {
+    const id = String(actor?.id ?? actor?.actor_id ?? "").trim();
+    if (!id) {
+      continue;
+    }
+    const label =
+      String(
+        actor?.display_name ??
+          actor?.displayName ??
+          actor?.username ??
+          actor?.label ??
+          id,
+      ).trim() ||
+      id ||
+      "Unknown actor";
+    map.set(id, label);
+  }
+
+  for (const principal of principals ?? []) {
+    const username = String(principal?.username ?? "").trim();
+    if (!username) {
+      continue;
+    }
+
+    const actorId = String(principal?.actor_id ?? "").trim();
+    if (actorId) {
+      map.set(actorId, username);
+    }
+
+    const agentId = String(principal?.agent_id ?? "").trim();
+    if (agentId) {
+      map.set(agentId, username);
+    }
+  }
+
+  return map;
 }
 
-export function lookupActorDisplayName(actorId, actors) {
+export function lookupActorDisplayName(
+  actorId,
+  actors,
+  principals = get(principalRegistry),
+) {
   if (!actorId) {
     return "Unknown actor";
   }
 
-  const map = buildActorNameMap(actors);
+  const map = buildActorNameMap(actors, principals);
   return map.get(actorId) ?? actorId;
 }
 

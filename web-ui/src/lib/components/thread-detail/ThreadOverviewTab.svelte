@@ -1,6 +1,10 @@
 <script>
   import { threadDetailStore } from "$lib/threadDetailStore";
-  import { actorRegistry, lookupActorDisplayName } from "$lib/actorSession";
+  import {
+    actorRegistry,
+    lookupActorDisplayName,
+    principalRegistry,
+  } from "$lib/actorSession";
   import {
     formatTimestamp,
     isoToDatetimeLocal,
@@ -29,7 +33,9 @@
   let { threadId, onSave, conflictWarning = "", editNotice = "" } = $props();
 
   let snapshot = $derived($threadDetailStore.snapshot);
-  let actorName = $derived((id) => lookupActorDisplayName(id, $actorRegistry));
+  let actorName = $derived((id) =>
+    lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
+  );
 
   let editOpen = $state(false);
   let editDraft = $state(null);
