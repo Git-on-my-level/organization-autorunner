@@ -23,6 +23,42 @@ function threadIdIsRequired(rule) {
   return requirement === "required";
 }
 
+/**
+ * Match core `getPayloadValue` / CLI `getPreflightPayloadValue`: dotted paths,
+ * string leaf values only.
+ * @param {Record<string, unknown>} payload
+ * @param {string} fieldPath
+ */
+export function getPayloadStringAtPath(payload, fieldPath) {
+  const keys = String(fieldPath ?? "")
+    .split(".")
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+  let current = /** @type {unknown} */ (payload);
+  for (const key of keys) {
+    if (
+      current == null ||
+      typeof current !== "object" ||
+      Array.isArray(current)
+    ) {
+      return "";
+    }
+    current = /** @type {Record<string, unknown>} */ (current)[key];
+  }
+  if (typeof current === "string") {
+    return current;
+  }
+  return "";
+}
+
+/** Align with Go `EqualFold` on trimmed values (matches CLI preflight). */
+function conditionalWhenMatches(payload, when) {
+  const payloadValue = getPayloadStringAtPath(payload, when.payload_field);
+  const left = String(payloadValue ?? "").trim();
+  const right = String(when.equals ?? "").trim();
+  return left.toLowerCase() === right.toLowerCase();
+}
+
 export function validateEventRefRule(eventType, refs, payload = {}) {
   const rule = getEventRefRule(eventType);
   if (!rule) {
@@ -125,8 +161,7 @@ export function validateEventRefRule(eventType, refs, payload = {}) {
     }
 
     for (const cond of rule.conditional_refs) {
-      const payloadValue = payload[cond.when.payload_field];
-      if (String(payloadValue) !== cond.when.equals) {
+      if (!conditionalWhenMatches(payload, cond.when)) {
         continue;
       }
 
@@ -142,34 +177,14 @@ export function validateEventRefRule(eventType, refs, payload = {}) {
       if (valid) {
         continue;
       }
-      if (
-        eventType === "commitment_status_changed" &&
-        cond.when.payload_field === "to_status" &&
-        cond.when.equals === "done"
-      ) {
-        return {
-          valid: false,
-          error:
-            'event.refs must include artifact:<receipt_id> or event:<decision_event_id> when event.type="commitment_status_changed" and payload.to_status="done"',
-        };
-      }
-      if (
-        eventType === "commitment_status_changed" &&
-        cond.when.payload_field === "to_status" &&
-        cond.when.equals === "canceled"
-      ) {
-        return {
-          valid: false,
-          error:
-            'event.refs must include event:<decision_event_id> when event.type="commitment_status_changed" and payload.to_status="canceled"',
-        };
-      }
-      const required = cond.must_have
-        .map((r) => `${r.prefix}:<id>`)
-        .join(mode === "or" ? " or " : " and ");
+      const requiredLabels = cond.must_have.map((r) => `${r.prefix} prefix`);
+      const conditionText =
+        mode === "or"
+          ? requiredLabels.join(" or ")
+          : requiredLabels.join(" and ");
       return {
         valid: false,
-        error: `event.refs must include ${required} when event.type="${eventType}" and payload.${cond.when.payload_field}="${cond.when.equals}"`,
+        error: `event.refs must include ${conditionText} when event.type="${eventType}" and payload.${cond.when.payload_field}="${cond.when.equals}"`,
       };
     }
   }

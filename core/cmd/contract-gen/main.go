@@ -1022,18 +1022,25 @@ func writeEventRefRulesMeta(path string, doc openAPIDocument, schemaDoc oarSchem
 		rules[eventType] = normalizeOAREventRefRule(rule)
 	}
 
+	eventTypeOpenEnum := false
+	if et, ok := schemaDoc.Enums["event_type"]; ok {
+		eventTypeOpenEnum = strings.TrimSpace(et.EnumPolicy) == "open"
+	}
+
 	payload := struct {
-		OpenAPIVersion  string                     `json:"openapi_version"`
-		ContractVersion string                     `json:"contract_version"`
-		GeneratedBy     string                     `json:"generated_by"`
-		RuleCount       int                        `json:"rule_count"`
-		Rules           map[string]oarEventRefRule `json:"rules"`
+		OpenAPIVersion    string                     `json:"openapi_version"`
+		ContractVersion   string                     `json:"contract_version"`
+		GeneratedBy       string                     `json:"generated_by"`
+		EventTypeOpenEnum bool                       `json:"event_type_open_enum"`
+		RuleCount         int                        `json:"rule_count"`
+		Rules             map[string]oarEventRefRule `json:"rules"`
 	}{
-		OpenAPIVersion:  doc.OpenAPI,
-		ContractVersion: strings.TrimSpace(doc.Info.Version),
-		GeneratedBy:     "core/cmd/contract-gen",
-		RuleCount:       len(rules),
-		Rules:           rules,
+		OpenAPIVersion:    doc.OpenAPI,
+		ContractVersion:   strings.TrimSpace(doc.Info.Version),
+		GeneratedBy:       "core/cmd/contract-gen",
+		EventTypeOpenEnum: eventTypeOpenEnum,
+		RuleCount:         len(rules),
+		Rules:             rules,
 	}
 
 	b, err := json.MarshalIndent(payload, "", "  ")

@@ -51,9 +51,8 @@ describe("event validation", () => {
       }),
     );
 
-    expect(error).toContain(
-      "event.refs must include artifact:<receipt_id> or event:<decision_event_id>",
-    );
+    expect(error).toContain("artifact prefix or event prefix");
+    expect(error).toContain('payload.to_status="done"');
   });
 
   it("keeps unknown event types open", () => {

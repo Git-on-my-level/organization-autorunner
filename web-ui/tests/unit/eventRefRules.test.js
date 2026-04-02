@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   getEventRefRule,
+  getPayloadStringAtPath,
   hasEventRefRule,
   validateEventRefRule,
   validateCommitmentStatusRef,
@@ -104,6 +105,23 @@ describe("eventRefRules", () => {
       expect(result.error).toContain('payload.to_status="done"');
     });
 
+    it("matches conditional when payload equals case-insensitively (core / CLI parity)", () => {
+      const bad = validateEventRefRule(
+        "commitment_status_changed",
+        ["snapshot:commitment-1"],
+        { thread_id: "thread-1", to_status: "Done" },
+      );
+      expect(bad.valid).toBe(false);
+      expect(bad.error).toContain("artifact prefix or event prefix");
+
+      const good = validateEventRefRule(
+        "commitment_status_changed",
+        ["snapshot:commitment-1", "artifact:r1"],
+        { thread_id: "thread-1", to_status: "DONE" },
+      );
+      expect(good.valid).toBe(true);
+    });
+
     it("allows artifact ref for done status", () => {
       const result = validateEventRefRule(
         "commitment_status_changed",
@@ -158,6 +176,19 @@ describe("eventRefRules", () => {
         { thread_id: "thread-1" },
       );
       expect(result.valid).toBe(true);
+    });
+  });
+
+  describe("getPayloadStringAtPath", () => {
+    it("reads dotted paths like core getPayloadValue", () => {
+      expect(
+        getPayloadStringAtPath({ outer: { inner: "expected" } }, "outer.inner"),
+      ).toBe("expected");
+    });
+
+    it("returns empty string for missing or non-string leaves", () => {
+      expect(getPayloadStringAtPath({}, "a.b")).toBe("");
+      expect(getPayloadStringAtPath({ a: { b: 1 } }, "a.b")).toBe("");
     });
   });
 

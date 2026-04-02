@@ -131,11 +131,12 @@ type EventRefRule struct {
 }
 
 type EventRefRulesRegistry struct {
-	OpenAPIVersion  string                  `json:"openapi_version"`
-	ContractVersion string                  `json:"contract_version"`
-	GeneratedBy     string                  `json:"generated_by"`
-	RuleCount       int                     `json:"rule_count"`
-	Rules           map[string]EventRefRule `json:"rules"`
+	OpenAPIVersion     string                  `json:"openapi_version"`
+	ContractVersion    string                  `json:"contract_version"`
+	GeneratedBy        string                  `json:"generated_by"`
+	EventTypeOpenEnum  bool                    `json:"event_type_open_enum,omitempty"`
+	RuleCount          int                     `json:"rule_count"`
+	Rules              map[string]EventRefRule `json:"rules"`
 }
 
 func CommandSpecs() []contractsclient.CommandSpec {

@@ -47,6 +47,9 @@ func TestEmbeddedEventRefRules(t *testing.T) {
 	if rules.RuleCount == 0 {
 		t.Fatal("expected non-empty event ref rules")
 	}
+	if !rules.EventTypeOpenEnum {
+		t.Fatal("expected event_type enum policy to be open in generated metadata")
+	}
 
 	commitmentStatusChanged, ok := rules.RuleForEventType("commitment_status_changed")
 	if !ok {

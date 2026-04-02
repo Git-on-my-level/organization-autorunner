@@ -6,6 +6,10 @@ import {
   getCommandInfo,
   isProxyableCommand,
 } from "../../src/lib/coreRouteCatalog.js";
+import {
+  mockSupportedCommands,
+  proxyOnlyCommands,
+} from "../../src/lib/mockParityProfile.js";
 
 describe("proxyContractParity", () => {
   describe("isProxyableCommand", () => {
@@ -89,6 +93,24 @@ describe("proxyContractParity", () => {
       expect(pathStrings).toContain("GET:/docs");
       expect(pathStrings).toContain("GET:/inbox");
       expect(pathStrings).toContain("POST:/inbox/ack");
+    });
+  });
+
+  describe("mockParityProfile", () => {
+    it("classifies every command id as mock-supported or proxy-only", () => {
+      const catalogIds = new Set(
+        Array.from(getCatalogEntries().values()).map((e) => e.commandId),
+      );
+      const classified = new Set([
+        ...mockSupportedCommands,
+        ...proxyOnlyCommands,
+      ]);
+      expect(classified.size).toBe(catalogIds.size);
+      for (const id of catalogIds) {
+        expect(
+          mockSupportedCommands.includes(id) !== proxyOnlyCommands.includes(id),
+        ).toBe(true);
+      }
     });
   });
 

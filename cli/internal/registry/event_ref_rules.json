@@ -2,6 +2,7 @@
   "openapi_version": "3.1.0",
   "contract_version": "0.2.3",
   "generated_by": "core/cmd/contract-gen",
+  "event_type_open_enum": true,
   "rule_count": 19,
   "rules": {
     "agent_notification_dismissed": {
