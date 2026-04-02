@@ -89,7 +89,6 @@ function checkFile(absPath) {
       if (line.includes("*/")) inBlockComment = false;
       continue;
     }
-    if (inBlockComment) continue;
 
     // Reactive statement: $: ...
     if (/^\s*\$:/.test(line)) {
