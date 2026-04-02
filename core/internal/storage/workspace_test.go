@@ -352,6 +352,111 @@ func TestWorkspaceMigrationBackfillsProjectionGenerationsConservatively(t *testi
 	assertColumnAbsent(t, workspace.DB(), "thread_projection_refresh_status", "in_progress")
 }
 
+func TestWorkspaceInitializationRepairsAppliedProjectionGenerationMigration(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	workspaceRoot := t.TempDir()
+	layout := storage.NewLayout(workspaceRoot)
+	if err := os.MkdirAll(layout.RootDir, 0o755); err != nil {
+		t.Fatalf("create workspace root: %v", err)
+	}
+
+	legacyDB, err := sql.Open("sqlite", "file:"+layout.DatabasePath)
+	if err != nil {
+		t.Fatalf("open legacy sqlite database: %v", err)
+	}
+
+	statements := []string{
+		`CREATE TABLE schema_migrations (
+			version INTEGER PRIMARY KEY,
+			applied_at TEXT NOT NULL
+		);`,
+		`CREATE TABLE artifacts (id TEXT PRIMARY KEY);`,
+		`CREATE TABLE documents (id TEXT PRIMARY KEY);`,
+		`CREATE TABLE snapshots (id TEXT PRIMARY KEY);`,
+		`CREATE TABLE boards (id TEXT PRIMARY KEY);`,
+		`CREATE TABLE derived_thread_dirty_queue (
+			thread_id TEXT PRIMARY KEY,
+			dirty_at TEXT NOT NULL
+		);`,
+		`CREATE TABLE derived_thread_views (
+			thread_id TEXT PRIMARY KEY
+		);`,
+		`CREATE TABLE thread_projection_refresh_status (
+			thread_id TEXT PRIMARY KEY,
+			is_dirty INTEGER NOT NULL DEFAULT 0,
+			in_progress INTEGER NOT NULL DEFAULT 0,
+			queued_at TEXT,
+			started_at TEXT,
+			completed_at TEXT,
+			last_error_at TEXT,
+			last_error TEXT,
+			updated_at TEXT NOT NULL
+		);`,
+	}
+	for _, statement := range statements {
+		if _, err := legacyDB.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("seed legacy schema: %v", err)
+		}
+	}
+	for version := 1; version <= 20; version++ {
+		if _, err := legacyDB.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES (?, ?)`, version, "2026-03-28T00:00:00Z"); err != nil {
+			t.Fatalf("seed schema_migrations: %v", err)
+		}
+	}
+
+	if _, err := legacyDB.ExecContext(ctx, `INSERT INTO derived_thread_views(thread_id) VALUES (?)`, "dirty-thread"); err != nil {
+		t.Fatalf("seed derived_thread_views: %v", err)
+	}
+	if _, err := legacyDB.ExecContext(
+		ctx,
+		`INSERT INTO thread_projection_refresh_status(
+			thread_id, is_dirty, in_progress, queued_at, started_at, completed_at, updated_at
+		) VALUES ('dirty-thread', 1, 0, '2026-03-28T10:02:00Z', NULL, '2026-03-28T10:01:00Z', '2026-03-28T10:02:00Z')`,
+	); err != nil {
+		t.Fatalf("seed legacy thread projection refresh status: %v", err)
+	}
+	if err := legacyDB.Close(); err != nil {
+		t.Fatalf("close legacy sqlite database: %v", err)
+	}
+
+	workspace, err := storage.InitializeWorkspace(ctx, workspaceRoot)
+	if err != nil {
+		t.Fatalf("initialize repaired workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(
+		workspace.DB(),
+		blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir),
+		workspace.Layout().ArtifactContentDir,
+	)
+
+	statuses, err := store.GetThreadProjectionRefreshStatuses(ctx, []string{"dirty-thread"})
+	if err != nil {
+		t.Fatalf("load repaired refresh statuses: %v", err)
+	}
+	status := statuses["dirty-thread"]
+	if status.DesiredGeneration != 1 || status.MaterializedGeneration != 0 || !status.IsDirty() {
+		t.Fatalf("expected dirty-thread to be migrated into generation-based pending state, got %#v", status)
+	}
+
+	var queueEntries int
+	if err := workspace.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM derived_thread_dirty_queue WHERE thread_id = 'dirty-thread'`).Scan(&queueEntries); err != nil {
+		t.Fatalf("count repaired dirty queue entries: %v", err)
+	}
+	if queueEntries != 1 {
+		t.Fatalf("expected repaired dirty-thread to be queued once, got %d entries", queueEntries)
+	}
+
+	assertColumnPresent(t, workspace.DB(), "thread_projection_refresh_status", "desired_generation")
+	assertColumnPresent(t, workspace.DB(), "thread_projection_refresh_status", "materialized_generation")
+	assertColumnPresent(t, workspace.DB(), "thread_projection_refresh_status", "in_progress_generation")
+	assertColumnAbsent(t, workspace.DB(), "thread_projection_refresh_status", "is_dirty")
+	assertColumnAbsent(t, workspace.DB(), "thread_projection_refresh_status", "in_progress")
+}
+
 func TestProjectionQueueStatsAndListingRecoverStrandedGenerationRows(t *testing.T) {
 	t.Parallel()
 

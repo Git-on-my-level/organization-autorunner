@@ -733,6 +733,26 @@ func applyMigrations(ctx context.Context, db *sql.DB) error {
 		}
 	}
 
+	if err := repairAppliedProjectionGenerationSchema(ctx, db); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func repairAppliedProjectionGenerationSchema(ctx context.Context, db *sql.DB) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin projection generation schema repair: %w", err)
+	}
+
+	if err := applyThreadProjectionGenerationMigration(ctx, tx); err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("repair projection generation schema: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit projection generation schema repair: %w", err)
+	}
 	return nil
 }
 
