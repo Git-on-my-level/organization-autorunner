@@ -3770,7 +3770,8 @@ func (a *App) parseBoardCardCreateInput(ctx context.Context, args []string, cfg 
 		return "", nil, err
 	}
 
-	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
+	skipStdin := hasAnyBoardMutationFieldFlags(cardIDFlag, titleFlag, bodyFlag, parentThreadFlag, legacyThreadIDFlag, actorIDFlag, requestKeyFlag, ifBoardUpdatedAtFlag, columnFlag, beforeFlag, afterFlag, assigneeFlag, priorityFlag, statusFlag, pinnedDocumentIDFlag)
+	payload, err := a.readBoardCardBodyInput(fromFileFlag.value, skipStdin)
 	if err != nil {
 		return "", nil, err
 	}
@@ -3912,7 +3913,8 @@ func (a *App) parseBoardCardUpdateInput(ctx context.Context, args []string, cfg 
 		return nil, nil, err
 	}
 
-	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
+	skipStdin := hasAnyBoardMutationFieldFlags(titleFlag, bodyFlag, parentThreadFlag, actorIDFlag, ifBoardUpdatedAtFlag, assigneeFlag, priorityFlag, statusFlag, pinnedDocumentIDFlag, clearPinnedDocumentFlag, clearParentThreadFlag)
+	payload, err := a.readBoardCardBodyInput(fromFileFlag.value, skipStdin)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -4046,7 +4048,8 @@ func (a *App) parseBoardCardMoveInput(ctx context.Context, args []string, cfg co
 	if err := validateID(identifier, "card id"); err != nil {
 		return "", "", nil, err
 	}
-	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
+	skipStdin := hasAnyBoardMutationFieldFlags(actorIDFlag, ifBoardUpdatedAtFlag, columnFlag, beforeCardIDFlag, afterCardIDFlag, beforeThreadIDFlag, afterThreadIDFlag)
+	payload, err := a.readBoardCardBodyInput(fromFileFlag.value, skipStdin)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -4139,7 +4142,8 @@ func (a *App) parseBoardCardArchiveInput(ctx context.Context, args []string, cfg
 		return nil, nil, err
 	}
 
-	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
+	skipStdin := hasAnyBoardMutationFieldFlags(actorIDFlag, ifBoardUpdatedAtFlag)
+	payload, err := a.readBoardCardBodyInput(fromFileFlag.value, skipStdin)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -4321,7 +4325,8 @@ func (a *App) parseBoardCardMutationInput(ctx context.Context, args []string, cf
 		return "", "", nil, err
 	}
 
-	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
+	skipStdin := hasAnyBoardMutationFieldFlags(actorIDFlag, requestKeyFlag, ifBoardUpdatedAtFlag, columnFlag, beforeFlag, afterFlag, pinnedDocumentIDFlag, clearPinnedDocumentFlag)
+	payload, err := a.readBoardCardBodyInput(fromFileFlag.value, skipStdin)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -5822,6 +5827,20 @@ func (a *App) readBodyInput(fromFile string) ([]byte, error) {
 		return nil, errnorm.Wrap(errnorm.KindLocal, "stdin_read_failed", "failed to read stdin", err)
 	}
 	return content, nil
+}
+
+// readBoardCardBodyInput loads JSON from --from-file or stdin. When skipStdin is true and
+// from-file is empty, stdin is not read so flag-only invocations stay safe under non-TTY
+// stdin (for example Make recipes) without blocking or failing stdin probing.
+func (a *App) readBoardCardBodyInput(fromFile string, skipStdin bool) ([]byte, error) {
+	fromFile = strings.TrimSpace(fromFile)
+	if fromFile != "" {
+		return a.readBodyInput(fromFile)
+	}
+	if skipStdin {
+		return nil, nil
+	}
+	return a.readBodyInput("")
 }
 
 func decodeJSONPayload(payload []byte) (any, error) {
