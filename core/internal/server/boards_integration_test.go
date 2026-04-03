@@ -299,6 +299,11 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 	if !containsAllStrings(boardIDs, []string{boardID, secondBoardID}) {
 		t.Fatalf("unexpected board membership board ids: %#v", boardIDs)
 	}
+	for _, membership := range memberThreadWorkspace.BoardMemberships.Items {
+		if asString(membership.Card["thread_id"]) != memberThreadID {
+			t.Fatalf("expected board membership thread_id %q, got %#v", memberThreadID, membership.Card)
+		}
+	}
 }
 
 func TestBoardLifecycleEventsAndConflictValidation(t *testing.T) {
@@ -653,6 +658,14 @@ func TestBoardCardPatchAllowsContractValidNoOpShapes(t *testing.T) {
 	if got := noopPatchPayload.Card["pinned_document_id"]; got != nil {
 		t.Fatalf("expected noop patch to keep pinned document nil, got %#v", got)
 	}
+
+	staleNoopPatchResp := patchJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards/"+memberThreadID, `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+boardUpdatedAt+`",
+		"patch":{}
+	}`, http.StatusConflict)
+	defer staleNoopPatchResp.Body.Close()
+	assertErrorCode(t, staleNoopPatchResp, "conflict")
 
 	futurePatchResp := patchJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards/"+memberThreadID, `{
 		"actor_id":"actor-1",

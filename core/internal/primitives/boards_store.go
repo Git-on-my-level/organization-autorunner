@@ -1435,6 +1435,7 @@ func (s *Store) ListBoardMembershipsByThread(ctx context.Context, threadID strin
 			Card: map[string]any{
 				"board_id":           cardBoardID,
 				"id":                 cardID,
+				"thread_id":          nullableBoardString(parentThreadID.String),
 				"title":              cardTitle,
 				"status":             cardStatus,
 				"column_key":         columnKey,

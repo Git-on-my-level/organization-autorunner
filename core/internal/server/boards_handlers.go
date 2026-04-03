@@ -686,7 +686,19 @@ func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 	if len(changedFields) == 0 {
-		currentBoard, _ := opts.primitiveStore.GetBoard(r.Context(), anyString(beforeCard["board_id"]))
+		currentBoard, err := opts.primitiveStore.GetBoard(r.Context(), anyString(beforeCard["board_id"]))
+		if err != nil {
+			if errors.Is(err, primitives.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "not_found", "board or card not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load board")
+			return
+		}
+		if !boardCardReplayPreconditionMatches(currentBoard, patchInput.IfBoardUpdatedAt) {
+			writeError(w, http.StatusConflict, "conflict", "board has been updated; refresh and retry")
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"board": currentBoard, "card": beforeCard})
 		return
 	}

@@ -438,11 +438,16 @@ func TestBoardStoreMembershipValidationAndLookup(t *testing.T) {
 	}
 
 	columnsByBoard := map[string]string{}
+	threadIDsByBoard := map[string]string{}
 	for _, membership := range memberships {
 		columnsByBoard[membership.Board["id"].(string)] = membership.Card["column_key"].(string)
+		threadIDsByBoard[membership.Board["id"].(string)] = membership.Card["thread_id"].(string)
 	}
 	if columnsByBoard[boardAID] != "backlog" || columnsByBoard[boardBID] != "review" {
 		t.Fatalf("unexpected membership card columns: %#v", columnsByBoard)
+	}
+	if threadIDsByBoard[boardAID] != memberThread || threadIDsByBoard[boardBID] != memberThread {
+		t.Fatalf("unexpected membership card thread ids: %#v", threadIDsByBoard)
 	}
 }
 
