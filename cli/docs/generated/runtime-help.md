@@ -74,10 +74,11 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `boards restore` (command): Restore a tombstoned board
 - `boards purge` (command): Permanently delete a tombstoned board (human-only)
 - `boards cards` (group): Nested generated help topic.
-- `boards cards add` (command): Add existing thread to board as a card
-- `boards cards update` (command): Update board card metadata
+- `boards cards create` (command): Create a versioned board card artifact
+- `boards cards get` (command): Get board card by board-scoped identifier
+- `boards cards update` (command): Update a versioned board card artifact
 - `boards cards move` (command): Move board card across columns or ranks
-- `boards cards remove` (command): Remove board card membership
+- `boards cards archive` (command): Archive a board card artifact
 - `docs list` (command): List documents and their current head metadata
 - `docs create` (command): Create document with initial immutable revision
 - `docs get` (command): Get document and authoritative head revision
@@ -2341,7 +2342,7 @@ Generated Help: boards list
 - Error codes: `invalid_request`
 - Concepts: `boards`, `planning`, `summaries`
 - Agent notes: Safe and idempotent. Use repeatable `label` and `owner` filters to narrow the list server-side. Optional pagination with `q` for search, `limit` for page size, and `cursor` for continuation.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
   - List boards: `oar boards list --json`
   - List active boards for an owner: `oar boards list --status active --owner actor_ceo --json`
@@ -2372,7 +2373,7 @@ Generated Help: boards create
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`
 - Concepts: `boards`, `planning`, `concurrency`
 - Agent notes: Replay-safe when `request_key` is reused with the same body. The primary thread is required and is never created as a card implicitly.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
   - Create board: `oar boards create --from-file board-create.json --json`
 
@@ -2404,7 +2405,7 @@ Generated Help: boards get
 - Error codes: `invalid_request`, `not_found`
 - Concepts: `boards`, `planning`
 - Agent notes: Safe and idempotent.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
   - Get board: `oar boards get --board-id board_product_launch --json`
 
@@ -2432,7 +2433,7 @@ Generated Help: boards update
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
 - Concepts: `boards`, `planning`, `concurrency`
 - Agent notes: Set `if_updated_at` from `boards.get` or `boards.workspace` to avoid lost updates.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards workspace`
 - Examples:
   - Update board metadata: `oar boards update --board-id board_product_launch --from-file board-update.json --json`
 
@@ -2464,7 +2465,7 @@ Generated Help: boards archive
 - Error codes: `invalid_json`, `invalid_request`, `not_found`
 - Concepts: `boards`, `lifecycle`
 - Agent notes: Idempotent; repeated archive calls on the same board are safe. Returns 409 if board is tombstoned.
-- Adjacent commands: `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
   - Archive board: `oar boards archive --board-id board_product_launch --json`
 
@@ -2495,7 +2496,7 @@ Generated Help: boards unarchive
 - Error codes: `invalid_json`, `invalid_request`, `not_found`, `not_archived`
 - Concepts: `boards`, `lifecycle`
 - Agent notes: Returns 409 if the board is not currently archived.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards update`, `boards workspace`
 - Examples:
   - Unarchive board: `oar boards unarchive --board-id board_product_launch --json`
 
@@ -2526,7 +2527,7 @@ Generated Help: boards tombstone
 - Error codes: `invalid_json`, `invalid_request`, `not_found`
 - Concepts: `boards`, `lifecycle`
 - Agent notes: Idempotent; repeated tombstone calls are safe.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
   - Tombstone board: `oar boards tombstone --board-id board_product_launch --reason "initiative closed" --json`
 
@@ -2557,7 +2558,7 @@ Generated Help: boards restore
 - Error codes: `invalid_json`, `invalid_request`, `not_found`, `not_tombstoned`
 - Concepts: `boards`, `lifecycle`
 - Agent notes: Returns 409 if the board is not currently tombstoned.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
   - Restore board: `oar boards restore --board-id board_product_launch --json`
 
@@ -2588,7 +2589,7 @@ Generated Help: boards purge
 - Error codes: `invalid_json`, `not_found`, `not_tombstoned`, `human_only`
 - Concepts: `boards`, `lifecycle`
 - Agent notes: 403 if the caller is not a human principal. 409 if the board is not tombstoned.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
   - Purge board: `oar boards purge --board-id board_product_launch --json`
 
@@ -2610,11 +2611,12 @@ Nested generated help topic.
 Generated Help: boards cards
 
 Commands:
-  boards cards add         Add existing thread to board as a card
+  boards cards archive     Archive a board card artifact
+  boards cards create      Create a versioned board card artifact
+  boards cards get         Get board card by board-scoped identifier
   boards cards list        List ordered board cards
   boards cards move        Move board card across columns or ranks
-  boards cards remove      Remove board card membership
-  boards cards update      Update board card metadata
+  boards cards update      Update a versioned board card artifact
 
 Global flags:
   Global flags can appear before or after the command path.
@@ -2624,62 +2626,91 @@ Global flags:
 Tip: `oar help <command path>` for full command-level generated details.
 ```
 
-## `boards cards add`
+## `boards cards create`
 
-Add existing thread to board as a card
+Create a versioned board card artifact
 
 ```text
-Generated Help: boards cards add
+Generated Help: boards cards create
 
-- Command ID: `boards.cards.add`
-- CLI path: `boards cards add`
+- Command ID: `boards.cards.create`
+- CLI path: `boards cards create`
 - HTTP: `POST /boards/{board_id}/cards`
 - Stability: `beta`
 - Input mode: `json-body`
-- Why: Create explicit board membership for an existing thread with canonical column placement and server-owned rank.
-- Output: Returns `{ board, card }` after membership creation and board concurrency-token advancement.
+- Why: Create a first-class board card artifact, optionally linked to a parent thread, with canonical placement and server-owned rank.
+- Output: Returns `{ board, card }` after card creation and board concurrency-token advancement.
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
 - Concepts: `boards`, `planning`, `ordering`, `concurrency`
-- Agent notes: Replay-safe when `request_key` is reused with the same body. The board primary thread cannot be added as a card.
-- Adjacent commands: `boards archive`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Agent notes: Replay-safe when `request_key` is reused with the same body. Cards may be standalone tasks or wrap an existing thread via `parent_thread`.
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
-  - Add card to backlog: `oar boards cards add --board-id board_product_launch --from-file board-card-add.json --json`
+  - Create standalone board card: `oar boards cards create --board-id board_product_launch --title "Buy groceries" --column backlog --json`
 
 Body schema:
-  Required: thread_id (string)
-  Optional: actor_id (string), after_thread_id (string), before_thread_id (string), column_key (string), if_board_updated_at (datetime), pinned_document_id (string), request_key (string)
-  Enum values: column_key: backlog, blocked, done, in_progress, ready, review
+  Required: none
+  Optional: actor_id (string), after_card_id (string), after_thread_id (string), assignee (any|string), before_card_id (string), before_thread_id (string), body (string), card_id (string), column_key (string), if_board_updated_at (datetime), parent_thread (any|string), pinned_document_id (any|string), priority (any|string), request_key (string), status (string), thread_id (string), title (string)
+  Enum values: column_key: backlog, blocked, done, in_progress, ready, review; status: cancelled, done, in_progress, todo
 
 Global flags:
   Global flags can appear before or after the command path.
-  Examples: oar --json boards cards add ... ; oar boards cards add ... --json
+  Examples: oar --json boards cards create ... ; oar boards cards create ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `boards cards get`
+
+Get board card by board-scoped identifier
+
+```text
+Generated Help: boards cards get
+
+- Command ID: `boards.cards.get`
+- CLI path: `boards cards get`
+- HTTP: `GET /boards/{board_id}/cards/{id}`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Read the current board card artifact plus version history.
+- Output: Returns `{ card }` with embedded version history.
+- Error codes: `invalid_request`, `not_found`
+- Concepts: `boards`, `planning`, `history`
+- Agent notes: The identifier accepts `card_id` and legacy thread-backed cards can still be resolved through their parent thread id.
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Examples:
+  - Get board card: `oar boards cards get --board-id board_product_launch --card-id card_123 --json`
+
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json boards cards get ... ; oar boards cards get ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
 ## `boards cards update`
 
-Update board card metadata
+Update a versioned board card artifact
 
 ```text
 Generated Help: boards cards update
 
 - Command ID: `boards.cards.update`
 - CLI path: `boards cards update`
-- HTTP: `PATCH /boards/{board_id}/cards/{thread_id}`
+- HTTP: `PATCH /cards/{card_id}`
 - Stability: `beta`
 - Input mode: `json-body`
-- Why: Patch mutable board-card metadata, which in v1 is limited to the pinned document convenience link.
-- Output: Returns `{ board, card }` after metadata update and board concurrency-token advancement.
+- Why: Patch mutable board-card fields and record a new card version automatically.
+- Output: Returns `{ board, card }` after the card update and version increment are persisted.
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
-- Concepts: `boards`, `planning`, `docs`, `concurrency`
+- Concepts: `boards`, `planning`, `history`, `concurrency`
 - Agent notes: Set `if_board_updated_at` from the current board read before patching card metadata.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards remove`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
-  - Update pinned document: `oar boards cards update --board-id board_product_launch --thread-id thread_123 --from-file board-card-update.json --json`
+  - Mark card done: `oar boards cards update --card-id card_123 --status done --if-board-updated-at 2026-03-08T00:00:00Z --json`
 
 Body schema:
   Required: if_board_updated_at (datetime)
-  Optional: actor_id (string), patch.pinned_document_id (any|string)
+  Optional: actor_id (string), patch.assignee (any|string), patch.body (string), patch.parent_thread (any|string), patch.pinned_document_id (any|string), patch.priority (any|string), patch.status (string), patch.thread_id (any|string), patch.title (string)
+  Enum values: patch.status: cancelled, done, in_progress, todo
 
 Global flags:
   Global flags can appear before or after the command path.
@@ -2696,7 +2727,7 @@ Generated Help: boards cards move
 
 - Command ID: `boards.cards.move`
 - CLI path: `boards cards move`
-- HTTP: `POST /boards/{board_id}/cards/{thread_id}/move`
+- HTTP: `POST /boards/{board_id}/cards/{id}/move`
 - Stability: `beta`
 - Input mode: `json-body`
 - Why: Request relative placement for a card while keeping rank tokens opaque and server-owned.
@@ -2704,13 +2735,13 @@ Generated Help: boards cards move
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
 - Concepts: `boards`, `planning`, `ordering`, `concurrency`
 - Agent notes: Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards remove`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Adjacent commands: `boards archive`, `boards cards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
-  - Move card into review: `oar boards cards move --board-id board_product_launch --thread-id thread_123 --from-file board-card-move.json --json`
+  - Move card into review: `oar boards cards move --board-id board_product_launch --card-id card_123 --column review --json`
 
 Body schema:
   Required: column_key (string), if_board_updated_at (datetime)
-  Optional: actor_id (string), after_thread_id (string), before_thread_id (string)
+  Optional: actor_id (string), after_card_id (string), after_thread_id (string), before_card_id (string), before_thread_id (string)
   Enum values: column_key: backlog, blocked, done, in_progress, ready, review
 
 Global flags:
@@ -2719,34 +2750,34 @@ Global flags:
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
-## `boards cards remove`
+## `boards cards archive`
 
-Remove board card membership
+Archive a board card artifact
 
 ```text
-Generated Help: boards cards remove
+Generated Help: boards cards archive
 
-- Command ID: `boards.cards.remove`
-- CLI path: `boards cards remove`
-- HTTP: `POST /boards/{board_id}/cards/{thread_id}/remove`
+- Command ID: `boards.cards.archive`
+- CLI path: `boards cards archive`
+- HTTP: `POST /cards/{card_id}/archive`
 - Stability: `beta`
 - Input mode: `json-body`
-- Why: Delete canonical board membership for a card without introducing a separate archived-card lifecycle in v1.
-- Output: Returns `{ board, removed_thread_id }` after membership removal and board concurrency-token advancement.
+- Why: Archive a board card artifact while preserving its version history and board provenance.
+- Output: Returns `{ board, card }` after the card is archived.
 - Error codes: `invalid_json`, `invalid_request`, `unknown_actor_id`, `conflict`, `not_found`
-- Concepts: `boards`, `planning`, `concurrency`
-- Agent notes: Removal deletes canonical membership. Cards are not archived separately in v1.
-- Adjacent commands: `boards archive`, `boards cards add`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
+- Concepts: `boards`, `planning`, `history`, `concurrency`
+- Agent notes: Archive is the v2 replacement for legacy remove semantics. Historical thread-backed cards remain resolvable through old events.
+- Adjacent commands: `boards archive`, `boards cards create`, `boards cards get`, `boards cards list`, `boards cards move`, `boards cards update`, `boards create`, `boards get`, `boards list`, `boards purge`, `boards restore`, `boards tombstone`, `boards unarchive`, `boards update`, `boards workspace`
 - Examples:
-  - Remove board card: `oar boards cards remove --board-id board_product_launch --thread-id thread_123 --from-file board-card-remove.json --json`
+  - Archive card: `oar boards cards archive --card-id card_123 --json`
 
 Body schema:
-  Required: if_board_updated_at (datetime)
-  Optional: actor_id (string)
+  Required: none
+  Optional: actor_id (string), if_board_updated_at (datetime)
 
 Global flags:
   Global flags can appear before or after the command path.
-  Examples: oar --json boards cards remove ... ; oar boards cards remove ... --json
+  Examples: oar --json boards cards archive ... ; oar boards cards archive ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
