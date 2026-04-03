@@ -81,6 +81,8 @@ type MoveBoardCardInput struct {
 	AfterCardID      string
 	BeforeThreadID   string
 	AfterThreadID    string
+	Resolution       *string
+	ResolutionRefs   *[]string
 	IfBoardUpdatedAt *string
 }
 
@@ -1439,20 +1441,35 @@ func (s *Store) MoveBoardCard(ctx context.Context, actorID, boardID, identifier 
 		return BoardCardMutationResult{}, fmt.Errorf("begin board card move transaction: %w", err)
 	}
 
-	boardRow, err := loadBoardRow(ctx, tx, boardID)
-	if err != nil {
-		_ = tx.Rollback()
-		return BoardCardMutationResult{}, err
-	}
-	if err := ensureBoardUpdatedAtMatches(boardRow, input.IfBoardUpdatedAt); err != nil {
-		_ = tx.Rollback()
-		return BoardCardMutationResult{}, err
-	}
 	var cardRow boardCardRow
-	if strings.TrimSpace(boardID) != "" {
-		cardRow, err = s.loadBoardCardByIdentifier(ctx, tx, boardID, identifier, true)
-	} else {
+	var boardRow boardRow
+	if strings.TrimSpace(boardID) == "" {
 		cardRow, err = s.loadBoardCardByGlobalID(ctx, tx, identifier, true)
+		if err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+		boardID = cardRow.BoardID
+		boardRow, err = loadBoardRow(ctx, tx, boardID)
+		if err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+		if err := ensureBoardUpdatedAtMatches(boardRow, input.IfBoardUpdatedAt); err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+	} else {
+		boardRow, err = loadBoardRow(ctx, tx, boardID)
+		if err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+		if err := ensureBoardUpdatedAtMatches(boardRow, input.IfBoardUpdatedAt); err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+		cardRow, err = s.loadBoardCardByIdentifier(ctx, tx, boardID, identifier, true)
 	}
 	if err != nil {
 		_ = tx.Rollback()
@@ -1473,6 +1490,12 @@ func (s *Store) MoveBoardCard(ctx context.Context, actorID, boardID, identifier 
 	}
 
 	rank, err := s.allocateBoardCardRank(ctx, tx, boardID, columnKey, beforeCardID, afterCardID, cardRow.CardID)
+	if err != nil {
+		_ = tx.Rollback()
+		return BoardCardMutationResult{}, err
+	}
+
+	nextResolution, nextResolutionRefsJSON, updateCard, err := resolveBoardCardMoveResolution(cardRow, columnKey, input)
 	if err != nil {
 		_ = tx.Rollback()
 		return BoardCardMutationResult{}, err
@@ -1499,15 +1522,75 @@ func (s *Store) MoveBoardCard(ctx context.Context, actorID, boardID, identifier 
 		return BoardCardMutationResult{}, err
 	}
 
+	if updateCard {
+		nextVersion := cardRow.Version + 1
+		if _, err := tx.ExecContext(
+			ctx,
+			`INSERT INTO card_versions(
+				card_id, version, board_id, thread_id, title, body_markdown, due_at, definition_of_done_json, column_key, rank,
+				parent_thread_id, pinned_document_id, assignee, priority, status, resolution, resolution_refs_json, refs_json,
+				created_at, created_by, provenance_json
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			cardRow.CardID,
+			nextVersion,
+			boardID,
+			firstNonEmpty(cardRow.ThreadID.String, cardRow.ParentThreadID.String),
+			cardRow.Title,
+			cardRow.Body,
+			nullableString(cardRow.DueAt.String),
+			cardRow.DefinitionOfDoneJSON,
+			columnKey,
+			rank,
+			nullableString(cardRow.ParentThreadID.String),
+			nullableString(cardRow.PinnedDocumentID.String),
+			nullableString(cardRow.Assignee.String),
+			nullableString(cardRow.Priority.String),
+			cardRow.Status,
+			nullableString(nextResolution),
+			nextResolutionRefsJSON,
+			cardRow.RefsJSON,
+			now,
+			actorID,
+			cardRow.ProvenanceJSON,
+		); err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, fmt.Errorf("insert board card version: %w", err)
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			`UPDATE cards
+			    SET board_id = ?, thread_id = ?, column_key = ?, rank = ?, version = ?, resolution = ?, resolution_refs_json = ?,
+			        updated_at = ?, updated_by = ?
+			  WHERE id = ?`,
+			boardID,
+			firstNonEmpty(cardRow.ThreadID.String, cardRow.ParentThreadID.String),
+			columnKey,
+			rank,
+			nextVersion,
+			nullableString(nextResolution),
+			nextResolutionRefsJSON,
+			now,
+			actorID,
+			cardRow.CardID,
+		); err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, fmt.Errorf("update board card resolution: %w", err)
+		}
+		cardRow, err = s.loadBoardCardByIdentifier(ctx, tx, boardID, cardRow.CardID, true)
+		if err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+	} else {
+		cardRow.ColumnKey = columnKey
+		cardRow.Rank = rank
+	}
+
 	boardRow, err = touchBoardRow(ctx, tx, boardRow, actorID)
 	if err != nil {
 		_ = tx.Rollback()
 		return BoardCardMutationResult{}, err
 	}
-	cardRow.ColumnKey = columnKey
-	cardRow.Rank = rank
-	cardRow.UpdatedAt = now
-	cardRow.UpdatedBy = actorID
 
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
@@ -3311,6 +3394,62 @@ func validateCardResolution(raw string, allowEmpty bool) error {
 	}
 }
 
+func resolveBoardCardMoveResolution(cardRow boardCardRow, columnKey string, input MoveBoardCardInput) (string, string, bool, error) {
+	columnKey = strings.TrimSpace(columnKey)
+	currentResolution := strings.TrimSpace(cardRow.Resolution.String)
+	if input.Resolution == nil {
+		if columnKey != "done" {
+			if currentResolution != "" {
+				return "", "", false, invalidBoardRequest("resolution must be null when column_key is not done")
+			}
+			return "", "", false, nil
+		}
+		if strings.TrimSpace(cardRow.ColumnKey) == "done" && currentResolution != "" {
+			return currentResolution, cardRow.ResolutionRefsJSON, false, nil
+		}
+		if currentResolution == "" {
+			return "", "", false, invalidBoardRequest("resolution is required when column_key is done")
+		}
+		return "", "", false, invalidBoardRequest("resolution is required when column_key is done")
+	}
+
+	nextResolution := strings.TrimSpace(*input.Resolution)
+	if err := validateCardResolution(nextResolution, false); err != nil {
+		return "", "", false, invalidBoardRequestError(err)
+	}
+	if columnKey != "done" {
+		return "", "", false, invalidBoardRequest("resolution requires column_key done")
+	}
+	if input.ResolutionRefs == nil {
+		return "", "", false, invalidBoardRequest("resolution_refs are required when resolution is set")
+	}
+
+	resolutionRefs := uniqueSortedStrings(*input.ResolutionRefs)
+	if len(resolutionRefs) == 0 {
+		return "", "", false, invalidBoardRequest("resolution_refs are required when resolution is set")
+	}
+	for _, ref := range resolutionRefs {
+		if _, _, ok := normalizeTypedRef(ref); !ok {
+			return "", "", false, invalidBoardRequest(fmt.Sprintf("invalid typed ref %q", strings.TrimSpace(ref)))
+		}
+	}
+	switch nextResolution {
+	case "done":
+		if !containsTypedRefPrefix(resolutionRefs, "artifact") && !containsTypedRefPrefix(resolutionRefs, "event") {
+			return "", "", false, invalidBoardRequest("resolution_refs must include at least one artifact: or event: ref for resolution done")
+		}
+	case "canceled":
+		if !containsTypedRefPrefix(resolutionRefs, "event") {
+			return "", "", false, invalidBoardRequest("resolution_refs must include at least one event: ref for resolution canceled")
+		}
+	}
+	resolutionRefsJSON, err := json.Marshal(resolutionRefs)
+	if err != nil {
+		return "", "", false, fmt.Errorf("marshal card resolution refs: %w", err)
+	}
+	return nextResolution, string(resolutionRefsJSON), true, nil
+}
+
 func normalizeCardResolution(raw *string, status string) string {
 	if raw != nil {
 		return strings.TrimSpace(*raw)
@@ -3334,6 +3473,20 @@ func resolutionFromStatus(status string) string {
 	default:
 		return ""
 	}
+}
+
+func containsTypedRefPrefix(refs []string, prefix string) bool {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return false
+	}
+	for _, ref := range refs {
+		refPrefix, _, ok := normalizeTypedRef(ref)
+		if ok && refPrefix == prefix {
+			return true
+		}
+	}
+	return false
 }
 
 func inferLegacyBoardCardStatus(columnKey string) string {

@@ -654,6 +654,18 @@ export const commandRegistry = [
                 {
                     "name": "move.if_board_updated_at",
                     "type": "datetime"
+                },
+                {
+                    "name": "move.resolution",
+                    "type": "string",
+                    "enum_values": [
+                        "canceled",
+                        "done"
+                    ]
+                },
+                {
+                    "name": "move.resolution_refs",
+                    "type": "list\u003cany\u003e"
                 }
             ]
         },

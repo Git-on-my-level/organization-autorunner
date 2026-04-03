@@ -297,6 +297,100 @@ func TestBoardStoreCardOrderingAndMutations(t *testing.T) {
 	}
 }
 
+func TestBoardStoreMoveCardResolutionTransitions(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	workspace, err := storage.InitializeWorkspace(ctx, t.TempDir())
+	if err != nil {
+		t.Fatalf("initialize workspace: %v", err)
+	}
+	defer workspace.Close()
+
+	store := primitives.NewStore(workspace.DB(), blob.NewFilesystemBackend(workspace.Layout().ArtifactContentDir), workspace.Layout().ArtifactContentDir)
+
+	primaryThreadID := createBoardTestThread(t, ctx, store, "Move primary board thread")
+	cardThreadA := createBoardTestThread(t, ctx, store, "Move card thread A")
+	cardThreadB := createBoardTestThread(t, ctx, store, "Move card thread B")
+
+	board, err := store.CreateBoard(ctx, "actor-1", map[string]any{
+		"title":             "Resolution Board",
+		"primary_thread_id": primaryThreadID,
+	})
+	if err != nil {
+		t.Fatalf("create board: %v", err)
+	}
+	boardID := board["id"].(string)
+
+	addedA, err := store.AddBoardCard(ctx, "actor-2", boardID, primitives.AddBoardCardInput{
+		ThreadID:  cardThreadA,
+		ColumnKey: "review",
+	})
+	if err != nil {
+		t.Fatalf("add board card A: %v", err)
+	}
+	firstMoveBoardUpdatedAt := addedA.Board["updated_at"].(string)
+
+	_, err = store.MoveBoardCard(ctx, "actor-3", boardID, cardThreadA, primitives.MoveBoardCardInput{
+		ColumnKey:        "done",
+		IfBoardUpdatedAt: &firstMoveBoardUpdatedAt,
+	})
+	if !errors.Is(err, primitives.ErrInvalidBoardRequest) {
+		t.Fatalf("expected done move without resolution ErrInvalidBoardRequest, got %v", err)
+	}
+
+	_, err = store.MoveBoardCard(ctx, "actor-3", boardID, cardThreadA, primitives.MoveBoardCardInput{
+		ColumnKey:        "done",
+		Resolution:       stringPtr("done"),
+		IfBoardUpdatedAt: &firstMoveBoardUpdatedAt,
+	})
+	if !errors.Is(err, primitives.ErrInvalidBoardRequest) {
+		t.Fatalf("expected terminal move without evidence ErrInvalidBoardRequest, got %v", err)
+	}
+
+	evidenceRefs := []string{"event:card-completion-1"}
+	movedDone, err := store.MoveBoardCard(ctx, "actor-3", boardID, cardThreadA, primitives.MoveBoardCardInput{
+		ColumnKey:        "done",
+		Resolution:       stringPtr("done"),
+		ResolutionRefs:   &evidenceRefs,
+		IfBoardUpdatedAt: &firstMoveBoardUpdatedAt,
+	})
+	if err != nil {
+		t.Fatalf("move done card with evidence: %v", err)
+	}
+	if movedDone.Card["column_key"] != "done" || movedDone.Card["resolution"] != "done" {
+		t.Fatalf("unexpected terminal move result: %#v", movedDone.Card)
+	}
+	if got := movedDone.Card["resolution_refs"]; !reflect.DeepEqual(got, []any{"event:card-completion-1"}) && !reflect.DeepEqual(got, []string{"event:card-completion-1"}) {
+		t.Fatalf("unexpected resolution refs after done move: %#v", got)
+	}
+	afterDoneBoardUpdatedAt := movedDone.Board["updated_at"].(string)
+
+	addedB, err := store.AddBoardCard(ctx, "actor-2", boardID, primitives.AddBoardCardInput{
+		ThreadID:         cardThreadB,
+		ColumnKey:        "ready",
+		IfBoardUpdatedAt: &afterDoneBoardUpdatedAt,
+	})
+	if err != nil {
+		t.Fatalf("add board card B: %v", err)
+	}
+	afterAddBoardUpdatedAt := addedB.Board["updated_at"].(string)
+
+	cancelRefs := []string{"event:card-canceled-1"}
+	movedCanceled, err := store.MoveBoardCard(ctx, "actor-3", boardID, cardThreadB, primitives.MoveBoardCardInput{
+		ColumnKey:        "done",
+		Resolution:       stringPtr("canceled"),
+		ResolutionRefs:   &cancelRefs,
+		IfBoardUpdatedAt: &afterAddBoardUpdatedAt,
+	})
+	if err != nil {
+		t.Fatalf("move canceled card with evidence: %v", err)
+	}
+	if movedCanceled.Card["resolution"] != "canceled" {
+		t.Fatalf("unexpected canceled resolution result: %#v", movedCanceled.Card)
+	}
+}
+
 func TestBoardStoreArchiveBoardCardByGlobalID(t *testing.T) {
 	t.Parallel()
 
@@ -662,4 +756,8 @@ func sameStringSet(left, right []string) bool {
 
 func sleepBoardTick() {
 	time.Sleep(2 * time.Millisecond)
+}
+
+func stringPtr(value string) *string {
+	return &value
 }

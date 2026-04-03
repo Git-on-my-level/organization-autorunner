@@ -780,19 +780,25 @@ func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 }
 
 func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, cardKey string) {
+	handleMoveCardMutation(w, r, opts, boardID, cardKey, "board or card not found")
+}
+
+func handleMoveCardMutation(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, cardKey, notFoundMessage string) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
 		return
 	}
 
 	var req struct {
-		ActorID          string  `json:"actor_id"`
-		IfBoardUpdatedAt *string `json:"if_board_updated_at"`
-		ColumnKey        string  `json:"column_key"`
-		BeforeCardID     string  `json:"before_card_id"`
-		AfterCardID      string  `json:"after_card_id"`
-		BeforeThreadID   string  `json:"before_thread_id"`
-		AfterThreadID    string  `json:"after_thread_id"`
+		ActorID          string   `json:"actor_id"`
+		IfBoardUpdatedAt *string  `json:"if_board_updated_at"`
+		ColumnKey        string   `json:"column_key"`
+		BeforeCardID     string   `json:"before_card_id"`
+		AfterCardID      string   `json:"after_card_id"`
+		BeforeThreadID   string   `json:"before_thread_id"`
+		AfterThreadID    string   `json:"after_thread_id"`
+		Resolution       *string  `json:"resolution"`
+		ResolutionRefs   []string `json:"resolution_refs"`
 	}
 	if !decodeJSONBody(w, r, &req) {
 		return
@@ -813,6 +819,37 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
+	if req.Resolution != nil {
+		normalizedResolution := strings.TrimSpace(*req.Resolution)
+		if err := validateCardResolution(normalizedResolution, false); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		req.Resolution = &normalizedResolution
+	}
+	req.ResolutionRefs = uniqueSortedStrings(req.ResolutionRefs)
+	if req.Resolution == nil && len(req.ResolutionRefs) > 0 {
+		writeError(w, http.StatusBadRequest, "invalid_request", "resolution_refs require resolution")
+		return
+	}
+	if req.Resolution != nil && strings.TrimSpace(req.ColumnKey) != "done" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "resolution requires column_key done")
+		return
+	}
+	if req.Resolution != nil {
+		if len(req.ResolutionRefs) == 0 {
+			writeError(w, http.StatusBadRequest, "invalid_request", "resolution_refs are required when resolution is set")
+			return
+		}
+		if err := schema.ValidateTypedRefs(opts.contract, req.ResolutionRefs); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		if err := validateMoveCardResolutionRefs(*req.Resolution, req.ResolutionRefs); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+	}
 
 	actorID, ok := resolveWriteActorID(w, r, opts, req.ActorID)
 	if !ok {
@@ -822,7 +859,7 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 	beforeCard, err := loadBoardCardForEvent(r.Context(), opts, boardID, cardKey)
 	if err != nil {
 		if errors.Is(err, primitives.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "not_found", "board or card not found")
+			writeError(w, http.StatusNotFound, "not_found", notFoundMessage)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load board card")
@@ -835,6 +872,8 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		AfterCardID:      strings.TrimSpace(req.AfterCardID),
 		BeforeThreadID:   strings.TrimSpace(req.BeforeThreadID),
 		AfterThreadID:    strings.TrimSpace(req.AfterThreadID),
+		Resolution:       req.Resolution,
+		ResolutionRefs:   &req.ResolutionRefs,
 		IfBoardUpdatedAt: &ifBoardUpdatedAt,
 	})
 	if err != nil {
@@ -852,6 +891,9 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 	}
 
 	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardMovedEvent(result.Board, beforeCard, result.Card, req.BeforeCardID, req.AfterCardID, req.BeforeThreadID, req.AfterThreadID))
+	if anyString(result.Card["updated_at"]) != anyString(beforeCard["updated_at"]) || anyString(result.Card["version"]) != anyString(beforeCard["version"]) {
+		emitCardLifecycleEventBestEffort(r.Context(), opts, actorID, buildCardUpdatedEvent(result.Board, beforeCard, result.Card, []string{"resolution", "resolution_refs"}))
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"board": result.Board, "card": result.Card})
 }
@@ -1905,6 +1947,26 @@ func validateCardResolution(resolution string, allowEmpty bool) error {
 	}
 }
 
+func validateMoveCardResolutionRefs(resolution string, resolutionRefs []string) error {
+	resolution = strings.TrimSpace(resolution)
+	if len(resolutionRefs) == 0 {
+		return errors.New("resolution_refs are required when resolution is set")
+	}
+	switch resolution {
+	case "done":
+		if !containsTypedRefPrefix(resolutionRefs, "artifact") && !containsTypedRefPrefix(resolutionRefs, "event") {
+			return errors.New("resolution_refs must include at least one artifact: or event: ref for resolution done")
+		}
+	case "canceled":
+		if !containsTypedRefPrefix(resolutionRefs, "event") {
+			return errors.New("resolution_refs must include at least one event: ref for resolution canceled")
+		}
+	default:
+		return errors.New("resolution must be one of: done, canceled")
+	}
+	return nil
+}
+
 func collectBoardWorkspaceThreadIDs(primaryThreadID string, board map[string]any, cards []map[string]any) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(cards)+1)
@@ -2088,6 +2150,20 @@ func uniqueSortedStrings(values []string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func containsTypedRefPrefix(refs []string, prefix string) bool {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return false
+	}
+	for _, ref := range refs {
+		refPrefix, _, err := schema.SplitTypedRef(strings.TrimSpace(ref))
+		if err == nil && refPrefix == prefix {
+			return true
+		}
+	}
+	return false
 }
 
 func boardCardDerivedSummary(threadID string, states map[string]threadProjectionState) any {

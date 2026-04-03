@@ -97,6 +97,10 @@ func handlePatchCard(w http.ResponseWriter, r *http.Request, opts handlerOptions
 	writeJSON(w, http.StatusOK, map[string]any{"card": result.Card})
 }
 
+func handleMoveCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, cardID string) {
+	handleMoveCardMutation(w, r, opts, "", cardID, "card not found")
+}
+
 func handleArchiveCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, cardID string) {
 	handleArchiveBoardCard(w, r, opts, "", cardID)
 }

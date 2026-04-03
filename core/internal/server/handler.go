@@ -1785,7 +1785,13 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
 				return
 			}
-			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
+			cardID := strings.TrimSuffix(remainder, "/move")
+			cardID = strings.TrimSuffix(cardID, "/")
+			if cardID == "" || strings.Contains(cardID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleMoveCard(w, r, opts, cardID)
 			return
 		}
 		if strings.Contains(remainder, "/") {

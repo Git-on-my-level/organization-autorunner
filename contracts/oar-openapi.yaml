@@ -1717,6 +1717,12 @@ components:
           enum: [backlog, ready, in_progress, blocked, review, done]
         before_card_ref: { $ref: '#/components/schemas/TypedRef' }
         after_card_ref: { $ref: '#/components/schemas/TypedRef' }
+        resolution:
+          type: string
+          enum: [done, canceled]
+        resolution_refs:
+          type: array
+          items: { $ref: '#/components/schemas/TypedRef' }
         if_board_updated_at:
           type: string
           format: date-time

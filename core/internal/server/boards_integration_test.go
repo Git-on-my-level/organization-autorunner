@@ -966,6 +966,175 @@ func TestBoardCardMoveRejectsInvalidPlacementAnchors(t *testing.T) {
 	}`, "before and after anchors are mutually exclusive")
 }
 
+func TestCardMoveResolutionTransitionsAndEvents(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-1","display_name":"Actor One","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	primaryThreadID := createBoardThreadViaHTTP(t, h, "Move primary thread")
+	memberThreadID := createBoardThreadViaHTTP(t, h, "Move member thread")
+
+	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
+		"actor_id":"actor-1",
+		"board":{
+			"title":"Move resolution board",
+			"primary_thread_id":"`+primaryThreadID+`"
+		}
+	}`, http.StatusCreated)
+	defer createBoardResp.Body.Close()
+	var createBoardPayload struct {
+		Board map[string]any `json:"board"`
+	}
+	if err := json.NewDecoder(createBoardResp.Body).Decode(&createBoardPayload); err != nil {
+		t.Fatalf("decode create board response: %v", err)
+	}
+	boardID := asString(createBoardPayload.Board["id"])
+	boardUpdatedAt := asString(createBoardPayload.Board["updated_at"])
+
+	addResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+boardUpdatedAt+`",
+		"thread_id":"`+memberThreadID+`",
+		"column_key":"review"
+	}`, http.StatusCreated)
+	defer addResp.Body.Close()
+	var addPayload struct {
+		Board map[string]any `json:"board"`
+		Card  map[string]any `json:"card"`
+	}
+	if err := json.NewDecoder(addResp.Body).Decode(&addPayload); err != nil {
+		t.Fatalf("decode add card response: %v", err)
+	}
+	cardID := asString(addPayload.Card["id"])
+	cardThreadID := asString(addPayload.Card["thread_id"])
+	moveBase := h.baseURL + "/cards/" + cardID + "/move"
+
+	doneMoveResp := postJSONExpectStatus(t, moveBase, `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+asString(addPayload.Board["updated_at"])+`",
+		"column_key":"done",
+		"resolution":"done",
+		"resolution_refs":["event:card-completion-1"]
+	}`, http.StatusOK)
+	defer doneMoveResp.Body.Close()
+	var doneMovePayload struct {
+		Board map[string]any `json:"board"`
+		Card  map[string]any `json:"card"`
+	}
+	if err := json.NewDecoder(doneMoveResp.Body).Decode(&doneMovePayload); err != nil {
+		t.Fatalf("decode done move response: %v", err)
+	}
+	if asString(doneMovePayload.Card["column_key"]) != "done" {
+		t.Fatalf("expected card to move into done, got %#v", doneMovePayload.Card["column_key"])
+	}
+	if asString(doneMovePayload.Card["resolution"]) != "done" {
+		t.Fatalf("expected card resolution done, got %#v", doneMovePayload.Card["resolution"])
+	}
+	if !containsAny(doneMovePayload.Card["resolution_refs"].([]any), "event:card-completion-1") {
+		t.Fatalf("expected terminal evidence ref on moved card, got %#v", doneMovePayload.Card["resolution_refs"])
+	}
+
+	staleMoveResp := postJSONExpectStatus(t, moveBase, `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+boardUpdatedAt+`",
+		"column_key":"review"
+	}`, http.StatusConflict)
+	defer staleMoveResp.Body.Close()
+	assertErrorCode(t, staleMoveResp, "conflict")
+
+	cancelThreadID := createBoardThreadViaHTTP(t, h, "Cancel member thread")
+	cancelAddResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+asString(doneMovePayload.Board["updated_at"])+`",
+		"thread_id":"`+cancelThreadID+`",
+		"column_key":"ready"
+	}`, http.StatusCreated)
+	defer cancelAddResp.Body.Close()
+	var cancelAddPayload struct {
+		Board map[string]any `json:"board"`
+		Card  map[string]any `json:"card"`
+	}
+	if err := json.NewDecoder(cancelAddResp.Body).Decode(&cancelAddPayload); err != nil {
+		t.Fatalf("decode cancel add response: %v", err)
+	}
+	cancelCardID := asString(cancelAddPayload.Card["id"])
+	cancelMoveResp := postJSONExpectStatus(t, h.baseURL+"/cards/"+cancelCardID+"/move", `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+asString(cancelAddPayload.Board["updated_at"])+`",
+		"column_key":"done",
+		"resolution":"canceled",
+		"resolution_refs":["event:card-canceled-1"]
+	}`, http.StatusOK)
+	defer cancelMoveResp.Body.Close()
+	var cancelMovePayload struct {
+		Board map[string]any `json:"board"`
+		Card  map[string]any `json:"card"`
+	}
+	if err := json.NewDecoder(cancelMoveResp.Body).Decode(&cancelMovePayload); err != nil {
+		t.Fatalf("decode canceled move response: %v", err)
+	}
+	if asString(cancelMovePayload.Card["resolution"]) != "canceled" {
+		t.Fatalf("expected canceled resolution, got %#v", cancelMovePayload.Card["resolution"])
+	}
+
+	boardTimelineResp, err := http.Get(h.baseURL + "/threads/" + boardID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET board timeline: %v", err)
+	}
+	defer boardTimelineResp.Body.Close()
+	if boardTimelineResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected board timeline status: got %d", boardTimelineResp.StatusCode)
+	}
+	var boardTimelinePayload struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(boardTimelineResp.Body).Decode(&boardTimelinePayload); err != nil {
+		t.Fatalf("decode board timeline response: %v", err)
+	}
+	var boardMovedEvent map[string]any
+	for _, event := range boardTimelinePayload.Events {
+		if asString(event["type"]) == "board_card_moved" {
+			boardMovedEvent = event
+			break
+		}
+	}
+	if boardMovedEvent == nil {
+		t.Fatalf("expected board_card_moved event in board timeline, got %#v", boardTimelinePayload.Events)
+	}
+	if !containsAny(boardMovedEvent["refs"].([]any), "board:"+boardID) || !containsAny(boardMovedEvent["refs"].([]any), "card:"+cardID) {
+		t.Fatalf("expected board and card refs on board_card_moved, got %#v", boardMovedEvent["refs"])
+	}
+
+	cardTimelineResp, err := http.Get(h.baseURL + "/threads/" + cardThreadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET card timeline: %v", err)
+	}
+	defer cardTimelineResp.Body.Close()
+	if cardTimelineResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected card timeline status: got %d", cardTimelineResp.StatusCode)
+	}
+	var cardTimelinePayload struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(cardTimelineResp.Body).Decode(&cardTimelinePayload); err != nil {
+		t.Fatalf("decode card timeline response: %v", err)
+	}
+	var cardUpdatedEvent map[string]any
+	for _, event := range cardTimelinePayload.Events {
+		if asString(event["type"]) == "card_updated" {
+			cardUpdatedEvent = event
+			break
+		}
+	}
+	if cardUpdatedEvent == nil {
+		t.Fatalf("expected card_updated event in card timeline, got %#v", cardTimelinePayload.Events)
+	}
+	if !containsAny(cardUpdatedEvent["refs"].([]any), "board:"+boardID) || !containsAny(cardUpdatedEvent["refs"].([]any), "card:"+cardID) {
+		t.Fatalf("expected board and card refs on card_updated, got %#v", cardUpdatedEvent["refs"])
+	}
+}
+
 func createBoardThreadViaHTTP(t *testing.T, h primitivesTestHarness, title string) string {
 	t.Helper()
 
