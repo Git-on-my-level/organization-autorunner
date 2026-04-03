@@ -653,6 +653,7 @@ func TestBoardCardPatchAllowsContractValidNoOpShapes(t *testing.T) {
 		t.Fatalf("decode add card response: %v", err)
 	}
 	cardUpdatedAt := asString(addCardPayload.Board["updated_at"])
+	cardStatus := asString(addCardPayload.Card["status"])
 
 	noopPatchResp := patchJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards/"+memberThreadID, `{
 		"actor_id":"actor-1",
@@ -704,6 +705,27 @@ func TestBoardCardPatchAllowsContractValidNoOpShapes(t *testing.T) {
 		t.Fatalf("expected unknown-field patch to keep pinned document nil, got %#v", got)
 	}
 
+	sameValuePatchResp := patchJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards/"+memberThreadID, `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+cardUpdatedAt+`",
+		"patch":{"status":"`+cardStatus+`"}
+	}`, http.StatusOK)
+	defer sameValuePatchResp.Body.Close()
+
+	var sameValuePatchPayload struct {
+		Board map[string]any `json:"board"`
+		Card  map[string]any `json:"card"`
+	}
+	if err := json.NewDecoder(sameValuePatchResp.Body).Decode(&sameValuePatchPayload); err != nil {
+		t.Fatalf("decode same-value patch response: %v", err)
+	}
+	if asString(sameValuePatchPayload.Board["updated_at"]) != cardUpdatedAt {
+		t.Fatalf("expected same-value patch to keep board updated_at, got %#v want %#v", sameValuePatchPayload.Board["updated_at"], cardUpdatedAt)
+	}
+	if asString(sameValuePatchPayload.Card["status"]) != cardStatus {
+		t.Fatalf("expected same-value patch to keep status %q, got %#v", cardStatus, sameValuePatchPayload.Card["status"])
+	}
+
 	mismatchedAliasResp := patchJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards/"+memberThreadID, `{
 		"actor_id":"actor-1",
 		"if_board_updated_at":"`+cardUpdatedAt+`",
@@ -711,6 +733,27 @@ func TestBoardCardPatchAllowsContractValidNoOpShapes(t *testing.T) {
 	}`, http.StatusBadRequest)
 	defer mismatchedAliasResp.Body.Close()
 	assertErrorCode(t, mismatchedAliasResp, "invalid_request")
+
+	timelineResp, err := http.Get(h.baseURL + "/threads/" + primaryThreadID + "/timeline")
+	if err != nil {
+		t.Fatalf("GET /threads/{id}/timeline: %v", err)
+	}
+	defer timelineResp.Body.Close()
+	if timelineResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline status: got %d", timelineResp.StatusCode)
+	}
+	var timelinePayload struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(timelineResp.Body).Decode(&timelinePayload); err != nil {
+		t.Fatalf("decode timeline response: %v", err)
+	}
+	assertTimelineStableOrder(t, timelinePayload.Events)
+	for _, event := range timelinePayload.Events {
+		if asString(event["type"]) == "board_card_updated" {
+			t.Fatalf("expected semantic no-op patches to avoid board_card_updated events, got %#v", timelinePayload.Events)
+		}
+	}
 }
 
 func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) {
@@ -743,12 +786,34 @@ func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) 
 
 	firstAddResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
 		"actor_id":"actor-1",
+		"request_key":"retry-derived-id-add",
 		"if_board_updated_at":"`+initialBoardUpdatedAt+`",
 		"thread_id":"`+memberThreadID+`",
 		"column_key":"ready",
 		"pinned_document_id":"`+memberDocumentID+`"
 	}`, http.StatusCreated)
 	defer firstAddResp.Body.Close()
+
+	retryFirstAddResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
+		"actor_id":"actor-1",
+		"request_key":"retry-derived-id-add",
+		"if_board_updated_at":"`+initialBoardUpdatedAt+`",
+		"thread_id":"`+memberThreadID+`",
+		"column_key":"ready",
+		"pinned_document_id":"`+memberDocumentID+`"
+	}`, http.StatusCreated)
+	defer retryFirstAddResp.Body.Close()
+
+	var retryFirstAddPayload struct {
+		Board map[string]any `json:"board"`
+		Card  map[string]any `json:"card"`
+	}
+	if err := json.NewDecoder(retryFirstAddResp.Body).Decode(&retryFirstAddPayload); err != nil {
+		t.Fatalf("decode retried first add response: %v", err)
+	}
+	if asString(retryFirstAddPayload.Card["thread_id"]) != memberThreadID || asString(retryFirstAddPayload.Card["column_key"]) != "ready" || asString(retryFirstAddPayload.Card["pinned_document_id"]) != memberDocumentID {
+		t.Fatalf("unexpected retried first add payload: %#v", retryFirstAddPayload)
+	}
 
 	replayableAddResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
 		"actor_id":"actor-1",

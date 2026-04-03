@@ -528,7 +528,8 @@ func handleAddBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		return
 	}
 
-	replayStatus, replayPayload, replayed, err := readIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.cards.add", actorID, req.RequestKey, req)
+	replayRequest := req
+	replayStatus, replayPayload, replayed, err := readIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.cards.add", actorID, req.RequestKey, replayRequest)
 	if writeIdempotencyError(w, err) {
 		return
 	}
@@ -595,7 +596,7 @@ func handleAddBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpti
 				req.PinnedDocumentID,
 			) {
 				response := map[string]any{"board": existingBoard, "card": existingCard}
-				status, payload, replayErr := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.cards.add", actorID, req.RequestKey, req, http.StatusCreated, response)
+				status, payload, replayErr := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.cards.add", actorID, req.RequestKey, replayRequest, http.StatusCreated, response)
 				if writeIdempotencyError(w, replayErr) {
 					return
 				}
@@ -625,7 +626,7 @@ func handleAddBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpti
 	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardCreatedEvent(result.Board, result.Card))
 	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildLegacyBoardCardAddedEvent(result.Board, result.Card))
 
-	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.cards.add", actorID, req.RequestKey, req, http.StatusCreated, map[string]any{
+	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "boards.cards.add", actorID, req.RequestKey, replayRequest, http.StatusCreated, map[string]any{
 		"board": result.Board,
 		"card":  result.Card,
 	})
@@ -718,7 +719,9 @@ func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 
-	emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardUpdatedEvent(result.Board, beforeCard, result.Card, changedFields))
+	if anyString(result.Card["updated_at"]) != anyString(beforeCard["updated_at"]) || anyString(result.Card["version"]) != anyString(beforeCard["version"]) {
+		emitBoardLifecycleEventBestEffort(r.Context(), opts, actorID, buildBoardCardUpdatedEvent(result.Board, beforeCard, result.Card, changedFields))
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"board": result.Board, "card": result.Card})
 }
