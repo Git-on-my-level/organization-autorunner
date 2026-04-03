@@ -150,6 +150,7 @@ type handlerOptions struct {
 	humanAuthMode                  string
 	controlPlaneHumanVerifier      *controlplaneauth.WorkspaceHumanVerifier
 	workspaceServiceIdentity       *controlplaneauth.WorkspaceServiceIdentity
+	workspaceID                    string
 	readinessChecks                []namedReadinessCheck
 	opsHealthSections              map[string]OpsHealthSectionFunc
 }
@@ -330,6 +331,12 @@ func WithControlPlaneHumanVerifier(verifier *controlplaneauth.WorkspaceHumanVeri
 func WithWorkspaceServiceIdentity(identity *controlplaneauth.WorkspaceServiceIdentity) HandlerOption {
 	return func(opts *handlerOptions) {
 		opts.workspaceServiceIdentity = identity
+	}
+}
+
+func WithWorkspaceID(workspaceID string) HandlerOption {
+	return func(opts *handlerOptions) {
+		opts.workspaceID = strings.TrimSpace(workspaceID)
 	}
 }
 
