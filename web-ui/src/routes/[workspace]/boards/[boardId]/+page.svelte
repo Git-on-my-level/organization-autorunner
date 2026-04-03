@@ -23,6 +23,8 @@
     boardCardLinkedThreadId,
     boardCardStableId,
     boardColumnTitle,
+    cardPriorityTagColor,
+    cardStatusTagColor,
     freshnessStatusLabel,
     freshnessStatusTone,
     groupBoardWorkspaceCards,
@@ -42,7 +44,7 @@
   let showAddCardForm = $state(false);
   let updatingBoard = $state(false);
   let addingCard = $state(false);
-  let expandedCardId = $state("");
+  let modalCardId = $state("");
   let mutatingCardId = $state("");
   let backlogOpen = $state(false);
   let doneOpen = $state(false);
@@ -141,17 +143,15 @@
     showAddCardForm = !showAddCardForm;
   }
 
-  function openCardManager(cardItem) {
-    const cardKey = boardCardStableId(cardItem.membership);
-    if (expandedCardId === cardKey) {
-      expandedCardId = "";
-      return;
-    }
-
-    expandedCardId = cardKey;
+  function openCardModal(cardItem) {
+    modalCardId = boardCardStableId(cardItem.membership);
     manageMoveColumnKey = cardItem.membership.column_key;
     managePinnedDocumentId = cardItem.membership.pinned_document_id ?? "";
     mutationError = "";
+  }
+
+  function closeCardModal() {
+    modalCardId = "";
   }
 
   function cardCommitments(threadId) {
@@ -232,7 +232,7 @@
 
       if (options.closeBoardEdit) showBoardEditForm = false;
       if (options.closeAddCard) showAddCardForm = false;
-      if (options.closeCardManager) expandedCardId = "";
+      if (options.closeCardManager) modalCardId = "";
 
       mutationNotice = successMessage;
     } catch (e) {
@@ -457,6 +457,20 @@
   $effect(() => {
     boardId;
     confirmModal = { open: false, action: "" };
+    modalCardId = "";
+  });
+
+  $effect(() => {
+    if (!modalCardId) return;
+    function onKeydown(e) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeCardModal();
+      }
+    }
+    document.addEventListener("keydown", onKeydown, true);
+    return () => document.removeEventListener("keydown", onKeydown, true);
   });
 
   async function handleArchiveBoard() {
@@ -968,20 +982,21 @@
     {@const thread = backing?.thread}
     {@const linkedThreadId = boardCardLinkedThreadId(membership)}
     {@const hasResolvedThread = Boolean(thread)}
-    {@const showThreadNav = hasResolvedThread && Boolean(linkedThreadId)}
     {@const hasThreadLink = Boolean(linkedThreadId)}
     {@const cardRowId = boardCardStableId(membership)}
     {@const rowStatus = boardCardRowStatus(membership, thread)}
     {@const headerTitle = boardCardHeaderTitle(membership, thread)}
-    {@const cardFreshness = derived?.freshness}
-    {@const derivedCurrent = isFreshnessCurrent(cardFreshness)}
+    {@const derivedCurrent = isFreshnessCurrent(derived?.freshness)}
     {@const summary = derived?.summary}
     {@const cardBody = String(membership?.body ?? "").trim()}
     {@const assigneeId = String(membership?.assignee ?? "").trim()}
     {@const cardPriority = String(membership?.priority ?? "").trim()}
     {@const cardStatusLabel = String(membership?.status ?? "").trim()}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="group rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] transition-colors hover:border-[var(--ui-border-strong)]"
+      class="group cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] transition-colors hover:border-[var(--ui-border-strong)]"
+      onclick={() => openCardModal(cardItem)}
     >
       <div class="px-2.5 py-2">
         <div class="flex items-start gap-2">
@@ -991,324 +1006,81 @@
               rowStatus,
             )}"
           ></span>
-          {#if showThreadNav}
-            <a
-              class="block min-w-0 flex-1 text-[13px] font-medium leading-snug transition-colors hover:text-indigo-300 {threadStatusColor(
-                rowStatus,
-              )}"
-              href={workspaceHref(
-                `/threads/${encodeURIComponent(linkedThreadId)}`,
-              )}
-            >
-              {headerTitle}
-            </a>
-          {:else}
-            <span
-              class="block min-w-0 flex-1 text-[13px] font-medium leading-snug {threadStatusColor(
-                rowStatus,
-              )}"
-            >
-              {headerTitle}
-            </span>
-          {/if}
+          <span
+            class="block min-w-0 flex-1 text-[13px] font-medium leading-snug {threadStatusColor(
+              rowStatus,
+            )}"
+          >
+            {headerTitle}
+          </span>
         </div>
 
-        <div class="mt-1 flex flex-wrap items-center gap-1 pl-4">
-          {#if cardStatusLabel}
-            <span
-              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--ui-text-muted)]"
-            >
-              {cardStatusLabel}
-            </span>
-          {/if}
-          {#if cardPriority}
-            <span
-              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] font-medium text-[var(--ui-text-muted)]"
-            >
-              {cardPriority}
-            </span>
-          {/if}
-        </div>
-
-        <div class="mt-1 pl-4 text-[11px] text-[var(--ui-text-muted)]">
-          {#if hasThreadLink}
-            {thread?.status || cardStatusLabel || "—"} · {thread?.priority ||
-              cardPriority ||
-              "—"} · Added {formatTimestamp(membership.created_at)}
-          {:else}
-            {cardStatusLabel || "—"} · {cardPriority || "—"} · Added {formatTimestamp(
-              membership.created_at,
-            )}
-          {/if}
-        </div>
-
-        {#if assigneeId}
-          <div class="mt-1 pl-4 text-[11px] text-[var(--ui-text-subtle)]">
-            {actorName(assigneeId)}
+        {#if cardStatusLabel || cardPriority}
+          <div class="mt-1.5 flex flex-wrap items-center gap-1 pl-4">
+            {#if cardStatusLabel}
+              <span
+                class="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide {cardStatusTagColor(
+                  cardStatusLabel,
+                )}"
+              >
+                {cardStatusLabel}
+              </span>
+            {/if}
+            {#if cardPriority}
+              <span
+                class="rounded px-1.5 py-0.5 text-[10px] font-medium {cardPriorityTagColor(
+                  cardPriority,
+                )}"
+              >
+                {cardPriority}
+              </span>
+            {/if}
           </div>
         {/if}
 
         {#if cardBody}
           <p
-            class="mt-1.5 pl-4 text-[12px] leading-snug text-[var(--ui-text-muted)] whitespace-pre-wrap"
+            class="mt-1.5 pl-4 text-[12px] leading-snug text-[var(--ui-text-muted)] line-clamp-2"
           >
             {cardBody}
           </p>
         {/if}
 
-        <div class="mt-1.5 flex flex-wrap gap-1 pl-4">
-          {#if hasThreadLink && hasResolvedThread}
-            <span
-              class="rounded px-1 py-0.5 text-[11px] {freshnessStatusTone(
-                cardFreshness?.status,
-              )}"
-            >
-              {freshnessStatusLabel(cardFreshness?.status)}
-            </span>
-            {#if derivedCurrent}
-              {#if (summary?.open_commitment_count ?? 0) > 0}
-                <span
-                  class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
-                >
-                  {summary.open_commitment_count} open {summary.open_commitment_count ===
-                  1
-                    ? "commitment"
-                    : "commitments"}
-                </span>
-              {/if}
+        {#if assigneeId || (hasThreadLink && hasResolvedThread && derivedCurrent)}
+          <div
+            class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 pl-4 text-[11px]"
+          >
+            {#if assigneeId}
+              <span class="text-[var(--ui-text-subtle)]"
+                >{actorName(assigneeId)}</span
+              >
+            {/if}
+            {#if hasThreadLink && hasResolvedThread && derivedCurrent}
               {#if (summary?.inbox_count ?? 0) > 0}
                 <span
-                  class="rounded bg-amber-500/10 px-1 py-0.5 text-[11px] text-amber-400"
+                  class="rounded bg-amber-500/10 px-1 py-0.5 text-[10px] text-amber-400"
                 >
                   {summary.inbox_count} inbox
                 </span>
               {/if}
-              {#if (summary?.decision_request_count ?? 0) > 0}
+              {#if (summary?.open_commitment_count ?? 0) > 0}
                 <span
-                  class="rounded bg-indigo-500/10 px-1 py-0.5 text-[11px] text-indigo-400"
+                  class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
                 >
-                  {summary.decision_request_count} decisions
+                  {summary.open_commitment_count} open
                 </span>
               {/if}
-              <span
-                class="rounded px-1 py-0.5 text-[11px] {staleBadgeClass(
-                  Boolean(summary?.stale),
-                )}"
-              >
-                {summary?.stale ? "Thread stale" : "Fresh check-in"}
-              </span>
-            {:else}
-              <span
-                class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-subtle)]"
-              >
-                Derived counts hidden until refresh completes
-              </span>
+              {#if summary?.stale}
+                <span
+                  class="rounded bg-red-500/10 px-1 py-0.5 text-[10px] text-red-300"
+                >
+                  Stale
+                </span>
+              {/if}
             {/if}
-          {:else if hasThreadLink && !hasResolvedThread}
-            <span
-              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-subtle)]"
-            >
-              Thread linked — snapshot not loaded for this workspace
-            </span>
-          {:else}
-            <span
-              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-subtle)]"
-            >
-              Standalone card — thread-linked scan not shown
-            </span>
-          {/if}
-        </div>
-
-        {#if backing?.pinned_document}
-          <div class="mt-1.5 pl-4">
-            <a
-              aria-label={`Pinned doc ${backing.pinned_document.title || backing.pinned_document.id}`}
-              class="inline-block rounded bg-indigo-500/10 px-1.5 py-0.5 text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
-              href={workspaceHref(
-                `/docs/${encodeURIComponent(backing.pinned_document.id)}`,
-              )}
-            >
-              {backing.pinned_document.title || backing.pinned_document.id}
-            </a>
           </div>
         {/if}
-
-        <div class="mt-2 flex justify-end">
-          <button
-            aria-label={`Manage ${headerTitle}`}
-            class="rounded px-1.5 py-1.5 text-[11px] text-[var(--ui-text-subtle)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text-muted)]"
-            onclick={() => openCardManager(cardItem)}
-            type="button"
-          >
-            {expandedCardId === cardRowId ? "Close" : "Actions"}
-          </button>
-        </div>
       </div>
-
-      {#if expandedCardId === cardRowId}
-        {@const thisCommitments = hasThreadLink
-          ? cardCommitments(linkedThreadId)
-          : []}
-        {@const thisInbox = hasThreadLink ? cardInboxItems(linkedThreadId) : []}
-        {@const thisDocs = hasThreadLink ? cardDocuments(linkedThreadId) : []}
-        <div
-          class="border-t border-[var(--ui-border)] bg-[var(--ui-panel-muted)]"
-        >
-          {#if thisCommitments.length > 0}
-            <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
-              <p
-                class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
-              >
-                Commitments
-              </p>
-              {#each thisCommitments as c}
-                <div class="mt-1 text-[11px]">
-                  <span class="text-[var(--ui-text)]">
-                    {c.title || ""}{#if !c.title}<span
-                        class="font-mono text-[var(--ui-text-subtle)]"
-                        >{c.id}</span
-                      >{/if}
-                  </span>
-                  <span class="text-[var(--ui-text-subtle)]">
-                    · {c.status ?? "—"} · Due {formatTimestamp(c.due_at) || "—"}
-                  </span>
-                </div>
-              {/each}
-            </div>
-          {/if}
-
-          {#if thisInbox.length > 0}
-            <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
-              <p
-                class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
-              >
-                Inbox
-              </p>
-              {#each thisInbox as item}
-                <div class="mt-1 text-[11px]">
-                  <span class="text-amber-400">{item.urgency_label}</span>
-                  <span class="text-[var(--ui-text)]">
-                    {item.title || item.summary || item.id}
-                  </span>
-                </div>
-              {/each}
-            </div>
-          {/if}
-
-          {#if thisDocs.length > 0}
-            <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
-              <p
-                class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]"
-              >
-                Documents
-              </p>
-              {#each thisDocs as doc}
-                <div class="mt-1">
-                  <a
-                    class="text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
-                    href={workspaceHref(`/docs/${encodeURIComponent(doc.id)}`)}
-                  >
-                    {doc.title || doc.id}
-                  </a>
-                </div>
-              {/each}
-            </div>
-          {/if}
-
-          {#if !hasThreadLink}
-            <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
-              <p class="text-[11px] text-[var(--ui-text-muted)]">
-                No linked thread — commitments, inbox, and document lists are
-                empty for this card.
-              </p>
-            </div>
-          {/if}
-
-          <div class="space-y-2 px-2.5 py-2">
-            <div class="flex items-end gap-1.5">
-              <label
-                class="min-w-0 flex-1 text-[11px] text-[var(--ui-text-muted)]"
-              >
-                Move to column
-                <select
-                  bind:value={manageMoveColumnKey}
-                  class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-                >
-                  {#each board.column_schema as moveColumn}
-                    <option value={moveColumn.key}>
-                      {moveColumn.title ||
-                        boardColumnTitle(moveColumn.key, board.column_schema)}
-                    </option>
-                  {/each}
-                </select>
-              </label>
-              <button
-                class="rounded bg-indigo-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40"
-                disabled={mutatingCardId === cardRowId}
-                onclick={() =>
-                  moveCard(
-                    cardItem,
-                    { column_key: manageMoveColumnKey },
-                    "Card moved.",
-                  )}
-                type="button"
-              >
-                Move to column
-              </button>
-            </div>
-
-            <SearchableEntityPicker
-              bind:value={managePinnedDocumentId}
-              advancedLabel="Use a manual pinned document ID"
-              helperText="Update the canonical pinned doc lineage for this card."
-              label="Pinned document"
-              manualLabel="Pinned document ID"
-              manualPlaceholder="doc-lineage-id"
-              placeholder="Search documents by title, ID, or thread"
-              searchFn={searchDocumentOptions}
-            />
-            <div class="flex justify-end">
-              <button
-                class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={mutatingCardId === cardRowId}
-                onclick={() => saveCardPinnedDocument(cardItem)}
-                type="button"
-              >
-                Save pinned doc
-              </button>
-            </div>
-
-            <div class="flex items-center gap-1">
-              <button
-                class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={index === 0 || mutatingCardId === cardRowId}
-                onclick={() => reorderCard(cardItem, cards, index, "up")}
-                type="button"
-              >
-                Move up
-              </button>
-              <button
-                class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={index === cards.length - 1 ||
-                  mutatingCardId === cardRowId}
-                onclick={() => reorderCard(cardItem, cards, index, "down")}
-                type="button"
-              >
-                Move down
-              </button>
-              <div class="flex-1"></div>
-              <button
-                class="rounded border border-red-500/20 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-40"
-                disabled={mutatingCardId === cardRowId}
-                onclick={() => removeCard(cardItem)}
-                type="button"
-              >
-                Remove card
-              </button>
-            </div>
-          </div>
-        </div>
-      {/if}
     </div>
   {/snippet}
 
@@ -1584,6 +1356,328 @@
   {/if}
 {/if}
 
+{#if modalCardId && workspace}
+  {@const modalCard = (workspace.cards?.items ?? []).find(
+    (c) => boardCardStableId(c.membership) === modalCardId,
+  )}
+  {#if modalCard}
+    {@const m = modalCard.membership}
+    {@const mBacking = modalCard.backing}
+    {@const mDerived = modalCard.derived}
+    {@const mThread = mBacking?.thread}
+    {@const mLinkedThreadId = boardCardLinkedThreadId(m)}
+    {@const mHasThread = Boolean(mLinkedThreadId)}
+    {@const mHasResolved = Boolean(mThread)}
+    {@const mStatus = boardCardRowStatus(m, mThread)}
+    {@const mTitle = boardCardHeaderTitle(m, mThread)}
+    {@const mBody = String(m?.body ?? "").trim()}
+    {@const mAssignee = String(m?.assignee ?? "").trim()}
+    {@const mPriority = String(m?.priority ?? "").trim()}
+    {@const mStatusLabel = String(m?.status ?? "").trim()}
+    {@const mFreshness = mDerived?.freshness}
+    {@const mFresh = isFreshnessCurrent(mFreshness)}
+    {@const mSummary = mDerived?.summary}
+    {@const mCommitments = mHasThread
+      ? cardCommitments(mLinkedThreadId)
+      : []}
+    {@const mInbox = mHasThread ? cardInboxItems(mLinkedThreadId) : []}
+    {@const mDocs = mHasThread ? cardDocuments(mLinkedThreadId) : []}
+    {@const mColCards =
+      groupBoardWorkspaceCards(
+        workspace.cards,
+        workspace.board.column_schema,
+      )[m.column_key] ?? []}
+    {@const mIdx = mColCards.findIndex(
+      (c) => boardCardStableId(c.membership) === modalCardId,
+    )}
+    <div class="card-modal-backdrop" role="dialog" aria-modal="true" aria-label={mTitle}>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="card-modal-overlay" onclick={closeCardModal}></div>
+      <div class="card-modal-panel">
+        <div class="card-modal-header">
+          <div class="flex items-start gap-2 min-w-0 flex-1">
+            <span
+              aria-hidden="true"
+              class="mt-[5px] h-2.5 w-2.5 shrink-0 rounded-full {threadStatusDotClass(
+                mStatus,
+              )}"
+            ></span>
+            <div class="min-w-0 flex-1">
+              <h2 class="text-[14px] font-semibold leading-snug text-[var(--ui-text)]">
+                {mTitle}
+              </h2>
+              {#if mHasThread && mHasResolved}
+                <a
+                  class="mt-0.5 inline-block text-[12px] text-indigo-400 transition-colors hover:text-indigo-300"
+                  href={workspaceHref(
+                    `/threads/${encodeURIComponent(mLinkedThreadId)}`,
+                  )}
+                >
+                  View thread →
+                </a>
+              {/if}
+            </div>
+          </div>
+          <button
+            aria-label="Close"
+            class="shrink-0 cursor-pointer rounded-md p-1.5 text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text)]"
+            onclick={closeCardModal}
+            type="button"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="card-modal-body">
+          <div class="flex flex-wrap items-center gap-1.5">
+            {#if mStatusLabel}
+              <span
+                class="rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide {cardStatusTagColor(
+                  mStatusLabel,
+                )}"
+              >
+                {mStatusLabel}
+              </span>
+            {/if}
+            {#if mPriority}
+              <span
+                class="rounded px-1.5 py-0.5 text-[11px] font-medium {cardPriorityTagColor(
+                  mPriority,
+                )}"
+              >
+                {mPriority}
+              </span>
+            {/if}
+            {#if mHasThread && mHasResolved}
+              <span
+                class="rounded px-1.5 py-0.5 text-[11px] {freshnessStatusTone(
+                  mFreshness?.status,
+                )}"
+              >
+                {freshnessStatusLabel(mFreshness?.status)}
+              </span>
+            {/if}
+          </div>
+
+          {#if mBody}
+            <p class="mt-3 text-[13px] leading-relaxed text-[var(--ui-text-muted)] whitespace-pre-wrap">
+              {mBody}
+            </p>
+          {/if}
+
+          <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-[var(--ui-text-subtle)]">
+            {#if mAssignee}
+              <span>Assignee: <span class="text-[var(--ui-text-muted)]">{actorName(mAssignee)}</span></span>
+            {/if}
+            <span>Column: <span class="text-[var(--ui-text-muted)]">{boardColumnTitle(m.column_key, workspace.board.column_schema)}</span></span>
+            <span>Added {formatTimestamp(m.created_at)}</span>
+          </div>
+
+          {#if mBacking?.pinned_document}
+            <div class="mt-2">
+              <a
+                class="inline-block rounded bg-indigo-500/10 px-1.5 py-0.5 text-[11px] text-indigo-300 transition-colors hover:text-indigo-200"
+                href={workspaceHref(
+                  `/docs/${encodeURIComponent(mBacking.pinned_document.id)}`,
+                )}
+              >
+                {mBacking.pinned_document.title || mBacking.pinned_document.id}
+              </a>
+            </div>
+          {/if}
+
+          {#if mHasThread && mHasResolved && mFresh}
+            {#if (mSummary?.open_commitment_count ?? 0) > 0 || (mSummary?.inbox_count ?? 0) > 0 || (mSummary?.decision_request_count ?? 0) > 0}
+              <div class="mt-3 flex flex-wrap gap-1.5">
+                {#if (mSummary?.open_commitment_count ?? 0) > 0}
+                  <span class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] text-[var(--ui-text-muted)]">
+                    {mSummary.open_commitment_count} open {mSummary.open_commitment_count === 1 ? "commitment" : "commitments"}
+                  </span>
+                {/if}
+                {#if (mSummary?.inbox_count ?? 0) > 0}
+                  <span class="rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-400">
+                    {mSummary.inbox_count} inbox
+                  </span>
+                {/if}
+                {#if (mSummary?.decision_request_count ?? 0) > 0}
+                  <span class="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[11px] text-indigo-400">
+                    {mSummary.decision_request_count} decisions
+                  </span>
+                {/if}
+                <span
+                  class="rounded px-1.5 py-0.5 text-[11px] {staleBadgeClass(
+                    Boolean(mSummary?.stale),
+                  )}"
+                >
+                  {mSummary?.stale ? "Thread stale" : "Fresh check-in"}
+                </span>
+              </div>
+            {/if}
+          {/if}
+
+          {#if mCommitments.length > 0 || mInbox.length > 0 || mDocs.length > 0}
+            <div class="mt-4 space-y-0 rounded-md border border-[var(--ui-border)] overflow-hidden">
+              {#if mCommitments.length > 0}
+                <div class="border-b border-[var(--ui-border)] px-3 py-2">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                    Commitments
+                  </p>
+                  {#each mCommitments as c}
+                    <div class="mt-1.5 text-[12px]">
+                      <span class="text-[var(--ui-text)]">
+                        {c.title || ""}{#if !c.title}<span class="font-mono text-[var(--ui-text-subtle)]">{c.id}</span>{/if}
+                      </span>
+                      <span class="text-[var(--ui-text-subtle)]">
+                        · {c.status ?? "—"} · Due {formatTimestamp(c.due_at) || "—"}
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              {#if mInbox.length > 0}
+                <div class="border-b border-[var(--ui-border)] px-3 py-2">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                    Inbox
+                  </p>
+                  {#each mInbox as item}
+                    <div class="mt-1.5 text-[12px]">
+                      <span class="text-amber-400">{item.urgency_label}</span>
+                      <span class="text-[var(--ui-text)]">
+                        {item.title || item.summary || item.id}
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+
+              {#if mDocs.length > 0}
+                <div class="px-3 py-2">
+                  <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)]">
+                    Documents
+                  </p>
+                  {#each mDocs as doc}
+                    <div class="mt-1.5">
+                      <a
+                        class="text-[12px] text-indigo-300 transition-colors hover:text-indigo-200"
+                        href={workspaceHref(`/docs/${encodeURIComponent(doc.id)}`)}
+                      >
+                        {doc.title || doc.id}
+                      </a>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {:else if !mHasThread}
+            <p class="mt-4 text-[12px] text-[var(--ui-text-subtle)]">
+              No linked thread — commitments, inbox, and document lists are empty for this card.
+            </p>
+          {/if}
+
+          {#if mutationNotice || mutationError}
+            <div class="mt-3 space-y-1.5">
+              {#if mutationNotice}
+                <div class="rounded-md bg-emerald-500/10 px-3 py-1.5 text-[12px] text-emerald-400">
+                  {mutationNotice}
+                </div>
+              {/if}
+              {#if mutationError}
+                <div class="rounded-md bg-red-500/10 px-3 py-1.5 text-[12px] text-red-400">
+                  {mutationError}
+                </div>
+              {/if}
+            </div>
+          {/if}
+
+          <div class="mt-4 space-y-3 border-t border-[var(--ui-border)] pt-4">
+            <div class="flex items-end gap-1.5">
+              <label class="min-w-0 flex-1 text-[11px] text-[var(--ui-text-muted)]">
+                Move to column
+                <select
+                  bind:value={manageMoveColumnKey}
+                  class="mt-0.5 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[12px] text-[var(--ui-text)]"
+                >
+                  {#each workspace.board.column_schema as moveColumn}
+                    <option value={moveColumn.key}>
+                      {moveColumn.title || boardColumnTitle(moveColumn.key, workspace.board.column_schema)}
+                    </option>
+                  {/each}
+                </select>
+              </label>
+              <button
+                class="rounded-md bg-indigo-600 px-3 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40"
+                disabled={mutatingCardId === modalCardId}
+                onclick={() =>
+                  moveCard(
+                    modalCard,
+                    { column_key: manageMoveColumnKey },
+                    "Card moved.",
+                  )}
+                type="button"
+              >
+                Move to column
+              </button>
+            </div>
+
+            <SearchableEntityPicker
+              bind:value={managePinnedDocumentId}
+              advancedLabel="Use a manual pinned document ID"
+              helperText="Update the canonical pinned doc lineage for this card."
+              label="Pinned document"
+              manualLabel="Pinned document ID"
+              manualPlaceholder="doc-lineage-id"
+              placeholder="Search documents by title, ID, or thread"
+              searchFn={searchDocumentOptions}
+            />
+            <div class="flex justify-end">
+              <button
+                class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-3 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
+                disabled={mutatingCardId === modalCardId}
+                onclick={() => saveCardPinnedDocument(modalCard)}
+                type="button"
+              >
+                Save pinned doc
+              </button>
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              <button
+                class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
+                disabled={mIdx === 0 || mutatingCardId === modalCardId}
+                onclick={() => reorderCard(modalCard, mColCards, mIdx, "up")}
+                type="button"
+              >
+                Move up
+              </button>
+              <button
+                class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
+                disabled={mIdx === mColCards.length - 1 || mutatingCardId === modalCardId}
+                onclick={() => reorderCard(modalCard, mColCards, mIdx, "down")}
+                type="button"
+              >
+                Move down
+              </button>
+              <div class="flex-1"></div>
+              <button
+                class="rounded-md border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-[11px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-40"
+                disabled={mutatingCardId === modalCardId}
+                onclick={() => removeCard(modalCard)}
+                type="button"
+              >
+                Remove card
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+{/if}
+
 <ConfirmModal
   open={confirmModal.open}
   title={confirmModal.action === "trash" ? "Move to trash" : "Archive board"}
@@ -1596,3 +1690,51 @@
   onconfirm={handleConfirm}
   oncancel={() => (confirmModal = { open: false, action: "" })}
 />
+
+<style>
+  .card-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 10vh;
+  }
+
+  .card-modal-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+  }
+
+  .card-modal-panel {
+    position: relative;
+    width: 520px;
+    max-width: calc(100vw - 2rem);
+    max-height: calc(90vh - 10vh);
+    background: var(--ui-panel);
+    border: 1px solid var(--ui-border);
+    border-radius: 8px;
+    box-shadow: var(--ui-shadow-elevated);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .card-modal-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--ui-border);
+    flex-shrink: 0;
+  }
+
+  .card-modal-body {
+    padding: 16px 20px 20px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+  }
+</style>
