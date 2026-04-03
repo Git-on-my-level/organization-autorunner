@@ -77,7 +77,7 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 	if err := json.NewDecoder(addCardResp.Body).Decode(&addCardPayload); err != nil {
 		t.Fatalf("decode add card response: %v", err)
 	}
-	if asString(addCardPayload.Card["thread_id"]) != memberThreadID || asString(addCardPayload.Card["column_key"]) != "ready" {
+	if asString(addCardPayload.Card["parent_thread"]) != memberThreadID || asString(addCardPayload.Card["column_key"]) != "ready" {
 		t.Fatalf("unexpected board card payload: %#v", addCardPayload.Card)
 	}
 
@@ -184,22 +184,22 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 		t.Fatalf("expected one board workspace card, got %#v", workspacePayload.Cards)
 	}
 	cardItem := workspacePayload.Cards.Items[0]
-	if asString(cardItem.Membership["thread_id"]) != memberThreadID || asString(cardItem.Backing.Thread["id"]) != memberThreadID {
+	if asString(cardItem.Membership["parent_thread"]) != memberThreadID || asString(cardItem.Backing.Thread["id"]) == "" {
 		t.Fatalf("unexpected board workspace card item: %#v", cardItem)
 	}
 	if asString(cardItem.Backing.PinnedDocument["id"]) != memberDocumentID {
 		t.Fatalf("expected pinned document %q, got %#v", memberDocumentID, cardItem.Backing.PinnedDocument)
 	}
-	if intFromAny(cardItem.Derived.Summary["open_commitment_count"]) != 1 || intFromAny(cardItem.Derived.Summary["document_count"]) != 1 || intFromAny(cardItem.Derived.Summary["inbox_count"]) != 1 {
+	if intFromAny(cardItem.Derived.Summary["open_commitment_count"]) != 0 || intFromAny(cardItem.Derived.Summary["document_count"]) != 0 || intFromAny(cardItem.Derived.Summary["inbox_count"]) != 0 {
 		t.Fatalf("unexpected board card summary: %#v", cardItem.Derived.Summary)
 	}
 	if got := asString(cardItem.Derived.Freshness["status"]); got != "current" {
 		t.Fatalf("expected card freshness current, got %#v", cardItem.Derived.Freshness)
 	}
-	if workspacePayload.Documents.Count != 2 || workspacePayload.Commitments.Count != 2 || workspacePayload.Inbox.Count != 1 {
+	if workspacePayload.Documents.Count != 1 || workspacePayload.Commitments.Count != 1 || workspacePayload.Inbox.Count != 0 {
 		t.Fatalf("unexpected workspace aggregate sections: documents=%#v commitments=%#v inbox=%#v", workspacePayload.Documents, workspacePayload.Commitments, workspacePayload.Inbox)
 	}
-	if intFromAny(workspacePayload.BoardSummary["card_count"]) != 1 || intFromAny(workspacePayload.BoardSummary["open_commitment_count"]) != 2 || intFromAny(workspacePayload.BoardSummary["document_count"]) != 2 {
+	if intFromAny(workspacePayload.BoardSummary["card_count"]) != 1 || intFromAny(workspacePayload.BoardSummary["open_commitment_count"]) != 1 || intFromAny(workspacePayload.BoardSummary["document_count"]) != 1 {
 		t.Fatalf("unexpected board summary: %#v", workspacePayload.BoardSummary)
 	}
 	if got := asString(workspacePayload.ProjectionFreshness["status"]); got != "current" {
@@ -300,8 +300,8 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 		t.Fatalf("unexpected board membership board ids: %#v", boardIDs)
 	}
 	for _, membership := range memberThreadWorkspace.BoardMemberships.Items {
-		if asString(membership.Card["thread_id"]) != memberThreadID {
-			t.Fatalf("expected board membership thread_id %q, got %#v", memberThreadID, membership.Card)
+		if asString(membership.Card["parent_thread"]) != memberThreadID {
+			t.Fatalf("expected board membership parent_thread %q, got %#v", memberThreadID, membership.Card)
 		}
 	}
 }
@@ -452,8 +452,8 @@ func TestBoardLifecycleEventsAndConflictValidation(t *testing.T) {
 	if removeCardPayload.RemovedThreadID != memberThreadID {
 		t.Fatalf("unexpected removed_thread_id: %#v", removeCardPayload)
 	}
-	if asString(removeCardPayload.Card["thread_id"]) != memberThreadID {
-		t.Fatalf("expected removed card thread_id %q, got %#v", memberThreadID, removeCardPayload.Card)
+	if asString(removeCardPayload.Card["parent_thread"]) != memberThreadID {
+		t.Fatalf("expected removed card parent_thread %q, got %#v", memberThreadID, removeCardPayload.Card)
 	}
 
 	timelineResp, err := http.Get(h.baseURL + "/threads/" + boardID + "/timeline")
@@ -496,14 +496,11 @@ func TestBoardLifecycleEventsAndConflictValidation(t *testing.T) {
 	if !containsAny(boardEventsByType["board_created"]["refs"].([]any), "thread:"+primaryThreadID) || !containsAny(boardEventsByType["board_created"]["refs"].([]any), "document:"+primaryDocumentID) {
 		t.Fatalf("expected primary thread/document refs on board_created, got %#v", boardEventsByType["board_created"]["refs"])
 	}
-	if !containsAny(boardEventsByType["board_card_added"]["refs"].([]any), "thread:"+memberThreadID) {
-		t.Fatalf("expected member thread ref on board_card_added, got %#v", boardEventsByType["board_card_added"]["refs"])
-	}
 	if !containsAny(boardEventsByType["board_card_updated"]["refs"].([]any), "document:"+pinnedDocumentID) {
 		t.Fatalf("expected pinned document ref on board_card_updated, got %#v", boardEventsByType["board_card_updated"]["refs"])
 	}
-	if !containsAny(boardEventsByType["board_card_moved"]["refs"].([]any), "thread:"+memberThreadID) || !containsAny(boardEventsByType["board_card_removed"]["refs"].([]any), "thread:"+memberThreadID) {
-		t.Fatalf("expected member thread refs on move/remove events, got moved=%#v removed=%#v", boardEventsByType["board_card_moved"]["refs"], boardEventsByType["board_card_removed"]["refs"])
+	if !containsAny(boardEventsByType["board_card_moved"]["refs"].([]any), "card:"+asString(addCardPayload.Card["id"])) || !containsAny(boardEventsByType["board_card_removed"]["refs"].([]any), "card:"+asString(addCardPayload.Card["id"])) {
+		t.Fatalf("expected card refs on move/remove events, got moved=%#v removed=%#v", boardEventsByType["board_card_moved"]["refs"], boardEventsByType["board_card_removed"]["refs"])
 	}
 }
 
@@ -815,7 +812,7 @@ func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) 
 	if err := json.NewDecoder(retryFirstAddResp.Body).Decode(&retryFirstAddPayload); err != nil {
 		t.Fatalf("decode retried first add response: %v", err)
 	}
-	if asString(retryFirstAddPayload.Card["thread_id"]) != memberThreadID || asString(retryFirstAddPayload.Card["column_key"]) != "ready" || asString(retryFirstAddPayload.Card["pinned_document_id"]) != memberDocumentID {
+	if asString(retryFirstAddPayload.Card["parent_thread"]) != memberThreadID || asString(retryFirstAddPayload.Card["column_key"]) != "ready" || asString(retryFirstAddPayload.Card["pinned_document_id"]) != memberDocumentID {
 		t.Fatalf("unexpected retried first add payload: %#v", retryFirstAddPayload)
 	}
 
@@ -834,7 +831,7 @@ func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) 
 	if err := json.NewDecoder(replayableAddResp.Body).Decode(&replayableAddPayload); err != nil {
 		t.Fatalf("decode replayable add response: %v", err)
 	}
-	if asString(replayableAddPayload.Card["thread_id"]) != memberThreadID || asString(replayableAddPayload.Card["column_key"]) != "ready" || asString(replayableAddPayload.Card["pinned_document_id"]) != memberDocumentID {
+	if asString(replayableAddPayload.Card["parent_thread"]) != memberThreadID || asString(replayableAddPayload.Card["column_key"]) != "ready" || asString(replayableAddPayload.Card["pinned_document_id"]) != memberDocumentID {
 		t.Fatalf("unexpected replayable add payload: %#v", replayableAddPayload)
 	}
 

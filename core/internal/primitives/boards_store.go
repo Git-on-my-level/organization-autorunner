@@ -41,6 +41,8 @@ type AddBoardCardInput struct {
 	Title            string
 	Body             string
 	ParentThreadID   string
+	DueAt            *string
+	DefinitionOfDone []string
 	Assignee         *string
 	Priority         *string
 	Status           string
@@ -51,6 +53,9 @@ type AddBoardCardInput struct {
 	BeforeThreadID   string
 	AfterThreadID    string
 	PinnedDocumentID *string
+	Resolution       *string
+	ResolutionRefs   []string
+	Refs             []string
 	IfBoardUpdatedAt *string
 }
 
@@ -58,10 +63,15 @@ type UpdateBoardCardInput struct {
 	Title            *string
 	Body             *string
 	ParentThreadID   *string
+	DueAt            *string
+	DefinitionOfDone *[]string
 	Assignee         *string
 	Priority         *string
 	Status           *string
 	PinnedDocumentID *string
+	Resolution       *string
+	ResolutionRefs   *[]string
+	Refs             *[]string
 	IfBoardUpdatedAt *string
 }
 
@@ -116,25 +126,31 @@ type boardRow struct {
 }
 
 type boardCardRow struct {
-	BoardID          string
-	CardID           string
-	ColumnKey        string
-	Rank             string
-	Title            string
-	Body             string
-	Version          int
-	ParentThreadID   sql.NullString
-	PinnedDocumentID sql.NullString
-	Assignee         sql.NullString
-	Priority         sql.NullString
-	Status           string
-	CreatedAt        string
-	CreatedBy        string
-	UpdatedAt        string
-	UpdatedBy        string
-	ProvenanceJSON   string
-	ArchivedAt       sql.NullString
-	ArchivedBy       sql.NullString
+	BoardID              string
+	CardID               string
+	ColumnKey            string
+	Rank                 string
+	Title                string
+	Body                 string
+	Version              int
+	ThreadID             sql.NullString
+	ParentThreadID       sql.NullString
+	DueAt                sql.NullString
+	DefinitionOfDoneJSON string
+	PinnedDocumentID     sql.NullString
+	Assignee             sql.NullString
+	Priority             sql.NullString
+	Status               string
+	Resolution           sql.NullString
+	ResolutionRefsJSON   string
+	RefsJSON             string
+	CreatedAt            string
+	CreatedBy            string
+	UpdatedAt            string
+	UpdatedBy            string
+	ProvenanceJSON       string
+	ArchivedAt           sql.NullString
+	ArchivedBy           sql.NullString
 }
 
 var canonicalBoardColumnOrder = []string{"backlog", "ready", "in_progress", "blocked", "review", "done"}
@@ -754,6 +770,68 @@ func (s *Store) ListBoardCards(ctx context.Context, boardID string) ([]map[strin
 	return out, nil
 }
 
+func (s *Store) ListCards(ctx context.Context) ([]map[string]any, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("primitives store database is not initialized")
+	}
+	rows, err := s.db.QueryContext(
+		ctx,
+		`SELECT board_id, id, column_key, rank, title, body_markdown, version, thread_id, parent_thread_id, due_at,
+		        definition_of_done_json, pinned_document_id, assignee, priority, status, resolution, resolution_refs_json, refs_json,
+		        created_at, created_by, updated_at, updated_by, provenance_json, archived_at, archived_by
+		   FROM cards
+		  WHERE archived_at IS NULL
+		  ORDER BY board_id ASC, `+boardColumnOrderSQL("column_key")+`, rank ASC, id ASC`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query cards: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]map[string]any, 0)
+	for rows.Next() {
+		row := boardCardRow{}
+		if err := rows.Scan(
+			&row.BoardID,
+			&row.CardID,
+			&row.ColumnKey,
+			&row.Rank,
+			&row.Title,
+			&row.Body,
+			&row.Version,
+			&row.ThreadID,
+			&row.ParentThreadID,
+			&row.DueAt,
+			&row.DefinitionOfDoneJSON,
+			&row.PinnedDocumentID,
+			&row.Assignee,
+			&row.Priority,
+			&row.Status,
+			&row.Resolution,
+			&row.ResolutionRefsJSON,
+			&row.RefsJSON,
+			&row.CreatedAt,
+			&row.CreatedBy,
+			&row.UpdatedAt,
+			&row.UpdatedBy,
+			&row.ProvenanceJSON,
+			&row.ArchivedAt,
+			&row.ArchivedBy,
+		); err != nil {
+			return nil, fmt.Errorf("scan card row: %w", err)
+		}
+		card, err := row.toMap()
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, card)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate cards: %w", err)
+	}
+	return out, nil
+}
+
 func (s *Store) GetBoardCard(ctx context.Context, boardID, identifier string) (map[string]any, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("primitives store database is not initialized")
@@ -798,12 +876,13 @@ func (s *Store) CreateBoardCard(ctx context.Context, actorID, boardID string, in
 		return BoardCardMutationResult{}, invalidBoardRequestError(err)
 	}
 
-	parentThreadID := strings.TrimSpace(firstNonEmpty(input.ParentThreadID, input.ThreadID))
-	if parentThreadID != "" {
-		if err := validateThreadID(parentThreadID); err != nil {
+	sourceThreadID := strings.TrimSpace(firstNonEmpty(input.ParentThreadID, input.ThreadID))
+	if sourceThreadID != "" {
+		if err := validateThreadID(sourceThreadID); err != nil {
 			return BoardCardMutationResult{}, invalidBoardRequestError(err)
 		}
 	}
+	backingThreadID := uuid.NewString()
 
 	columnKey := strings.TrimSpace(input.ColumnKey)
 	if columnKey == "" {
@@ -822,6 +901,26 @@ func (s *Store) CreateBoardCard(ctx context.Context, actorID, boardID string, in
 	title := strings.TrimSpace(input.Title)
 	body := strings.TrimSpace(input.Body)
 	status := normalizeBoardCardStatus(input.Status)
+	dueAt := normalizeBoardOptionalPointer(input.DueAt)
+	definitionOfDone := uniqueSortedStrings(input.DefinitionOfDone)
+	definitionOfDoneJSON, err := json.Marshal(definitionOfDone)
+	if err != nil {
+		return BoardCardMutationResult{}, fmt.Errorf("marshal card definition_of_done: %w", err)
+	}
+	resolution := normalizeCardResolution(input.Resolution, status)
+	if err := validateCardResolution(resolution, true); err != nil {
+		return BoardCardMutationResult{}, invalidBoardRequestError(err)
+	}
+	resolutionRefs := uniqueSortedStrings(input.ResolutionRefs)
+	resolutionRefsJSON, err := json.Marshal(resolutionRefs)
+	if err != nil {
+		return BoardCardMutationResult{}, fmt.Errorf("marshal card resolution refs: %w", err)
+	}
+	refs := uniqueSortedStrings(input.Refs)
+	refsJSON, err := json.Marshal(refs)
+	if err != nil {
+		return BoardCardMutationResult{}, fmt.Errorf("marshal card refs: %w", err)
+	}
 	assignee := normalizeBoardOptionalPointer(input.Assignee)
 	priority := normalizeBoardOptionalPointer(input.Priority)
 	pinnedDocumentID := normalizeBoardOptionalPointer(input.PinnedDocumentID)
@@ -840,26 +939,30 @@ func (s *Store) CreateBoardCard(ctx context.Context, actorID, boardID string, in
 		_ = tx.Rollback()
 		return BoardCardMutationResult{}, err
 	}
-	if parentThreadID != "" {
-		if err := ensureThreadExists(ctx, tx, parentThreadID); err != nil {
+	if sourceThreadID != "" {
+		if err := ensureThreadExists(ctx, tx, sourceThreadID); err != nil {
 			_ = tx.Rollback()
 			return BoardCardMutationResult{}, err
 		}
-		if parentThreadID == boardRow.ThreadID {
+		if sourceThreadID == boardRow.ThreadID {
 			_ = tx.Rollback()
 			return BoardCardMutationResult{}, invalidBoardRequest("board.thread_id cannot be added as a board card")
 		}
-		if err := ensureBoardCardParentThreadAvailable(ctx, tx, boardID, parentThreadID, ""); err != nil {
+		if err := ensureBoardCardParentThreadAvailable(ctx, tx, boardID, sourceThreadID, ""); err != nil {
 			_ = tx.Rollback()
 			return BoardCardMutationResult{}, err
 		}
 	}
-	if title == "" && parentThreadID != "" {
-		title, err = loadThreadTitleForBoardCard(ctx, tx, parentThreadID)
-		if err != nil {
+	if title == "" {
+		if derivedTitle, err := loadThreadTitleForBoardCard(ctx, tx, sourceThreadID); err == nil {
+			title = derivedTitle
+		} else if !errors.Is(err, ErrNotFound) {
 			_ = tx.Rollback()
 			return BoardCardMutationResult{}, err
 		}
+	}
+	if title == "" {
+		title = cardID
 	}
 	if title == "" {
 		_ = tx.Rollback()
@@ -885,22 +988,36 @@ func (s *Store) CreateBoardCard(ctx context.Context, actorID, boardID string, in
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	provenanceJSON := inferredProvenanceJSON()
+	if err := ensureCardBackingThreadTx(ctx, tx, actorID, cardID, backingThreadID, title, now); err != nil {
+		_ = tx.Rollback()
+		return BoardCardMutationResult{}, err
+	}
 
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO cards(
-			id, title, body_markdown, version, parent_thread_id, pinned_document_id, assignee, priority, status,
+			id, board_id, thread_id, title, body_markdown, due_at, definition_of_done_json, column_key, rank, version,
+			parent_thread_id, pinned_document_id, assignee, priority, status, resolution, resolution_refs_json, refs_json,
 			created_at, created_by, updated_at, updated_by, provenance_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cardID,
+		boardID,
+		backingThreadID,
 		title,
 		body,
+		nullableString(derefBoardString(dueAt)),
+		string(definitionOfDoneJSON),
+		columnKey,
+		rank,
 		1,
-		nullableString(parentThreadID),
+		nullableString(sourceThreadID),
 		nullableString(derefBoardString(pinnedDocumentID)),
 		nullableString(derefBoardString(assignee)),
 		nullableString(derefBoardString(priority)),
 		status,
+		nullableString(resolution),
+		string(resolutionRefsJSON),
+		string(refsJSON),
 		now,
 		actorID,
 		now,
@@ -917,18 +1034,28 @@ func (s *Store) CreateBoardCard(ctx context.Context, actorID, boardID string, in
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO card_versions(
-			card_id, version, title, body_markdown, parent_thread_id, pinned_document_id, assignee, priority, status,
+			card_id, version, board_id, thread_id, title, body_markdown, due_at, definition_of_done_json, column_key, rank,
+			parent_thread_id, pinned_document_id, assignee, priority, status, resolution, resolution_refs_json, refs_json,
 			created_at, created_by, provenance_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cardID,
 		1,
+		boardID,
+		backingThreadID,
 		title,
 		body,
-		nullableString(parentThreadID),
+		nullableString(derefBoardString(dueAt)),
+		string(definitionOfDoneJSON),
+		columnKey,
+		rank,
+		nullableString(sourceThreadID),
 		nullableString(derefBoardString(pinnedDocumentID)),
 		nullableString(derefBoardString(assignee)),
 		nullableString(derefBoardString(priority)),
 		status,
+		nullableString(resolution),
+		string(resolutionRefsJSON),
+		string(refsJSON),
 		now,
 		actorID,
 		provenanceJSON,
@@ -961,7 +1088,7 @@ func (s *Store) CreateBoardCard(ctx context.Context, actorID, boardID string, in
 		_ = tx.Rollback()
 		return BoardCardMutationResult{}, err
 	}
-	cardTargets := appendRefEdgeTarget(nil, refEdgeTypeCardParentThread, "thread", parentThreadID)
+	cardTargets := appendRefEdgeTarget(nil, refEdgeTypeCardParentThread, "thread", sourceThreadID)
 	cardTargets = appendRefEdgeTarget(cardTargets, refEdgeTypeCardPinnedDocument, "document", derefBoardString(pinnedDocumentID))
 	if err := replaceRefEdges(ctx, tx, "card", cardID, cardTargets); err != nil {
 		_ = tx.Rollback()
@@ -997,10 +1124,9 @@ func (s *Store) CreateBoardCard(ctx context.Context, actorID, boardID string, in
 
 func (s *Store) AddBoardCard(ctx context.Context, actorID, boardID string, input AddBoardCardInput) (BoardCardMutationResult, error) {
 	threadID := strings.TrimSpace(input.ThreadID)
-	if threadID == "" {
-		return BoardCardMutationResult{}, invalidBoardRequest("thread_id is required")
+	if threadID != "" {
+		input.ParentThreadID = threadID
 	}
-	input.ParentThreadID = threadID
 	if strings.TrimSpace(input.Status) == "" {
 		input.Status = inferLegacyBoardCardStatus(input.ColumnKey)
 	}
@@ -1030,19 +1156,34 @@ func (s *Store) UpdateBoardCard(ctx context.Context, actorID, boardID, identifie
 		_ = tx.Rollback()
 		return BoardCardMutationResult{}, err
 	}
-	boardID = cardRow.BoardID
+	var boardRow boardRow
 	if err := ensureBoardCardMutable(cardRow); err != nil {
 		_ = tx.Rollback()
 		return BoardCardMutationResult{}, err
 	}
-	boardRow, err := loadBoardRow(ctx, tx, boardID)
-	if err != nil {
-		_ = tx.Rollback()
-		return BoardCardMutationResult{}, err
-	}
-	if err := ensureBoardUpdatedAtMatches(boardRow, input.IfBoardUpdatedAt); err != nil {
-		_ = tx.Rollback()
-		return BoardCardMutationResult{}, err
+	if strings.TrimSpace(boardID) == "" {
+		if err := ensureUpdatedAtMatches(cardRow.UpdatedAt, input.IfBoardUpdatedAt); err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+		boardID = cardRow.BoardID
+		if strings.TrimSpace(boardID) != "" {
+			boardRow, err = loadBoardRow(ctx, tx, boardID)
+			if err != nil {
+				_ = tx.Rollback()
+				return BoardCardMutationResult{}, err
+			}
+		}
+	} else {
+		boardRow, err = loadBoardRow(ctx, tx, boardID)
+		if err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
+		if err := ensureBoardUpdatedAtMatches(boardRow, input.IfBoardUpdatedAt); err != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, err
+		}
 	}
 
 	nextTitle := cardRow.Title
@@ -1060,6 +1201,21 @@ func (s *Store) UpdateBoardCard(ctx context.Context, actorID, boardID, identifie
 	nextParentThread := strings.TrimSpace(cardRow.ParentThreadID.String)
 	if input.ParentThreadID != nil {
 		nextParentThread = strings.TrimSpace(*input.ParentThreadID)
+	}
+	nextThreadID := strings.TrimSpace(firstNonEmpty(cardRow.ThreadID.String, nextParentThread))
+	nextDueAt := strings.TrimSpace(cardRow.DueAt.String)
+	if input.DueAt != nil {
+		nextDueAt = strings.TrimSpace(*input.DueAt)
+	}
+	nextDefinitionOfDoneJSON := cardRow.DefinitionOfDoneJSON
+	if input.DefinitionOfDone != nil {
+		definitionOfDone := uniqueSortedStrings(*input.DefinitionOfDone)
+		definitionOfDoneBytes, marshalErr := json.Marshal(definitionOfDone)
+		if marshalErr != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, fmt.Errorf("marshal card definition_of_done: %w", marshalErr)
+		}
+		nextDefinitionOfDoneJSON = string(definitionOfDoneBytes)
 	}
 	nextAssignee := strings.TrimSpace(cardRow.Assignee.String)
 	if input.Assignee != nil {
@@ -1080,6 +1236,34 @@ func (s *Store) UpdateBoardCard(ctx context.Context, actorID, boardID, identifie
 	nextPinnedDocumentID := strings.TrimSpace(cardRow.PinnedDocumentID.String)
 	if input.PinnedDocumentID != nil {
 		nextPinnedDocumentID = strings.TrimSpace(*input.PinnedDocumentID)
+	}
+	nextResolution := strings.TrimSpace(cardRow.Resolution.String)
+	if input.Resolution != nil {
+		nextResolution = strings.TrimSpace(*input.Resolution)
+	}
+	if err := validateCardResolution(nextResolution, true); err != nil {
+		_ = tx.Rollback()
+		return BoardCardMutationResult{}, invalidBoardRequestError(err)
+	}
+	nextResolutionRefsJSON := cardRow.ResolutionRefsJSON
+	if input.ResolutionRefs != nil {
+		resolutionRefs := uniqueSortedStrings(*input.ResolutionRefs)
+		resolutionRefsBytes, marshalErr := json.Marshal(resolutionRefs)
+		if marshalErr != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, fmt.Errorf("marshal card resolution refs: %w", marshalErr)
+		}
+		nextResolutionRefsJSON = string(resolutionRefsBytes)
+	}
+	nextRefsJSON := cardRow.RefsJSON
+	if input.Refs != nil {
+		refs := uniqueSortedStrings(*input.Refs)
+		refsBytes, marshalErr := json.Marshal(refs)
+		if marshalErr != nil {
+			_ = tx.Rollback()
+			return BoardCardMutationResult{}, fmt.Errorf("marshal card refs: %w", marshalErr)
+		}
+		nextRefsJSON = string(refsBytes)
 	}
 
 	if nextParentThread != "" {
@@ -1108,7 +1292,13 @@ func (s *Store) UpdateBoardCard(ctx context.Context, actorID, boardID, identifie
 		nextAssignee == strings.TrimSpace(cardRow.Assignee.String) &&
 		nextPriority == strings.TrimSpace(cardRow.Priority.String) &&
 		nextStatus == cardRow.Status &&
-		nextPinnedDocumentID == strings.TrimSpace(cardRow.PinnedDocumentID.String) {
+		nextPinnedDocumentID == strings.TrimSpace(cardRow.PinnedDocumentID.String) &&
+		nextThreadID == strings.TrimSpace(firstNonEmpty(cardRow.ThreadID.String, cardRow.ParentThreadID.String)) &&
+		nextDueAt == strings.TrimSpace(cardRow.DueAt.String) &&
+		nextDefinitionOfDoneJSON == cardRow.DefinitionOfDoneJSON &&
+		nextResolution == strings.TrimSpace(cardRow.Resolution.String) &&
+		nextResolutionRefsJSON == cardRow.ResolutionRefsJSON &&
+		nextRefsJSON == cardRow.RefsJSON {
 		boardMap, mapErr := boardRow.toMap()
 		if mapErr != nil {
 			_ = tx.Rollback()
@@ -1128,18 +1318,28 @@ func (s *Store) UpdateBoardCard(ctx context.Context, actorID, boardID, identifie
 	if _, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO card_versions(
-			card_id, version, title, body_markdown, parent_thread_id, pinned_document_id, assignee, priority, status,
+			card_id, version, board_id, thread_id, title, body_markdown, due_at, definition_of_done_json, column_key, rank,
+			parent_thread_id, pinned_document_id, assignee, priority, status, resolution, resolution_refs_json, refs_json,
 			created_at, created_by, provenance_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		cardRow.CardID,
 		nextVersion,
+		boardID,
+		nextThreadID,
 		nextTitle,
 		nextBody,
+		nullableString(nextDueAt),
+		nextDefinitionOfDoneJSON,
+		cardRow.ColumnKey,
+		cardRow.Rank,
 		nullableString(nextParentThread),
 		nullableString(nextPinnedDocumentID),
 		nullableString(nextAssignee),
 		nullableString(nextPriority),
 		nextStatus,
+		nullableString(nextResolution),
+		nextResolutionRefsJSON,
+		nextRefsJSON,
 		now,
 		actorID,
 		cardRow.ProvenanceJSON,
@@ -1150,17 +1350,27 @@ func (s *Store) UpdateBoardCard(ctx context.Context, actorID, boardID, identifie
 	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE cards
-		    SET title = ?, body_markdown = ?, version = ?, parent_thread_id = ?, pinned_document_id = ?, assignee = ?, priority = ?, status = ?,
+		    SET board_id = ?, thread_id = ?, title = ?, body_markdown = ?, due_at = ?, definition_of_done_json = ?, column_key = ?, rank = ?, version = ?,
+		        parent_thread_id = ?, pinned_document_id = ?, assignee = ?, priority = ?, status = ?, resolution = ?, resolution_refs_json = ?, refs_json = ?,
 		        updated_at = ?, updated_by = ?
 		  WHERE id = ?`,
+		boardID,
+		nextThreadID,
 		nextTitle,
 		nextBody,
+		nullableString(nextDueAt),
+		nextDefinitionOfDoneJSON,
+		cardRow.ColumnKey,
+		cardRow.Rank,
 		nextVersion,
 		nullableString(nextParentThread),
 		nullableString(nextPinnedDocumentID),
 		nullableString(nextAssignee),
 		nullableString(nextPriority),
 		nextStatus,
+		nullableString(nextResolution),
+		nextResolutionRefsJSON,
+		nextRefsJSON,
 		now,
 		actorID,
 		cardRow.CardID,
@@ -1411,7 +1621,7 @@ func (s *Store) ListBoardCardHistory(ctx context.Context, cardID string) ([]map[
 	}
 	rows, err := s.db.QueryContext(
 		ctx,
-		`SELECT card_id, version, title, body_markdown, parent_thread_id, pinned_document_id, assignee, priority, status, created_at, created_by, provenance_json
+		`SELECT card_id, version, board_id, thread_id, title, body_markdown, due_at, definition_of_done_json, column_key, rank, parent_thread_id, pinned_document_id, assignee, priority, status, resolution, resolution_refs_json, refs_json, created_at, created_by, provenance_json
 		   FROM card_versions
 		  WHERE card_id = ?
 		  ORDER BY version ASC`,
@@ -1672,8 +1882,9 @@ func (s *Store) loadBoardCardRowsByBoardIDs(ctx context.Context, boardIDs []stri
 			SELECT re.source_id AS board_id, re.target_id AS card_id,
 			       COALESCE(json_extract(re.metadata_json, '$.column_key'), ?) AS column_key,
 			       COALESCE(json_extract(re.metadata_json, '$.rank'), '') AS rank,
-			       c.title, c.body_markdown, c.version, c.parent_thread_id, c.pinned_document_id, c.assignee, c.priority, c.status,
-			       c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
+			       c.title, c.body_markdown, c.version, c.thread_id, c.parent_thread_id, c.due_at, c.definition_of_done_json,
+			       c.pinned_document_id, c.assignee, c.priority, c.status, c.resolution, c.resolution_refs_json, c.refs_json,
+		       c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
 			  FROM ref_edges re
 			  JOIN cards c ON c.id = re.target_id
 			 WHERE re.source_type = 'board'
@@ -1715,7 +1926,8 @@ func (s *Store) loadOrderedBoardCards(ctx context.Context, q queryRower, boardID
 			SELECT re.source_id AS board_id, re.target_id AS card_id,
 			       COALESCE(json_extract(re.metadata_json, '$.column_key'), ?) AS column_key,
 			       COALESCE(json_extract(re.metadata_json, '$.rank'), '') AS rank,
-			       c.title, c.body_markdown, c.version, c.parent_thread_id, c.pinned_document_id, c.assignee, c.priority, c.status,
+			       c.title, c.body_markdown, c.version, c.thread_id, c.parent_thread_id, c.due_at, c.definition_of_done_json,
+			       c.pinned_document_id, c.assignee, c.priority, c.status, c.resolution, c.resolution_refs_json, c.refs_json,
 			       c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
 			  FROM ref_edges re
 			  JOIN cards c ON c.id = re.target_id
@@ -1907,7 +2119,8 @@ func loadBoardCardsForColumn(ctx context.Context, db interface {
 	rows, err := db.QueryContext(
 		ctx,
 		`SELECT bc.board_id, bc.card_id, bc.column_key, bc.rank,
-		        c.title, c.body_markdown, c.version, c.parent_thread_id, c.pinned_document_id, c.assignee, c.priority, c.status,
+		        c.title, c.body_markdown, c.version, c.thread_id, c.parent_thread_id, c.due_at, c.definition_of_done_json,
+		        c.pinned_document_id, c.assignee, c.priority, c.status, c.resolution, c.resolution_refs_json, c.refs_json,
 		        c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
 		   FROM board_cards bc
 		   JOIN cards c ON c.id = bc.card_id
@@ -2100,7 +2313,8 @@ func (s *Store) loadBoardCardByIdentifier(ctx context.Context, rower queryRower,
 			SELECT re.source_id AS board_id, re.target_id AS card_id,
 			       COALESCE(json_extract(re.metadata_json, '$.column_key'), ?) AS column_key,
 			       COALESCE(json_extract(re.metadata_json, '$.rank'), '') AS rank,
-			       c.title, c.body_markdown, c.version, c.parent_thread_id, c.pinned_document_id, c.assignee, c.priority, c.status,
+			       c.title, c.body_markdown, c.version, c.thread_id, c.parent_thread_id, c.due_at, c.definition_of_done_json,
+			       c.pinned_document_id, c.assignee, c.priority, c.status, c.resolution, c.resolution_refs_json, c.refs_json,
 			       c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
 			  FROM ref_edges re
 			  JOIN cards c ON c.id = re.target_id
@@ -2128,8 +2342,9 @@ func (s *Store) loadBoardCardByIdentifier(ctx context.Context, rower queryRower,
 			SELECT re.source_id AS board_id, re.target_id AS card_id,
 			       COALESCE(json_extract(re.metadata_json, '$.column_key'), ?) AS column_key,
 			       COALESCE(json_extract(re.metadata_json, '$.rank'), '') AS rank,
-			       c.title, c.body_markdown, c.version, c.parent_thread_id, c.pinned_document_id, c.assignee, c.priority, c.status,
-			       c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
+		        c.title, c.body_markdown, c.version, c.thread_id, c.parent_thread_id, c.due_at, c.definition_of_done_json,
+		        c.pinned_document_id, c.assignee, c.priority, c.status, c.resolution, c.resolution_refs_json, c.refs_json,
+		        c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
 			  FROM ref_edges re
 			  JOIN cards c ON c.id = re.target_id
 			 WHERE re.source_type = 'board'
@@ -2164,7 +2379,8 @@ func (s *Store) loadBoardCardByGlobalID(ctx context.Context, rower queryRower, c
 			SELECT re.source_id AS board_id, re.target_id AS card_id,
 			       COALESCE(json_extract(re.metadata_json, '$.column_key'), ?) AS column_key,
 			       COALESCE(json_extract(re.metadata_json, '$.rank'), '') AS rank,
-			       c.title, c.body_markdown, c.version, c.parent_thread_id, c.pinned_document_id, c.assignee, c.priority, c.status,
+			       c.title, c.body_markdown, c.version, c.thread_id, c.parent_thread_id, c.due_at, c.definition_of_done_json,
+			       c.pinned_document_id, c.assignee, c.priority, c.status, c.resolution, c.resolution_refs_json, c.refs_json,
 			       c.created_at, c.created_by, c.updated_at, c.updated_by, c.provenance_json, c.archived_at, c.archived_by
 			  FROM ref_edges re
 			  JOIN cards c ON c.id = re.target_id
@@ -2278,11 +2494,17 @@ func scanBoardCardRow(scanner interface{ Scan(dest ...any) error }) (boardCardRo
 		&row.Title,
 		&row.Body,
 		&row.Version,
+		&row.ThreadID,
 		&row.ParentThreadID,
+		&row.DueAt,
+		&row.DefinitionOfDoneJSON,
 		&row.PinnedDocumentID,
 		&row.Assignee,
 		&row.Priority,
 		&row.Status,
+		&row.Resolution,
+		&row.ResolutionRefsJSON,
+		&row.RefsJSON,
 		&row.CreatedAt,
 		&row.CreatedBy,
 		&row.UpdatedAt,
@@ -2297,18 +2519,27 @@ func scanBoardCardRow(scanner interface{ Scan(dest ...any) error }) (boardCardRo
 }
 
 type boardCardVersionRow struct {
-	CardID           string
-	Version          int
-	Title            string
-	Body             string
-	ParentThreadID   sql.NullString
-	PinnedDocumentID sql.NullString
-	Assignee         sql.NullString
-	Priority         sql.NullString
-	Status           string
-	CreatedAt        string
-	CreatedBy        string
-	ProvenanceJSON   string
+	CardID               string
+	Version              int
+	BoardID              string
+	ColumnKey            string
+	Rank                 int
+	Title                string
+	Body                 string
+	ThreadID             sql.NullString
+	ParentThreadID       sql.NullString
+	DueAt                sql.NullString
+	DefinitionOfDoneJSON string
+	PinnedDocumentID     sql.NullString
+	Assignee             sql.NullString
+	Priority             sql.NullString
+	Status               string
+	Resolution           sql.NullString
+	ResolutionRefsJSON   string
+	RefsJSON             string
+	CreatedAt            string
+	CreatedBy            string
+	ProvenanceJSON       string
 }
 
 func scanBoardCardVersionRow(scanner interface{ Scan(dest ...any) error }) (boardCardVersionRow, error) {
@@ -2316,13 +2547,22 @@ func scanBoardCardVersionRow(scanner interface{ Scan(dest ...any) error }) (boar
 	if err := scanner.Scan(
 		&row.CardID,
 		&row.Version,
+		&row.BoardID,
+		&row.ThreadID,
 		&row.Title,
 		&row.Body,
+		&row.DueAt,
+		&row.DefinitionOfDoneJSON,
+		&row.ColumnKey,
+		&row.Rank,
 		&row.ParentThreadID,
 		&row.PinnedDocumentID,
 		&row.Assignee,
 		&row.Priority,
 		&row.Status,
+		&row.Resolution,
+		&row.ResolutionRefsJSON,
+		&row.RefsJSON,
 		&row.CreatedAt,
 		&row.CreatedBy,
 		&row.ProvenanceJSON,
@@ -2455,6 +2695,127 @@ func ensureBoardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, boardI
 		return fmt.Errorf("update board backing thread: %w", err)
 	}
 	return replaceRefEdges(ctx, tx, "thread", threadID, typedRefEdgeTargets(refEdgeTypeRef, []string{subjectRef}))
+}
+
+func ensureCardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, cardID, threadID, title, updatedAt string) error {
+	cardID = strings.TrimSpace(cardID)
+	threadID = strings.TrimSpace(threadID)
+	title = strings.TrimSpace(title)
+	updatedAt = strings.TrimSpace(updatedAt)
+	if cardID == "" || threadID == "" {
+		return invalidBoardRequest("card thread is required")
+	}
+	subjectRef := "card:" + cardID
+
+	row, err := getSnapshotRowFromQueryRower(ctx, tx, threadID, "threads")
+	if errors.Is(err, ErrNotFound) {
+		body := buildCardBackingThreadBody(cardID, threadID, title)
+		bodyJSON, marshalErr := json.Marshal(body)
+		if marshalErr != nil {
+			return fmt.Errorf("marshal card backing thread: %w", marshalErr)
+		}
+		filterColumns := snapshotFilterColumnsForKind("thread", body)
+		if _, execErr := tx.ExecContext(
+			ctx,
+			`INSERT INTO threads(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json, filter_status, filter_priority, filter_owner, filter_due_at, filter_cadence, filter_cadence_preset, filter_tags_json)
+			 VALUES (?, 'thread', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			threadID,
+			threadID,
+			updatedAt,
+			actorID,
+			string(bodyJSON),
+			inferredProvenanceJSON(),
+			nullableString(filterColumns.Status),
+			nullableString(filterColumns.Priority),
+			nil,
+			nil,
+			nullableString(filterColumns.Cadence),
+			nullableString(filterColumns.CadencePreset),
+			filterColumns.TagsJSON,
+		); execErr != nil {
+			if isUniqueViolation(execErr) {
+				return ErrConflict
+			}
+			return fmt.Errorf("insert card backing thread: %w", execErr)
+		}
+		return replaceRefEdges(ctx, tx, "thread", threadID, typedRefEdgeTargets(refEdgeTypeRef, []string{subjectRef}))
+	}
+	if err != nil {
+		return err
+	}
+
+	snapshot, err := row.ToSnapshotMap()
+	if err != nil {
+		return err
+	}
+	existingSubjectRef := threadSubjectRef(snapshot)
+	if existingSubjectRef != "" && existingSubjectRef != subjectRef {
+		return invalidBoardRequest(fmt.Sprintf("card.thread_id %q is already bound to %q", threadID, existingSubjectRef))
+	}
+
+	delete(snapshot, "id")
+	delete(snapshot, "updated_at")
+	delete(snapshot, "updated_by")
+	provenance := cloneProvenance(snapshot["provenance"])
+	delete(snapshot, "provenance")
+	if len(provenance) == 0 {
+		provenance = map[string]any{"sources": []string{"inferred"}}
+	}
+
+	snapshot["subject_ref"] = subjectRef
+	if title != "" {
+		snapshot["title"] = title
+	}
+
+	bodyJSON, err := json.Marshal(snapshot)
+	if err != nil {
+		return fmt.Errorf("marshal card backing thread update: %w", err)
+	}
+	provenanceJSON, err := json.Marshal(provenance)
+	if err != nil {
+		return fmt.Errorf("marshal card backing thread provenance: %w", err)
+	}
+	filterColumns := snapshotFilterColumnsForKind("thread", snapshot)
+	if _, err := tx.ExecContext(
+		ctx,
+		`UPDATE threads
+		    SET thread_id = ?, updated_at = ?, updated_by = ?, body_json = ?, provenance_json = ?,
+		        filter_status = ?, filter_priority = ?, filter_owner = ?, filter_due_at = ?, filter_cadence = ?, filter_cadence_preset = ?, filter_tags_json = ?
+		  WHERE id = ?`,
+		threadID,
+		updatedAt,
+		actorID,
+		string(bodyJSON),
+		string(provenanceJSON),
+		nullableString(filterColumns.Status),
+		nullableString(filterColumns.Priority),
+		nil,
+		nil,
+		nullableString(filterColumns.Cadence),
+		nullableString(filterColumns.CadencePreset),
+		filterColumns.TagsJSON,
+		threadID,
+	); err != nil {
+		return fmt.Errorf("update card backing thread: %w", err)
+	}
+	return replaceRefEdges(ctx, tx, "thread", threadID, typedRefEdgeTargets(refEdgeTypeRef, []string{subjectRef}))
+}
+
+func buildCardBackingThreadBody(cardID, threadID, title string) map[string]any {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		title = "Card " + strings.TrimSpace(cardID)
+	}
+	return map[string]any{
+		"id":               strings.TrimSpace(threadID),
+		"subject_ref":      "card:" + strings.TrimSpace(cardID),
+		"title":            title,
+		"status":           "active",
+		"priority":         "p2",
+		"tags":             []string{},
+		"open_commitments": []string{},
+		"provenance":       map[string]any{"sources": []string{"inferred"}},
+	}
 }
 
 func buildBoardBackingThreadBody(boardID, threadID, title string) map[string]any {
@@ -2676,24 +3037,34 @@ func (r boardCardRow) toMap() (map[string]any, error) {
 			return nil, fmt.Errorf("decode board card provenance: %w", err)
 		}
 	}
+	definitionOfDone := decodeJSONListOrEmpty(r.DefinitionOfDoneJSON)
+	resolutionRefs := decodeJSONListOrEmpty(r.ResolutionRefsJSON)
+	refs := decodeJSONListOrEmpty(r.RefsJSON)
+	threadID := strings.TrimSpace(firstNonEmpty(r.ThreadID.String, r.ParentThreadID.String))
 	m := map[string]any{
 		"id":                 r.CardID,
 		"board_id":           r.BoardID,
 		"board_ref":          "board:" + strings.TrimSpace(r.BoardID),
+		"thread_id":          nullableBoardString(threadID),
+		"thread_ref":         boardTypedRefOrNil("thread", threadID),
 		"column_key":         r.ColumnKey,
 		"rank":               r.Rank,
 		"title":              r.Title,
 		"summary":            r.Body,
 		"body":               r.Body,
+		"body_markdown":      r.Body,
 		"version":            r.Version,
 		"parent_thread":      nullableBoardString(r.ParentThreadID.String),
-		"thread_id":          nullableBoardString(r.ParentThreadID.String),
-		"thread_ref":         boardTypedRefOrNil("thread", r.ParentThreadID.String),
 		"pinned_document_id": nullableBoardString(r.PinnedDocumentID.String),
 		"document_ref":       boardTypedRefOrNil("document", r.PinnedDocumentID.String),
 		"assignee":           nullableBoardString(r.Assignee.String),
 		"priority":           nullableBoardString(r.Priority.String),
+		"due_at":             nullableBoardString(r.DueAt.String),
+		"definition_of_done": definitionOfDone,
 		"status":             r.Status,
+		"resolution":         nullableBoardString(r.Resolution.String),
+		"resolution_refs":    resolutionRefs,
+		"refs":               refs,
 		"created_at":         r.CreatedAt,
 		"created_by":         r.CreatedBy,
 		"updated_at":         r.UpdatedAt,
@@ -2714,17 +3085,27 @@ func (r boardCardVersionRow) toMap() map[string]any {
 	if strings.TrimSpace(r.ProvenanceJSON) != "" {
 		_ = json.Unmarshal([]byte(r.ProvenanceJSON), &provenance)
 	}
+	threadID := strings.TrimSpace(firstNonEmpty(r.ThreadID.String, r.ParentThreadID.String))
 	return map[string]any{
 		"id":                 r.CardID,
 		"version":            r.Version,
 		"title":              r.Title,
 		"body":               r.Body,
+		"body_markdown":      r.Body,
+		"board_id":           r.BoardID,
+		"thread_id":          nullableBoardString(threadID),
 		"parent_thread":      nullableBoardString(r.ParentThreadID.String),
-		"thread_id":          nullableBoardString(r.ParentThreadID.String),
 		"pinned_document_id": nullableBoardString(r.PinnedDocumentID.String),
 		"assignee":           nullableBoardString(r.Assignee.String),
 		"priority":           nullableBoardString(r.Priority.String),
+		"due_at":             nullableBoardString(r.DueAt.String),
+		"definition_of_done": decodeJSONListOrEmpty(r.DefinitionOfDoneJSON),
+		"column_key":         r.ColumnKey,
+		"rank":               r.Rank,
 		"status":             r.Status,
+		"resolution":         nullableBoardString(r.Resolution.String),
+		"resolution_refs":    decodeJSONListOrEmpty(r.ResolutionRefsJSON),
+		"refs":               decodeJSONListOrEmpty(r.RefsJSON),
 		"created_at":         r.CreatedAt,
 		"created_by":         r.CreatedBy,
 		"provenance":         provenance,
@@ -2915,6 +3296,44 @@ func normalizeBoardCardStatus(raw string) string {
 		return "todo"
 	}
 	return status
+}
+
+func validateCardResolution(raw string, allowEmpty bool) error {
+	value := strings.TrimSpace(raw)
+	if value == "" && allowEmpty {
+		return nil
+	}
+	switch value {
+	case "done", "canceled":
+		return nil
+	default:
+		return fmt.Errorf("card.resolution must be one of: done, canceled")
+	}
+}
+
+func normalizeCardResolution(raw *string, status string) string {
+	if raw != nil {
+		return strings.TrimSpace(*raw)
+	}
+	switch strings.TrimSpace(status) {
+	case "done":
+		return "done"
+	case "cancelled":
+		return "canceled"
+	default:
+		return ""
+	}
+}
+
+func resolutionFromStatus(status string) string {
+	switch strings.TrimSpace(status) {
+	case "done":
+		return "done"
+	case "cancelled":
+		return "canceled"
+	default:
+		return ""
+	}
 }
 
 func inferLegacyBoardCardStatus(columnKey string) string {

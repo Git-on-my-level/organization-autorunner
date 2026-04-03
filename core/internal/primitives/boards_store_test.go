@@ -562,7 +562,7 @@ func TestBoardStoreMembershipValidationAndLookup(t *testing.T) {
 	threadIDsByBoard := map[string]string{}
 	for _, membership := range memberships {
 		columnsByBoard[membership.Board["id"].(string)] = membership.Card["column_key"].(string)
-		threadIDsByBoard[membership.Board["id"].(string)] = membership.Card["thread_id"].(string)
+		threadIDsByBoard[membership.Board["id"].(string)] = membership.Card["parent_thread"].(string)
 	}
 	if columnsByBoard[boardAID] != "backlog" || columnsByBoard[boardBID] != "review" {
 		t.Fatalf("unexpected membership card columns: %#v", columnsByBoard)
@@ -632,7 +632,7 @@ func putBoardTestProjection(t *testing.T, ctx context.Context, store *primitives
 func boardCardThreadIDs(cards []map[string]any) []string {
 	out := make([]string, 0, len(cards))
 	for _, card := range cards {
-		threadID, _ := card["thread_id"].(string)
+		threadID, _ := card["parent_thread"].(string)
 		out = append(out, threadID)
 	}
 	return out

@@ -179,7 +179,7 @@ func TestBoardAddCardSucceedsWhenLifecycleProjectionRefreshFails(t *testing.T) {
 	if err := json.NewDecoder(addCardResp.Body).Decode(&addCardPayload); err != nil {
 		t.Fatalf("decode add board card response: %v", err)
 	}
-	if asString(addCardPayload.Card["thread_id"]) != memberThreadID {
+	if asString(addCardPayload.Card["parent_thread"]) != memberThreadID {
 		t.Fatalf("expected created board card payload, got %#v", addCardPayload)
 	}
 
@@ -197,7 +197,7 @@ func TestBoardAddCardSucceedsWhenLifecycleProjectionRefreshFails(t *testing.T) {
 	if err := json.NewDecoder(listCardsResp.Body).Decode(&listCardsPayload); err != nil {
 		t.Fatalf("decode board cards response: %v", err)
 	}
-	if len(listCardsPayload.Cards) != 1 || asString(listCardsPayload.Cards[0]["thread_id"]) != memberThreadID {
+	if len(listCardsPayload.Cards) != 1 || asString(listCardsPayload.Cards[0]["parent_thread"]) != memberThreadID {
 		t.Fatalf("expected persisted board card after non-fatal projection refresh error, got %#v", listCardsPayload.Cards)
 	}
 }
