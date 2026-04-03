@@ -329,15 +329,33 @@ func TestInboxGetAliasMapsToList(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"items":[{"id":"inbox:1","thread_id":"thread_1"}]}`))
+		_, _ = w.Write([]byte(`{"items":[{"id":"inbox:1","thread_id":"thread_1","category":"decision_needed"}]}`))
 	}))
 	defer server.Close()
 
 	home := t.TempDir()
-	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "--base-url", server.URL, "inbox", "get"})
+	writeAgentProfile(t, home, "agent-a", `{"agent":"agent-a","username":"agent.alpha","actor_id":"actor_123","access_token":"token-a","access_token_expires_at":"2099-01-01T00:00:00Z"}`)
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{"--json", "--base-url", server.URL, "--agent", "agent-a", "inbox", "get"})
 	payload := assertEnvelopeOK(t, raw)
 	if got := anyStringValue(payload["command"]); got != "inbox list" {
 		t.Fatalf("expected alias to resolve to inbox list, got %q payload=%#v", got, payload)
+	}
+	data, _ := payload["data"].(map[string]any)
+	viewingAs, _ := data["viewing_as"].(map[string]any)
+	if got := anyStringValue(viewingAs["actor_id"]); got != "actor_123" {
+		t.Fatalf("expected viewing_as actor_id actor_123, got %#v", payload)
+	}
+	categoryReference, _ := data["category_reference"].(map[string]any)
+	if got := anyStringValue(categoryReference["decision_needed"]); !strings.Contains(got, "multiple viable paths") {
+		t.Fatalf("expected category reference in alias response, got %#v", payload)
+	}
+	items, _ := data["items"].([]any)
+	if len(items) != 1 {
+		t.Fatalf("expected one inbox item, got %#v", payload)
+	}
+	item, _ := items[0].(map[string]any)
+	if got := anyStringValue(item["category_description"]); !strings.Contains(got, "multiple viable paths") {
+		t.Fatalf("expected per-item category_description in alias response, got %#v", payload)
 	}
 }
 

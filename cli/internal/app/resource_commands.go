@@ -3267,13 +3267,13 @@ func (a *App) runInboxList(ctx context.Context, args []string, cfg config.Resolv
 	if err != nil {
 		return nil, err
 	}
+	decorateInboxListResult(result, cfg)
 	data := asMap(result.Data)
 	body := asMap(data["body"])
 	if body == nil {
 		return result, nil
 	}
 	filteredBody := cloneMap(body)
-	enrichInboxListBody(filteredBody, cfg)
 	filteredItems := filteredInboxItems(asSlice(body["items"]), threadIDs, typeFilters)
 	filteredBody["items"] = filteredItems
 	filteredBody["returned_items"] = len(filteredItems)
@@ -3301,6 +3301,32 @@ func (a *App) runInboxList(ctx context.Context, args []string, cfg config.Resolv
 		cfg.Headers,
 	)
 	return result, nil
+}
+
+func decorateInboxListResult(result *commandResult, cfg config.Resolved) {
+	if result == nil {
+		return
+	}
+	data := asMap(result.Data)
+	if data == nil {
+		return
+	}
+	body := asMap(data["body"])
+	if body == nil {
+		return
+	}
+	enrichedBody := cloneMap(body)
+	enrichInboxListBody(enrichedBody, cfg)
+	data["body"] = enrichedBody
+	result.Data = data
+	result.Text = formatTypedCommandText(
+		"inbox.list",
+		intValue(data["status_code"]),
+		headerValues(data["headers"]),
+		enrichedBody,
+		cfg.Verbose,
+		cfg.Headers,
+	)
 }
 
 func enrichInboxListBody(body map[string]any, cfg config.Resolved) bool {
@@ -3372,6 +3398,7 @@ func (a *App) runInboxGet(ctx context.Context, args []string, cfg config.Resolve
 		if err != nil {
 			return nil, "inbox get", err
 		}
+		decorateInboxListResult(listResult, cfg)
 		return listResult, "inbox list", nil
 	}
 	if err := validateID(rawID, "inbox item id"); err != nil {
