@@ -50,6 +50,30 @@ export function boardSummaryCounts(summary) {
   return counts;
 }
 
+/** Thread link target from membership (core mirrors parent_thread and thread_id when linked). */
+export function boardCardLinkedThreadId(membership) {
+  const a = String(membership?.thread_id ?? "").trim();
+  if (a) return a;
+  return String(membership?.parent_thread ?? "").trim();
+}
+
+/**
+ * Stable key for API calls and UI state (versioned card id, else legacy thread-backed id).
+ * Falls back to a synthetic key when both are missing (corrupt/partial payload).
+ */
+export function boardCardStableId(membership) {
+  const id = String(membership?.id ?? "").trim();
+  if (id) return id;
+  const legacy = String(membership?.thread_id ?? "").trim();
+  if (legacy) return legacy;
+  const col = String(membership?.column_key ?? "").trim();
+  const rank = String(membership?.rank ?? "").trim();
+  const created = String(membership?.created_at ?? "").trim();
+  const parts = [col, rank, created].filter(Boolean).join(":");
+  if (parts) return `anon:${parts}`;
+  return "anon:board-card";
+}
+
 export function groupBoardWorkspaceCards(cardsSection, columnSchema = []) {
   const groups = (columnSchema?.length ? columnSchema : CANONICAL_BOARD_COLUMNS)
     .map((column) => column.key)

@@ -126,7 +126,11 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatBoardWorkspace(body)
 	case "boards.cards.list":
 		return formatBoardCardsList(body)
-	case "boards.cards.add", "boards.cards.update", "boards.cards.move":
+	case "boards.cards.get":
+		return formatBoardCardGetResult(body)
+	case "boards.cards.create", "boards.cards.update", "boards.cards.move", "boards.cards.archive":
+		return formatBoardCardMutationResult(body)
+	case "boards.cards.add":
 		return formatBoardCardMutationResult(body)
 	case "boards.cards.remove":
 		return formatBoardCardRemoveResult(body)
@@ -1342,8 +1346,23 @@ func renderBoardCardListItem(card map[string]any) string {
 	columnKey := anyString(card["column_key"])
 	rank := anyString(card["rank"])
 	pinnedDocID := anyString(card["pinned_document_id"])
+	cardID := strings.TrimSpace(anyString(card["id"]))
+	title := strings.TrimSpace(anyString(card["title"]))
 
-	parts := []string{threadID, columnKey}
+	lead := threadID
+	if lead == "" {
+		if cardID != "" && title != "" && title != cardID {
+			lead = cardID + " — " + title
+		} else if cardID != "" {
+			lead = cardID
+		} else if title != "" {
+			lead = title
+		} else {
+			lead = "standalone card"
+		}
+	}
+
+	parts := []string{lead, columnKey}
 	if rank != "" {
 		parts = append(parts, "rank="+rank)
 	}
@@ -1351,6 +1370,16 @@ func renderBoardCardListItem(card map[string]any) string {
 		parts = append(parts, "pinned="+pinnedDocID)
 	}
 	return strings.Join(parts, " :: ")
+}
+
+func formatBoardCardGetResult(body any) string {
+	card := extractNestedMap(body, "card")
+	if card == nil {
+		return formatPrettyBody(body)
+	}
+	lines := []string{"Board card:"}
+	lines = append(lines, renderBoardCardListItem(card))
+	return strings.Join(lines, "\n")
 }
 
 func formatBoardCardMutationResult(body any) string {
@@ -1361,7 +1390,25 @@ func formatBoardCardMutationResult(body any) string {
 		lines = appendScalar(lines, "board_updated_at", board, "updated_at")
 	}
 	if card != nil {
-		lines = append(lines, "- thread: "+anyString(card["thread_id"]))
+		threadID := strings.TrimSpace(anyString(card["thread_id"]))
+		if threadID != "" {
+			lines = append(lines, "- thread: "+threadID)
+		} else {
+			cardID := strings.TrimSpace(anyString(card["id"]))
+			title := strings.TrimSpace(anyString(card["title"]))
+			subject := cardID
+			if title != "" && title != cardID {
+				if subject != "" {
+					subject = subject + " — " + title
+				} else {
+					subject = title
+				}
+			}
+			if subject == "" {
+				subject = "standalone card"
+			}
+			lines = append(lines, "- card: "+subject)
+		}
 		lines = append(lines, "  column: "+anyString(card["column_key"]))
 		lines = append(lines, "  rank: "+anyString(card["rank"]))
 		if pinnedDocID := anyString(card["pinned_document_id"]); pinnedDocID != "" {

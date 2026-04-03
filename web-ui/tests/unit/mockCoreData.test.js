@@ -230,5 +230,87 @@ describe("mockCoreData parity behaviors", () => {
         message: "board.title is required",
       });
     });
+
+    it("renormalizes column ranks in board sort order after remove", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const { board } = mod.createMockBoard({
+        actor_id: "actor-test",
+        board: {
+          id: "board-rank-remove-test",
+          title: "Rank remove",
+          primary_thread_id: "thread-summer-menu",
+        },
+      });
+      const boardId = board.id;
+      let b = mod.getMockBoard(boardId);
+      mod.createMockBoardCard(boardId, {
+        actor_id: "actor-test",
+        if_board_updated_at: b?.updated_at,
+        title: "First",
+        column_key: "backlog",
+      });
+      b = mod.getMockBoard(boardId);
+      mod.createMockBoardCard(boardId, {
+        actor_id: "actor-test",
+        if_board_updated_at: b?.updated_at,
+        title: "Second",
+        column_key: "backlog",
+      });
+      const colCards = mod
+        .listMockBoardCards(boardId)
+        .filter((c) => c.column_key === "backlog");
+      expect(colCards.length).toBe(2);
+      const toRemoveId = colCards[0].id;
+      b = mod.getMockBoard(boardId);
+      mod.removeMockBoardCard(boardId, toRemoveId, {
+        actor_id: "actor-test",
+        if_board_updated_at: b?.updated_at,
+      });
+      const after = mod
+        .listMockBoardCards(boardId)
+        .filter((c) => c.column_key === "backlog");
+      expect(after.length).toBe(1);
+      expect(after[0].rank).toBe("0001");
+    });
+
+    it("applies board card patch fields in mock like core", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const { board } = mod.createMockBoard({
+        actor_id: "actor-test",
+        board: {
+          id: "board-card-patch-test",
+          title: "Patch test",
+          primary_thread_id: "thread-summer-menu",
+        },
+      });
+      const boardId = board.id;
+      let b = mod.getMockBoard(boardId);
+      const { card } = mod.createMockBoardCard(boardId, {
+        actor_id: "actor-test",
+        if_board_updated_at: b?.updated_at,
+        title: "Alpha",
+        body: "orig",
+        column_key: "backlog",
+      });
+      b = mod.getMockBoard(boardId);
+      const result = mod.updateMockBoardCard(boardId, card.id, {
+        actor_id: "actor-test",
+        if_board_updated_at: b?.updated_at,
+        patch: {
+          title: "Beta",
+          body: "next",
+          status: "in_progress",
+          assignee: "actor-test",
+        },
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.card).toMatchObject({
+        title: "Beta",
+        body: "next",
+        status: "in_progress",
+        assignee: "actor-test",
+        version: 2,
+      });
+    });
   });
 });

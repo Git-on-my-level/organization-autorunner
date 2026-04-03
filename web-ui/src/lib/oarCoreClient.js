@@ -870,8 +870,8 @@ export function createOarCoreClient(options = {}) {
       ),
 
     addBoardCard: (boardId, payload) =>
-      invokeJSON("boards.cards.add", () =>
-        generated.boardsCardsAdd(
+      invokeJSON("boards.cards.create", () =>
+        generated.boardsCardsCreate(
           { board_id: String(boardId) },
           { body: withActorId(payload) },
         ),
@@ -883,21 +883,21 @@ export function createOarCoreClient(options = {}) {
     moveBoardCard: (boardId, cardId, payload) =>
       invokeJSON("boards.cards.move", () =>
         generated.boardsCardsMove(
-          { board_id: String(boardId), thread_id: String(cardId) },
+          { board_id: String(boardId), id: String(cardId) },
           { body: withActorId(payload) },
         ),
       ),
     removeBoardCard: (boardId, cardId, payload) =>
-      invokeJSON("boards.cards.remove", () =>
-        generated.boardsCardsRemove(
-          { board_id: String(boardId), thread_id: String(cardId) },
+      invokeJSON("boards.cards.archive", () =>
+        generated.boardsCardsArchive(
+          { card_id: String(cardId) },
           { body: withActorId(payload) },
         ),
       ),
     updateBoardCard: (boardId, cardId, payload) =>
       invokeJSON("boards.cards.update", () =>
         generated.boardsCardsUpdate(
-          { board_id: String(boardId), thread_id: String(cardId) },
+          { card_id: String(cardId) },
           { body: withActorId(payload) },
         ),
       ),

@@ -1954,7 +1954,7 @@ func TestNormalizeMutationBodyIDsSkipsNestedStructuredDocContent(t *testing.T) {
 		},
 	}
 
-	normalizedAny, err := app.normalizeMutationBodyIDs(context.Background(), config.Resolved{BaseURL: server.URL}, "docs.update", body)
+	normalizedAny, err := app.normalizeMutationBodyIDs(context.Background(), config.Resolved{BaseURL: server.URL}, "docs.update", nil, body)
 	if err != nil {
 		t.Fatalf("normalize docs.update body: %v", err)
 	}
@@ -1986,7 +1986,7 @@ func TestNormalizeMutationBodyIDsPreservesUnsupportedTypedRefsVerbatim(t *testin
 		},
 	}
 
-	normalizedAny, err := app.normalizeMutationBodyIDs(context.Background(), config.Resolved{}, "events.create", body)
+	normalizedAny, err := app.normalizeMutationBodyIDs(context.Background(), config.Resolved{}, "events.create", nil, body)
 	if err != nil {
 		t.Fatalf("normalize events.create body: %v", err)
 	}
@@ -2538,6 +2538,54 @@ func TestBoardCardMutationsResolveShortThreadIDsInBodies(t *testing.T) {
 		"--if-board-updated-at", updatedAt,
 		"--column", "review",
 		"--after", shortAnchorThreadID,
+	}))
+}
+
+func TestBoardCardMoveResolvesShortAfterCardID(t *testing.T) {
+	t.Parallel()
+
+	const canonicalBoardID = "board_1234567890abcdef"
+	const shortBoardID = "board_123456"
+	const movingCardID = "card_moving_1234567890ab"
+	const afterCardID = "card_afterxx_1234567890ab"
+	const shortAfterCardID = "card_afterxx"
+	const updatedAt = "2026-03-08T00:00:00Z"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/boards":
+			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalBoardID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":0,"document_count":0,"latest_activity_at":null,"has_primary_document":false}}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/boards/"+canonicalBoardID+"/cards":
+			_, _ = w.Write([]byte(`{"board_id":"` + canonicalBoardID + `","cards":[
+				{"id":"` + movingCardID + `","board_id":"` + canonicalBoardID + `","column_key":"ready","rank":"a","title":"Moving","body":"","version":1,"parent_thread":null,"thread_id":null,"pinned_document_id":null,"assignee":null,"priority":null,"status":"todo","created_at":"` + updatedAt + `","created_by":"actor_1","updated_at":"` + updatedAt + `","updated_by":"actor_1","provenance":{"sources":["inferred"]}},
+				{"id":"` + afterCardID + `","board_id":"` + canonicalBoardID + `","column_key":"ready","rank":"b","title":"Anchor","body":"","version":1,"parent_thread":null,"thread_id":null,"pinned_document_id":null,"assignee":null,"priority":null,"status":"todo","created_at":"` + updatedAt + `","created_by":"actor_1","updated_at":"` + updatedAt + `","updated_by":"actor_1","provenance":{"sources":["inferred"]}}
+			]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/boards/"+canonicalBoardID+"/cards/"+movingCardID+"/move":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode move body: %v", err)
+			}
+			if got := anyStringValue(payload["after_card_id"]); got != afterCardID {
+				t.Fatalf("expected canonical move after_card_id %q, got %#v", afterCardID, payload)
+			}
+			_, _ = w.Write([]byte(`{"board":{"id":"` + canonicalBoardID + `","updated_at":"` + updatedAt + `"},"card":{"id":"` + movingCardID + `","board_id":"` + canonicalBoardID + `","column_key":"review","rank":"c","title":"Moving","body":"","version":1,"parent_thread":null,"thread_id":null,"pinned_document_id":null,"assignee":null,"priority":null,"status":"todo","created_at":"` + updatedAt + `","created_by":"actor_1","updated_at":"` + updatedAt + `","updated_by":"actor_1","provenance":{"sources":["inferred"]}}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	assertEnvelopeOK(t, runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"boards", "cards", "move",
+		"--board-id", shortBoardID,
+		"--card-id", movingCardID,
+		"--if-board-updated-at", updatedAt,
+		"--column", "review",
+		"--after-card-id", shortAfterCardID,
 	}))
 }
 

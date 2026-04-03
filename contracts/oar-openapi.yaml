@@ -2136,7 +2136,7 @@ paths:
       x-oar-error-codes: [invalid_json, invalid_request, unknown_actor_id, conflict, not_found]
       x-oar-concepts: [boards, planning, ordering, concurrency]
       x-oar-stability: "beta"
-      x-oar-agent-notes: "Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column."
+      x-oar-agent-notes: "At most one of `before_card_id` and `after_card_id`; at most one of `before_thread_id` and `after_thread_id`; `before_card_id` and `before_thread_id` are mutually exclusive; `after_card_id` and `after_thread_id` are mutually exclusive; if no placement anchor is provided, the card moves to the end of the target column."
       parameters:
         - $ref: '#/components/parameters/BoardID'
         - in: path

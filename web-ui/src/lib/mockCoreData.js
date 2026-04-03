@@ -2157,7 +2157,11 @@ export function getMockThreadWorkspace(
   );
 
   const boardMemberships = boardCards
-    .filter((c) => c.thread_id === threadId)
+    .filter(
+      (c) =>
+        String(c.thread_id ?? c.parent_thread ?? "").trim() ===
+        String(threadId).trim(),
+    )
     .map((card) => {
       const board = boards.find((b) => b.id === card.board_id);
       if (!board) return null;
@@ -2169,6 +2173,7 @@ export function getMockThreadWorkspace(
         },
         card: {
           board_id: card.board_id,
+          ...(card.id ? { id: card.id } : {}),
           thread_id: card.thread_id,
           column_key: card.column_key,
           pinned_document_id: card.pinned_document_id,
@@ -3355,8 +3360,8 @@ function sortBoardCardsForBoard(cards) {
       Number.parseInt(right.rank ?? "0", 10);
     if (Number.isFinite(rankDelta) && rankDelta !== 0) return rankDelta;
 
-    return String(left.thread_id ?? "").localeCompare(
-      String(right.thread_id ?? ""),
+    return String(left.thread_id ?? left.id ?? "").localeCompare(
+      String(right.thread_id ?? right.id ?? ""),
     );
   });
 }
@@ -3385,17 +3390,58 @@ function renormalizeColumnCards(cards) {
   });
 }
 
-function resolveInsertIndex(cards, { before_thread_id, after_thread_id } = {}) {
+function mockCardMatchesAnchor(card, anchor) {
+  const a = String(anchor ?? "").trim();
+  if (!a) return false;
+  const id = String(card?.id ?? "").trim();
+  const tid = String(card?.thread_id ?? "").trim();
+  return id === a || tid === a;
+}
+
+function mockBoardCardStableKey(card) {
+  const id = String(card?.id ?? "").trim();
+  if (id) return id;
+  return String(card?.thread_id ?? "").trim();
+}
+
+function newStandaloneMockCardId(explicitId) {
+  const ex = String(explicitId ?? "").trim();
+  if (ex) return ex;
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === "function") {
+    return c.randomUUID();
+  }
+  return `card-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function resolveInsertIndex(cards, payload = {}) {
+  const { before_card_id, after_card_id, before_thread_id, after_thread_id } =
+    payload;
+
+  if (before_card_id) {
+    const beforeIndex = cards.findIndex((card) =>
+      mockCardMatchesAnchor(card, before_card_id),
+    );
+    if (beforeIndex >= 0) return beforeIndex;
+  }
+
+  if (after_card_id) {
+    const afterIndex = cards.findIndex((card) =>
+      mockCardMatchesAnchor(card, after_card_id),
+    );
+    if (afterIndex >= 0) return afterIndex + 1;
+  }
+
   if (before_thread_id) {
-    const beforeIndex = cards.findIndex(
-      (card) => card.thread_id === before_thread_id,
+    const beforeIndex = cards.findIndex((card) =>
+      mockCardMatchesAnchor(card, before_thread_id),
     );
     if (beforeIndex >= 0) return beforeIndex;
   }
 
   if (after_thread_id) {
-    const afterIndex = cards.findIndex(
-      (card) => card.thread_id === after_thread_id,
+    const afterIndex = cards.findIndex((card) =>
+      mockCardMatchesAnchor(card, after_thread_id),
     );
     if (afterIndex >= 0) return afterIndex + 1;
   }
@@ -3450,16 +3496,35 @@ function buildBoardSummary(board) {
 }
 
 function buildBoardWorkspaceCard(card) {
-  const thread = getMockThread(card.thread_id);
-  if (!thread) return null;
+  const threadId = String(card.thread_id ?? card.parent_thread ?? "").trim();
+  const thread = threadId ? getMockThread(threadId) : null;
 
   const pinnedDocument = card.pinned_document_id
     ? (getMockDocument(card.pinned_document_id)?.document ?? null)
     : null;
-  const documents = listMockDocuments({ thread_id: card.thread_id });
-  const recentEvents = listMockTimelineEvents(card.thread_id);
+
+  if (!thread) {
+    return {
+      membership: { ...card },
+      backing: {
+        thread_ref: threadId ? `thread:${threadId}` : null,
+        thread: null,
+        pinned_document_ref: card.pinned_document_id
+          ? `document:${card.pinned_document_id}`
+          : null,
+        pinned_document: pinnedDocument ? { ...pinnedDocument } : null,
+      },
+      derived: {
+        summary: null,
+        freshness: null,
+      },
+    };
+  }
+
+  const documents = listMockDocuments({ thread_id: threadId });
+  const recentEvents = listMockTimelineEvents(threadId);
   const openCommitments = listMockCommitments({
-    thread_id: card.thread_id,
+    thread_id: threadId,
     status: "open",
   });
   const keyArtifacts = normalizeRefList(thread.key_artifacts).map((ref) => ({
@@ -3472,13 +3537,13 @@ function buildBoardWorkspaceCard(card) {
     openCommitments,
   );
   const inboxCount = listMockInboxItems().filter(
-    (item) => String(item.thread_id ?? "") === String(card.thread_id),
+    (item) => String(item.thread_id ?? "") === String(threadId),
   ).length;
 
   return {
     membership: { ...card },
     backing: {
-      thread_ref: `thread:${card.thread_id}`,
+      thread_ref: `thread:${threadId}`,
       thread: { ...thread },
       pinned_document_ref: card.pinned_document_id
         ? `document:${card.pinned_document_id}`
@@ -3497,7 +3562,7 @@ function buildBoardWorkspaceCard(card) {
         stale: ["stale", "very-stale"].includes(String(thread.staleness ?? "")),
       },
       freshness: {
-        thread_id: card.thread_id,
+        thread_id: threadId,
         status: "current",
         generated_at: thread.updated_at ?? card.updated_at ?? null,
         queued_at: null,
@@ -3584,6 +3649,7 @@ function collectMockBoardWorkspaceThreadIds(boardId, primaryThreadId) {
   for (const card of boardCards) {
     if (card.board_id === boardId) {
       pushThreadId(card.thread_id);
+      pushThreadId(card.parent_thread);
     }
   }
 
@@ -3725,28 +3791,16 @@ export function createMockBoardCard(boardId, payload) {
     return boardConflict;
   }
 
-  const threadId = String(payload.thread_id ?? "").trim();
-  if (!threadId) {
-    return { error: "validation", message: "thread_id is required." };
-  }
-  if (!getMockThread(threadId)) {
-    return { error: "not_found", message: `Thread not found: ${threadId}` };
-  }
-  if (threadId === board.primary_thread_id) {
+  const threadId = String(
+    payload.thread_id ?? payload.parent_thread ?? "",
+  ).trim();
+  const title = String(payload.title ?? "").trim();
+
+  if (!threadId && !title) {
     return {
       error: "validation",
-      message: "The board primary thread cannot be added as a card.",
-    };
-  }
-  if (
-    boardCards.some(
-      (card) => card.board_id === boardId && card.thread_id === threadId,
-    )
-  ) {
-    return {
-      error: "conflict",
-      message: `Thread '${threadId}' is already on board '${boardId}'.`,
-      current: cloneBoard(board),
+      message:
+        "Provide thread_id, parent_thread, or a standalone card title (see boards.cards.create).",
     };
   }
 
@@ -3765,15 +3819,66 @@ export function createMockBoardCard(boardId, payload) {
       message: `Document not found: ${pinnedDocumentId}`,
     };
   }
+
+  if (threadId) {
+    if (!getMockThread(threadId)) {
+      return { error: "not_found", message: `Thread not found: ${threadId}` };
+    }
+    if (threadId === board.primary_thread_id) {
+      return {
+        error: "validation",
+        message: "The board primary thread cannot be added as a card.",
+      };
+    }
+    if (
+      boardCards.some(
+        (card) =>
+          card.board_id === boardId &&
+          String(card.thread_id ?? "").trim() === threadId,
+      )
+    ) {
+      return {
+        error: "conflict",
+        message: `Thread '${threadId}' is already on board '${boardId}'.`,
+        current: cloneBoard(board),
+      };
+    }
+  }
+
   const columns = getBoardColumnCards(boardId);
   const targetColumn = columns[columnKey] ?? (columns[columnKey] = []);
   const nowIso = new Date().toISOString();
+  const cardId = threadId
+    ? String(payload.card_id ?? "").trim() || threadId
+    : newStandaloneMockCardId(payload.card_id);
+
+  if (
+    String(payload.card_id ?? "").trim() &&
+    boardCards.some(
+      (c) => c.board_id === boardId && mockCardMatchesAnchor(c, cardId),
+    )
+  ) {
+    return {
+      error: "conflict",
+      message: `Card id '${cardId}' is already on board '${boardId}'.`,
+      current: cloneBoard(board),
+    };
+  }
+
   const newCard = {
+    id: cardId,
     board_id: boardId,
-    thread_id: threadId,
+    thread_id: threadId || null,
+    parent_thread: threadId || null,
+    title: threadId ? title || (getMockThread(threadId)?.title ?? "") : title,
+    body: String(payload.body ?? "").trim() || "",
     column_key: columnKey,
     rank: "0000",
     pinned_document_id: pinnedDocumentId || null,
+    version: 1,
+    assignee: payload.assignee ?? null,
+    priority: payload.priority ?? null,
+    status: payload.status ?? "todo",
     created_at: nowIso,
     created_by: payload.actor_id || "unknown",
     updated_at: nowIso,
@@ -3791,6 +3896,19 @@ export function createMockBoardCard(boardId, payload) {
   };
 }
 
+export function updateMockBoardCardByGlobalCardId(cardId, payload) {
+  const row = boardCards.find((candidate) =>
+    mockCardMatchesAnchor(candidate, cardId),
+  );
+  if (!row) {
+    return {
+      error: "not_found",
+      message: `Card not found: ${cardId}`,
+    };
+  }
+  return updateMockBoardCard(row.board_id, cardId, payload);
+}
+
 export function updateMockBoardCard(boardId, cardId, payload) {
   const board = boards.find((candidate) => candidate.id === boardId);
   if (!board) {
@@ -3799,7 +3917,8 @@ export function updateMockBoardCard(boardId, cardId, payload) {
 
   const card = boardCards.find(
     (candidate) =>
-      candidate.board_id === boardId && candidate.thread_id === cardId,
+      candidate.board_id === boardId &&
+      mockCardMatchesAnchor(candidate, cardId),
   );
   if (!card) {
     return {
@@ -3817,10 +3936,148 @@ export function updateMockBoardCard(boardId, cardId, payload) {
   }
 
   const patch = payload.patch ?? {};
-  if (Object.prototype.hasOwnProperty.call(patch, "pinned_document_id")) {
-    card.pinned_document_id = patch.pinned_document_id ?? null;
+  let mutated = false;
+
+  const hasParentThread = Object.prototype.hasOwnProperty.call(
+    patch,
+    "parent_thread",
+  );
+  const hasThreadId = Object.prototype.hasOwnProperty.call(patch, "thread_id");
+  if (hasParentThread && hasThreadId) {
+    const p = String(patch.parent_thread ?? "").trim();
+    const t = String(patch.thread_id ?? "").trim();
+    if (p !== t) {
+      return {
+        error: "validation",
+        message:
+          "patch.parent_thread and patch.thread_id must match when both are provided",
+      };
+    }
   }
 
+  let nextParent;
+  if (hasParentThread && hasThreadId) {
+    nextParent = String(patch.parent_thread ?? "").trim();
+  } else if (hasParentThread) {
+    nextParent = String(patch.parent_thread ?? "").trim();
+  } else if (hasThreadId) {
+    nextParent = String(patch.thread_id ?? "").trim();
+  }
+
+  if (nextParent !== undefined) {
+    const currentParent = String(card.thread_id ?? "").trim();
+    if (nextParent !== currentParent) {
+      if (nextParent) {
+        if (!getMockThread(nextParent)) {
+          return {
+            error: "not_found",
+            message: `Thread not found: ${nextParent}`,
+          };
+        }
+        if (nextParent === board.primary_thread_id) {
+          return {
+            error: "validation",
+            message: "board.primary_thread_id cannot be added as a board card",
+          };
+        }
+        const duplicate = boardCards.some(
+          (c) =>
+            c.board_id === boardId &&
+            c !== card &&
+            String(c.thread_id ?? "").trim() === nextParent,
+        );
+        if (duplicate) {
+          return {
+            error: "conflict",
+            message: `Thread '${nextParent}' is already on board '${boardId}'.`,
+            current: cloneBoard(board),
+          };
+        }
+      }
+      card.thread_id = nextParent || null;
+      card.parent_thread = nextParent || null;
+      mutated = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "title")) {
+    const value = String(patch.title ?? "").trim();
+    if (value === "") {
+      return {
+        error: "validation",
+        message: "patch.title must not be empty",
+      };
+    }
+    if (card.title !== value) {
+      card.title = value;
+      mutated = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "body")) {
+    const value = String(patch.body ?? "").trim();
+    if (card.body !== value) {
+      card.body = value;
+      mutated = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "assignee")) {
+    const value = patch.assignee == null ? "" : String(patch.assignee).trim();
+    const next = value || null;
+    if (card.assignee !== next) {
+      card.assignee = next;
+      mutated = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
+    const value = patch.priority == null ? "" : String(patch.priority).trim();
+    const next = value || null;
+    if (card.priority !== next) {
+      card.priority = next;
+      mutated = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+    const value = String(patch.status ?? "").trim();
+    if (!["todo", "in_progress", "done", "cancelled"].includes(value)) {
+      return {
+        error: "validation",
+        message:
+          "patch.status must be one of: todo, in_progress, done, cancelled",
+      };
+    }
+    if (card.status !== value) {
+      card.status = value;
+      mutated = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "pinned_document_id")) {
+    const value = String(patch.pinned_document_id ?? "").trim();
+    if (value && !getMockDocument(value)) {
+      return {
+        error: "not_found",
+        message: `Document not found: ${value}`,
+      };
+    }
+    const next = value || null;
+    if (card.pinned_document_id !== next) {
+      card.pinned_document_id = next;
+      mutated = true;
+    }
+  }
+
+  if (!mutated) {
+    return {
+      board: cloneBoard(board),
+      card: cloneBoardCard(card),
+    };
+  }
+
+  card.version = (Number(card.version) || 0) + 1;
   card.updated_at = new Date().toISOString();
   if (payload.actor_id) {
     card.updated_by = payload.actor_id;
@@ -3841,7 +4098,8 @@ export function moveMockBoardCard(boardId, cardId, payload) {
 
   const card = boardCards.find(
     (candidate) =>
-      candidate.board_id === boardId && candidate.thread_id === cardId,
+      candidate.board_id === boardId &&
+      mockCardMatchesAnchor(candidate, cardId),
   );
   if (!card) {
     return {
@@ -3869,8 +4127,9 @@ export function moveMockBoardCard(boardId, cardId, payload) {
   const columns = getBoardColumnCards(boardId);
   const sourceColumn = columns[card.column_key] ?? [];
   const targetColumn = columns[columnKey] ?? (columns[columnKey] = []);
+  const movingKey = mockBoardCardStableKey(card);
   const sourceIndex = sourceColumn.findIndex(
-    (candidate) => candidate.thread_id === card.thread_id,
+    (candidate) => mockBoardCardStableKey(candidate) === movingKey,
   );
   if (sourceIndex >= 0) {
     sourceColumn.splice(sourceIndex, 1);
@@ -3915,7 +4174,8 @@ export function removeMockBoardCard(boardId, cardId, payload = {}) {
 
   const cardIndex = boardCards.findIndex(
     (candidate) =>
-      candidate.board_id === boardId && candidate.thread_id === cardId,
+      candidate.board_id === boardId &&
+      mockCardMatchesAnchor(candidate, cardId),
   );
   if (cardIndex === -1) {
     return {
@@ -3925,19 +4185,36 @@ export function removeMockBoardCard(boardId, cardId, payload = {}) {
   }
 
   const removedCard = boardCards.splice(cardIndex, 1)[0];
-  renormalizeColumnCards(
+  const colKey = removedCard.column_key;
+  const remainingInColumn = sortBoardCardsForBoard(
     boardCards.filter(
       (candidate) =>
-        candidate.board_id === boardId &&
-        candidate.column_key === removedCard.column_key,
+        candidate.board_id === boardId && candidate.column_key === colKey,
     ),
   );
+  renormalizeColumnCards(remainingInColumn);
   touchBoard(board, payload.actor_id);
 
   return {
     board: cloneBoard(board),
+    card: cloneBoardCard(removedCard),
     removed_thread_id: removedCard.thread_id,
   };
+}
+
+/** Archive/remove by card id alone (matches POST /cards/{card_id}/archive). */
+export function archiveMockBoardCardByCardId(cardId, payload = {}) {
+  const cardIndex = boardCards.findIndex((candidate) =>
+    mockCardMatchesAnchor(candidate, cardId),
+  );
+  if (cardIndex === -1) {
+    return {
+      error: "not_found",
+      message: `Card not found: ${cardId}`,
+    };
+  }
+  const cardRow = boardCards[cardIndex];
+  return removeMockBoardCard(cardRow.board_id, cardId, payload);
 }
 
 export function createMockBoard(payload) {

@@ -45,13 +45,13 @@ func (a *App) resolveThreadIDFilters(ctx context.Context, cfg config.Resolved, r
 	return normalizeIDFilters(resolved), nil
 }
 
-func (a *App) normalizeMutationBodyIDs(ctx context.Context, cfg config.Resolved, commandID string, body any) (any, error) {
+func (a *App) normalizeMutationBodyIDs(ctx context.Context, cfg config.Resolved, commandID string, pathParams map[string]string, body any) (any, error) {
 	_, ok := body.(map[string]any)
 	if !ok || !commandSupportsMutationIDResolution(commandID) {
 		return body, nil
 	}
 	cloned, _ := deepCloneJSONValue(body).(map[string]any)
-	if err := a.normalizeMutationCommandBody(ctx, cfg, strings.TrimSpace(commandID), cloned); err != nil {
+	if err := a.normalizeMutationCommandBody(ctx, cfg, strings.TrimSpace(commandID), pathParams, cloned); err != nil {
 		return nil, err
 	}
 	return cloned, nil
@@ -64,6 +64,7 @@ func commandSupportsMutationIDResolution(commandID string) bool {
 		"boards.create",
 		"boards.update",
 		"boards.cards.add",
+		"boards.cards.create",
 		"boards.cards.move",
 		"docs.create",
 		"docs.update",
@@ -80,7 +81,7 @@ func commandSupportsMutationIDResolution(commandID string) bool {
 	}
 }
 
-func (a *App) normalizeMutationCommandBody(ctx context.Context, cfg config.Resolved, commandID string, body map[string]any) error {
+func (a *App) normalizeMutationCommandBody(ctx context.Context, cfg config.Resolved, commandID string, pathParams map[string]string, body map[string]any) error {
 	switch commandID {
 	case "threads.create":
 		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "thread"), []mutationFieldSpec{
@@ -113,17 +114,35 @@ func (a *App) normalizeMutationCommandBody(ctx context.Context, cfg config.Resol
 		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "patch"), []mutationFieldSpec{
 			{key: "pinned_refs", kind: mutationFieldTypedRefList},
 		})
-	case "boards.cards.add":
+	case "boards.cards.add", "boards.cards.create":
 		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
 			{key: "thread_id", kind: mutationFieldThreadID},
+			{key: "parent_thread", kind: mutationFieldThreadID},
 			{key: "before_thread_id", kind: mutationFieldThreadID},
 			{key: "after_thread_id", kind: mutationFieldThreadID},
 		})
 	case "boards.cards.move":
-		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
+		if err := a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
 			{key: "before_thread_id", kind: mutationFieldThreadID},
 			{key: "after_thread_id", kind: mutationFieldThreadID},
-		})
+		}); err != nil {
+			return err
+		}
+		if pathParams == nil {
+			return nil
+		}
+		rawBoardID := strings.TrimSpace(pathParams["board_id"])
+		if rawBoardID == "" {
+			return nil
+		}
+		resolvedBoard, err := a.resolveMaybeBoardID(ctx, cfg, rawBoardID)
+		if err != nil {
+			return err
+		}
+		if err := a.normalizeBoardMutationCardAnchorField(ctx, cfg, resolvedBoard, body, "before_card_id"); err != nil {
+			return err
+		}
+		return a.normalizeBoardMutationCardAnchorField(ctx, cfg, resolvedBoard, body, "after_card_id")
 	case "docs.create", "docs.update":
 		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
 			{key: "refs", kind: mutationFieldTypedRefList},

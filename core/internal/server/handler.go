@@ -86,7 +86,7 @@ type PrimitiveStore interface {
 	AddBoardCard(ctx context.Context, actorID string, boardID string, input primitives.AddBoardCardInput) (primitives.BoardCardMutationResult, error)
 	UpdateBoardCard(ctx context.Context, actorID string, boardID string, threadID string, input primitives.UpdateBoardCardInput) (primitives.BoardCardMutationResult, error)
 	MoveBoardCard(ctx context.Context, actorID string, boardID string, threadID string, input primitives.MoveBoardCardInput) (primitives.BoardCardMutationResult, error)
-	RemoveBoardCard(ctx context.Context, actorID string, boardID string, threadID string, input primitives.RemoveBoardCardInput) (primitives.BoardCardRemovalResult, error)
+	RemoveBoardCard(ctx context.Context, actorID string, boardID string, identifier string, input primitives.RemoveBoardCardInput) (primitives.BoardCardRemovalResult, error)
 	ArchiveBoardCard(ctx context.Context, actorID string, boardID string, identifier string, input primitives.RemoveBoardCardInput) (primitives.BoardCardMutationResult, error)
 	ListBoardCardHistory(ctx context.Context, cardID string) ([]map[string]any, error)
 	ListBoardMembershipsByThread(ctx context.Context, threadID string) ([]primitives.BoardMembership, error)
@@ -1472,13 +1472,13 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 					writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
 					return
 				}
-				threadID := strings.TrimSuffix(cardRemainder, "/move")
-				threadID = strings.TrimSuffix(threadID, "/")
-				if threadID == "" || strings.Contains(threadID, "/") {
+				cardKey := strings.TrimSuffix(cardRemainder, "/move")
+				cardKey = strings.TrimSuffix(cardKey, "/")
+				if cardKey == "" || strings.Contains(cardKey, "/") {
 					writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 					return
 				}
-				handleMoveBoardCard(w, r, opts, boardID, threadID)
+				handleMoveBoardCard(w, r, opts, boardID, cardKey)
 				return
 			}
 
@@ -1502,13 +1502,13 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 					writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
 					return
 				}
-				threadID := strings.TrimSuffix(cardRemainder, "/remove")
-				threadID = strings.TrimSuffix(threadID, "/")
-				if threadID == "" || strings.Contains(threadID, "/") {
+				identifier := strings.TrimSuffix(cardRemainder, "/remove")
+				identifier = strings.TrimSuffix(identifier, "/")
+				if identifier == "" || strings.Contains(identifier, "/") {
 					writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 					return
 				}
-				handleRemoveBoardCard(w, r, opts, boardID, threadID)
+				handleRemoveBoardCard(w, r, opts, boardID, identifier)
 				return
 			}
 

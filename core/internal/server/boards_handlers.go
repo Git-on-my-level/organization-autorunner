@@ -640,7 +640,7 @@ func handleAddBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpti
 	writeJSON(w, status, payload)
 }
 
-func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, threadID string) {
+func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, cardKey string) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
 		return
@@ -677,7 +677,7 @@ func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 
-	beforeCard, err := loadBoardCardForEvent(r.Context(), opts, boardID, threadID)
+	beforeCard, err := loadBoardCardForEvent(r.Context(), opts, boardID, cardKey)
 	if err != nil {
 		if errors.Is(err, primitives.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "board or card not found")
@@ -704,7 +704,7 @@ func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 
-	result, err := opts.primitiveStore.UpdateBoardCard(r.Context(), actorID, boardID, threadID, patchInput)
+	result, err := opts.primitiveStore.UpdateBoardCard(r.Context(), actorID, boardID, cardKey, patchInput)
 	if err != nil {
 		switch {
 		case errors.Is(err, primitives.ErrInvalidBoardRequest):
@@ -726,7 +726,7 @@ func handleUpdateBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 	writeJSON(w, http.StatusOK, map[string]any{"board": result.Board, "card": result.Card})
 }
 
-func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, threadID string) {
+func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, cardKey string) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
 		return
@@ -766,7 +766,7 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		return
 	}
 
-	beforeCard, err := loadBoardCardForEvent(r.Context(), opts, boardID, threadID)
+	beforeCard, err := loadBoardCardForEvent(r.Context(), opts, boardID, cardKey)
 	if err != nil {
 		if errors.Is(err, primitives.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "not_found", "board or card not found")
@@ -776,7 +776,7 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		return
 	}
 
-	result, err := opts.primitiveStore.MoveBoardCard(r.Context(), actorID, boardID, threadID, primitives.MoveBoardCardInput{
+	result, err := opts.primitiveStore.MoveBoardCard(r.Context(), actorID, boardID, cardKey, primitives.MoveBoardCardInput{
 		ColumnKey:        strings.TrimSpace(req.ColumnKey),
 		BeforeCardID:     strings.TrimSpace(req.BeforeCardID),
 		AfterCardID:      strings.TrimSpace(req.AfterCardID),
@@ -803,7 +803,7 @@ func handleMoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOpt
 	writeJSON(w, http.StatusOK, map[string]any{"board": result.Board, "card": result.Card})
 }
 
-func handleRemoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, threadID string) {
+func handleRemoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, boardID, identifier string) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
 		return
@@ -830,7 +830,7 @@ func handleRemoveBoardCard(w http.ResponseWriter, r *http.Request, opts handlerO
 		return
 	}
 
-	result, err := opts.primitiveStore.RemoveBoardCard(r.Context(), actorID, boardID, threadID, primitives.RemoveBoardCardInput{
+	result, err := opts.primitiveStore.RemoveBoardCard(r.Context(), actorID, boardID, identifier, primitives.RemoveBoardCardInput{
 		IfBoardUpdatedAt: &ifBoardUpdatedAt,
 	})
 	if err != nil {

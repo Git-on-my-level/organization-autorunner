@@ -79,6 +79,15 @@ var (
 		idFieldPath:    []string{"board", "id"},
 		notFoundHints:  []string{"board not found"},
 	}
+	boardCardIDLookupSpec = resourceIDLookupSpec{
+		idLabel:        "card id",
+		resource:       "card",
+		resourcePlural: "cards",
+		listCommand:    "boards cards list",
+		listCommandID:  "boards.cards.list",
+		listField:      "cards",
+		notFoundHints:  []string{"board not found"},
+	}
 )
 
 type queryParam struct {
@@ -4194,6 +4203,60 @@ func (a *App) normalizeBoardMutationThreadField(ctx context.Context, cfg config.
 	}
 	body[field] = resolvedID
 	return nil
+}
+
+func (a *App) normalizeBoardMutationCardAnchorField(ctx context.Context, cfg config.Resolved, boardID string, body map[string]any, field string) error {
+	rawID := strings.TrimSpace(anyString(body[field]))
+	if rawID == "" {
+		return nil
+	}
+	resolvedID, err := a.resolveMaybeBoardCardID(ctx, cfg, boardID, rawID)
+	if err != nil {
+		return err
+	}
+	body[field] = resolvedID
+	return nil
+}
+
+func (a *App) resolveMaybeBoardCardID(ctx context.Context, cfg config.Resolved, boardID, rawCardID string) (string, error) {
+	rawCardID = strings.TrimSpace(rawCardID)
+	if rawCardID == "" {
+		return "", nil
+	}
+	if !shouldResolveDisplayedShortID(rawCardID) {
+		return rawCardID, nil
+	}
+	resolvedBoard, err := a.resolveMaybeBoardID(ctx, cfg, boardID)
+	if err != nil {
+		return "", err
+	}
+	result, err := a.invokeTypedJSON(ctx, cfg, "boards cards list", "boards.cards.list", map[string]string{"board_id": resolvedBoard}, nil, nil)
+	if err != nil {
+		return "", err
+	}
+	ids := listResourceIDs(result, boardCardIDLookupSpec)
+	if len(ids) == 0 {
+		return "", missingResourceIDError(rawCardID, boardCardIDLookupSpec)
+	}
+	for _, id := range ids {
+		if id == rawCardID {
+			return id, nil
+		}
+	}
+	matches := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if strings.HasPrefix(id, rawCardID) {
+			matches = append(matches, id)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0], nil
+	}
+	if len(matches) > 1 {
+		sort.Strings(matches)
+		return "", ambiguousResourceIDError(rawCardID, boardCardIDLookupSpec, matches)
+	}
+	return "", missingResourceIDError(rawCardID, boardCardIDLookupSpec)
 }
 
 func (a *App) parseBoardCardMutationInput(ctx context.Context, args []string, cfg config.Resolved, commandName string, options boardCardMutationOptions) (string, string, any, error) {

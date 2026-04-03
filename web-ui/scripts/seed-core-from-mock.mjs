@@ -479,19 +479,25 @@ async function seedBoards() {
       .filter((card) => String(card.board_id ?? "") === String(sourceBoard.id ?? ""))
       .sort(compareBoardCardsForSeed);
 
-    const lastThreadByColumn = new Map();
+    const lastAnchorByColumn = new Map();
 
     for (const sourceCard of orderedCards) {
       const threadId = normalizeMappedOptionalThreadId(sourceCard.thread_id);
-      if (!threadId) {
+      const parentThreadId = normalizeMappedOptionalThreadId(
+        sourceCard.parent_thread,
+      );
+      const linkedThreadId = threadId || parentThreadId;
+      const standaloneTitle = String(sourceCard.title ?? "").trim();
+
+      if (!linkedThreadId && !standaloneTitle) {
         console.warn(
-          `Skipping board card ${String(sourceCard.thread_id ?? "<unknown>")} on ${newBoardId}: thread is not seedable.`,
+          `Skipping board card on ${newBoardId}: need thread_id, parent_thread, or title.`,
         );
         continue;
       }
-      if (threadId === primaryThreadId) {
+      if (linkedThreadId && linkedThreadId === primaryThreadId) {
         console.warn(
-          `Skipping board card ${threadId} on ${newBoardId}: primary thread cannot be added as a card.`,
+          `Skipping board card ${linkedThreadId} on ${newBoardId}: primary thread cannot be added as a card.`,
         );
         continue;
       }
@@ -500,23 +506,68 @@ async function seedBoards() {
         sourceCard.pinned_document_id,
       );
       const columnKey = String(sourceCard.column_key ?? "backlog").trim() || "backlog";
-      const afterThreadId = lastThreadByColumn.get(columnKey);
+      const afterAnchor = lastAnchorByColumn.get(columnKey);
       const boardUpdatedAt = String(currentBoard?.updated_at ?? "").trim();
-      const addResponse = await requestRetryOnServerError(
-        "POST",
-        `/boards/${encodeURIComponent(newBoardId)}/cards`,
-        {
-          actor_id: pickActorId(sourceCard.created_by ?? sourceCard.updated_by),
-          ...(boardUpdatedAt ? { if_board_updated_at: boardUpdatedAt } : {}),
-          thread_id: threadId,
-          column_key: columnKey,
-          ...(afterThreadId ? { after_thread_id: afterThreadId } : {}),
-          ...(pinnedDocumentId ? { pinned_document_id: pinnedDocumentId } : {}),
-        },
-      );
+
+      const baseBody = {
+        actor_id: pickActorId(sourceCard.created_by ?? sourceCard.updated_by),
+        ...(boardUpdatedAt ? { if_board_updated_at: boardUpdatedAt } : {}),
+        column_key: columnKey,
+        ...(pinnedDocumentId ? { pinned_document_id: pinnedDocumentId } : {}),
+      };
+
+      const placementAfter = (anchor) => {
+        if (!anchor) {
+          return {};
+        }
+        const a = String(anchor);
+        if (a.startsWith("thread-")) {
+          return { after_thread_id: a };
+        }
+        return { after_card_id: a };
+      };
+
+      let addResponse;
+      if (linkedThreadId) {
+        addResponse = await requestRetryOnServerError(
+          "POST",
+          `/boards/${encodeURIComponent(newBoardId)}/cards`,
+          {
+            ...baseBody,
+            thread_id: linkedThreadId,
+            ...placementAfter(afterAnchor),
+          },
+        );
+      } else {
+        addResponse = await requestRetryOnServerError(
+          "POST",
+          `/boards/${encodeURIComponent(newBoardId)}/cards`,
+          {
+            ...baseBody,
+            title: standaloneTitle,
+            ...(sourceCard.body ? { body: String(sourceCard.body) } : {}),
+            ...placementAfter(afterAnchor),
+            ...(sourceCard.assignee
+              ? { assignee: String(sourceCard.assignee) }
+              : {}),
+            ...(sourceCard.priority
+              ? { priority: String(sourceCard.priority) }
+              : {}),
+            ...(sourceCard.status ? { status: String(sourceCard.status) } : {}),
+          },
+        );
+      }
 
       currentBoard = addResponse?.board ?? currentBoard;
-      lastThreadByColumn.set(columnKey, threadId);
+      const created = addResponse?.card;
+      const nextAnchor =
+        String(created?.id ?? "").trim() ||
+        String(created?.thread_id ?? "").trim() ||
+        linkedThreadId ||
+        "";
+      if (nextAnchor) {
+        lastAnchorByColumn.set(columnKey, nextAnchor);
+      }
     }
   }
 }
@@ -705,8 +756,8 @@ function compareBoardCardsForSeed(left, right) {
     return rankDelta;
   }
 
-  return String(left?.thread_id ?? "").localeCompare(
-    String(right?.thread_id ?? ""),
+  return String(left?.thread_id ?? left?.id ?? "").localeCompare(
+    String(right?.thread_id ?? right?.id ?? ""),
   );
 }
 

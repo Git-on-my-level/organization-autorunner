@@ -67,7 +67,7 @@ func (a *App) invokeArtifactContent(ctx context.Context, cfg config.Resolved, co
 
 func (a *App) invokeTypedJSON(ctx context.Context, cfg config.Resolved, commandName string, commandID string, pathParams map[string]string, query []queryParam, body any) (*commandResult, error) {
 	if body != nil {
-		normalizedBody, err := a.normalizeMutationBodyIDs(ctx, cfg, commandID, body)
+		normalizedBody, err := a.normalizeMutationBodyIDs(ctx, cfg, commandID, pathParams, body)
 		if err != nil {
 			return nil, err
 		}

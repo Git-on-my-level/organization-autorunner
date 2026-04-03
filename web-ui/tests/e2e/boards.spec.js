@@ -21,7 +21,8 @@ function buildSummary(board, cards, threads, documents) {
 
   cards.forEach((card) => {
     cardsByColumn[card.column_key] = (cardsByColumn[card.column_key] ?? 0) + 1;
-    threadIds.add(card.thread_id);
+    const tid = String(card.thread_id ?? "").trim();
+    if (tid) threadIds.add(tid);
   });
 
   for (const threadId of threadIds) {
@@ -63,7 +64,9 @@ function sortCards(cards) {
       Number.parseInt(right.rank ?? "0", 10);
     if (rankDelta !== 0) return rankDelta;
 
-    return String(left.thread_id).localeCompare(String(right.thread_id));
+    return String(left.thread_id || left.id).localeCompare(
+      String(right.thread_id || right.id),
+    );
   });
 }
 
@@ -77,10 +80,11 @@ function buildWorkspace(
   options = {},
 ) {
   const sortedCards = sortCards(cards);
-  const threadIds = new Set([
-    board.primary_thread_id,
-    ...cards.map((card) => card.thread_id),
-  ]);
+  const threadIds = new Set([board.primary_thread_id]);
+  for (const card of cards) {
+    const tid = String(card.thread_id ?? "").trim();
+    if (tid) threadIds.add(tid);
+  }
   const workspaceDocuments = documents.filter((document) =>
     threadIds.has(document.thread_id),
   );
@@ -450,6 +454,7 @@ test("board UI supports create/edit and card mutation flows", async ({
       (card) => card.column_key === payload.column_key,
     );
     const newCard = {
+      id: payload.thread_id,
       board_id: "board-created",
       thread_id: payload.thread_id,
       column_key: payload.column_key,
@@ -484,13 +489,15 @@ test("board UI supports create/edit and card mutation flows", async ({
       const payload = JSON.parse(route.request().postData() ?? "{}");
       movePayloads.push({ cardId, payload });
 
-      const movingCard = cards.find((card) => card.thread_id === cardId);
+      const movingCard = cards.find(
+        (card) => card.thread_id === cardId || card.id === cardId,
+      );
       const groupedCards = Object.fromEntries(
         columns.map((column) => [column.key, []]),
       );
 
       cards
-        .filter((card) => card.thread_id !== cardId)
+        .filter((card) => card.thread_id !== cardId && card.id !== cardId)
         .forEach((card) => {
           groupedCards[card.column_key].push(card);
         });
@@ -506,7 +513,20 @@ test("board UI supports create/edit and card mutation flows", async ({
       movingCard.column_key = payload.column_key;
       const targetCards = groupedCards[payload.column_key];
       let insertIndex = targetCards.length;
-      if (payload.before_thread_id) {
+      if (payload.before_card_id) {
+        insertIndex = targetCards.findIndex(
+          (card) =>
+            card.id === payload.before_card_id ||
+            card.thread_id === payload.before_card_id,
+        );
+      } else if (payload.after_card_id) {
+        const afterIndex = targetCards.findIndex(
+          (card) =>
+            card.id === payload.after_card_id ||
+            card.thread_id === payload.after_card_id,
+        );
+        insertIndex = afterIndex >= 0 ? afterIndex + 1 : targetCards.length;
+      } else if (payload.before_thread_id) {
         insertIndex = targetCards.findIndex(
           (card) => card.thread_id === payload.before_thread_id,
         );
@@ -540,49 +560,48 @@ test("board UI supports create/edit and card mutation flows", async ({
     },
   );
 
-  await page.route(
-    /\/boards\/board-created\/cards\/thread-execution$/,
-    async (route) => {
-      const payload = JSON.parse(route.request().postData() ?? "{}");
-      updateCardPayloads.push(payload);
-      const card = cards.find((item) => item.thread_id === "thread-execution");
-      card.pinned_document_id = payload.patch.pinned_document_id;
-      card.updated_at = nextTimestamp();
-      card.updated_by = actorId;
-      board = {
-        ...board,
-        updated_at: card.updated_at,
-        updated_by: actorId,
-      };
+  await page.route(/\/cards\/thread-execution$/, async (route) => {
+    if (route.request().method() !== "PATCH") {
+      await route.continue();
+      return;
+    }
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    updateCardPayloads.push(payload);
+    const card = cards.find((item) => item.thread_id === "thread-execution");
+    card.pinned_document_id = payload.patch.pinned_document_id;
+    card.updated_at = nextTimestamp();
+    card.updated_by = actorId;
+    board = {
+      ...board,
+      updated_at: card.updated_at,
+      updated_by: actorId,
+    };
 
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ board, card }),
-      });
-    },
-  );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ board, card }),
+    });
+  });
 
-  await page.route(
-    /\/boards\/board-created\/cards\/thread-execution\/remove$/,
-    async (route) => {
-      const payload = JSON.parse(route.request().postData() ?? "{}");
-      removePayloads.push(payload);
-      cards = cards.filter((card) => card.thread_id !== "thread-execution");
-      renormalize(cards, "ready");
-      board = {
-        ...board,
-        updated_at: nextTimestamp(),
-        updated_by: actorId,
-      };
+  await page.route(/\/cards\/thread-execution\/archive$/, async (route) => {
+    const payload = JSON.parse(route.request().postData() ?? "{}");
+    removePayloads.push(payload);
+    const removed = cards.find((card) => card.thread_id === "thread-execution");
+    cards = cards.filter((card) => card.thread_id !== "thread-execution");
+    renormalize(cards, "ready");
+    board = {
+      ...board,
+      updated_at: nextTimestamp(),
+      updated_by: actorId,
+    };
 
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ board, removed_thread_id: "thread-execution" }),
-      });
-    },
-  );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ board, card: removed }),
+    });
+  });
 
   await page.goto("/local/boards");
   await page.waitForLoadState("networkidle");
@@ -729,7 +748,7 @@ test("board UI supports create/edit and card mutation flows", async ({
         actor_id: actorId,
         if_board_updated_at: "2026-03-05T03:00:00.000Z",
         column_key: "ready",
-        before_thread_id: "thread-execution",
+        before_card_id: "thread-execution",
       },
     },
     {
@@ -823,6 +842,7 @@ test("board detail shows pending freshness and hides derived card counts until r
   };
   const cards = [
     {
+      id: "thread-execution",
       board_id: "board-pending",
       thread_id: "thread-execution",
       column_key: "ready",

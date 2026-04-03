@@ -2356,7 +2356,7 @@
           ],
           "stability": "beta",
           "surface": "canonical",
-          "agent_notes": "Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column.",
+          "agent_notes": "At most one of `before_card_id` and `after_card_id`; at most one of `before_thread_id` and `after_thread_id`; `before_card_id` and `before_thread_id` are mutually exclusive; `after_card_id` and `after_thread_id` are mutually exclusive; if no placement anchor is provided, the card moves to the end of the target column.",
           "examples": [
             {
               "title": "Move card into review",
@@ -4194,7 +4194,7 @@
           ],
           "stability": "beta",
           "surface": "canonical",
-          "agent_notes": "Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column.",
+          "agent_notes": "At most one of `before_card_id` and `after_card_id`; at most one of `before_thread_id` and `after_thread_id`; `before_card_id` and `before_thread_id` are mutually exclusive; `after_card_id` and `after_thread_id` are mutually exclusive; if no placement anchor is provided, the card moves to the end of the target column.",
           "examples": [
             {
               "title": "Move card into review",
@@ -10840,7 +10840,7 @@
           ],
           "stability": "beta",
           "surface": "canonical",
-          "agent_notes": "Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column.",
+          "agent_notes": "At most one of `before_card_id` and `after_card_id`; at most one of `before_thread_id` and `after_thread_id`; `before_card_id` and `before_thread_id` are mutually exclusive; `after_card_id` and `after_thread_id` are mutually exclusive; if no placement anchor is provided, the card moves to the end of the target column.",
           "examples": [
             {
               "title": "Move card into review",
@@ -12064,7 +12064,7 @@
           ],
           "stability": "beta",
           "surface": "canonical",
-          "agent_notes": "Provide at most one of `before_thread_id` or `after_thread_id`. If neither is set, the card moves to the end of the target column.",
+          "agent_notes": "At most one of `before_card_id` and `after_card_id`; at most one of `before_thread_id` and `after_thread_id`; `before_card_id` and `before_thread_id` are mutually exclusive; `after_card_id` and `after_thread_id` are mutually exclusive; if no placement anchor is provided, the card moves to the end of the target column.",
           "examples": [
             {
               "title": "Move card into review",

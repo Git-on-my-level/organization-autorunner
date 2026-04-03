@@ -20,6 +20,8 @@
   import { enrichInboxItem } from "$lib/inboxUtils";
   import {
     BOARD_STATUS_LABELS,
+    boardCardLinkedThreadId,
+    boardCardStableId,
     boardColumnTitle,
     freshnessStatusLabel,
     freshnessStatusTone,
@@ -140,13 +142,13 @@
   }
 
   function openCardManager(cardItem) {
-    const threadId = cardItem.membership.thread_id;
-    if (expandedCardId === threadId) {
+    const cardKey = boardCardStableId(cardItem.membership);
+    if (expandedCardId === cardKey) {
       expandedCardId = "";
       return;
     }
 
-    expandedCardId = threadId;
+    expandedCardId = cardKey;
     manageMoveColumnKey = cardItem.membership.column_key;
     managePinnedDocumentId = cardItem.membership.pinned_document_id ?? "";
     mutationError = "";
@@ -303,7 +305,7 @@
   async function moveCard(cardItem, payload, successMessage) {
     if (!workspace?.board) return;
 
-    const cardId = cardItem.membership.thread_id;
+    const cardId = boardCardStableId(cardItem.membership);
     mutatingCardId = cardId;
     await runBoardMutation(
       () =>
@@ -322,7 +324,7 @@
         cardItem,
         {
           column_key: cardItem.membership.column_key,
-          before_thread_id: cards[index - 1].membership.thread_id,
+          before_card_id: boardCardStableId(cards[index - 1].membership),
         },
         "Card reordered.",
       );
@@ -333,7 +335,7 @@
         cardItem,
         {
           column_key: cardItem.membership.column_key,
-          after_thread_id: cards[index + 1].membership.thread_id,
+          after_card_id: boardCardStableId(cards[index + 1].membership),
         },
         "Card reordered.",
       );
@@ -343,7 +345,7 @@
   async function saveCardPinnedDocument(cardItem) {
     if (!workspace?.board) return;
 
-    const cardId = cardItem.membership.thread_id;
+    const cardId = boardCardStableId(cardItem.membership);
     mutatingCardId = cardId;
     await runBoardMutation(
       () =>
@@ -361,7 +363,7 @@
   async function removeCard(cardItem) {
     if (!workspace?.board) return;
 
-    const cardId = cardItem.membership.thread_id;
+    const cardId = boardCardStableId(cardItem.membership);
     mutatingCardId = cardId;
     await runBoardMutation(
       () =>
@@ -389,6 +391,23 @@
     if (thread.staleness === "stale") return "stale";
     if (thread.staleness === "very-stale") return "very-stale";
     return "active";
+  }
+
+  /** Visual status for the card row: thread staleness when linked, else artifact status. */
+  function boardCardRowStatus(membership, thread) {
+    if (thread) return getThreadStatus(thread);
+    const s = String(membership?.status ?? "").trim();
+    if (s === "done") return "done";
+    if (s === "cancelled") return "canceled";
+    return "active";
+  }
+
+  function boardCardHeaderTitle(membership, thread) {
+    const threadTitle = String(thread?.title ?? "").trim();
+    if (threadTitle) return threadTitle;
+    const cardTitle = String(membership?.title ?? "").trim();
+    if (cardTitle) return cardTitle;
+    return boardCardStableId(membership);
   }
 
   function threadStatusColor(status) {
@@ -947,79 +966,155 @@
     {@const backing = cardItem.backing}
     {@const derived = cardItem.derived}
     {@const thread = backing?.thread}
-    {@const threadId = membership.thread_id}
-    {@const threadStatus = getThreadStatus(thread)}
+    {@const linkedThreadId = boardCardLinkedThreadId(membership)}
+    {@const hasResolvedThread = Boolean(thread)}
+    {@const showThreadNav = hasResolvedThread && Boolean(linkedThreadId)}
+    {@const hasThreadLink = Boolean(linkedThreadId)}
+    {@const cardRowId = boardCardStableId(membership)}
+    {@const rowStatus = boardCardRowStatus(membership, thread)}
+    {@const headerTitle = boardCardHeaderTitle(membership, thread)}
     {@const cardFreshness = derived?.freshness}
     {@const derivedCurrent = isFreshnessCurrent(cardFreshness)}
     {@const summary = derived?.summary}
+    {@const cardBody = String(membership?.body ?? "").trim()}
+    {@const assigneeId = String(membership?.assignee ?? "").trim()}
+    {@const cardPriority = String(membership?.priority ?? "").trim()}
+    {@const cardStatusLabel = String(membership?.status ?? "").trim()}
     <div
       class="group rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] transition-colors hover:border-[var(--ui-border-strong)]"
     >
       <div class="px-2.5 py-2">
         <div class="flex items-start gap-2">
           <span
+            aria-hidden="true"
             class="mt-[5px] h-2 w-2 shrink-0 rounded-full {threadStatusDotClass(
-              threadStatus,
+              rowStatus,
             )}"
           ></span>
-          <a
-            class="block min-w-0 flex-1 text-[13px] font-medium leading-snug transition-colors hover:text-indigo-300 {threadStatusColor(
-              threadStatus,
-            )}"
-            href={workspaceHref(`/threads/${encodeURIComponent(threadId)}`)}
-          >
-            {thread?.title || threadId}
-          </a>
+          {#if showThreadNav}
+            <a
+              class="block min-w-0 flex-1 text-[13px] font-medium leading-snug transition-colors hover:text-indigo-300 {threadStatusColor(
+                rowStatus,
+              )}"
+              href={workspaceHref(
+                `/threads/${encodeURIComponent(linkedThreadId)}`,
+              )}
+            >
+              {headerTitle}
+            </a>
+          {:else}
+            <span
+              class="block min-w-0 flex-1 text-[13px] font-medium leading-snug {threadStatusColor(
+                rowStatus,
+              )}"
+            >
+              {headerTitle}
+            </span>
+          {/if}
+        </div>
+
+        <div class="mt-1 flex flex-wrap items-center gap-1 pl-4">
+          {#if cardStatusLabel}
+            <span
+              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--ui-text-muted)]"
+            >
+              {cardStatusLabel}
+            </span>
+          {/if}
+          {#if cardPriority}
+            <span
+              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] font-medium text-[var(--ui-text-muted)]"
+            >
+              {cardPriority}
+            </span>
+          {/if}
         </div>
 
         <div class="mt-1 pl-4 text-[11px] text-[var(--ui-text-muted)]">
-          {thread?.status ?? "—"} · {thread?.priority ?? "—"} · Added {formatTimestamp(
-            membership.created_at,
-          )}
+          {#if hasThreadLink}
+            {thread?.status || cardStatusLabel || "—"} · {thread?.priority ||
+              cardPriority ||
+              "—"} · Added {formatTimestamp(membership.created_at)}
+          {:else}
+            {cardStatusLabel || "—"} · {cardPriority || "—"} · Added {formatTimestamp(
+              membership.created_at,
+            )}
+          {/if}
         </div>
 
-        <div class="mt-1.5 flex flex-wrap gap-1 pl-4">
-          <span
-            class="rounded px-1 py-0.5 text-[11px] {freshnessStatusTone(
-              cardFreshness?.status,
-            )}"
+        {#if assigneeId}
+          <div class="mt-1 pl-4 text-[11px] text-[var(--ui-text-subtle)]">
+            {actorName(assigneeId)}
+          </div>
+        {/if}
+
+        {#if cardBody}
+          <p
+            class="mt-1.5 pl-4 text-[12px] leading-snug text-[var(--ui-text-muted)] whitespace-pre-wrap"
           >
-            {freshnessStatusLabel(cardFreshness?.status)}
-          </span>
-          {#if derivedCurrent}
-            {#if (summary?.open_commitment_count ?? 0) > 0}
-              <span
-                class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
-              >
-                {summary.open_commitment_count} commit.
-              </span>
-            {/if}
-            {#if (summary?.inbox_count ?? 0) > 0}
-              <span
-                class="rounded bg-amber-500/10 px-1 py-0.5 text-[11px] text-amber-400"
-              >
-                {summary.inbox_count} inbox
-              </span>
-            {/if}
-            {#if (summary?.decision_request_count ?? 0) > 0}
-              <span
-                class="rounded bg-indigo-500/10 px-1 py-0.5 text-[11px] text-indigo-400"
-              >
-                {summary.decision_request_count} decisions
-              </span>
-            {/if}
+            {cardBody}
+          </p>
+        {/if}
+
+        <div class="mt-1.5 flex flex-wrap gap-1 pl-4">
+          {#if hasThreadLink && hasResolvedThread}
             <span
-              class="rounded px-1 py-0.5 text-[11px] {staleBadgeClass(
-                Boolean(summary?.stale),
+              class="rounded px-1 py-0.5 text-[11px] {freshnessStatusTone(
+                cardFreshness?.status,
               )}"
             >
-              {summary?.stale ? "Thread stale" : "Fresh check-in"}
+              {freshnessStatusLabel(cardFreshness?.status)}
+            </span>
+            {#if derivedCurrent}
+              {#if (summary?.open_commitment_count ?? 0) > 0}
+                <span
+                  class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
+                >
+                  {summary.open_commitment_count} open {summary.open_commitment_count ===
+                  1
+                    ? "commitment"
+                    : "commitments"}
+                </span>
+              {/if}
+              {#if (summary?.inbox_count ?? 0) > 0}
+                <span
+                  class="rounded bg-amber-500/10 px-1 py-0.5 text-[11px] text-amber-400"
+                >
+                  {summary.inbox_count} inbox
+                </span>
+              {/if}
+              {#if (summary?.decision_request_count ?? 0) > 0}
+                <span
+                  class="rounded bg-indigo-500/10 px-1 py-0.5 text-[11px] text-indigo-400"
+                >
+                  {summary.decision_request_count} decisions
+                </span>
+              {/if}
+              <span
+                class="rounded px-1 py-0.5 text-[11px] {staleBadgeClass(
+                  Boolean(summary?.stale),
+                )}"
+              >
+                {summary?.stale ? "Thread stale" : "Fresh check-in"}
+              </span>
+            {:else}
+              <span
+                class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-subtle)]"
+              >
+                Derived counts hidden until refresh completes
+              </span>
+            {/if}
+          {:else if hasThreadLink && !hasResolvedThread}
+            <span
+              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-subtle)]"
+            >
+              Thread linked — snapshot not loaded for this workspace
             </span>
           {:else}
             <span
               class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-subtle)]"
             >
-              Derived counts hidden until refresh completes
+              Standalone card — thread-linked scan not shown
             </span>
           {/if}
         </div>
@@ -1040,20 +1135,22 @@
 
         <div class="mt-2 flex justify-end">
           <button
-            aria-label={`Manage ${thread?.title || threadId}`}
+            aria-label={`Manage ${headerTitle}`}
             class="rounded px-1.5 py-1.5 text-[11px] text-[var(--ui-text-subtle)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text-muted)]"
             onclick={() => openCardManager(cardItem)}
             type="button"
           >
-            {expandedCardId === threadId ? "Close" : "Actions"}
+            {expandedCardId === cardRowId ? "Close" : "Actions"}
           </button>
         </div>
       </div>
 
-      {#if expandedCardId === threadId}
-        {@const thisCommitments = cardCommitments(threadId)}
-        {@const thisInbox = cardInboxItems(threadId)}
-        {@const thisDocs = cardDocuments(threadId)}
+      {#if expandedCardId === cardRowId}
+        {@const thisCommitments = hasThreadLink
+          ? cardCommitments(linkedThreadId)
+          : []}
+        {@const thisInbox = hasThreadLink ? cardInboxItems(linkedThreadId) : []}
+        {@const thisDocs = hasThreadLink ? cardDocuments(linkedThreadId) : []}
         <div
           class="border-t border-[var(--ui-border)] bg-[var(--ui-panel-muted)]"
         >
@@ -1118,6 +1215,15 @@
             </div>
           {/if}
 
+          {#if !hasThreadLink}
+            <div class="border-b border-[var(--ui-border)] px-2.5 py-1.5">
+              <p class="text-[11px] text-[var(--ui-text-muted)]">
+                No linked thread — commitments, inbox, and document lists are
+                empty for this card.
+              </p>
+            </div>
+          {/if}
+
           <div class="space-y-2 px-2.5 py-2">
             <div class="flex items-end gap-1.5">
               <label
@@ -1138,7 +1244,7 @@
               </label>
               <button
                 class="rounded bg-indigo-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40"
-                disabled={mutatingCardId === threadId}
+                disabled={mutatingCardId === cardRowId}
                 onclick={() =>
                   moveCard(
                     cardItem,
@@ -1164,7 +1270,7 @@
             <div class="flex justify-end">
               <button
                 class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={mutatingCardId === threadId}
+                disabled={mutatingCardId === cardRowId}
                 onclick={() => saveCardPinnedDocument(cardItem)}
                 type="button"
               >
@@ -1175,7 +1281,7 @@
             <div class="flex items-center gap-1">
               <button
                 class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={index === 0 || mutatingCardId === threadId}
+                disabled={index === 0 || mutatingCardId === cardRowId}
                 onclick={() => reorderCard(cardItem, cards, index, "up")}
                 type="button"
               >
@@ -1184,7 +1290,7 @@
               <button
                 class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
                 disabled={index === cards.length - 1 ||
-                  mutatingCardId === threadId}
+                  mutatingCardId === cardRowId}
                 onclick={() => reorderCard(cardItem, cards, index, "down")}
                 type="button"
               >
@@ -1193,7 +1299,7 @@
               <div class="flex-1"></div>
               <button
                 class="rounded border border-red-500/20 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-40"
-                disabled={mutatingCardId === threadId}
+                disabled={mutatingCardId === cardRowId}
                 onclick={() => removeCard(cardItem)}
                 type="button"
               >
