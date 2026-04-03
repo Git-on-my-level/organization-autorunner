@@ -674,6 +674,14 @@ func TestBoardCardPatchAllowsContractValidNoOpShapes(t *testing.T) {
 	if got := futurePatchPayload.Card["pinned_document_id"]; got != nil {
 		t.Fatalf("expected unknown-field patch to keep pinned document nil, got %#v", got)
 	}
+
+	mismatchedAliasResp := patchJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards/"+memberThreadID, `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+cardUpdatedAt+`",
+		"patch":{"parent_thread":"thread-parent-a","thread_id":"thread-parent-b"}
+	}`, http.StatusBadRequest)
+	defer mismatchedAliasResp.Body.Close()
+	assertErrorCode(t, mismatchedAliasResp, "invalid_request")
 }
 
 func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) {

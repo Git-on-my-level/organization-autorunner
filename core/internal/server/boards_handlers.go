@@ -1486,8 +1486,10 @@ func parseBoardCardPatchInput(w http.ResponseWriter, patch map[string]any) (prim
 	}
 
 	var (
-		input         primitives.UpdateBoardCardInput
-		changedFields []string
+		input                  primitives.UpdateBoardCardInput
+		changedFields          []string
+		parentThreadAliasSeen  bool
+		parentThreadAliasValue string
 	)
 	appendChanged := func(field string) {
 		changedFields = append(changedFields, field)
@@ -1508,6 +1510,12 @@ func parseBoardCardPatchInput(w http.ResponseWriter, patch map[string]any) (prim
 			appendChanged(field)
 		case "parent_thread", "thread_id":
 			value := strings.TrimSpace(anyString(raw))
+			if parentThreadAliasSeen && value != parentThreadAliasValue {
+				writeError(w, http.StatusBadRequest, "invalid_request", "patch.parent_thread and patch.thread_id must match when both are provided")
+				return primitives.UpdateBoardCardInput{}, nil, false
+			}
+			parentThreadAliasSeen = true
+			parentThreadAliasValue = value
 			input.ParentThreadID = &value
 			appendChanged("parent_thread")
 		case "assignee":

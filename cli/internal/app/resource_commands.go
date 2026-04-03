@@ -3845,9 +3845,6 @@ func (a *App) parseBoardCardUpdateInput(ctx context.Context, args []string, cfg 
 	if err := validateID(cardID, "card id"); err != nil {
 		return nil, nil, err
 	}
-	if ifBoardUpdatedAt := strings.TrimSpace(ifBoardUpdatedAtFlag.value); ifBoardUpdatedAt == "" {
-		return nil, nil, errnorm.Usage("invalid_request", fmt.Sprintf("if_board_updated_at is required for `oar %s`", commandName))
-	}
 
 	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
 	if err != nil {
@@ -3982,9 +3979,6 @@ func (a *App) parseBoardCardMoveInput(ctx context.Context, args []string, cfg co
 	}
 	if err := validateID(identifier, "card id"); err != nil {
 		return "", "", nil, err
-	}
-	if ifBoardUpdatedAt := strings.TrimSpace(ifBoardUpdatedAtFlag.value); ifBoardUpdatedAt == "" {
-		return "", "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("if_board_updated_at is required for `oar %s`", commandName))
 	}
 	payload, err := a.readBodyInput(strings.TrimSpace(fromFileFlag.value))
 	if err != nil {

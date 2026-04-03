@@ -2461,6 +2461,79 @@ func TestBoardCardMutationsResolveShortThreadIDsInBodies(t *testing.T) {
 	}))
 }
 
+func TestBoardCardUpdateAndMoveAllowJSONBodyWithoutConcurrencyFlags(t *testing.T) {
+	t.Parallel()
+
+	const canonicalBoardID = "board_1234567890abcdef"
+	const canonicalCardID = "card_1234567890abcdef"
+	const canonicalAnchorThreadID = "thread_anchor_1234567890"
+	const shortAnchorThreadID = "thread_ancho"
+	const updatedAt = "2026-03-08T00:00:00Z"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads":
+			_, _ = w.Write([]byte(`{"threads":[{"id":"` + canonicalAnchorThreadID + `","title":"Review Anchor"}]}`))
+		case r.Method == http.MethodPatch && r.URL.Path == "/cards/"+canonicalCardID:
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode update body: %v", err)
+			}
+			if got := anyStringValue(payload["if_board_updated_at"]); got != updatedAt {
+				t.Fatalf("expected update concurrency token %q, got %#v", updatedAt, payload)
+			}
+			patch, _ := payload["patch"].(map[string]any)
+			if got := anyStringValue(patch["status"]); got != "done" {
+				t.Fatalf("expected update patch status done, got %#v", payload)
+			}
+			_, _ = w.Write([]byte(`{"board":{"id":"` + canonicalBoardID + `","updated_at":"` + updatedAt + `"},"card":{"id":"` + canonicalCardID + `","board_id":"` + canonicalBoardID + `","status":"done"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/boards/"+canonicalBoardID+"/cards/"+canonicalCardID+"/move":
+			var payload map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode move body: %v", err)
+			}
+			if got := anyStringValue(payload["if_board_updated_at"]); got != updatedAt {
+				t.Fatalf("expected move concurrency token %q, got %#v", updatedAt, payload)
+			}
+			if got := anyStringValue(payload["after_thread_id"]); got != canonicalAnchorThreadID {
+				t.Fatalf("expected canonical move after_thread_id %q, got %#v", canonicalAnchorThreadID, payload)
+			}
+			_, _ = w.Write([]byte(`{"board":{"id":"` + canonicalBoardID + `","updated_at":"` + updatedAt + `"},"card":{"id":"` + canonicalCardID + `","board_id":"` + canonicalBoardID + `","column_key":"review"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	updateFile := filepath.Join(home, "board-card-update.json")
+	if err := os.WriteFile(updateFile, []byte(`{"if_board_updated_at":"`+updatedAt+`","patch":{"status":"done"}}`), 0o600); err != nil {
+		t.Fatalf("write update file: %v", err)
+	}
+	moveFile := filepath.Join(home, "board-card-move.json")
+	if err := os.WriteFile(moveFile, []byte(`{"if_board_updated_at":"`+updatedAt+`","column_key":"review","after_thread_id":"`+shortAnchorThreadID+`"}`), 0o600); err != nil {
+		t.Fatalf("write move file: %v", err)
+	}
+
+	assertEnvelopeOK(t, runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"boards", "cards", "update",
+		"--card-id", canonicalCardID,
+		"--from-file", updateFile,
+	}))
+
+	assertEnvelopeOK(t, runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json",
+		"--base-url", server.URL,
+		"boards", "cards", "move",
+		"--board-id", canonicalBoardID,
+		"--card-id", canonicalCardID,
+		"--from-file", moveFile,
+	}))
+}
+
 func TestArtifactsListIncludesTombstonedQueryFlag(t *testing.T) {
 	t.Parallel()
 
