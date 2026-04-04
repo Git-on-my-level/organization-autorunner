@@ -335,7 +335,7 @@ func deriveInboxItemsNoStaleEmission(ctx context.Context, opts handlerOptions, n
 			if !ok {
 				continue
 			}
-			if eventType == "exception_raised" && isStaleThreadException(event) {
+			if eventType == "exception_raised" && isStaleTopicException(event) {
 				threadID, _ := event["thread_id"].(string)
 				if activityAt, exists := latestActivity[threadID]; exists && activityAt.After(item.TriggerAt) {
 					continue
@@ -374,10 +374,10 @@ func deriveInboxItemsNoStaleEmission(ctx context.Context, opts handlerOptions, n
 	return items, nil
 }
 
-func isStaleThreadException(event map[string]any) bool {
+func isStaleTopicException(event map[string]any) bool {
 	payload, _ := event["payload"].(map[string]any)
 	subtype, _ := payload["subtype"].(string)
-	return subtype == "stale_thread"
+	return subtype == "stale_topic"
 }
 
 func decidedInboxItemIDs(events []map[string]any) map[string]struct{} {
@@ -455,9 +455,15 @@ func deriveEventBackedInboxItem(event map[string]any) (derivedInboxItem, bool) {
 		recommendedAction = "take_action"
 		titleFallback = "Intervention needed"
 	case "exception_raised":
-		category = "exception"
-		recommendedAction = "investigate_exception"
-		titleFallback = "Exception raised"
+		if isStaleTopicException(event) {
+			category = "stale_topic"
+			recommendedAction = "review_topic_cadence"
+			titleFallback = "Topic appears stale"
+		} else {
+			category = "intervention_needed"
+			recommendedAction = "investigate_exception"
+			titleFallback = "Exception raised"
+		}
 	default:
 		return derivedInboxItem{}, false
 	}
@@ -521,10 +527,10 @@ func deriveWorkItemRiskInboxItem(card map[string]any, now time.Time, riskHorizon
 		recommendedAction = "unblock_work_item"
 	}
 
-	id := makeInboxItemID("work_item_risk", threadID, cardID, "")
+	id := makeInboxItemID("risk_review", threadID, cardID, "")
 	data := map[string]any{
 		"id":                 id,
-		"category":           "work_item_risk",
+		"category":           "risk_review",
 		"thread_id":          threadID,
 		"card_id":            cardID,
 		"board_id":           nullableStringValue(anyString(card["board_id"])),
@@ -538,7 +544,7 @@ func deriveWorkItemRiskInboxItem(card map[string]any, now time.Time, riskHorizon
 
 	return derivedInboxItem{
 		Data:      data,
-		Category:  "work_item_risk",
+		Category:  "risk_review",
 		ID:        id,
 		TriggerAt: triggerAt,
 		DueAt:     dueAt,
@@ -635,8 +641,9 @@ func sortInboxItems(items []derivedInboxItem) {
 	categoryOrder := map[string]int{
 		"decision_needed":     0,
 		"intervention_needed": 1,
-		"exception":           2,
-		"work_item_risk":      3,
+		"stale_topic":         2,
+		"risk_review":         3,
+		"document_attention":  4,
 	}
 
 	sort.Slice(items, func(i int, j int) bool {
@@ -655,7 +662,7 @@ func sortInboxItems(items []derivedInboxItem) {
 			return leftOrder < rightOrder
 		}
 
-		if left.Category == "work_item_risk" && right.Category == "work_item_risk" {
+		if left.Category == "risk_review" && right.Category == "risk_review" {
 			if left.HasDueAt && right.HasDueAt && !left.DueAt.Equal(right.DueAt) {
 				return left.DueAt.Before(right.DueAt)
 			}

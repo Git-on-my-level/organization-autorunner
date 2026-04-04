@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -209,7 +212,113 @@ func handleGetDocument(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	})
 }
 
-func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOptions, documentID string) {
+// handleCreateDocumentRevision serves POST /docs/{document_id}/revisions.
+// It accepts the OpenAPI CreateDocumentRevisionRequest shape (revision + optional if_document_updated_at)
+// and the CLI/docs-update envelope (if_base_revision + content + content_type), matching PATCH /docs/{document_id}.
+func handleCreateDocumentRevision(w http.ResponseWriter, r *http.Request, opts handlerOptions, documentID string) {
+	if opts.primitiveStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
+		return
+	}
+	if err := validateDocumentID(documentID); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "failed to read body")
+		return
+	}
+
+	var probe map[string]any
+	if err := json.Unmarshal(bodyBytes, &probe); err != nil || probe == nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "JSON body must be an object")
+		return
+	}
+
+	rebuild := bodyBytes
+	if rev, ok := probe["revision"].(map[string]any); ok && len(rev) > 0 {
+		if opts.contract == nil {
+			writeError(w, http.StatusServiceUnavailable, "schema_unavailable", "schema contract is not configured")
+			return
+		}
+		document, _, err := opts.primitiveStore.GetDocument(r.Context(), documentID)
+		if err != nil {
+			if errors.Is(err, primitives.ErrNotFound) {
+				writeError(w, http.StatusNotFound, "not_found", "document not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load document")
+			return
+		}
+		if raw := strings.TrimSpace(anyString(probe["if_document_updated_at"])); raw != "" {
+			if docUA := strings.TrimSpace(anyString(document["updated_at"])); docUA != "" && docUA != raw {
+				writeError(w, http.StatusConflict, "conflict", "document has been updated; refresh and retry")
+				return
+			}
+		}
+		headID := strings.TrimSpace(anyString(document["head_revision_id"]))
+		if headID == "" {
+			writeError(w, http.StatusInternalServerError, "internal_error", "document has no head revision")
+			return
+		}
+		bodyMD := strings.TrimSpace(anyString(rev["body_markdown"]))
+		if bodyMD == "" {
+			writeError(w, http.StatusBadRequest, "invalid_request", "revision.body_markdown is required")
+			return
+		}
+		provRaw, hasProv := rev["provenance"]
+		if !hasProv {
+			writeError(w, http.StatusBadRequest, "invalid_request", "revision.provenance is required")
+			return
+		}
+		prov, ok := provRaw.(map[string]any)
+		if !ok || prov == nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "revision.provenance must be an object")
+			return
+		}
+		refs, err := optionalRefs(rev["refs"])
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		if err := schema.ValidateTypedRefs(opts.contract, refs); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+
+		synthetic := map[string]any{
+			"actor_id":         probe["actor_id"],
+			"if_base_revision": headID,
+			"content":          bodyMD,
+			"content_type":     "text",
+			"refs":             refs,
+			"provenance":       prov,
+		}
+		if sum := strings.TrimSpace(anyString(rev["summary"])); sum != "" {
+			synthetic["document"] = map[string]any{"title": sum}
+		}
+		rebuild, err = json.Marshal(synthetic)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to build revision request")
+			return
+		}
+	}
+
+	r.Body = io.NopCloser(bytes.NewReader(rebuild))
+	r.ContentLength = int64(len(rebuild))
+	r.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(rebuild)), nil
+	}
+
+	handleUpdateDocument(w, r, opts, documentID, http.StatusCreated)
+}
+
+func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOptions, documentID string, successStatus int) {
+	if successStatus == 0 {
+		successStatus = http.StatusOK
+	}
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
 		return
@@ -230,6 +339,7 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		Content        any            `json:"content"`
 		ContentType    string         `json:"content_type"`
 		Refs           any            `json:"refs"`
+		Provenance     map[string]any `json:"provenance"`
 	}
 	if !decodeJSONBody(w, r, &req) {
 		return
@@ -283,6 +393,7 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		req.Content,
 		req.ContentType,
 		refs,
+		req.Provenance,
 	)
 	if err != nil {
 		switch {
@@ -310,7 +421,7 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 	}
 	enqueueThreadProjectionsBestEffort(r.Context(), opts, threadIDs, refreshNow)
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, successStatus, map[string]any{
 		"document": document,
 		"revision": revision,
 	})

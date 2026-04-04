@@ -40,8 +40,6 @@ type draftCommandFallbackSpec struct {
 
 var draftCommandFallbackSpecs = map[string]draftCommandFallbackSpec{
 	"derived.rebuild": {},
-	"threads.create":  {},
-	"threads.patch":   {pathParams: []string{"thread_id"}},
 }
 
 func (a *App) runDraft(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
@@ -80,7 +78,7 @@ func (a *App) runDraftCreate(args []string, cfg config.Resolved) (*commandResult
 	var commandFlag trackedString
 	var fromFileFlag trackedString
 	var draftIDFlag trackedString
-	fs.Var(&commandFlag, "command", "Command ID or CLI path (for example, threads.create)")
+	fs.Var(&commandFlag, "command", "Command ID or CLI path (for example, topics.create)")
 	fs.Var(&fromFileFlag, "from-file", "Load JSON body from file path")
 	fs.Var(&draftIDFlag, "draft-id", "Optional deterministic draft id")
 	if err := fs.Parse(filteredArgs); err != nil {
@@ -469,8 +467,6 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 		return []string{fmt.Sprintf("command %q does not accept a request body", commandID)}
 	}
 	validators := map[string]func(map[string]any) []string{
-		"threads.create":             validateDraftThreadCreate,
-		"threads.patch":              validateDraftThreadPatch,
 		"commitments.create":         validateDraftCommitmentCreate,
 		"commitments.patch":          validateDraftCommitmentPatch,
 		"topics.create":              validateDraftTopicCreate,
@@ -533,37 +529,6 @@ func validateDraftDocsUpdate(body map[string]any) []string {
 	if err := validateDocsUpdateBody(body, "docs revisions create"); err != nil {
 		out = append(out, err.Error())
 	}
-	return out
-}
-
-func validateDraftThreadCreate(body map[string]any) []string {
-	out := make([]string, 0)
-	validateOptionalNonEmptyString(body, "actor_id", "actor_id", &out)
-	thread, ok := requiredObjectField(body, "thread", "thread", &out)
-	if !ok {
-		return out
-	}
-	if _, exists := thread["open_commitments"]; exists {
-		out = append(out, "thread.open_commitments is core-maintained and cannot be set")
-	}
-	requiredFields := []string{
-		"title",
-		"type",
-		"status",
-		"priority",
-		"tags",
-		"cadence",
-		"current_summary",
-		"next_actions",
-		"key_artifacts",
-		"provenance",
-	}
-	for _, field := range requiredFields {
-		if _, exists := thread[field]; !exists {
-			out = append(out, fmt.Sprintf("thread.%s is required", field))
-		}
-	}
-	validateThreadFields(thread, true, "thread", &out)
 	return out
 }
 

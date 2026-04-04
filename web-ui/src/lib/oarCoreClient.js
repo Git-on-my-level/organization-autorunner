@@ -58,16 +58,6 @@ function parseJsonBody(body, commandId) {
   }
 }
 
-function renderPath(pathTemplate, pathParams = {}) {
-  return String(pathTemplate).replace(/\{([^{}]+)\}/g, (_match, name) => {
-    const value = pathParams[name];
-    if (value === undefined || value === null || value === "") {
-      throw new Error(`missing path param ${name}`);
-    }
-    return encodeURIComponent(String(value));
-  });
-}
-
 function firstStructuredPayloadIndex(value) {
   const objectIndex = value.indexOf("{");
   const arrayIndex = value.indexOf("[");
@@ -279,6 +269,20 @@ async function parseRawErrorResponse(response) {
   };
 }
 
+/** 0.3.x packets require `subject_ref`; legacy UI still sends `thread_id` on the packet. */
+function normalizePacketThreadIdToSubjectRef(packet) {
+  if (!packet || typeof packet !== "object") {
+    return packet;
+  }
+  const next = { ...packet };
+  const threadId = String(next.thread_id ?? "").trim();
+  delete next.thread_id;
+  if (threadId && !String(next.subject_ref ?? "").trim()) {
+    next.subject_ref = `thread:${threadId}`;
+  }
+  return next;
+}
+
 export function createOarCoreClient(options = {}) {
   const resolvedBaseUrl = normalizeBaseUrl(options.baseUrl ?? "");
   const baseFetchFn = options.fetchFn ?? fetch;
@@ -454,45 +458,6 @@ export function createOarCoreClient(options = {}) {
     return parseJsonBody(await response.text(), `${method} ${path}`);
   }
 
-  async function invokeRaw(commandId, pathParams = {}, options = {}) {
-    const command = commandInfo(commandId);
-    const resolvedPath = renderPath(command.path, pathParams);
-    const queryString = buildQueryString(options.query);
-    const requestPath = queryString
-      ? `${resolvedPath}?${queryString}`
-      : resolvedPath;
-    const url = toAbsoluteUrl(resolvedBaseUrl, requestPath);
-
-    let response;
-    try {
-      response = await fetchFn(url, {
-        method: command.method,
-        headers: {
-          accept: options.accept ?? "*/*",
-          ...(options.headers ?? {}),
-        },
-        signal: options.signal,
-      });
-    } catch (error) {
-      throw normalizeRequestError(error, {
-        target,
-        commandId,
-        method: command.method,
-        path: command.path,
-      });
-    }
-
-    if (!response.ok) {
-      throw buildRawRequestError(await parseRawErrorResponse(response), {
-        target,
-        method: command.method,
-        path: command.path,
-      });
-    }
-
-    return response;
-  }
-
   function requireActorId() {
     const actorId =
       typeof actorIdProvider === "function" ? actorIdProvider() : undefined;
@@ -529,78 +494,103 @@ export function createOarCoreClient(options = {}) {
       }),
     listActors: (filters) => invokeDirectJSON("/actors", { query: filters }),
     issueAuthToken: (payload) =>
-      invokeJSON("auth.token", () => generated.authToken({ body: payload })),
-    getCurrentAgent: () =>
-      invokeJSON("agents.me.get", () => generated.agentsMeGet()),
+      invokeDirectJSON("/auth/token", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+      }),
+    getCurrentAgent: () => invokeDirectJSON("/agents/me"),
     passkeyRegisterOptions: (payload) =>
-      invokeJSON("auth.passkey.register.options", () =>
-        generated.authPasskeyRegisterOptions({ body: payload }),
-      ),
+      invokeDirectJSON("/auth/passkey/register/options", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+      }),
     passkeyRegisterVerify: (payload) =>
-      invokeJSON("auth.passkey.register.verify", () =>
-        generated.authPasskeyRegisterVerify({ body: payload }),
-      ),
+      invokeDirectJSON("/auth/passkey/register/verify", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+      }),
     passkeyLoginOptions: (payload) =>
-      invokeJSON("auth.passkey.login.options", () =>
-        generated.authPasskeyLoginOptions({ body: payload }),
-      ),
+      invokeDirectJSON("/auth/passkey/login/options", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+      }),
     passkeyLoginVerify: (payload) =>
-      invokeJSON("auth.passkey.login.verify", () =>
-        generated.authPasskeyLoginVerify({ body: payload }),
-      ),
+      invokeDirectJSON("/auth/passkey/login/verify", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+      }),
     bootstrapStatus: () => invokeDirectJSON("/auth/bootstrap/status"),
-    listInvites: () =>
-      invokeJSON("auth.invites.list", () => generated.authInvitesList()),
+    listInvites: () => invokeDirectJSON("/auth/invites"),
     createInvite: (payload) =>
-      invokeJSON("auth.invites.create", () =>
-        generated.authInvitesCreate({ body: payload }),
-      ),
+      invokeDirectJSON("/auth/invites", {
+        method: "POST",
+        body: JSON.stringify(payload),
+        headers: { "content-type": "application/json" },
+      }),
     revokeInvite: (inviteId) =>
-      invokeJSON("auth.invites.revoke", () =>
-        generated.authInvitesRevoke({ invite_id: String(inviteId) }),
+      invokeDirectJSON(
+        `/auth/invites/${encodeURIComponent(String(inviteId))}/revoke`,
+        {
+          method: "POST",
+          body: JSON.stringify({}),
+          headers: { "content-type": "application/json" },
+        },
       ),
     listPrincipals: (filters) =>
       invokeDirectJSON("/auth/principals", { query: filters }),
     revokePrincipal: (agentId, payload = {}) =>
-      invokeJSON("auth.principals.revoke", () =>
-        generated.authPrincipalsRevoke(
-          { agent_id: String(agentId) },
-          { body: payload },
-        ),
+      invokeDirectJSON(
+        `/auth/principals/${encodeURIComponent(String(agentId))}/revoke`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+          headers: { "content-type": "application/json" },
+        },
       ),
     listAuthAudit: (filters) =>
-      invokeJSON("auth.audit.list", () =>
-        generated.authAuditList({ query: filters }),
-      ),
+      invokeDirectJSON("/auth/audit", { query: filters }),
 
     createThread: (payload) =>
-      invokeJSON("threads.create", () =>
-        generated.threadsCreate({ body: withActorId(payload) }),
-      ),
+      invokeDirectJSON("/threads", {
+        method: "POST",
+        body: JSON.stringify(withActorId(payload)),
+        headers: { "content-type": "application/json" },
+      }),
     listThreads: (filters) =>
       invokeJSON("threads.list", () =>
         generated.threadsList({ query: filters }),
       ),
     archiveThread: (threadId, payload) =>
-      invokeJSON("threads.archive", () =>
-        generated.threadsArchive(
-          { thread_id: String(threadId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/threads/${encodeURIComponent(String(threadId))}/archive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     unarchiveThread: (threadId, payload) =>
-      invokeJSON("threads.unarchive", () =>
-        generated.threadsUnarchive(
-          { thread_id: String(threadId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/threads/${encodeURIComponent(String(threadId))}/unarchive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     tombstoneThread: (threadId, payload) =>
-      invokeJSON("threads.tombstone", () =>
-        generated.threadsTombstone(
-          { thread_id: String(threadId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/threads/${encodeURIComponent(String(threadId))}/tombstone`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     restoreThread: (threadId, payload) =>
       invokeDirectJSON(
@@ -614,23 +604,24 @@ export function createOarCoreClient(options = {}) {
         },
       ),
     purgeThread: (threadId, payload) =>
-      invokeJSON("threads.purge", () =>
-        generated.threadsPurge(
-          { thread_id: String(threadId) },
-          { body: payload || {} },
-        ),
+      invokeDirectJSON(
+        `/threads/${encodeURIComponent(String(threadId))}/purge`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload || {}),
+          headers: { "content-type": "application/json" },
+        },
       ),
     getThread: (threadId) =>
-      invokeJSON("threads.get", () =>
-        generated.threadsGet({ thread_id: String(threadId) }),
+      invokeJSON("threads.inspect", () =>
+        generated.threadsInspect({ thread_id: String(threadId) }),
       ),
     updateThread: (threadId, payload) =>
-      invokeJSON("threads.patch", () =>
-        generated.threadsPatch(
-          { thread_id: String(threadId) },
-          { body: withActorId(payload) },
-        ),
-      ),
+      invokeDirectJSON(`/threads/${encodeURIComponent(String(threadId))}`, {
+        method: "PATCH",
+        body: JSON.stringify(withActorId(payload)),
+        headers: { "content-type": "application/json" },
+      }),
     getThreadWorkspace: (threadId, filters) =>
       invokeJSON("threads.workspace", () =>
         generated.threadsWorkspace(
@@ -653,16 +644,30 @@ export function createOarCoreClient(options = {}) {
       });
       await consumeSSEStream(response, { onEvent, signal });
     },
-    getSnapshot: (snapshotId) =>
-      invokeJSON("snapshots.get", () =>
-        generated.snapshotsGet({ snapshot_id: String(snapshotId) }),
-      ),
+    // Snapshot refs (`snapshot:{thread_id}`) resolve to backing thread state; there is no GET /snapshots in 0.3.x.
+    getSnapshot: async (snapshotId) => {
+      const body = await invokeJSON("threads.inspect", () =>
+        generated.threadsInspect({ thread_id: String(snapshotId) }),
+      );
+      return { snapshot: body.thread ?? null };
+    },
 
     listTopics: (filters) =>
       invokeJSON("topics.list", () => generated.topicsList({ query: filters })),
+    createTopic: (payload) =>
+      invokeJSON("topics.create", () =>
+        generated.topicsCreate({ body: withActorId(payload) }),
+      ),
     getTopic: (topicId) =>
       invokeJSON("topics.get", () =>
         generated.topicsGet({ topic_id: String(topicId) }),
+      ),
+    updateTopic: (topicId, payload) =>
+      invokeJSON("topics.patch", () =>
+        generated.topicsPatch(
+          { topic_id: String(topicId) },
+          { body: withActorId(payload) },
+        ),
       ),
     listCards: (filters) =>
       invokeJSON("cards.list", () => generated.cardsList({ query: filters })),
@@ -689,42 +694,18 @@ export function createOarCoreClient(options = {}) {
     purgeCard: (cardId, payload) =>
       invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/purge`, {
         method: "POST",
-        body: JSON.stringify(payload || {}),
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
-
-    createCommitment: (payload) =>
-      invokeDirectJSON("/commitments", {
-        method: "POST",
         body: JSON.stringify(withActorId(payload)),
         headers: {
           "content-type": "application/json",
         },
       }),
-    listCommitments: (filters) =>
-      invokeDirectJSON("/commitments", { query: filters }),
-    getCommitment: (commitmentId) =>
-      invokeDirectJSON(
-        `/commitments/${encodeURIComponent(String(commitmentId))}`,
-      ),
-    updateCommitment: (commitmentId, payload) =>
-      invokeDirectJSON(
-        `/commitments/${encodeURIComponent(String(commitmentId))}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(withActorId(payload)),
-          headers: {
-            "content-type": "application/json",
-          },
-        },
-      ),
 
     createArtifact: (payload) =>
-      invokeJSON("artifacts.create", () =>
-        generated.artifactsCreate({ body: withActorId(payload) }),
-      ),
+      invokeDirectJSON("/artifacts", {
+        method: "POST",
+        body: JSON.stringify(withActorId(payload)),
+        headers: { "content-type": "application/json" },
+      }),
     listArtifacts: (filters) =>
       invokeDirectJSON("/artifacts", { query: filters }),
     getArtifact: (artifactId) =>
@@ -732,25 +713,31 @@ export function createOarCoreClient(options = {}) {
         generated.artifactsGet({ artifact_id: String(artifactId) }),
       ),
     archiveArtifact: (artifactId, payload) =>
-      invokeJSON("artifacts.archive", () =>
-        generated.artifactsArchive(
-          { artifact_id: String(artifactId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/artifacts/${encodeURIComponent(String(artifactId))}/archive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     unarchiveArtifact: (artifactId, payload) =>
-      invokeJSON("artifacts.unarchive", () =>
-        generated.artifactsUnarchive(
-          { artifact_id: String(artifactId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/artifacts/${encodeURIComponent(String(artifactId))}/unarchive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     tombstoneArtifact: (artifactId, payload) =>
-      invokeJSON("artifacts.tombstone", () =>
-        generated.artifactsTombstone(
-          { artifact_id: String(artifactId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/artifacts/${encodeURIComponent(String(artifactId))}/tombstone`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     restoreArtifact: (artifactId, payload) =>
       invokeDirectJSON(
@@ -764,16 +751,19 @@ export function createOarCoreClient(options = {}) {
         },
       ),
     purgeArtifact: (artifactId, payload) =>
-      invokeJSON("artifacts.purge", () =>
-        generated.artifactsPurge(
-          { artifact_id: String(artifactId) },
-          { body: payload || {} },
-        ),
+      invokeDirectJSON(
+        `/artifacts/${encodeURIComponent(String(artifactId))}/purge`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload || {}),
+          headers: { "content-type": "application/json" },
+        },
       ),
     getArtifactContent: async (artifactId) => {
-      const response = await invokeRaw("artifacts.content.get", {
-        artifact_id: String(artifactId),
-      });
+      const response = await invokeDirectRaw(
+        `/artifacts/${encodeURIComponent(String(artifactId))}/content`,
+        { method: "GET" },
+      );
 
       const contentType = response.headers.get("content-type") ?? "";
 
@@ -799,43 +789,48 @@ export function createOarCoreClient(options = {}) {
         generated.docsGet({ document_id: String(documentId) }),
       ),
     getDocumentHistory: (documentId) =>
-      invokeJSON("docs.history", () =>
-        generated.docsHistory({ document_id: String(documentId) }),
+      invokeJSON("docs.revisions.list", () =>
+        generated.docsRevisionsList({ document_id: String(documentId) }),
       ),
     getDocumentRevision: (documentId, revisionId) =>
-      invokeJSON("docs.revision.get", () =>
-        generated.docsRevisionGet({
+      invokeJSON("docs.revisions.get", () =>
+        generated.docsRevisionsGet({
           document_id: String(documentId),
           revision_id: String(revisionId),
         }),
       ),
     updateDocument: (documentId, payload) =>
-      invokeJSON("docs.update", () =>
-        generated.docsUpdate(
-          { document_id: String(documentId) },
-          { body: withActorId(payload) },
-        ),
-      ),
+      invokeDirectJSON(`/docs/${encodeURIComponent(String(documentId))}`, {
+        method: "PATCH",
+        body: JSON.stringify(withActorId(payload)),
+        headers: { "content-type": "application/json" },
+      }),
     tombstoneDocument: (documentId, payload) =>
-      invokeJSON("docs.tombstone", () =>
-        generated.docsTombstone(
-          { document_id: String(documentId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/docs/${encodeURIComponent(String(documentId))}/tombstone`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     archiveDocument: (documentId, payload) =>
-      invokeJSON("docs.archive", () =>
-        generated.docsArchive(
-          { document_id: String(documentId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/docs/${encodeURIComponent(String(documentId))}/archive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     unarchiveDocument: (documentId, payload) =>
-      invokeJSON("docs.unarchive", () =>
-        generated.docsUnarchive(
-          { document_id: String(documentId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/docs/${encodeURIComponent(String(documentId))}/unarchive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     restoreDocument: (documentId, payload) =>
       invokeDirectJSON(
@@ -849,69 +844,111 @@ export function createOarCoreClient(options = {}) {
         },
       ),
     purgeDocument: (documentId, payload) =>
-      invokeJSON("docs.purge", () =>
-        generated.docsPurge(
-          { document_id: String(documentId) },
-          { body: payload || {} },
-        ),
+      invokeDirectJSON(
+        `/docs/${encodeURIComponent(String(documentId))}/purge`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload || {}),
+          headers: { "content-type": "application/json" },
+        },
       ),
 
     createEvent: (payload) =>
       invokeJSON("events.create", () =>
         generated.eventsCreate({ body: withActorId(payload) }),
       ),
+    listEvents: (filters) =>
+      invokeJSON("events.list", () => generated.eventsList({ query: filters })),
     getEvent: (eventId) =>
-      invokeJSON("events.get", () =>
-        generated.eventsGet({ event_id: String(eventId) }),
-      ),
+      invokeDirectJSON(`/events/${encodeURIComponent(String(eventId))}`),
     archiveEvent: (eventId, payload) =>
-      invokeJSON("events.archive", () =>
-        generated.eventsArchive(
-          { event_id: String(eventId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/events/${encodeURIComponent(String(eventId))}/archive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     unarchiveEvent: (eventId, payload) =>
-      invokeJSON("events.unarchive", () =>
-        generated.eventsUnarchive(
-          { event_id: String(eventId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/events/${encodeURIComponent(String(eventId))}/unarchive`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     tombstoneEvent: (eventId, payload) =>
-      invokeJSON("events.tombstone", () =>
-        generated.eventsTombstone(
-          { event_id: String(eventId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/events/${encodeURIComponent(String(eventId))}/tombstone`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
     restoreEvent: (eventId, payload) =>
-      invokeJSON("events.restore", () =>
-        generated.eventsRestore(
-          { event_id: String(eventId) },
-          { body: withActorId(payload) },
-        ),
+      invokeDirectJSON(
+        `/events/${encodeURIComponent(String(eventId))}/restore`,
+        {
+          method: "POST",
+          body: JSON.stringify(withActorId(payload)),
+          headers: { "content-type": "application/json" },
+        },
       ),
 
-    createWorkOrder: (payload) =>
-      invokeJSON("packets.work-orders.create", () =>
-        generated.packetsWorkOrdersCreate({ body: withActorId(payload) }),
-      ),
-    createReceipt: (payload) =>
-      invokeJSON("packets.receipts.create", () =>
-        generated.packetsReceiptsCreate({ body: withActorId(payload) }),
-      ),
-    createReview: (payload) =>
-      invokeJSON("packets.reviews.create", () =>
-        generated.packetsReviewsCreate({ body: withActorId(payload) }),
-      ),
+    createWorkOrder: (payload) => {
+      const body = withActorId({ ...payload });
+      if (body.packet) {
+        body.packet = normalizePacketThreadIdToSubjectRef(body.packet);
+      }
+      return invokeJSON("packets.work-orders.create", () =>
+        generated.packetsWorkOrdersCreate({ body }),
+      );
+    },
+    createReceipt: (payload) => {
+      const body = withActorId({ ...payload });
+      if (body.packet) {
+        body.packet = normalizePacketThreadIdToSubjectRef(body.packet);
+      }
+      return invokeJSON("packets.receipts.create", () =>
+        generated.packetsReceiptsCreate({ body }),
+      );
+    },
+    createReview: (payload) => {
+      const body = withActorId({ ...payload });
+      if (body.packet) {
+        body.packet = normalizePacketThreadIdToSubjectRef(body.packet);
+      }
+      return invokeJSON("packets.reviews.create", () =>
+        generated.packetsReviewsCreate({ body }),
+      );
+    },
 
     listInboxItems: (filters) =>
       invokeJSON("inbox.list", () => generated.inboxList({ query: filters })),
-    ackInboxItem: (payload) =>
-      invokeJSON("inbox.ack", () =>
-        generated.inboxAck({ body: withActorId(payload) }),
-      ),
+    ackInboxItem: (payload) => {
+      const inboxItemId =
+        payload?.inbox_item_id ?? payload?.inbox_id ?? payload?.inboxId;
+      if (!inboxItemId) {
+        throw new Error(
+          "ackInboxItem requires inbox_item_id (or inbox_id) in the payload.",
+        );
+      }
+      return invokeDirectJSON("/inbox/ack", {
+        method: "POST",
+        body: JSON.stringify(
+          withActorId({
+            ...payload,
+            inbox_item_id: String(inboxItemId),
+          }),
+        ),
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+    },
 
     createBoard: (payload) =>
       invokeJSON("boards.create", () =>

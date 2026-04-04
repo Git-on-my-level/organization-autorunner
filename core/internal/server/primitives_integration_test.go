@@ -528,6 +528,78 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 	}`, http.StatusConflict)
 	defer staleResp.Body.Close()
 
+	postRevResp := requestJSONExpectStatus(t, http.MethodPost, h.baseURL+"/docs/doc-1/revisions", `{
+		"actor_id":"actor-1",
+		"if_base_revision":"`+newHeadRevisionID+`",
+		"content":"third text",
+		"content_type":"text"
+	}`, http.StatusCreated)
+	defer postRevResp.Body.Close()
+	var postUpdated map[string]map[string]any
+	if err := json.NewDecoder(postRevResp.Body).Decode(&postUpdated); err != nil {
+		t.Fatalf("decode POST revision response: %v", err)
+	}
+	if postUpdated["document"]["head_revision_number"] != float64(3) {
+		t.Fatalf("unexpected head revision number after POST /revisions: %#v", postUpdated["document"]["head_revision_number"])
+	}
+	postHeadID, _ := postUpdated["revision"]["revision_id"].(string)
+	if postHeadID == "" {
+		t.Fatal("expected revision id from POST /docs/.../revisions")
+	}
+
+	openAPIRevResp := requestJSONExpectStatus(t, http.MethodPost, h.baseURL+"/docs/doc-1/revisions", `{
+		"actor_id":"actor-1",
+		"revision":{
+			"body_markdown":"fourth text",
+			"summary":"Title v4",
+			"refs":["thread:`+documentThreadID+`"],
+			"provenance":{"sources":["operator"]}
+		}
+	}`, http.StatusCreated)
+	defer openAPIRevResp.Body.Close()
+	var openAPIUpdated map[string]map[string]any
+	if err := json.NewDecoder(openAPIRevResp.Body).Decode(&openAPIUpdated); err != nil {
+		t.Fatalf("decode OpenAPI-shaped POST revision response: %v", err)
+	}
+	if openAPIUpdated["document"]["head_revision_number"] != float64(4) {
+		t.Fatalf("unexpected head revision number after OpenAPI POST /revisions: %#v", openAPIUpdated["document"]["head_revision_number"])
+	}
+	if openAPIUpdated["document"]["title"] != "Title v4" {
+		t.Fatalf("expected document title from revision.summary, got %#v", openAPIUpdated["document"]["title"])
+	}
+	openAPIProv, _ := openAPIUpdated["revision"]["provenance"].(map[string]any)
+	if openAPIProv == nil {
+		t.Fatalf("expected revision.provenance in OpenAPI POST /revisions response, got %#v", openAPIUpdated["revision"])
+	}
+	openAPISources, _ := openAPIProv["sources"].([]any)
+	if len(openAPISources) != 1 || openAPISources[0] != "operator" {
+		t.Fatalf("expected revision provenance sources [operator], got %#v", openAPIProv["sources"])
+	}
+	openAPIHeadID, _ := openAPIUpdated["revision"]["revision_id"].(string)
+	if openAPIHeadID == "" {
+		t.Fatal("expected revision_id after OpenAPI POST /revisions")
+	}
+	loadedOpenAPIRevResp, err := http.Get(h.baseURL + "/docs/doc-1/revisions/" + openAPIHeadID)
+	if err != nil {
+		t.Fatalf("GET revision after OpenAPI POST: %v", err)
+	}
+	defer loadedOpenAPIRevResp.Body.Close()
+	if loadedOpenAPIRevResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected GET OpenAPI revision status: %d", loadedOpenAPIRevResp.StatusCode)
+	}
+	var loadedOpenAPIRev map[string]map[string]any
+	if err := json.NewDecoder(loadedOpenAPIRevResp.Body).Decode(&loadedOpenAPIRev); err != nil {
+		t.Fatalf("decode loaded OpenAPI revision: %v", err)
+	}
+	loadedProv, _ := loadedOpenAPIRev["revision"]["provenance"].(map[string]any)
+	if loadedProv == nil {
+		t.Fatalf("expected persisted revision provenance on GET, got %#v", loadedOpenAPIRev["revision"])
+	}
+	loadedSources, _ := loadedProv["sources"].([]any)
+	if len(loadedSources) != 1 || loadedSources[0] != "operator" {
+		t.Fatalf("expected loaded provenance sources [operator], got %#v", loadedProv["sources"])
+	}
+
 	historyResp, err := http.Get(h.baseURL + "/docs/doc-1/history")
 	if err != nil {
 		t.Fatalf("GET /docs/{document_id}/history: %v", err)
@@ -541,8 +613,8 @@ func TestDocumentsLifecycleRoundTrip(t *testing.T) {
 		t.Fatalf("decode history response: %v", err)
 	}
 	revisions, _ := historyPayload["revisions"].([]any)
-	if len(revisions) != 2 {
-		t.Fatalf("expected two revisions in history, got %d payload=%#v", len(revisions), historyPayload)
+	if len(revisions) != 4 {
+		t.Fatalf("expected four revisions in history, got %d payload=%#v", len(revisions), historyPayload)
 	}
 
 	revisionResp, err := http.Get(h.baseURL + "/docs/doc-1/revisions/" + headRevisionID)

@@ -233,7 +233,7 @@ Read workflow state:
 - Focus recommendation review: \`oar threads recommendations --thread-id <thread-id>\`
 - Full related recommendation content in one command: \`oar threads recommendations --thread-id <thread-id> --include-related-event-content --verbose\`
 - Cross-thread aggregate context (optional): \`oar threads context --status active --type initiative --full-id\`
-- Raw thread snapshot only (optional): \`oar threads get --thread-id <thread-id>\`
+- Minimal backing thread record (optional): \`oar threads get --thread-id <thread-id>\` (same contract read as \`threads.inspect\`)
 - List inbox items: \`oar inbox list\`
 - List artifacts: \`oar artifacts list --thread-id <thread-id>\`
 - Read artifact metadata: \`oar artifacts get --artifact-id <artifact-id>\`
@@ -432,8 +432,8 @@ function targetsGuide(role, targets) {
     `Hydrated read shared goal thread: oar threads workspace --thread-id ${targets.mainThread.id} --include-related-event-content --include-artifact-content --verbose`,
     `Canonical read your primary thread: oar threads workspace --thread-id ${targets.primaryThread.id}`,
     `Recommendation review shared goal thread: oar threads recommendations --thread-id ${targets.mainThread.id}`,
-    `Optional raw snapshot shared goal thread: oar threads get --thread-id ${targets.mainThread.id}`,
-    `Optional raw snapshot your primary thread: oar threads get --thread-id ${targets.primaryThread.id}`,
+    `Optional minimal thread record shared goal thread: oar threads get --thread-id ${targets.mainThread.id}`,
+    `Optional minimal thread record your primary thread: oar threads get --thread-id ${targets.primaryThread.id}`,
   ];
 
   if (targets.relatedThreads.length > 0) {

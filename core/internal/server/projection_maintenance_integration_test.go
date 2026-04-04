@@ -173,7 +173,7 @@ func TestProjectionMaintainerEmitsStaleExceptionsAndRefreshesInbox(t *testing.T)
 	}
 	items := getInboxItems(t, h.baseURL)
 	if _, ok := findInboxItem(items, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	}); !ok {
 		t.Fatalf("expected stale exception inbox item after worker step, got %#v", items)
 	}
@@ -241,7 +241,7 @@ func TestProjectionMaintainerSuppressesStaleInboxAfterNewActivity(t *testing.T) 
 	}
 	items := getInboxItems(t, h.baseURL)
 	if _, ok := findInboxItem(items, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	}); ok {
 		t.Fatalf("expected stale inbox item to be suppressed after new activity, got %#v", items)
 	}

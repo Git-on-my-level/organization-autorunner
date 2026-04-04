@@ -15,6 +15,7 @@ var machineCommandIdentityByPath = map[string]machineCommandIdentity{
 	"inbox stream":    {Command: "inbox stream", CommandID: "inbox.stream"},
 	"inbox tail":      {Command: "inbox stream", CommandID: "inbox.stream"},
 	"threads context": {Command: "threads context", CommandID: "threads.context"},
+	"threads get":     {Command: "threads get", CommandID: "threads.inspect"},
 	"threads inspect": {Command: "threads inspect", CommandID: "threads.inspect"},
 	"threads workspace": {
 		Command:   "threads workspace",

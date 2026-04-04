@@ -13,7 +13,6 @@
     applyThreadListClientFilters,
     buildThreadFilterQueryParamsFromThreadListState,
     buildThreadListSearchString,
-    cadenceToRequestValue,
     computeStaleness,
     formatCadenceLabel,
     getPriorityLabel,
@@ -135,6 +134,37 @@
     };
   }
 
+  /** Map list UI thread status to canonical topic.status for POST /topics. */
+  function threadStatusToTopicStatus(status) {
+    switch (String(status ?? "").trim()) {
+      case "paused":
+        return "blocked";
+      case "closed":
+        return "resolved";
+      default:
+        return "active";
+    }
+  }
+
+  function buildCreateTopicPayloadFromDraft() {
+    const summary = threadDraft.summary.trim() || "No summary provided.";
+    return {
+      topic: {
+        type: "other",
+        status: threadStatusToTopicStatus(threadDraft.status),
+        title: threadDraft.title.trim(),
+        summary,
+        owner_refs: [],
+        document_refs: [],
+        board_refs: [],
+        related_refs: [],
+        provenance: {
+          sources: ["actor_statement:ui"],
+        },
+      },
+    };
+  }
+
   async function createThread() {
     if (!threadDraft.title.trim()) {
       createError = "Topic title is required.";
@@ -153,28 +183,7 @@
     createError = "";
 
     try {
-      const cadence = cadenceToRequestValue({
-        preset: threadDraft.cadencePreset,
-        customCron: threadDraft.cadenceCron,
-      });
-      await coreClient.createThread({
-        thread: {
-          title: threadDraft.title.trim(),
-          type: "case",
-          status: threadDraft.status,
-          priority: threadDraft.priority,
-          tags: parseTagFilterInput(threadDraft.tagsInput),
-          cadence,
-          current_summary: threadDraft.summary.trim() || "No summary provided.",
-          next_actions: [
-            threadDraft.summary.trim() || "Review and define next steps.",
-          ],
-          key_artifacts: [],
-          provenance: {
-            sources: ["actor_statement:ui"],
-          },
-        },
-      });
+      await coreClient.createTopic(buildCreateTopicPayloadFromDraft());
 
       createOpen = false;
       resetThreadDraft();

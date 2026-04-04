@@ -3611,10 +3611,10 @@ func validateCardResolution(raw string, allowEmpty bool) error {
 		return nil
 	}
 	switch value {
-	case "completed", "canceled":
+	case "unresolved", "completed", "canceled", "superseded":
 		return nil
 	default:
-		return fmt.Errorf("card.resolution must be one of: completed, canceled")
+		return fmt.Errorf("card.resolution must be one of: unresolved, completed, canceled, superseded")
 	}
 }
 

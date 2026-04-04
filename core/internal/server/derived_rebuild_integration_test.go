@@ -61,7 +61,7 @@ func TestDerivedRebuildIdempotentAndInboxStable(t *testing.T) {
 
 	staleCount := countStaleThreadExceptions(t, h.baseURL, threadID)
 	if staleCount > 1 {
-		t.Fatalf("expected at most one stale_thread exception, got %d", staleCount)
+		t.Fatalf("expected at most one stale_topic exception, got %d", staleCount)
 	}
 
 	itemsAfterSecond := normalizeInboxItems(getInboxItems(t, h.baseURL))

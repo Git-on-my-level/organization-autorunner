@@ -177,10 +177,10 @@ func TestInboxDerivationAndAcknowledgmentSuppression(t *testing.T) {
 
 	itemsWithRisk := getInboxItems(t, h.baseURL)
 	riskItem, ok := findInboxItem(itemsWithRisk, func(item map[string]any) bool {
-		return asString(item["category"]) == "work_item_risk" && asString(item["card_id"]) == cardID
+		return asString(item["category"]) == "risk_review" && asString(item["card_id"]) == cardID
 	})
 	if !ok {
-		t.Fatalf("expected work_item_risk inbox item, got %#v", itemsWithRisk)
+		t.Fatalf("expected risk_review inbox item, got %#v", itemsWithRisk)
 	}
 	riskItemID := asString(riskItem["id"])
 
@@ -194,7 +194,7 @@ func TestInboxDerivationAndAcknowledgmentSuppression(t *testing.T) {
 	if _, exists := findInboxItem(itemsAfterRiskAck, func(item map[string]any) bool {
 		return asString(item["id"]) == riskItemID
 	}); exists {
-		t.Fatalf("expected acknowledged work_item_risk item to be suppressed, got %#v", itemsAfterRiskAck)
+		t.Fatalf("expected acknowledged risk_review item to be suppressed, got %#v", itemsAfterRiskAck)
 	}
 
 	patchResp := patchJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards/"+threadID, `{
@@ -209,9 +209,9 @@ func TestInboxDerivationAndAcknowledgmentSuppression(t *testing.T) {
 		return asString(item["id"]) == riskItemID
 	})
 	if !ok {
-		t.Fatalf("expected work_item_risk item to reappear after new trigger, got %#v", itemsAfterStatusChange)
+		t.Fatalf("expected risk_review item to reappear after new trigger, got %#v", itemsAfterStatusChange)
 	}
-	if asString(reappearedRisk["category"]) != "work_item_risk" {
+	if asString(reappearedRisk["category"]) != "risk_review" {
 		t.Fatalf("unexpected reappeared risk item: %#v", reappearedRisk)
 	}
 }
@@ -532,7 +532,7 @@ func TestInboxCustomRiskHorizonRetainsStaleExceptions(t *testing.T) {
 	}
 
 	staleItem, ok := findInboxItem(payload.Items, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	})
 	if !ok {
 		t.Fatalf("expected stale exception on custom-horizon inbox read, got %#v", payload.Items)

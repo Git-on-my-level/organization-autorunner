@@ -4565,6 +4565,14 @@ func TestTypedCommandUsageFailures(t *testing.T) {
 	if exitCode != 2 {
 		t.Fatalf("expected exit code 2, got %d stdout=%s stderr=%s", exitCode, stdout.String(), stderr.String())
 	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("parse json: %v stdout=%s", err, stdout.String())
+	}
+	errObj, _ := payload["error"].(map[string]any)
+	if errObj == nil || anyStringValue(errObj["code"]) != "unsupported_command" {
+		t.Fatalf("expected unsupported_command error payload=%#v", payload)
+	}
 }
 
 func TestDocsRevisionSubcommandRequiredGuidance(t *testing.T) {

@@ -58,8 +58,6 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatInboxList(body)
 	case "docs.history", "docs.revisions.list":
 		return formatNamedList(body, "revisions", "Revisions", renderRevisionListItem)
-	case "threads.get", "threads.create", "threads.patch", "threads.archive", "threads.unarchive", "threads.tombstone", "threads.restore":
-		return formatThreadRecord(extractNestedMap(body, "thread"))
 	case "topics.get", "topics.create", "topics.patch":
 		return formatTopicRecord(extractNestedMap(body, "topic"))
 	case "topics.timeline":

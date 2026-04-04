@@ -72,7 +72,7 @@ type PrimitiveStore interface {
 	MarkThreadProjectionRefreshFailed(ctx context.Context, threadID string, failedGeneration int64, failedAt time.Time, message string) error
 	CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
 	GetDocument(ctx context.Context, documentID string) (map[string]any, map[string]any, error)
-	UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
+	UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string, revisionProvenance map[string]any) (map[string]any, map[string]any, error)
 	ListDocumentHistory(ctx context.Context, documentID string) ([]map[string]any, error)
 	GetDocumentRevision(ctx context.Context, documentID string, revisionID string) (map[string]any, error)
 	GetDocumentRevisionByID(ctx context.Context, revisionID string) (map[string]any, error)
@@ -1375,17 +1375,20 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		}
 
 		if strings.HasSuffix(remainder, "/revisions") {
-			if r.Method != http.MethodGet {
-				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
-				return
-			}
 			documentID := strings.TrimSuffix(remainder, "/revisions")
 			documentID = strings.TrimSuffix(documentID, "/")
 			if documentID == "" || strings.Contains(documentID, "/") {
 				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
 				return
 			}
-			handleListDocumentHistory(w, r, opts, documentID)
+			switch r.Method {
+			case http.MethodGet:
+				handleListDocumentHistory(w, r, opts, documentID)
+			case http.MethodPost:
+				handleCreateDocumentRevision(w, r, opts, documentID)
+			default:
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and POST are supported")
+			}
 			return
 		}
 
@@ -1414,7 +1417,7 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		case http.MethodGet:
 			handleGetDocument(w, r, opts, remainder)
 		case http.MethodPatch:
-			handleUpdateDocument(w, r, opts, remainder)
+			handleUpdateDocument(w, r, opts, remainder, http.StatusOK)
 		default:
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET and PATCH are supported")
 		}

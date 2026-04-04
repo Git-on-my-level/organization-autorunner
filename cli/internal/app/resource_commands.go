@@ -108,6 +108,17 @@ var (
 	}
 )
 
+func threadsMutationUnsupportedErr(subcmd string) error {
+	subcmd = strings.TrimSpace(subcmd)
+	return errnorm.Usage(
+		"unsupported_command",
+		fmt.Sprintf(
+			"`oar threads %s` is not supported: backing threads are read-only in the current contract. Use `oar topics ...`, `oar cards ...`, `oar boards ...`, or `oar events create` for writes. For reads, use `oar threads list`, `oar threads get`, `oar threads inspect`, `oar threads workspace`, or `oar threads timeline`.",
+			subcmd,
+		),
+	)
+}
+
 type queryParam struct {
 	name   string
 	values []string
@@ -141,7 +152,8 @@ var eventTypeGroupOrder = []string{
 	"Communication",
 	"Decisions",
 	"Interventions",
-	"State And Commitments",
+	"Topics And Documents",
+	"Boards And Cards",
 	"Exceptions",
 	"Packet Lifecycle",
 	"Inbox Lifecycle",
@@ -149,9 +161,10 @@ var eventTypeGroupOrder = []string{
 
 var eventTypeGroupDescriptions = map[string]string{
 	"Communication":         "Direct communication or important non-structured information.",
-	"Decisions":             "Request or record decisions on the thread.",
+	"Decisions":             "Request or record decisions tied to a topic.",
 	"Interventions":         "Single clear path exists, but a human must act to complete it.",
-	"State And Commitments": "Track state changes and commitments.",
+	"Topics And Documents":  "Durable work-subject and document lifecycle signals.",
+	"Boards And Cards":      "Board and card workflow signals.",
 	"Exceptions":            "Surface problems, risks, or escalations.",
 	"Packet Lifecycle":      "Packet lifecycle facts, usually emitted by higher-level commands.",
 	"Inbox Lifecycle":       "Inbox lifecycle facts, usually emitted by higher-level commands.",
@@ -208,8 +221,8 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 		Type:  "decision_needed",
 		Group: "Decisions",
 		Constraints: []string{
-			"thread_id is required.",
-			`event.refs may include "artifact:<related_id>" and "snapshot:<commitment_id>".`,
+			`event.refs must include "topic:<topic_id>".`,
+			`event.refs may include "artifact:<related_id>".`,
 		},
 	},
 	{
@@ -217,43 +230,103 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 		Group:   "Interventions",
 		Summary: "Use when the next step is clear but a human must perform it.",
 		Constraints: []string{
-			"thread_id is required.",
-			`event.refs may include "artifact:<related_id>" and "snapshot:<commitment_id>".`,
+			`event.refs must include "topic:<topic_id>".`,
+			`event.refs may include "artifact:<related_id>".`,
 		},
 	},
 	{
 		Type:  "decision_made",
 		Group: "Decisions",
 		Constraints: []string{
-			"thread_id is required.",
-			`event.refs may include "artifact:<decision_artifact_id>" and "snapshot:<commitment_id>".`,
+			`event.refs must include "topic:<topic_id>".`,
+			`event.refs may include "artifact:<decision_artifact_id>".`,
 		},
 	},
 	{
-		Type:  "snapshot_updated",
-		Group: "State And Commitments",
+		Type:  "topic_created",
+		Group: "Topics And Documents",
 		Constraints: []string{
-			`thread_id is required when the updated snapshot is thread-scoped.`,
-			`event.refs must include "snapshot:<snapshot_id>".`,
-			`event.payload should include "changed_fields" as a list of field names.`,
+			`event.refs must include "topic:<topic_id>".`,
 		},
 	},
 	{
-		Type:  "commitment_created",
-		Group: "State And Commitments",
+		Type:  "topic_updated",
+		Group: "Topics And Documents",
 		Constraints: []string{
-			"thread_id is required.",
-			`event.refs must include "snapshot:<commitment_id>".`,
+			`event.refs must include "topic:<topic_id>".`,
 		},
 	},
 	{
-		Type:  "commitment_status_changed",
-		Group: "State And Commitments",
+		Type:  "topic_status_changed",
+		Group: "Topics And Documents",
 		Constraints: []string{
-			"thread_id is required.",
-			`event.refs must include "snapshot:<commitment_id>".`,
-			`If payload.to_status is "done", refs must include "artifact:<receipt_artifact_id>" or "event:<decision_event_id>".`,
-			`If payload.to_status is "canceled", refs must include "event:<decision_event_id>".`,
+			`event.refs must include "topic:<topic_id>".`,
+			`event.payload must include "from_status" and "to_status".`,
+		},
+	},
+	{
+		Type:  "document_created",
+		Group: "Topics And Documents",
+		Constraints: []string{
+			`event.refs must include "document:<document_id>", "document_revision:<revision_id>", and "artifact:<artifact_id>".`,
+		},
+	},
+	{
+		Type:  "document_revised",
+		Group: "Topics And Documents",
+		Constraints: []string{
+			`event.refs must include "document:<document_id>", "document_revision:<revision_id>", and "artifact:<artifact_id>".`,
+		},
+	},
+	{
+		Type:  "document_tombstoned",
+		Group: "Topics And Documents",
+		Constraints: []string{
+			`event.refs must include "document:<document_id>".`,
+		},
+	},
+	{
+		Type:  "board_created",
+		Group: "Boards And Cards",
+		Constraints: []string{
+			`event.refs must include "board:<board_id>".`,
+		},
+	},
+	{
+		Type:  "board_updated",
+		Group: "Boards And Cards",
+		Constraints: []string{
+			`event.refs must include "board:<board_id>".`,
+		},
+	},
+	{
+		Type:  "card_created",
+		Group: "Boards And Cards",
+		Constraints: []string{
+			`event.refs must include "card:<card_id>" and "board:<board_id>".`,
+		},
+	},
+	{
+		Type:  "card_updated",
+		Group: "Boards And Cards",
+		Constraints: []string{
+			`event.refs must include "card:<card_id>" and "board:<board_id>".`,
+		},
+	},
+	{
+		Type:  "card_moved",
+		Group: "Boards And Cards",
+		Constraints: []string{
+			`event.refs must include "card:<card_id>" and "board:<board_id>".`,
+			`event.payload must include "column_key".`,
+		},
+	},
+	{
+		Type:  "card_resolved",
+		Group: "Boards And Cards",
+		Constraints: []string{
+			`event.refs must include "card:<card_id>" and "board:<board_id>".`,
+			`event.payload must include "resolution".`,
 		},
 	},
 	{
@@ -459,7 +532,7 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 			ctx,
 			cfg,
 			"threads get",
-			"threads.get",
+			"threads.inspect",
 			"thread_id",
 			id,
 			threadIDLookupSpec,
@@ -468,21 +541,13 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 		)
 		return result, "threads get", callErr
 	case "create":
-		body, err := a.parseJSONBodyInput(args[1:], "threads create")
-		if err != nil {
-			return nil, "threads create", err
-		}
-		result, callErr := a.invokeTypedJSON(ctx, cfg, "threads create", "threads.create", nil, nil, body)
-		return result, "threads create", callErr
+		return nil, "threads create", threadsMutationUnsupportedErr("create")
 	case "patch":
-		result, callErr := a.runThreadsPatchCommand(ctx, args[1:], cfg)
-		return result, "threads patch", callErr
+		return nil, "threads patch", threadsMutationUnsupportedErr("patch")
 	case "propose-patch":
-		result, callErr := a.runThreadsProposePatchCommand(ctx, args[1:], cfg)
-		return result, "threads propose-patch", callErr
+		return nil, "threads propose-patch", threadsMutationUnsupportedErr("propose-patch")
 	case "apply":
-		result, callErr := a.runThreadsApplyCommand(ctx, args[1:], cfg)
-		return result, "threads apply", callErr
+		return nil, "threads apply", threadsMutationUnsupportedErr("apply")
 	case "timeline":
 		fs := newSilentFlagSet("threads timeline")
 		var threadIDFlag trackedString
@@ -553,234 +618,15 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 		result, err := a.runThreadsRecommendationsCommand(ctx, args[1:], cfg)
 		return result, "threads recommendations", err
 	case "archive":
-		fs := newSilentFlagSet("threads archive")
-		var threadIDFlag trackedString
-		var actorIDFlag trackedString
-		var reasonFlag trackedString
-		fs.Var(&threadIDFlag, "thread-id", "Thread id to archive")
-		fs.Var(&actorIDFlag, "actor-id", "Actor id")
-		fs.Var(&reasonFlag, "reason", "Reason for archiving")
-		if err := fs.Parse(args[1:]); err != nil {
-			return nil, "threads archive", errnorm.Usage("invalid_flags", err.Error())
-		}
-		positionals := fs.Args()
-		id := strings.TrimSpace(threadIDFlag.value)
-		if id == "" && len(positionals) > 0 {
-			id = strings.TrimSpace(positionals[0])
-			positionals = positionals[1:]
-		}
-		if err := validateID(id, "thread id"); err != nil {
-			return nil, "threads archive", err
-		}
-		if len(positionals) > 0 {
-			return nil, "threads archive", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar threads archive`")
-		}
-		body := map[string]any{}
-		actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
-		if err != nil {
-			return nil, "threads archive", err
-		}
-		if actorID != "" {
-			body["actor_id"] = actorID
-		} else if strings.TrimSpace(cfg.ActorID) != "" {
-			body["actor_id"] = strings.TrimSpace(cfg.ActorID)
-		}
-		if strings.TrimSpace(reasonFlag.value) != "" {
-			body["reason"] = strings.TrimSpace(reasonFlag.value)
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"threads archive",
-			"threads.archive",
-			"thread_id",
-			id,
-			threadIDLookupSpec,
-			nil,
-			body,
-		)
-		return result, "threads archive", callErr
+		return nil, "threads archive", threadsMutationUnsupportedErr("archive")
 	case "unarchive":
-		fs := newSilentFlagSet("threads unarchive")
-		var threadIDFlag trackedString
-		var actorIDFlag trackedString
-		var reasonFlag trackedString
-		fs.Var(&threadIDFlag, "thread-id", "Thread id to unarchive")
-		fs.Var(&actorIDFlag, "actor-id", "Actor id")
-		fs.Var(&reasonFlag, "reason", "Reason for unarchiving")
-		if err := fs.Parse(args[1:]); err != nil {
-			return nil, "threads unarchive", errnorm.Usage("invalid_flags", err.Error())
-		}
-		positionals := fs.Args()
-		id := strings.TrimSpace(threadIDFlag.value)
-		if id == "" && len(positionals) > 0 {
-			id = strings.TrimSpace(positionals[0])
-			positionals = positionals[1:]
-		}
-		if err := validateID(id, "thread id"); err != nil {
-			return nil, "threads unarchive", err
-		}
-		if len(positionals) > 0 {
-			return nil, "threads unarchive", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar threads unarchive`")
-		}
-		body := map[string]any{}
-		actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
-		if err != nil {
-			return nil, "threads unarchive", err
-		}
-		if actorID != "" {
-			body["actor_id"] = actorID
-		} else if strings.TrimSpace(cfg.ActorID) != "" {
-			body["actor_id"] = strings.TrimSpace(cfg.ActorID)
-		}
-		if strings.TrimSpace(reasonFlag.value) != "" {
-			body["reason"] = strings.TrimSpace(reasonFlag.value)
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"threads unarchive",
-			"threads.unarchive",
-			"thread_id",
-			id,
-			threadIDLookupSpec,
-			nil,
-			body,
-		)
-		return result, "threads unarchive", callErr
+		return nil, "threads unarchive", threadsMutationUnsupportedErr("unarchive")
 	case "tombstone":
-		fs := newSilentFlagSet("threads tombstone")
-		var threadIDFlag trackedString
-		var actorIDFlag trackedString
-		var reasonFlag trackedString
-		fs.Var(&threadIDFlag, "thread-id", "Thread id to tombstone")
-		fs.Var(&actorIDFlag, "actor-id", "Actor id")
-		fs.Var(&reasonFlag, "reason", "Reason for tombstoning")
-		if err := fs.Parse(args[1:]); err != nil {
-			return nil, "threads tombstone", errnorm.Usage("invalid_flags", err.Error())
-		}
-		positionals := fs.Args()
-		id := strings.TrimSpace(threadIDFlag.value)
-		if id == "" && len(positionals) > 0 {
-			id = strings.TrimSpace(positionals[0])
-			positionals = positionals[1:]
-		}
-		if err := validateID(id, "thread id"); err != nil {
-			return nil, "threads tombstone", err
-		}
-		if len(positionals) > 0 {
-			return nil, "threads tombstone", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar threads tombstone`")
-		}
-		body := map[string]any{}
-		actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
-		if err != nil {
-			return nil, "threads tombstone", err
-		}
-		if actorID != "" {
-			body["actor_id"] = actorID
-		} else if strings.TrimSpace(cfg.ActorID) != "" {
-			body["actor_id"] = strings.TrimSpace(cfg.ActorID)
-		}
-		if strings.TrimSpace(reasonFlag.value) != "" {
-			body["reason"] = strings.TrimSpace(reasonFlag.value)
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"threads tombstone",
-			"threads.tombstone",
-			"thread_id",
-			id,
-			threadIDLookupSpec,
-			nil,
-			body,
-		)
-		return result, "threads tombstone", callErr
+		return nil, "threads tombstone", threadsMutationUnsupportedErr("tombstone")
 	case "restore":
-		fs := newSilentFlagSet("threads restore")
-		var threadIDFlag trackedString
-		var actorIDFlag trackedString
-		var reasonFlag trackedString
-		fs.Var(&threadIDFlag, "thread-id", "Thread id to restore")
-		fs.Var(&actorIDFlag, "actor-id", "Actor id")
-		fs.Var(&reasonFlag, "reason", "Reason for restoring")
-		if err := fs.Parse(args[1:]); err != nil {
-			return nil, "threads restore", errnorm.Usage("invalid_flags", err.Error())
-		}
-		positionals := fs.Args()
-		id := strings.TrimSpace(threadIDFlag.value)
-		if id == "" && len(positionals) > 0 {
-			id = strings.TrimSpace(positionals[0])
-			positionals = positionals[1:]
-		}
-		if err := validateID(id, "thread id"); err != nil {
-			return nil, "threads restore", err
-		}
-		if len(positionals) > 0 {
-			return nil, "threads restore", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar threads restore`")
-		}
-		body := map[string]any{}
-		actorID, err := resolveActorIDAlias(actorIDFlag.value, cfg)
-		if err != nil {
-			return nil, "threads restore", err
-		}
-		if actorID != "" {
-			body["actor_id"] = actorID
-		} else if strings.TrimSpace(cfg.ActorID) != "" {
-			body["actor_id"] = strings.TrimSpace(cfg.ActorID)
-		}
-		if strings.TrimSpace(reasonFlag.value) != "" {
-			body["reason"] = strings.TrimSpace(reasonFlag.value)
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"threads restore",
-			"threads.restore",
-			"thread_id",
-			id,
-			threadIDLookupSpec,
-			nil,
-			body,
-		)
-		return result, "threads restore", callErr
+		return nil, "threads restore", threadsMutationUnsupportedErr("restore")
 	case "purge":
-		fs := newSilentFlagSet("threads purge")
-		var threadIDFlag trackedString
-		var reasonFlag trackedString
-		fs.Var(&threadIDFlag, "thread-id", "Thread id to purge")
-		fs.Var(&reasonFlag, "reason", "Reason for purging")
-		if err := fs.Parse(args[1:]); err != nil {
-			return nil, "threads purge", errnorm.Usage("invalid_flags", err.Error())
-		}
-		positionals := fs.Args()
-		id := strings.TrimSpace(threadIDFlag.value)
-		if id == "" && len(positionals) > 0 {
-			id = strings.TrimSpace(positionals[0])
-			positionals = positionals[1:]
-		}
-		if err := validateID(id, "thread id"); err != nil {
-			return nil, "threads purge", err
-		}
-		if len(positionals) > 0 {
-			return nil, "threads purge", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar threads purge`")
-		}
-		body := map[string]any{}
-		if strings.TrimSpace(reasonFlag.value) != "" {
-			body["reason"] = strings.TrimSpace(reasonFlag.value)
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"threads purge",
-			"threads.purge",
-			"thread_id",
-			id,
-			threadIDLookupSpec,
-			nil,
-			body,
-		)
-		return result, "threads purge", callErr
+		return nil, "threads purge", threadsMutationUnsupportedErr("purge")
 	default:
 		return nil, "threads", threadsSubcommandSpec.unknownError(args[0])
 	}
@@ -2754,24 +2600,6 @@ func (a *App) runDocsContentCommand(ctx context.Context, args []string, cfg conf
 		cfg.Headers,
 	)
 	return result, nil
-}
-
-func (a *App) runThreadsPatchCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, error) {
-	id, body, err := a.parseThreadPatchInput(args, "threads patch")
-	if err != nil {
-		return nil, err
-	}
-	return a.invokeTypedJSONWithIDResolution(
-		ctx,
-		cfg,
-		"threads patch",
-		"threads.patch",
-		"thread_id",
-		id,
-		threadIDLookupSpec,
-		nil,
-		body,
-	)
 }
 
 func (a *App) runCommitmentsPatchCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, error) {

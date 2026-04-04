@@ -86,7 +86,7 @@ describe("oarCoreClient error messaging", () => {
         if (String(url).endsWith("/meta/handshake")) {
           return new Response(
             JSON.stringify({
-              schema_version: "0.2.3",
+              schema_version: "0.3.0",
               command_registry_digest: expectedDigest,
               core_version: "test",
               api_version: "0.2",
@@ -106,7 +106,7 @@ describe("oarCoreClient error messaging", () => {
     });
 
     await expect(verifyCoreSchemaVersion(client)).resolves.toMatchObject({
-      schema_version: "0.2.3",
+      schema_version: "0.3.0",
     });
   });
 
@@ -140,7 +140,7 @@ describe("oarCoreClient error messaging", () => {
         if (String(url).endsWith("/version")) {
           return new Response(
             JSON.stringify({
-              schema_version: "0.2.3",
+              schema_version: "0.3.0",
               command_registry_digest: expectedDigest,
             }),
             {
@@ -158,7 +158,7 @@ describe("oarCoreClient error messaging", () => {
     });
 
     await expect(verifyCoreSchemaVersion(client)).resolves.toMatchObject({
-      schema_version: "0.2.3",
+      schema_version: "0.3.0",
     });
   });
 
@@ -187,7 +187,7 @@ describe("oarCoreClient error messaging", () => {
         if (String(url).endsWith("/meta/handshake")) {
           return new Response(
             JSON.stringify({
-              schema_version: "0.2.3",
+              schema_version: "0.3.0",
               command_registry_digest: "stale-core-digest",
               core_version: "test",
               api_version: "0.2",
@@ -259,5 +259,82 @@ describe("oarCoreClient error messaging", () => {
         },
       },
     ]);
+  });
+
+  it("maps packet.thread_id to subject_ref for work-order creates", async () => {
+    const seenBodies = [];
+    const client = createOarCoreClient({
+      baseUrl: "http://core.test",
+      actorIdProvider: () => "actor-1",
+      fetchFn: async (url, init) => {
+        seenBodies.push(init?.body ?? "");
+        return new Response(
+          JSON.stringify({
+            artifact: { id: "artifact-work-order-x" },
+            packet_kind: "work_order",
+            packet: {},
+          }),
+          {
+            status: 201,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      },
+    });
+
+    await client.createWorkOrder({
+      request_key: "rk-1",
+      artifact: { kind: "work_order" },
+      packet: {
+        thread_id: "thr-9",
+        objective: "do it",
+        constraints: ["c"],
+        context_refs: ["thread:thr-9"],
+        acceptance_criteria: ["a"],
+        definition_of_done: ["d"],
+      },
+    });
+
+    expect(seenBodies.length).toBe(1);
+    const body = JSON.parse(seenBodies[0]);
+    expect(body.packet.thread_id).toBeUndefined();
+    expect(body.packet.subject_ref).toBe("thread:thr-9");
+  });
+
+  it("posts inbox acknowledgements to the core ack route", async () => {
+    const seenRequests = [];
+    const client = createOarCoreClient({
+      baseUrl: "http://core.test",
+      actorIdProvider: () => "actor-1",
+      fetchFn: async (url, init) => {
+        seenRequests.push({
+          url: String(url),
+          method: init?.method ?? "GET",
+          body: init?.body ?? "",
+        });
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    await client.ackInboxItem({
+      inbox_item_id: "inbox:decision_needed:thread-1:none:evt-1",
+      thread_id: "thread-1",
+    });
+
+    expect(seenRequests).toEqual([
+      {
+        url: "http://core.test/inbox/ack",
+        method: "POST",
+        body: expect.any(String),
+      },
+    ]);
+    expect(JSON.parse(seenRequests[0].body)).toEqual({
+      actor_id: "actor-1",
+      inbox_item_id: "inbox:decision_needed:thread-1:none:evt-1",
+      thread_id: "thread-1",
+    });
   });
 });

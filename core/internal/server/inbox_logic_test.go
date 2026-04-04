@@ -20,8 +20,8 @@ func TestMakeInboxItemIDDeterministic(t *testing.T) {
 func TestMakeInboxItemIDDefaultsNone(t *testing.T) {
 	t.Parallel()
 
-	got := makeInboxItemID("work_item_risk", "thread-1", "", "")
-	want := "inbox:work_item_risk:thread-1:none:none"
+	got := makeInboxItemID("risk_review", "thread-1", "", "")
+	want := "inbox:risk_review:thread-1:none:none"
 	if got != want {
 		t.Fatalf("unexpected inbox id defaults: got %q want %q", got, want)
 	}

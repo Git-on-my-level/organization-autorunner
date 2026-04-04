@@ -122,7 +122,7 @@
           coreClient.listDocuments({ tombstoned_only: "true" }),
           coreClient.listTopics({ tombstoned_only: "true" }),
           coreClient.listBoards({ tombstoned_only: "true" }),
-          coreClient.listCards({ tombstoned_only: "true" }),
+          coreClient.listCards({ archived_only: "true" }),
         ]);
       artifacts = artifactResult.artifacts ?? [];
       documents = docResult.documents ?? [];

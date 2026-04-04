@@ -16,6 +16,7 @@
     INBOX_URGENCY_LABELS,
     enrichInboxItem,
     getInboxCategoryLabel,
+    normalizeInboxCategory,
     getInboxUrgencyLabel,
     getInboxSubjectId,
     getInboxSubjectKind,
@@ -137,9 +138,11 @@
     const rawCategory = String(params.get("category") ?? "").trim();
     const rawUrgency = String(params.get("urgency") ?? "").trim();
 
+    const normalizedCategory =
+      rawCategory === "" ? "" : normalizeInboxCategory(rawCategory);
     categoryFilter =
-      rawCategory && INBOX_CATEGORY_ORDER.includes(rawCategory)
-        ? rawCategory
+      normalizedCategory && INBOX_CATEGORY_ORDER.includes(normalizedCategory)
+        ? normalizedCategory
         : "all";
 
     const validUrgencies = [...INBOX_URGENCY_LEVELS, "aging"];

@@ -3,7 +3,6 @@ import { parseTimestampMs } from "./dateUtils.js";
 export const INBOX_CATEGORY_ORDER = [
   "decision_needed",
   "intervention_needed",
-  "exception",
   "risk_review",
   "stale_topic",
   "document_attention",
@@ -12,7 +11,6 @@ export const INBOX_CATEGORY_ORDER = [
 export const INBOX_CATEGORY_LABELS = {
   decision_needed: "Needs Decision",
   intervention_needed: "Needs Intervention",
-  exception: "Exception",
   risk_review: "Risk Review",
   stale_topic: "Stale Topic",
   document_attention: "Document Attention",
@@ -21,7 +19,6 @@ export const INBOX_CATEGORY_LABELS = {
 export const INBOX_CATEGORY_DESCRIPTIONS = {
   decision_needed: "Decision event pending",
   intervention_needed: "Human action required",
-  exception: "Error or anomaly flagged",
   risk_review: "Work item risk needs review",
   stale_topic: "Topic appears stale",
   document_attention: "Document needs attention",
@@ -40,16 +37,17 @@ export const INBOX_URGENCY_LABELS = {
 };
 
 const INBOX_CATEGORY_URGENCY_BASE = {
-  exception: 90,
   decision_needed: 76,
   intervention_needed: 74,
   risk_review: 66,
-  stale_topic: 70,
+  stale_topic: 90,
   document_attention: 58,
 };
 
 const INBOX_CATEGORY_ALIASES = {
   commitment_risk: "risk_review",
+  work_item_risk: "risk_review",
+  exception: "stale_topic",
 };
 
 const INBOX_SUBJECT_LABELS = {

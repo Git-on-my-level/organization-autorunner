@@ -8,19 +8,19 @@ Read this after the root [AGENTS.md](../AGENTS.md). Keep this file focused on du
 ## Module Purpose
 `web-ui` is the human-operator control surface for Organization Autorunner.
 
-It gives operators fast, glanceable visibility into the shared workspace maintained by `oar-core` and provides explicit paths for human intervention such as decisions, reviews, snapshot edits, acknowledgments, and message posting. It is a client of `oar-core`, not an agent runtime or orchestration layer.
+It gives operators fast, glanceable visibility into the shared workspace maintained by `oar-core` and provides explicit paths for human intervention such as decisions, reviews, resource edits (topics, docs, boards, cards), acknowledgments, and message posting. It is a client of `oar-core`, not an agent runtime or orchestration layer.
 
 ## UI Responsibilities
 - Treat `oar-core` as the single source of truth for all durable state.
 - Optimize for operator usability: clear status, triage context, provenance visibility, and at-a-glance understanding of what needs attention.
-- Provide the main human workflow surfaces for inbox triage, thread inspection, commitments, boards, artifacts, documents, and review flows.
+- Provide the main human workflow surfaces for inbox triage, topic and backing-thread inspection, boards and cards, artifacts, documents, and review flows.
 - Handle forward-compatible data safely: unknown event types, artifact kinds, refs, and fields must remain visible rather than breaking the UI.
 - Gate writes safely through actor-aware and workspace-aware flows while preserving core contract semantics.
 
 ## High-Value Invariants
 - Persistent writes go through `oar-core`; the UI must not invent its own source of truth.
 - Unknown or newer data must degrade gracefully and remain inspectable.
-- Snapshot edits use patch semantics and must not overwrite fields the UI does not understand.
+- Resource patches use merge/patch semantics and must not overwrite fields the UI does not understand.
 - Restricted transitions and provenance-sensitive fields must remain clearly evidence-backed versus inferred.
 - The UI should favor glanceable inspection and targeted intervention over exhaustive agent-facing control surfaces.
 

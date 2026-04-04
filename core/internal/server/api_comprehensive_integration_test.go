@@ -315,8 +315,8 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 	for _, item := range inboxItems {
 		categories[asString(item["category"])] = true
 	}
-	if !categories["work_item_risk"] || !categories["exception"] || !categories["decision_needed"] {
-		t.Fatalf("expected inbox categories work_item_risk/exception/decision_needed, got %#v", categories)
+	if !categories["risk_review"] || !categories["stale_topic"] || !categories["decision_needed"] {
+		t.Fatalf("expected inbox categories risk_review/stale_topic/decision_needed, got %#v", categories)
 	}
 
 	decisionItem, ok := findInboxItem(inboxItems, func(item map[string]any) bool {

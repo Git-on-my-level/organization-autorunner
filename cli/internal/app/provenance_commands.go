@@ -65,7 +65,7 @@ var provenanceResolverByPrefix = map[string]provenanceResolverSpec{
 	},
 	"thread": {
 		resourceType: "thread",
-		commandID:    "threads.get",
+		commandID:    "threads.inspect",
 		pathParam:    "thread_id",
 		bodyField:    "thread",
 	},

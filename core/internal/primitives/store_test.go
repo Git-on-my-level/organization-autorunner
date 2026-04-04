@@ -407,7 +407,7 @@ func TestUpdateDocumentRejectsRevisionQuotaExceeded(t *testing.T) {
 
 	_, _, err = store.UpdateDocument(context.Background(), "actor-1", document["id"].(string), map[string]any{
 		"title": "Doc revisions updated",
-	}, revision["revision_id"].(string), "2222", "text", nil)
+	}, revision["revision_id"].(string), "2222", "text", nil, nil)
 	if err == nil {
 		t.Fatal("expected revision quota error")
 	}
@@ -580,7 +580,7 @@ func TestWorkspaceUsageSummaryTracksCreateAndUpdateFlows(t *testing.T) {
 
 	if _, _, err := store.UpdateDocument(context.Background(), "actor-2", document["id"].(string), map[string]any{
 		"title": "Summary doc updated",
-	}, revision["revision_id"].(string), "charlie", "text", nil); err != nil {
+	}, revision["revision_id"].(string), "charlie", "text", nil, nil); err != nil {
 		t.Fatalf("update document: %v", err)
 	}
 
@@ -719,7 +719,7 @@ func TestUpdateDocumentWriteFailureDoesNotLeakStagedContent(t *testing.T) {
 
 	_, _, err = store.UpdateDocument(updateCtx, "actor-2", "doc-locked", map[string]any{
 		"title": "Updated while locked",
-	}, revision["revision_id"].(string), "updated text", "text", nil)
+	}, revision["revision_id"].(string), "updated text", "text", nil, nil)
 	if err == nil {
 		t.Fatal("expected locked document update to fail")
 	}

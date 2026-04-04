@@ -521,7 +521,7 @@ func localGroupHelpSupplement(topic string) string {
   threads workspace           Compose one holistic thread workspace from context + inbox + related-thread review.
   threads inspect             Compose one thread coordination view from context + inbox in one command.
   threads timeline           Inspect the backing thread timeline.
-  Tip: start with ` + "`oar threads workspace`" + ` for the canonical coordination view, use ` + "`--status/--tag/--type initiative`" + ` to discover one thread, and use ` + "`oar threads get`" + ` for raw snapshot-only reads. Add ` + "`--full-id`" + ` for copy/paste ids.`)
+  Tip: start with ` + "`oar threads workspace`" + ` for the canonical coordination view, use ` + "`--status/--tag/--type initiative`" + ` to discover one thread, and use ` + "`oar threads get`" + ` (contract: ` + "`threads.inspect`" + `) for a minimal ` + "`{thread}`" + ` read, or ` + "`oar threads inspect`" + ` for the composed coordination view. Add ` + "`--full-id`" + ` for copy/paste ids.`)
 	case "events":
 		return strings.TrimSpace(`Local inspection helpers:
   events list              List timeline events with thread/type/actor filters, id mode, and preview summaries.
@@ -800,15 +800,17 @@ func formatCommandSpecificHelpBlock(cmd registry.Command) string {
 		return strings.TrimSpace(`Common authoring types:
   Communication: direct communication or important non-structured information
   - ` + "`message_posted`" + `
-  Decisions: request or record decisions on the thread
+  Decisions: request or record decisions tied to a topic
   - ` + "`decision_needed`" + `
   - ` + "`decision_made`" + `
   Interventions: single clear path exists, but a human must act to complete it
   - ` + "`intervention_needed`" + `
-  State changes: track state changes and status transitions
-  - ` + "`snapshot_updated`" + `
-  - ` + "`commitment_created`" + `
-  - ` + "`commitment_status_changed`" + `
+  Topics and documents: durable subject and document lifecycle signals
+  - ` + "`topic_created`" + `, ` + "`topic_updated`" + `, ` + "`topic_status_changed`" + `
+  - ` + "`document_created`" + `, ` + "`document_revised`" + `, ` + "`document_tombstoned`" + `
+  Boards and cards: workflow placement and movement
+  - ` + "`board_created`" + `, ` + "`board_updated`" + `
+  - ` + "`card_created`" + `, ` + "`card_updated`" + `, ` + "`card_moved`" + `, ` + "`card_resolved`" + `
   Exceptions: surface problems, risks, or escalations
   - ` + "`exception_raised`" + `
 
@@ -841,8 +843,9 @@ Note: by default, archived and tombstoned events are excluded from the timeline 
 Inbox categories:
   - ` + "`decision_needed`" + `: A human must choose among multiple viable paths.
   - ` + "`intervention_needed`" + `: The next step is clear, but a human must act because the agent cannot execute it.
-  - ` + "`exception`" + `: Investigate an exception, risk, or broken expectation on the thread.
-  - ` + "`commitment_risk`" + `: A commitment is at risk or overdue and needs follow-up.`)
+  - ` + "`risk_review`" + `: A card or work item is at risk or overdue and needs follow-up.
+  - ` + "`stale_topic`" + `: A topic appears stale; review cadence or recent activity.
+  - ` + "`document_attention`" + `: A document needs human review or follow-up.`)
 	default:
 		return ""
 	}

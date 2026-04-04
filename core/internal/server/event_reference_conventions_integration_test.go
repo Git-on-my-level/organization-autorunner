@@ -80,7 +80,7 @@ func TestEventReferenceConventionsRejectMissingRequiredPayloadFields(t *testing.
 			"thread_id":"thread-1",
 			"refs":["thread:thread-1"],
 			"summary":"thread became stale",
-			"payload":{"subtype":"stale_thread"},
+			"payload":{"subtype":"stale_topic"},
 			"provenance":{"sources":["inferred"]}
 		}
 	}`, http.StatusCreated)

@@ -147,7 +147,7 @@ func deriveThreadInboxItems(opts handlerOptions, events []map[string]any, workIt
 			if !ok {
 				continue
 			}
-			if eventType == "exception_raised" && isStaleThreadException(event) {
+			if eventType == "exception_raised" && isStaleTopicException(event) {
 				if !activityAt.IsZero() && activityAt.After(item.TriggerAt) {
 					continue
 				}

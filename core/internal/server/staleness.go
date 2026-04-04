@@ -60,7 +60,7 @@ func emitStaleThreadExceptions(ctx context.Context, opts handlerOptions, now tim
 			"refs":      []string{"snapshot:" + threadID},
 			"summary":   "thread is stale",
 			"payload": map[string]any{
-				"subtype": "stale_thread",
+				"subtype": "stale_topic",
 			},
 			"provenance": map[string]any{"sources": []string{"inferred"}},
 		})
@@ -172,7 +172,7 @@ func latestStaleExceptionByThread(events []map[string]any) map[string]time.Time 
 		}
 		payload, _ := event["payload"].(map[string]any)
 		subtype, _ := payload["subtype"].(string)
-		if subtype != "stale_thread" {
+		if subtype != "stale_topic" {
 			continue
 		}
 		threadID, _ := event["thread_id"].(string)

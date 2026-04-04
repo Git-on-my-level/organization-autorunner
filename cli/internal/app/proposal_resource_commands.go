@@ -170,7 +170,7 @@ func (a *App) runThreadsProposePatchCommand(ctx context.Context, args []string, 
 		return nil, err
 	}
 
-	currentResult, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "threads get", "threads.get", "thread_id", id, threadIDLookupSpec, nil, nil)
+	currentResult, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "threads get", "threads.inspect", "thread_id", id, threadIDLookupSpec, nil, nil)
 	if callErr != nil {
 		return nil, callErr
 	}

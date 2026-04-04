@@ -258,7 +258,7 @@ const inboxItems = [
   },
   {
     id: "inbox-002",
-    category: "exception",
+    category: "stale_topic",
     title: "Lemon inventory critically low — stand may halt within 2 hours",
     recommended_action:
       "Acknowledge. SqueezeBot is already in half-batch mode. " +

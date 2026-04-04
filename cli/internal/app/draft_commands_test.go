@@ -172,7 +172,7 @@ func TestDraftCreateTreatsHelpAsFlagValue(t *testing.T) {
 	env := map[string]string{}
 
 	fromFile := filepath.Join(t.TempDir(), "help")
-	body := `{"thread":{"title":"Alpha","type":"incident","status":"active","priority":"p2","tags":[],"cadence":"reactive","current_summary":"seed","next_actions":[],"key_artifacts":[],"provenance":{"sources":["actor_statement:event_seed"]}}}`
+	body := `{"topic":{"type":"incident","status":"active","title":"Alpha","summary":"seed","owner_refs":["thread:thread_1"],"document_refs":[],"board_refs":[],"related_refs":[],"provenance":{"sources":["actor_statement:event_seed"]}}}`
 	if err := os.WriteFile(fromFile, []byte(body), 0o600); err != nil {
 		t.Fatalf("write from-file body: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestDraftCreateTreatsHelpAsFlagValue(t *testing.T) {
 		"--json",
 		"--agent", "agent-a",
 		"draft", "create",
-		"--command", "threads.create",
+		"--command", "topics.create",
 		"--from-file", fromFile,
 		"--draft-id", "help",
 	})
@@ -208,10 +208,10 @@ func TestDraftListStableJSON(t *testing.T) {
 	draft := persistedDraft{
 		Version:   1,
 		DraftID:   "draft-test",
-		CommandID: "threads.create",
+		CommandID: "topics.create",
 		Agent:     "agent-a",
 		BaseURL:   "http://127.0.0.1:8000",
-		Body:      map[string]any{"thread": map[string]any{"title": "Alpha"}},
+		Body:      map[string]any{"topic": map[string]any{"title": "Alpha"}},
 		CreatedAt: "2026-03-05T00:00:00Z",
 		UpdatedAt: "2026-03-05T00:00:00Z",
 	}

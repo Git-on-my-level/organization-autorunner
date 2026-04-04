@@ -41,6 +41,57 @@
 
   const STREAM_RECONNECT_DELAY_MS = 1_500;
   const RECONCILE_INTERVAL_MS = 120_000;
+
+  const TOPIC_TYPES = new Set([
+    "initiative",
+    "objective",
+    "decision",
+    "incident",
+    "risk",
+    "request",
+    "note",
+    "other",
+  ]);
+
+  function topicIdFromSnapshot(snapshot) {
+    const ref = String(snapshot?.topic_ref ?? "").trim();
+    const match = /^topic:(.+)$/.exec(ref);
+    return match ? match[1].trim() : "";
+  }
+
+  function threadTypeToTopicType(type) {
+    const t = String(type ?? "").trim();
+    if (TOPIC_TYPES.has(t)) return t;
+    return "other";
+  }
+
+  function threadStatusToTopicPatchStatus(status) {
+    switch (String(status ?? "").trim()) {
+      case "paused":
+        return "blocked";
+      case "closed":
+        return "resolved";
+      default:
+        return "active";
+    }
+  }
+
+  /** Maps thread-shaped overview edits to TopicPatchInput fields. */
+  function threadPatchToTopicPatch(threadPatch) {
+    const out = {};
+    if (threadPatch.title !== undefined) out.title = threadPatch.title;
+    if (threadPatch.current_summary !== undefined) {
+      out.summary = threadPatch.current_summary;
+    }
+    if (threadPatch.type !== undefined) {
+      out.type = threadTypeToTopicType(threadPatch.type);
+    }
+    if (threadPatch.status !== undefined) {
+      out.status = threadStatusToTopicPatchStatus(threadPatch.status);
+    }
+    return out;
+  }
+
   const liveCoordination = {
     reconcileTimer: null,
     stopThreadStream: () => {},
@@ -102,14 +153,31 @@
   async function handleSaveThread(threadId, patch, ifUpdatedAt) {
     conflictWarning = "";
     editNotice = "";
+    const snapshot = get(threadDetailStore).snapshot;
+    const topicId = topicIdFromSnapshot(snapshot);
+    if (!topicId) {
+      throw new Error(
+        "Missing topic reference on this topic row; cannot save edits.",
+      );
+    }
+    const topicPatch = threadPatchToTopicPatch(patch);
+    if (Object.keys(topicPatch).length === 0) {
+      editNotice = "No topic-level fields changed.";
+      return;
+    }
     try {
-      const response = await coreClient.updateThread(threadId, {
-        patch,
+      await coreClient.updateTopic(topicId, {
+        patch: {
+          ...topicPatch,
+          provenance: { sources: ["actor_statement:ui"] },
+        },
         if_updated_at: ifUpdatedAt,
       });
-      threadDetailStore.setSnapshot(
-        response.thread ?? $threadDetailStore.snapshot,
-      );
+      await threadDetailStore.queueRefreshThreadDetail(threadId, {
+        workspace: true,
+        timeline: true,
+        workOrders: true,
+      });
       editNotice = "Changes saved.";
     } catch (error) {
       if (error?.status === 409) {
@@ -124,22 +192,6 @@
         throw error;
       }
     }
-  }
-
-  async function handleCreateCommitment(threadId, commitment) {
-    await coreClient.createCommitment({ commitment });
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
-      workspace: true,
-      timeline: true,
-    });
-  }
-
-  async function handleSaveCommitment(commitmentId, payload) {
-    await coreClient.updateCommitment(commitmentId, payload);
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
-      workspace: true,
-      timeline: true,
-    });
   }
 
   async function handleWorkOrderSubmit(threadId, artifact, packet, requestKey) {
@@ -286,11 +338,7 @@
       />
       <ThreadBoardsPanel {threadId} />
       <ThreadDocumentsPanel {threadId} />
-      <ThreadCommitmentsPanel
-        {threadId}
-        onCommitmentSave={handleSaveCommitment}
-        onCommitmentCreate={handleCreateCommitment}
-      />
+      <ThreadCommitmentsPanel {threadId} />
     </div>
   {/if}
 

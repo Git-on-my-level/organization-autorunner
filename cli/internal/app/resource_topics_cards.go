@@ -192,14 +192,6 @@ func (a *App) normalizeMutationCommandBody(ctx context.Context, cfg config.Resol
 
 func (a *App) normalizeMutationCommandBodyLegacy(ctx context.Context, cfg config.Resolved, commandID string, pathParams map[string]string, body map[string]any) error {
 	switch commandID {
-	case "threads.create":
-		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "thread"), []mutationFieldSpec{
-			{key: "key_artifacts", kind: mutationFieldTypedRefList},
-		})
-	case "threads.patch":
-		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "patch"), []mutationFieldSpec{
-			{key: "key_artifacts", kind: mutationFieldTypedRefList},
-		})
 	case "commitments.create":
 		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "commitment"), []mutationFieldSpec{
 			{key: "thread_id", kind: mutationFieldThreadID},

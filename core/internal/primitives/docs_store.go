@@ -457,7 +457,7 @@ func (s *Store) GetDocument(ctx context.Context, documentID string) (map[string]
 	return doc.toMap(), revision, nil
 }
 
-func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string) (map[string]any, map[string]any, error) {
+func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string, revisionProvenance map[string]any) (map[string]any, map[string]any, error) {
 	if s == nil || s.db == nil {
 		return nil, nil, fmt.Errorf("primitives store database is not initialized")
 	}
@@ -579,6 +579,9 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 	}
 	if nextTitle != "" {
 		artifactMetadata["summary"] = nextTitle
+	}
+	if revisionProvenance != nil {
+		artifactMetadata["provenance"] = cloneProvenance(revisionProvenance)
 	}
 
 	stagedContent, err := s.blob.Write(ctx, contentHash, encodedContent)
@@ -796,6 +799,9 @@ func (s *Store) UpdateDocument(ctx context.Context, actorID string, documentID s
 		"artifact":         artifactMetadata,
 	}
 	setDocumentContentValue(revisionMap, encodedContent, contentType)
+	if revisionProvenance != nil {
+		revisionMap["provenance"] = cloneProvenance(revisionProvenance)
+	}
 	return docMap, revisionMap, nil
 }
 
@@ -1279,6 +1285,9 @@ func (s *Store) loadDocumentRevision(ctx context.Context, documentID string, rev
 	}
 	if threadID.Valid && strings.TrimSpace(threadID.String) != "" {
 		revision["thread_id"] = threadID.String
+	}
+	if raw, ok := artifact["provenance"]; ok {
+		revision["provenance"] = cloneProvenance(raw)
 	}
 
 	if includeContent {

@@ -45,17 +45,17 @@ func TestStalenessRebuildEmitsSingleStaleExceptionAndInboxException(t *testing.T
 
 	staleCount := countStaleThreadExceptions(t, h.baseURL, threadID)
 	if staleCount != 1 {
-		t.Fatalf("expected exactly one stale_thread exception after first rebuild, got %d", staleCount)
+		t.Fatalf("expected exactly one stale_topic exception after first rebuild, got %d", staleCount)
 	}
 	staleEvent := findStaleThreadExceptionEvent(t, h.baseURL, threadID)
 	if staleEvent == nil {
-		t.Fatal("expected stale_thread exception event in timeline")
+		t.Fatal("expected stale_topic exception event in timeline")
 	}
 	assertInferredProvenance(t, staleEvent)
 
 	items := getInboxItems(t, h.baseURL)
 	if _, ok := findInboxItem(items, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	}); !ok {
 		t.Fatalf("expected stale exception inbox item, got %#v", items)
 	}
@@ -81,7 +81,7 @@ func TestStalenessRebuildEmitsSingleStaleExceptionAndInboxException(t *testing.T
 
 	itemsAfterDecision := getInboxItems(t, h.baseURL)
 	if _, ok := findInboxItem(itemsAfterDecision, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	}); ok {
 		t.Fatalf("expected stale exception inbox item to be suppressed after new decision activity, got %#v", itemsAfterDecision)
 	}
@@ -144,7 +144,7 @@ func TestStalenessClearsAfterActorStatementAndDocumentActivity(t *testing.T) {
 	}
 	itemsAfterStatement := getInboxItems(t, h.baseURL)
 	if _, ok := findInboxItem(itemsAfterStatement, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	}); ok {
 		t.Fatalf("expected stale exception inbox item to be suppressed after actor_statement, got %#v", itemsAfterStatement)
 	}
@@ -187,7 +187,7 @@ func TestStalenessClearsAfterActorStatementAndDocumentActivity(t *testing.T) {
 	}
 	itemsAfterDoc := getInboxItems(t, h.baseURL)
 	if _, ok := findInboxItem(itemsAfterDoc, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	}); ok {
 		t.Fatalf("expected stale exception inbox item to stay suppressed after document update, got %#v", itemsAfterDoc)
 	}
@@ -260,7 +260,7 @@ func TestStalenessRebuildTreatsRecentCardActivityAsFresh(t *testing.T) {
 	}
 	items := getInboxItems(t, h.baseURL)
 	if _, ok := findInboxItem(items, func(item map[string]any) bool {
-		return asString(item["category"]) == "exception" && asString(item["thread_id"]) == threadID
+		return asString(item["category"]) == "stale_topic" && asString(item["thread_id"]) == threadID
 	}); ok {
 		t.Fatalf("expected no stale exception inbox item after recent card activity, got %#v", items)
 	}
@@ -319,7 +319,7 @@ func countStaleThreadExceptions(t *testing.T, baseURL string, threadID string) i
 		}
 		payloadObj, _ := event["payload"].(map[string]any)
 		subtype, _ := payloadObj["subtype"].(string)
-		if subtype == "stale_thread" {
+		if subtype == "stale_topic" {
 			count++
 		}
 	}
@@ -352,7 +352,7 @@ func findStaleThreadExceptionEvent(t *testing.T, baseURL string, threadID string
 		}
 		payloadObj, _ := event["payload"].(map[string]any)
 		subtype, _ := payloadObj["subtype"].(string)
-		if subtype == "stale_thread" {
+		if subtype == "stale_topic" {
 			return event
 		}
 	}
