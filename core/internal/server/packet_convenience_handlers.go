@@ -300,7 +300,7 @@ func resolveSubjectRefThreadID(ctx context.Context, opts handlerOptions, subject
 			}
 			return "", err
 		}
-		threadID := strings.TrimSpace(anyString(topic["primary_thread_id"]))
+		threadID := topicPrimaryThreadID(topic)
 		if threadID == "" {
 			return "", invalidPacketSubjectRef(subjectRef)
 		}
@@ -315,6 +315,12 @@ func resolveSubjectRefThreadID(ctx context.Context, opts handlerOptions, subject
 		}
 		threadID := strings.TrimSpace(anyString(board["primary_thread_id"]))
 		if threadID == "" {
+			threadID = strings.TrimSpace(anyString(board["primary_thread_ref"]))
+			if strings.HasPrefix(threadID, "thread:") {
+				threadID = strings.TrimSpace(strings.TrimPrefix(threadID, "thread:"))
+			}
+		}
+		if threadID == "" {
 			return "", invalidPacketSubjectRef(subjectRef)
 		}
 		return threadID, nil
@@ -327,6 +333,12 @@ func resolveSubjectRefThreadID(ctx context.Context, opts handlerOptions, subject
 			return "", err
 		}
 		threadID := strings.TrimSpace(anyString(card["thread_id"]))
+		if threadID == "" {
+			threadID = strings.TrimSpace(anyString(card["thread_ref"]))
+			if strings.HasPrefix(threadID, "thread:") {
+				threadID = strings.TrimSpace(strings.TrimPrefix(threadID, "thread:"))
+			}
+		}
 		if threadID == "" {
 			return "", invalidPacketSubjectRef(subjectRef)
 		}

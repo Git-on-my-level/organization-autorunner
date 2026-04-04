@@ -27,9 +27,10 @@ const seed = getMockSeedData();
 const defaultActorId = seed.actors[0]?.id ?? "actor-ops-ai";
 
 const threadIdMap = new Map();
+const topicIdMap = new Map();
 const documentIdMap = new Map();
 const boardIdMap = new Map();
-const snapshotIdMap = new Map();
+const cardIdMap = new Map();
 
 main().catch((error) => {
   const reason = error instanceof Error ? error.message : String(error);
@@ -51,10 +52,11 @@ async function main() {
 
   await seedActors();
   await seedTopics();
-  await seedCommitments();
   await seedDocuments();
-  await seedArtifacts();
   await seedBoards();
+  await seedCards();
+  await seedPackets();
+  await seedArtifacts();
   const eventStats = await seedEvents();
   await rebuildDerived();
 
@@ -93,18 +95,14 @@ async function seedActors() {
 }
 
 async function seedTopics() {
-  const sourceTopics =
-    Array.isArray(seed.topics) && seed.topics.length > 0
-      ? seed.topics
-      : Array.isArray(seed.threads)
-        ? seed.threads
-        : [];
+  const sourceTopics = Array.isArray(seed.topics) ? seed.topics : [];
 
   for (const sourceTopic of sourceTopics) {
     const actorId = pickActorId(
       sourceTopic.updated_by ?? sourceTopic.created_by,
     );
     const topicPayload = {
+      id: sourceTopic.id,
       type: sourceTopic.type,
       title: sourceTopic.title,
       status: sourceTopic.status,
@@ -118,9 +116,6 @@ async function seedTopics() {
       document_refs: mapRefs(sourceTopic.document_refs),
       related_refs: mapRefs(sourceTopic.related_refs),
       provenance: sourceTopic.provenance,
-      ...(sourceTopic.primary_thread_ref
-        ? { primary_thread_ref: String(sourceTopic.primary_thread_ref) }
-        : {}),
     };
 
     const response = await request("POST", "/topics", {
@@ -130,45 +125,121 @@ async function seedTopics() {
 
     const created = response?.topic;
     const newId = String(created?.id ?? "").trim();
-    if (!newId) {
-      throw new Error(`Topic create returned no id for ${sourceTopic.title}`);
+    const primaryThreadRef = String(created?.primary_thread_ref ?? "").trim();
+    if (!newId || !primaryThreadRef) {
+      throw new Error(`Topic create returned incomplete data for ${sourceTopic.title}`);
     }
 
-    threadIdMap.set(String(sourceTopic.id ?? "").trim(), newId);
-    snapshotIdMap.set(String(sourceTopic.id ?? "").trim(), newId);
+    topicIdMap.set(String(sourceTopic.id ?? "").trim(), newId);
+    threadIdMap.set(String(sourceTopic.id ?? "").trim(), primaryThreadRef.replace(/^thread:/, ""));
   }
 }
 
-async function seedCommitments() {
-  for (const sourceCommitment of seed.commitments) {
-    const actorId = pickActorId(sourceCommitment.updated_by);
-    const newThreadId = mustMapThreadId(sourceCommitment.thread_id);
+async function seedCards() {
+  const sourceCards = Array.isArray(seed.cards) ? seed.cards : [];
+  const orderedCards = [...sourceCards].sort(compareBoardCardsForSeed);
 
-    const payload = {
-      thread_id: newThreadId,
-      title: sourceCommitment.title,
-      owner: sourceCommitment.owner,
-      due_at: sourceCommitment.due_at,
-      status: sourceCommitment.status,
-      definition_of_done: sourceCommitment.definition_of_done,
-      links: mapRefs(sourceCommitment.links),
-      provenance: sourceCommitment.provenance,
-    };
-
-    const response = await request("POST", "/commitments", {
-      actor_id: actorId,
-      commitment: payload,
-    });
-
-    const created = response?.commitment;
-    const newId = String(created?.id ?? "").trim();
-    if (!newId) {
-      throw new Error(
-        `Commitment create returned no id for ${sourceCommitment.title}`,
+  for (const sourceCard of orderedCards) {
+    const sourceBoardId = String(sourceCard.board_id ?? "").trim();
+    const boardId = mapBoardId(sourceBoardId);
+    const threadId = normalizeMappedOptionalThreadId(
+      sourceCard.thread_id ?? sourceCard.parent_thread,
+    );
+    if (!boardId || !threadId) {
+      console.warn(
+        `Skipping card ${String(sourceCard.id ?? "<unknown>")}: missing board or backing thread mapping.`,
       );
+      continue;
     }
 
-    snapshotIdMap.set(sourceCommitment.id, newId);
+    const payload = {
+      actor_id: pickActorId(sourceCard.created_by ?? sourceCard.updated_by),
+      card_id: sourceCard.id,
+      thread_id: threadId,
+      column_key: String(sourceCard.column_key ?? "backlog").trim() || "backlog",
+      title: String(sourceCard.title ?? "").trim() || String(sourceCard.summary ?? "").trim(),
+      body: String(sourceCard.summary ?? "").trim() || String(sourceCard.title ?? "").trim(),
+      ...(mapOptionalDocumentId(sourceCard.pinned_document_id)
+        ? { pinned_document_id: mapOptionalDocumentId(sourceCard.pinned_document_id) }
+        : {}),
+    };
+
+    if (sourceCard.assignee_refs?.length > 0) {
+      payload.assignee = String(sourceCard.assignee_refs[0]).replace(/^actor:/, "");
+    }
+    if (sourceCard.priority) {
+      payload.priority = String(sourceCard.priority);
+    }
+
+    const response = await request(
+      "POST",
+      `/boards/${encodeURIComponent(boardId)}/cards`,
+      payload,
+    );
+
+    const created = response?.card;
+    const newId = String(created?.id ?? "").trim();
+    if (!newId) {
+      throw new Error(`Card create returned no id for ${sourceCard.id}`);
+    }
+    cardIdMap.set(String(sourceCard.id ?? "").trim(), newId);
+  }
+}
+
+async function seedPackets() {
+  const sourcePackets =
+    Array.isArray(seed.packets) && seed.packets.length > 0
+      ? seed.packets
+      : Array.isArray(seed.artifacts)
+        ? seed.artifacts.filter((artifact) => Boolean(artifact?.packet))
+        : [];
+
+  const packetKinds = new Map([
+    ["work_order", "/packets/work-orders"],
+    ["receipt", "/packets/receipts"],
+    ["review", "/packets/reviews"],
+  ]);
+
+  for (const sourcePacket of sourcePackets) {
+    const sourceArtifact = sourcePacket.artifact ?? sourcePacket;
+    const kind = String(sourcePacket.kind ?? sourceArtifact.kind ?? "").trim();
+    const path = packetKinds.get(kind);
+    if (!path) {
+      continue;
+    }
+
+    const packet = {
+      ...sourcePacket.packet,
+      subject_ref: mapRef(sourcePacket.subject_ref),
+    };
+    delete packet.thread_id;
+
+    if (kind !== "work_order") {
+      if (packet.work_order_id && !packet.work_order_ref) {
+        packet.work_order_ref = `artifact:${String(packet.work_order_id).trim()}`;
+      }
+      delete packet.work_order_id;
+    }
+    if (kind === "review") {
+      if (packet.receipt_id && !packet.receipt_ref) {
+        packet.receipt_ref = `artifact:${String(packet.receipt_id).trim()}`;
+      }
+      delete packet.receipt_id;
+    }
+
+    const payload = {
+      actor_id: pickActorId(sourceArtifact.created_by),
+      artifact: {
+        id: sourceArtifact.id,
+        kind,
+        summary: sourceArtifact.summary,
+        refs: mapRefs(sourceArtifact.refs),
+        provenance: sourceArtifact.provenance,
+      },
+      packet,
+    };
+
+    await request("POST", path, payload);
   }
 }
 
@@ -308,139 +379,23 @@ async function tombstoneSeedArtifactIfNeeded(sourceArtifact) {
 }
 
 async function seedArtifacts() {
-  const packetOrder = {
-    work_order: 1,
-    receipt: 2,
-    review: 3,
-  };
+  const packetKinds = new Set(["work_order", "receipt", "review"]);
+  const sourceArtifacts = Array.isArray(seed.artifacts) ? seed.artifacts : [];
 
-  const sourcePackets =
-    Array.isArray(seed.packets) && seed.packets.length > 0
-      ? seed.packets
-      : Array.isArray(seed.artifacts)
-        ? seed.artifacts
-            .filter((artifact) => Boolean(artifact?.packet))
-            .map((artifact) => ({
-              id: artifact.id,
-              kind: artifact.kind,
-              artifact,
-              packet: artifact.packet,
-            }))
-        : [];
+  for (const sourceArtifact of sourceArtifacts) {
+    const kind = String(sourceArtifact.kind ?? "").trim();
+    if (packetKinds.has(kind)) {
+      continue;
+    }
 
-  const sortedArtifacts = [...sourcePackets].sort((a, b) => {
-    const aOrder = packetOrder[String(a?.kind ?? "")] ?? 0;
-    const bOrder = packetOrder[String(b?.kind ?? "")] ?? 0;
-    return aOrder - bOrder;
-  });
-
-  for (const sourcePacket of sortedArtifacts) {
-    const sourceArtifact = sourcePacket.artifact ?? sourcePacket;
     const actorId = pickActorId(sourceArtifact.created_by);
-    const kind = String(sourceArtifact.kind ?? sourcePacket.kind ?? "").trim();
-
-    if (kind === "work_order") {
-      try {
-        await request("POST", "/work_orders", {
-          actor_id: actorId,
-          artifact: {
-            id: sourceArtifact.id,
-            kind,
-            thread_id: mapThreadId(sourceArtifact.thread_id),
-            summary: sourceArtifact.summary,
-            refs: mapRefs(sourceArtifact.refs),
-            provenance: sourceArtifact.provenance,
-          },
-          packet: {
-            ...sourceArtifact.packet,
-            thread_id: mapThreadId(sourceArtifact.packet?.thread_id),
-            context_refs: mapRefs(sourceArtifact.packet?.context_refs),
-          },
-        });
-        await tombstoneSeedArtifactIfNeeded(sourceArtifact);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (isAlreadyExistsConflict(msg)) {
-          await tombstoneSeedArtifactIfNeeded(sourceArtifact);
-          continue;
-        }
-        throw err;
-      }
-      continue;
-    }
-
-    if (kind === "receipt") {
-      try {
-        await request("POST", "/receipts", {
-          actor_id: actorId,
-          artifact: {
-            id: sourceArtifact.id,
-            kind,
-            thread_id: mapThreadId(sourceArtifact.thread_id),
-            summary: sourceArtifact.summary,
-            refs: mapRefs(sourceArtifact.refs),
-            provenance: sourceArtifact.provenance,
-          },
-          packet: {
-            ...sourceArtifact.packet,
-            thread_id: mapThreadId(sourceArtifact.packet?.thread_id),
-            outputs: mapRefs(sourceArtifact.packet?.outputs),
-            verification_evidence: mapRefs(
-              sourceArtifact.packet?.verification_evidence,
-            ),
-          },
-        });
-        await tombstoneSeedArtifactIfNeeded(sourceArtifact);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (isAlreadyExistsConflict(msg)) {
-          await tombstoneSeedArtifactIfNeeded(sourceArtifact);
-          continue;
-        }
-        throw err;
-      }
-      continue;
-    }
-
-    if (kind === "review") {
-      try {
-        await request("POST", "/reviews", {
-          actor_id: actorId,
-          artifact: {
-            id: sourceArtifact.id,
-            kind,
-            thread_id: mapThreadId(sourceArtifact.thread_id),
-            summary: sourceArtifact.summary,
-            refs: mapRefs(sourceArtifact.refs),
-            provenance: sourceArtifact.provenance,
-          },
-          packet: {
-            ...sourceArtifact.packet,
-            evidence_refs: mapRefs(sourceArtifact.packet?.evidence_refs),
-          },
-        });
-        await tombstoneSeedArtifactIfNeeded(sourceArtifact);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (isAlreadyExistsConflict(msg)) {
-          await tombstoneSeedArtifactIfNeeded(sourceArtifact);
-          continue;
-        }
-        throw err;
-      }
-      continue;
-    }
-
     let contentType = "structured";
     let content = {
       artifact_id: sourceArtifact.id,
       summary: sourceArtifact.summary ?? "",
     };
 
-    if (sourcePacket.packet && typeof sourcePacket.packet === "object") {
-      contentType = "structured";
-      content = sourcePacket.packet;
-    } else if (typeof sourceArtifact.content_text === "string") {
+    if (typeof sourceArtifact.content_text === "string") {
       contentType = "text";
       content = sourceArtifact.content_text;
     }
@@ -481,12 +436,10 @@ async function seedBoards() {
         : [];
 
   for (const sourceBoard of sourceBoards) {
-    const primaryThreadRef = String(
-      sourceBoard.primary_topic_ref ?? sourceBoard.primary_thread_ref ?? "",
-    ).trim();
-    const primaryThreadId = normalizeMappedOptionalThreadId(
-      sourceBoard.primary_thread_id ?? primaryThreadRef,
-    );
+    const primaryThreadId =
+      normalizeMappedOptionalThreadRef(sourceBoard.primary_thread_id) ||
+      normalizeMappedOptionalThreadRef(sourceBoard.primary_thread_ref) ||
+      normalizeMappedOptionalThreadRef(sourceBoard.primary_topic_ref);
     if (!primaryThreadId) {
       console.warn(
         `Skipping board ${String(sourceBoard.id ?? "<unknown>")}: primary thread is not seedable.`,
@@ -500,9 +453,9 @@ async function seedBoards() {
     const primaryDocumentId = mapOptionalDocumentId(
       sourceBoard.primary_document_id,
     );
-    const primaryTopicRef = String(
-      sourceBoard.primary_topic_ref ?? sourceBoard.primary_thread_ref ?? "",
-    ).trim();
+    const primaryTopicRef = mapRef(
+      sourceBoard.primary_topic_ref ?? sourceBoard.primary_thread_ref,
+    );
     const documentRefs = mapRefs(
       sourceBoard.document_refs ??
         (primaryDocumentId ? [`document:${primaryDocumentId}`] : []),
@@ -511,20 +464,19 @@ async function seedBoards() {
     const pinnedRefs = mapRefs(sourceBoard.pinned_refs);
     const createResponse = await requestRetryOnServerError("POST", "/boards", {
       actor_id: actorId,
-      board: {
-        id: sourceBoard.id,
-        title: sourceBoard.title,
-        status: sourceBoard.status,
-        labels: sourceBoard.labels,
-        owners: sourceBoard.owners,
-        ...(primaryTopicRef ? { primary_topic_ref: primaryTopicRef } : {}),
-        primary_thread_id: primaryThreadId,
-        ...(primaryDocumentId
-          ? { primary_document_id: primaryDocumentId }
-          : {}),
+        board: {
+          id: sourceBoard.id,
+          title: sourceBoard.title,
+          status: sourceBoard.status,
+          labels: sourceBoard.labels,
+          owners: sourceBoard.owners,
+          ...(primaryTopicRef ? { primary_topic_ref: primaryTopicRef } : {}),
+          primary_thread_id: primaryThreadId,
+          ...(primaryDocumentId
+            ? { primary_document_id: primaryDocumentId }
+            : {}),
         ...(documentRefs.length > 0 ? { document_refs: documentRefs } : {}),
         ...(cardRefs.length > 0 ? { card_refs: cardRefs } : {}),
-        column_schema: sourceBoard.column_schema,
         ...(pinnedRefs.length > 0 ? { pinned_refs: pinnedRefs } : {}),
       },
     });
@@ -546,11 +498,12 @@ async function seedBoards() {
     const lastAnchorByColumn = new Map();
 
     for (const sourceCard of orderedCards) {
-      const threadId = normalizeMappedOptionalThreadId(sourceCard.thread_id);
-      const parentThreadId = normalizeMappedOptionalThreadId(
-        sourceCard.parent_thread,
-      );
-      const linkedThreadId = threadId || parentThreadId;
+      const threadId =
+        normalizeMappedOptionalThreadRef(sourceCard.thread_id) ||
+        normalizeMappedOptionalThreadRef(sourceCard.parent_thread) ||
+        normalizeMappedOptionalThreadRef(sourceCard.thread_ref) ||
+        normalizeMappedOptionalThreadRef(sourceCard.topic_ref);
+      const linkedThreadId = threadId;
       const standaloneTitle = String(sourceCard.title ?? "").trim();
 
       if (!linkedThreadId && !standaloneTitle) {
@@ -727,6 +680,35 @@ function mapThreadId(threadId) {
   return threadIdMap.get(raw) ?? raw;
 }
 
+function normalizeMappedOptionalThreadRef(ref) {
+  const raw = String(ref ?? "").trim();
+  if (!raw) {
+    return "";
+  }
+
+  const separator = raw.indexOf(":");
+  const value = separator > 0 ? raw.slice(separator + 1) : raw;
+  return threadIdMap.get(value) ?? "";
+}
+
+function mapTopicId(topicId) {
+  const raw = String(topicId ?? "").trim();
+  if (!raw) {
+    return raw;
+  }
+
+  return topicIdMap.get(raw) ?? raw;
+}
+
+function mapBoardId(boardId) {
+  const raw = String(boardId ?? "").trim();
+  if (!raw) {
+    return raw;
+  }
+
+  return boardIdMap.get(raw) ?? raw;
+}
+
 function normalizeMappedOptionalThreadId(threadId) {
   const raw = String(threadId ?? "").trim();
   if (!raw) {
@@ -751,14 +733,6 @@ function mapOptionalDocumentId(documentId) {
   return documentIdMap.get(raw) ?? "";
 }
 
-function mustMapThreadId(threadId) {
-  const mapped = mapThreadId(threadId);
-  if (!mapped) {
-    throw new Error(`Missing thread mapping for ${String(threadId ?? "")}`);
-  }
-  return mapped;
-}
-
 function mapRef(ref) {
   const text = String(ref ?? "").trim();
   if (!text) {
@@ -778,9 +752,26 @@ function mapRef(ref) {
     return `${prefix}:${mapped}`;
   }
 
-  if (prefix === "snapshot") {
-    const mapped = snapshotIdMap.get(value) ?? value;
+  if (prefix === "topic") {
+    const mapped = mapTopicId(value);
     return `${prefix}:${mapped}`;
+  }
+
+  if (prefix === "card") {
+    const mapped = cardIdMap.get(value) ?? value;
+    return `${prefix}:${mapped}`;
+  }
+
+  if (prefix === "snapshot") {
+    const mappedTopic = mapTopicId(value);
+    if (mappedTopic && mappedTopic !== value) {
+      return `topic:${mappedTopic}`;
+    }
+    const mappedCard = cardIdMap.get(value);
+    if (mappedCard) {
+      return `card:${mappedCard}`;
+    }
+    return text;
   }
 
   if (prefix === "document") {

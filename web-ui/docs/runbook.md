@@ -95,22 +95,21 @@ contract):
 - `GET /auth/invites`, `POST /auth/invites`,
   `POST /auth/invites/{invite_id}/revoke`
 - `GET /auth/audit`
-- `POST /threads`, `GET /threads`, `GET /threads/{thread_id}`,
-  `PATCH /threads/{thread_id}`, `GET /threads/{thread_id}/timeline`,
-  `GET /threads/{thread_id}/workspace`
-- `POST /commitments`, `GET /commitments`, `GET /commitments/{commitment_id}`,
-  `PATCH /commitments/{commitment_id}`
+- `POST /topics`, `GET /topics`, `GET /topics/{topic_id}`,
+  `PATCH /topics/{topic_id}`, `GET /topics/{topic_id}/timeline`,
+  `GET /topics/{topic_id}/workspace`
 - `POST /boards`, `GET /boards`, `GET /boards/{board_id}`,
   `PATCH /boards/{board_id}`, `GET /boards/{board_id}/workspace`
 - `POST /boards/{board_id}/cards`, `GET /boards/{board_id}/cards`,
   `PATCH /boards/{board_id}/cards/{thread_id}`,
   `POST /boards/{board_id}/cards/{thread_id}/move`,
   `POST /boards/{board_id}/cards/{thread_id}/remove`
+- `POST /docs`, `GET /docs`, `GET /docs/{document_id}`,
+  `PATCH /docs/{document_id}`, `GET /docs/{document_id}/history`
 - `POST /artifacts`, `GET /artifacts`, `GET /artifacts/{artifact_id}`,
   `GET /artifacts/{artifact_id}/content`
 - `POST /events`, `GET /events/{event_id}`
 - `POST /work_orders`, `POST /receipts`, `POST /reviews`
-- `GET /snapshots/{snapshot_id}`
 - `POST /derived/rebuild` (optional)
 - `GET /inbox`, `POST /inbox/ack`
 

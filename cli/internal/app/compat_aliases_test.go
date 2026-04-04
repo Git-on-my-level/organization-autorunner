@@ -76,7 +76,7 @@ func TestCommandShapeCompatibilityAliasesResolveToCanonicalHandlers(t *testing.T
 			args:        []string{"packets", "receipts", "create"},
 			stdin:       `{"receipt":{"thread_id":"thread_1"}}`,
 			wantMethod:  http.MethodPost,
-			wantPath:    "/receipts",
+			wantPath:    "/packets/receipts",
 			wantCommand: "receipts create",
 		},
 		{
@@ -84,7 +84,7 @@ func TestCommandShapeCompatibilityAliasesResolveToCanonicalHandlers(t *testing.T
 			args:        []string{"packets", "reviews", "create"},
 			stdin:       `{"review":{"thread_id":"thread_1"}}`,
 			wantMethod:  http.MethodPost,
-			wantPath:    "/reviews",
+			wantPath:    "/packets/reviews",
 			wantCommand: "reviews create",
 		},
 		{
@@ -92,7 +92,7 @@ func TestCommandShapeCompatibilityAliasesResolveToCanonicalHandlers(t *testing.T
 			args:        []string{"packets", "work-orders", "create"},
 			stdin:       `{"work_order":{"thread_id":"thread_1"}}`,
 			wantMethod:  http.MethodPost,
-			wantPath:    "/work_orders",
+			wantPath:    "/packets/work-orders",
 			wantCommand: "work-orders create",
 		},
 		{

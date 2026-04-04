@@ -15,7 +15,7 @@ The schema of objects is defined by `/contracts/oar-schema.yaml`.
 
 Each endpoint is classified with an `x-oar-surface` extension indicating its role:
 
-- **`canonical`**: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, board cards, events, snapshots, packets). These are the durable substrate.
+- **`canonical`**: CRUD/list/get endpoints over canonical resources (topics, cards, boards, documents, artifacts, events, packets, plus read-only thread compatibility endpoints). These are the durable substrate.
 
 - **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `threads.context`, `threads.workspace`, `boards.workspace`, `inbox.list/get/stream/ack`. The web UI intentionally uses projection endpoints for workspace/inbox/operator reads.
 
@@ -37,7 +37,7 @@ Each endpoint is classified with an `x-oar-surface` extension indicating its rol
 - `GET /actors`
   - Response: `{ "actors": [<actor>...] }`
 
-### Threads (thread snapshots)
+### Threads (read-only backing timelines)
 
 - `POST /threads`
   - Body: `{ "actor_id": "...", "thread": <thread_snapshot_fields_without_id> }`
@@ -65,25 +65,24 @@ Each endpoint is classified with an `x-oar-surface` extension indicating its rol
 - `GET /threads/{thread_id}/timeline`
   - Response: `{ "events": [<event>...] }`
 
-### Commitments (commitment snapshots)
+### Topics (canonical subject state)
 
-- `POST /commitments`
-  - Body: `{ "actor_id": "...", "commitment": <commitment_snapshot_fields_without_id> }`
-  - Response: `{ "commitment": <commitment_snapshot> }`
+- `POST /topics`
+  - Body: `{ "actor_id": "...", "topic": <topic_fields_without_id> }`
+  - Response: `{ "topic": <topic> }`
 
-- `GET /commitments`
-  - Query (optional): `thread_id`, `owner`, `status`, `due_before`, `due_after`
-  - Response: `{ "commitments": [<commitment_snapshot>...] }`
+- `GET /topics`
+  - Query (optional): `type`, `status`, `q`, `limit`, `cursor`
+  - Response: `{ "topics": [<topic>...] }`
 
-- `GET /commitments/{commitment_id}`
-  - Response: `{ "commitment": <commitment_snapshot> }`
+- `GET /topics/{topic_id}`
+  - Response: `{ "topic": <topic> }`
 
-- `PATCH /commitments/{commitment_id}`
-  - Body: `{ "actor_id": "...", "patch": { <fields...> }, "refs"?: ["typed:ref"...], "if_updated_at"?: "..." }`
+- `PATCH /topics/{topic_id}`
+  - Body: `{ "actor_id": "...", "patch": { <fields...> }, "if_updated_at"?: "..." }`
   - Notes:
-    - Restricted transitions (e.g. `status -> done`) require `refs` per schema.
-    - `refs` are used to populate provenance for restricted fields.
-  - Response: `{ "commitment": <commitment_snapshot> }`
+    - Patch/merge semantics apply; list-valued fields replace wholesale.
+  - Response: `{ "topic": <topic> }`
 
 ### Artifacts
 

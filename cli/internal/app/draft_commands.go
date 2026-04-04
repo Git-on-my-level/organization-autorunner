@@ -34,6 +34,16 @@ type persistedDraft struct {
 	Meta       map[string]interface{} `json:"meta,omitempty"`
 }
 
+type draftCommandFallbackSpec struct {
+	pathParams []string
+}
+
+var draftCommandFallbackSpecs = map[string]draftCommandFallbackSpec{
+	"derived.rebuild": {},
+	"threads.create":  {},
+	"threads.patch":   {pathParams: []string{"thread_id"}},
+}
+
 func (a *App) runDraft(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
 	if len(args) == 0 || isHelpToken(args[0]) {
 		return &commandResult{Text: draftUsageText()}, "draft", nil
@@ -427,6 +437,9 @@ func resolveDraftCommandID(raw string) (string, error) {
 	if strings.Contains(raw, ".") {
 		spec, ok := commandSpecByID(raw)
 		if !ok {
+			if _, fallback := draftCommandFallbackSpecs[raw]; fallback {
+				return raw, nil
+			}
 			return "", errnorm.Usage("invalid_request", fmt.Sprintf("unknown command id %q", raw))
 		}
 		return spec.CommandID, nil
@@ -437,11 +450,14 @@ func resolveDraftCommandID(raw string) (string, error) {
 			return strings.TrimSpace(spec.CommandID), nil
 		}
 	}
+	if _, ok := draftCommandFallbackSpecs[registryPath]; ok {
+		return registryPath, nil
+	}
 	return "", errnorm.Usage("invalid_request", fmt.Sprintf("unknown command %q", raw))
 }
 
 func validateDraftBody(commandID string, body map[string]any) []string {
-	spec, ok := commandSpecByID(commandID)
+	spec, ok := draftCommandSpecByID(commandID)
 	if !ok {
 		return []string{fmt.Sprintf("unknown command id %q", commandID)}
 	}
@@ -478,7 +494,7 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 }
 
 func validateDraftCreateCommand(commandID string) error {
-	spec, ok := commandSpecByID(commandID)
+	spec, ok := draftCommandSpecByID(commandID)
 	if !ok {
 		return errnorm.Usage("invalid_request", fmt.Sprintf("unknown command id %q", commandID))
 	}
@@ -493,6 +509,23 @@ func validateDraftCreateCommand(commandID string) error {
 			strings.Join(spec.PathParams, ", "),
 		),
 	)
+}
+
+func draftCommandSpecByID(commandID string) (contractsclient.CommandSpec, bool) {
+	spec, ok := commandSpecByID(commandID)
+	if ok {
+		return spec, true
+	}
+	fallback, ok := draftCommandFallbackSpecs[strings.TrimSpace(commandID)]
+	if !ok {
+		return contractsclient.CommandSpec{}, false
+	}
+	return contractsclient.CommandSpec{
+		CommandID:  strings.TrimSpace(commandID),
+		Method:     "POST",
+		InputMode:  "json-body",
+		PathParams: append([]string(nil), fallback.pathParams...),
+	}, true
 }
 
 func validateDraftDocsUpdate(body map[string]any) []string {

@@ -235,18 +235,15 @@ func TestRunGeneratedHelpTopicSupportsCompatibilityAliasPath(t *testing.T) {
 func TestMetaCommandShowsRequiredInputsAndConcurrencyGuidance(t *testing.T) {
 	t.Parallel()
 
-	output := runHelpCommand(t, "meta", "command", "boards.cards.archive")
+	output := runHelpCommand(t, "meta", "command", "cards.patch")
 	if !strings.Contains(output, "Inputs:") {
 		t.Fatalf("expected input block output=%s", output)
 	}
 	if !strings.Contains(output, "- path `card_id`") {
 		t.Fatalf("expected required path param output=%s", output)
 	}
-	if !strings.Contains(output, "body `if_board_updated_at` (datetime)") {
+	if !strings.Contains(output, "body `if_updated_at` (datetime)") {
 		t.Fatalf("expected concurrency body field output=%s", output)
-	}
-	if !strings.Contains(output, "oar boards get --board-id <board-id>") || !strings.Contains(output, "oar boards workspace --board-id <board-id>") {
-		t.Fatalf("expected concurrency token sourcing guidance output=%s", output)
 	}
 }
 

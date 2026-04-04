@@ -4,7 +4,7 @@
 
 oar-ui is the human-facing interface for Organization Autorunner.
 
-OAR is a manager and executive operating system, not a generic work-management tool. The product foundation and architecture decisions are documented in [docs/architecture/foundation.md](../../docs/architecture/foundation.md). oar-ui provides visibility into the workspace maintained by oar-core and a surface for human intervention: decisions, reviews, snapshot edits, and message posting. It is one of many possible clients of oar-core — agents should prefer the CLI and generated clients; humans interact through this UI.
+OAR is a manager and executive operating system, not a generic work-management tool. The product foundation and architecture decisions are documented in [docs/architecture/foundation.md](../../docs/architecture/foundation.md). oar-ui provides visibility into the workspace maintained by oar-core and a surface for human intervention: topics, boards, cards, documents, packets, and message posting. It is one of many possible clients of oar-core — agents should prefer the CLI and generated clients; humans interact through this UI.
 
 oar-ui does **not**:
 
@@ -24,7 +24,7 @@ oar-ui does **not**:
 
 ### 1.2 Object compatibility
 
-- oar-ui MUST support all primitives and typed conventions defined in `/contracts/oar-schema.yaml`: events, snapshots, artifacts, threads, commitments, work orders, receipts, reviews.
+- oar-ui MUST support all primitives and typed conventions defined in `/contracts/oar-schema.yaml`: events, topics, cards, boards, documents, artifacts, packets, and read-only thread timelines.
 - oar-ui MUST respect **enum policies**: strict enums are closed sets; open enums may contain unknown values.
 - oar-ui MUST handle unknown event types and artifact kinds gracefully — render them as "unknown type" with raw payload, summary, and refs visible.
 - oar-ui MUST handle unknown fields on any object gracefully — preserve them on round-trip and do not hide them from display.
@@ -52,14 +52,14 @@ oar-ui does **not**:
 - oar-ui MUST display provenance using the standardized provenance shape defined in `/contracts/oar-schema.yaml` → `provenance`.
 - The `sources` list determines display: if any source is `inferred`, the UI MUST render it visually distinct from evidence-backed provenance (e.g., different color, icon, or label).
 - When `by_field` is present (restricted field updates), the UI MUST show per-field provenance on the relevant fields.
-- Provenance MUST be displayed on: commitment status, and any field flagged as restricted by the schema.
+- Provenance MUST be displayed on any field flagged as restricted by the schema, plus packet-linked outcomes and other state where evidence vs inference matters.
 
 ### 1.6 Snapshot update semantics
 
 - oar-ui MUST use **patch/merge** semantics when updating snapshots: send only changed fields.
 - **List-valued fields** (e.g., `tags`, `key_artifacts`, `links`) are **replaced wholesale** when present in a patch. Absence means no change.
 - This ensures unknown fields (added by newer clients or agents) are preserved.
-- oar-ui MUST NOT write to core-maintained fields (e.g., `thread.open_commitments`).
+- oar-ui MUST NOT write to core-maintained fields.
 
 ### 1.7 Reference conventions
 
@@ -68,19 +68,19 @@ oar-ui does **not**:
 
 ---
 
-## 2. Core UX model: thread-first timelines
+## 2. Core UX model: topic-and-board workflows
 
-### 2.1 Threads as navigation backbone
+### 2.1 Topics and boards as navigation backbone
 
-The primary navigation unit is the **thread**. All other objects (events, commitments, artifacts, work orders, receipts) are accessed through or in relation to threads.
+The primary navigation unit is the **topic**, with boards and cards for execution. Threads remain the read-only backing timeline for evidence and audit navigation.
 
 ### 2.2 Thread detail: snapshot + timeline
 
 A thread detail view presents two complementary layers:
 
-**Snapshot (current state):** The thread's `current_summary`, `next_actions`, status, priority, schedule (`cadence`), and linked commitments. This is the "what's true right now" view. Editable in place (except core-maintained fields like `open_commitments`, which are read-only in the UI).
+**Snapshot (current state):** The current operator-facing state for the topic or board being viewed: title, status, priority, schedule (`cadence`), summary, next actions, and linked evidence. This is the "what's true right now" view. Editable in place only where the schema allows it.
 
-**Timeline (audit trail):** A time-ordered, append-only sequence of all events associated with the thread. Each timeline entry shows type, timestamp, actor, summary, and refs (rendered as navigable typed-ref links). The timeline includes messages, work order creation, receipt submission, reviews, decisions, exceptions, acknowledgments, and snapshot updates.
+**Timeline (audit trail):** A time-ordered, append-only sequence of all events associated with the backing thread. Each timeline entry shows type, timestamp, actor, summary, and refs (rendered as navigable typed-ref links). The timeline includes messages, work order creation, receipt submission, reviews, decisions, exceptions, acknowledgments, and state updates.
 
 The snapshot is interpretive and mutable. The timeline is durable and immutable. The UI MUST make this distinction clear.
 
@@ -113,14 +113,14 @@ A dedicated surface showing items that need human attention.
 
 **Display:**
 
-- Inbox items grouped by category: `decision_needed`, `intervention_needed`, `exception`, `commitment_risk`.
+- Inbox items grouped by category: `decision_needed`, `intervention_needed`, `exception`, `stale_topic`.
 - Within each category, sorted by time or due date (no ranking engine in v0).
-- Each item shows: title, category, recommended action, and a link to the relevant thread/commitment.
+- Each item shows: title, category, recommended action, and a link to the relevant topic/board/card/thread.
 - Inbox item IDs are deterministic (see schema) and stable across rebuilds.
 
 **Actions:**
 
-- Navigate to relevant thread, commitment, or artifact.
+- Navigate to the relevant topic, board, card, thread, or artifact.
 - Acknowledge/dismiss an item → emits an `inbox_item_acknowledged` event with `inbox:<inbox_item_id>` in refs. Acknowledged items are suppressed from the inbox unless a new triggering event occurs after the acknowledgment.
 - Record a decision (creates a `decision_made` event with notes and typed refs).
 
@@ -137,12 +137,12 @@ Each row shows: title, status, priority, cadence indicator, staleness indicator,
 
 ### 3.3 Thread detail
 
-The primary working surface. Combines the snapshot view and timeline described in §2.
+The primary working surface. Combines the current-state view and timeline described in §2.
 
 **Must support:**
 
-- Viewing and editing thread snapshot fields: title, status, priority, type, cadence schedule (preset or custom cron), next check-in, tags, current summary, next actions. (`open_commitments` is displayed but not directly editable.)
-- Viewing open commitments. Creating and editing commitments (with restricted transition enforcement — see §4).
+- Viewing and editing current-state fields: title, status, priority, type, cadence schedule (preset or custom cron), next check-in, tags, current summary, next actions.
+- Viewing linked evidence and packet outcomes with restricted transition enforcement where the schema requires it.
 - Viewing the full timeline with navigable typed-ref links.
 - Linking artifacts to the thread (adds typed refs to `key_artifacts`).
 - Posting messages (creates `message_posted` events on the thread).
@@ -216,20 +216,20 @@ The Access page provides workspace-local operator visibility and intervention fo
 
 ### 4.1 Restricted transition enforcement
 
-When a user attempts to set `commitment.status → done` or `→ canceled`, the UI MUST:
+When a user attempts to set a restricted state transition on a card or packet-backed field, the UI MUST:
 
-- Require the user to attach a receipt artifact reference as `artifact:<id>` (for `done`) or record an explicit decision event as `event:<id>` (for either `done` or `canceled`).
+- Require the user to attach a receipt artifact reference as `artifact:<id>` or record an explicit decision event as `event:<id>` when the schema requires evidence.
 - Block the save until the typed reference is provided.
 - Submit the transition through oar-core, which enforces the restriction server-side.
-- Display the resulting per-field provenance (from `provenance.by_field`) on the commitment status.
+- Display the resulting per-field provenance (from `provenance.by_field`) on the affected field.
 
 ### 4.2 Evidence affordances
 
 The UI SHOULD make it easy to:
 
 - Attach typed refs (artifact IDs, external URLs) to any event or snapshot edit.
-- View all evidence associated with a commitment (linked receipts, reviews, decisions — navigable via typed refs in related events).
-- See at a glance whether a commitment's status is backed by evidence or inferred (via provenance display).
+- View all evidence associated with a packet or other restricted field (linked receipts, reviews, decisions - navigable via typed refs in related events).
+- See at a glance whether a restricted field is backed by evidence or inferred (via provenance display).
 
 ---
 
@@ -249,7 +249,7 @@ Replies SHOULD reference the parent event ID as `event:<parent_event_id>` in the
 
 - oar-ui MUST assume multiple writers (humans and agents) may update oar-core concurrently.
 - The UI SHOULD poll or subscribe for changes and refresh when canonical state changes.
-- For v0, optimistic locking on snapshot edits is sufficient: if a snapshot's `updated_at` has changed since the UI loaded it, warn the user and reload before saving. Patch/merge semantics with wholesale list replacement reduce the risk of accidental field erasure.
+- For v0, optimistic locking on current-state edits is sufficient: if a view's `updated_at` has changed since the UI loaded it, warn the user and reload before saving. Patch/merge semantics with wholesale list replacement reduce the risk of accidental field erasure.
 
 ---
 
@@ -259,7 +259,7 @@ Replies SHOULD reference the parent event ID as `event:<parent_event_id>` in the
 - Unknown types MUST render in the timeline without breaking the UI.
 - Unknown fields on any object MUST be preserved on round-trip.
 - Unknown ref prefixes MUST be rendered as raw text, not hidden.
-- New snapshot types beyond thread and commitment may be added in future versions. The UI SHOULD degrade gracefully if it encounters an unknown snapshot type (display raw fields).
+- New detail types beyond the current topic/board/card/thread surfaces may be added in future versions. The UI SHOULD degrade gracefully if it encounters an unknown type (display raw fields).
 
 ---
 
@@ -269,11 +269,10 @@ oar-ui v0 is complete when it can:
 
 - Display the inbox grouped by category with navigation to relevant threads, and support acknowledgment that persists across inbox rebuilds.
 - List and filter threads.
-- Show thread detail with editable snapshot (patch/merge, respecting core-maintained fields) and full timeline with navigable typed-ref links.
-- Create and edit commitments with restricted transition enforcement and per-field provenance display.
-- Create work orders within a thread with typed context refs.
+- Show topic and board detail with editable current state (patch/merge, respecting core-maintained fields) and full timeline with navigable typed-ref links.
+- Create work orders within a topic context with typed refs.
 - View receipts and their evidence links as navigable typed refs.
 - Perform a lightweight review (outcome + notes + typed evidence refs).
-- Post messages on a thread.
+- Post messages on a thread or topic-backed timeline.
 - Render provenance with visual distinction between evidence-backed and inferred sources.
 - Parse and navigate typed reference strings across all surfaces.

@@ -3073,12 +3073,12 @@ func (a *App) runInboxCommand(ctx context.Context, args []string, cfg config.Res
 	case "get":
 		result, commandName, err := a.runInboxGet(ctx, args[1:], cfg)
 		return result, commandName, err
-	case "ack":
+	case "acknowledge", "ack":
 		body, err := a.parseAckBodyInput(ctx, args[1:], cfg)
 		if err != nil {
 			return nil, "inbox ack", err
 		}
-		result, callErr := a.invokeTypedJSON(ctx, cfg, "inbox ack", "inbox.ack", nil, nil, body)
+		result, callErr := a.invokeRawJSON(ctx, cfg, "inbox ack", http.MethodPost, "/inbox/ack", body)
 		return result, "inbox ack", callErr
 	case "stream":
 		result, err := a.runInboxStream(ctx, args[1:], cfg, "inbox stream", false)

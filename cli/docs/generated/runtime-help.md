@@ -58,6 +58,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `docs get` (command): Get document
 - `events create` (command): Create event
 - `inbox list` (command): List inbox items
+- `inbox acknowledge` (command): Acknowledge inbox item
 - `work-orders create` (command): Create work-order packet
 - `receipts create` (command): Create receipt packet
 - `reviews create` (command): Create review packet
@@ -1259,6 +1260,7 @@ List/get/ack/stream inbox items
 Generated Help: inbox
 
 Commands:
+  inbox acknowledge        Acknowledge inbox item
   inbox list               List inbox items
 
 Global flags:
@@ -2151,6 +2153,37 @@ Inbox categories:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json inbox list ... ; oar inbox list ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `inbox acknowledge`
+
+Acknowledge inbox item
+
+```text
+Generated Help: inbox acknowledge
+
+- Command ID: `inbox.acknowledge`
+- CLI path: `inbox acknowledge`
+- HTTP: `POST /inbox/{inbox_id}/acknowledge`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Suppress or clear a derived inbox item via a durable acknowledgment event.
+- Output: Returns `{ item, event }`.
+- Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`
+- Concepts: `inbox`, `write`
+- Adjacent commands: `inbox list`
+
+Inputs:
+  Required:
+  - path `inbox_id`
+  Optional:
+  - body `note` (string)
+  - body `refs` (list<any>)
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json inbox acknowledge ... ; oar inbox acknowledge ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 

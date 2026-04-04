@@ -104,8 +104,8 @@ var actorsSubcommandSpec = subcommandSpec{
 
 var metaSubcommandSpec = subcommandSpec{
 	command:  "meta",
-	valid:    []string{"health", "livez", "readyz", "version", "handshake", "ops", "commands", "command", "concepts", "concept", "docs", "doc", "skill"},
-	examples: []string{"oar meta health", "oar meta readyz", "oar meta ops health", "oar meta commands", "oar meta command --command-id threads.list", "oar meta docs", "oar meta doc agent-guide", "oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard"},
+	valid:    []string{"health", "readyz", "version", "handshake", "ops", "commands", "command", "concepts", "concept", "docs", "doc", "skill"},
+	examples: []string{"oar meta health", "oar meta readyz", "oar meta commands", "oar meta command --command-id threads.list", "oar meta docs", "oar meta doc agent-guide", "oar meta skill cursor --write-dir ~/.cursor/skills/oar-cli-onboard"},
 }
 
 var metaOpsSubcommandSpec = subcommandSpec{
@@ -207,10 +207,11 @@ var eventsSubcommandSpec = subcommandSpec{
 
 var inboxSubcommandSpec = subcommandSpec{
 	command:  "inbox",
-	valid:    []string{"list", "get", "ack", "stream", "tail"},
-	examples: []string{"oar inbox get --id <id-or-alias>", "oar inbox ack --inbox-item-id <id-or-alias>"},
+	valid:    []string{"list", "get", "acknowledge", "ack", "stream", "tail"},
+	examples: []string{"oar inbox get --id <id-or-alias>", "oar inbox acknowledge --inbox-item-id <id-or-alias>"},
 	aliases: map[string]string{
 		"ls":    "list",
+		"ack":   "acknowledge",
 		"watch": "stream",
 	},
 }

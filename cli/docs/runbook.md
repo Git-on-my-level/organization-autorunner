@@ -140,29 +140,32 @@ The runner:
 ## Typed Command Smoke
 
 ```bash
-printf '{"thread":{"title":"Incident #42"}}\n' | oar --agent agent-a threads create
-oar --agent agent-a threads list --status active
+printf '{"topic":{"title":"Incident #42","type":"incident","status":"active","summary":"Investigate #42","owner_refs":[],"board_refs":[],"document_refs":[],"related_refs":[],"provenance":{"sources":["actor_statement:example"]}}}\n' | oar --agent agent-a topics create
+oar --agent agent-a topics list --status active
 
 oar --agent agent-a events stream --max-events 1
 oar --agent agent-a inbox stream --max-events 1
 oar --agent agent-a events stream --follow
 oar --agent agent-a events list --thread-id thread_123 --thread-id thread_456 --type actor_statement --mine --full-id --max-events 20
 oar --json --agent agent-a provenance walk --from event:event_123 --depth 2
+oar --agent agent-a topics get --topic-id topic_123
 oar --agent agent-a threads inspect --thread-id thread_123 --max-events 50 --full-id
 oar --agent agent-a threads context --status active --tag pilot-rescue --type initiative --full-id
 oar --agent agent-a threads recommendations --thread-id thread_123 --full-id --full-summary
 oar --agent agent-a docs content --document-id product-constitution
-oar --agent agent-a commitments inspect --commitment-id commitment_123
 oar --agent agent-a artifacts inspect --artifact-id artifact_123
 oar --agent agent-a boards list --status active
 oar --agent agent-a boards workspace --board-id board_product_launch
-oar --agent agent-a boards cards add --board-id board_product_launch --thread-id thread_456 --column backlog
+oar --agent agent-a boards cards create --board-id board_product_launch --thread-id thread_456 --column backlog
 oar --agent agent-a boards cards move --board-id board_product_launch --thread-id thread_456 --column review --if-board-updated-at 2026-03-08T00:00:00Z
+oar --agent agent-a work-orders create --from-file work-order.json
+oar --agent agent-a receipts create --from-file receipt.json
+oar --agent agent-a reviews create --from-file review.json
 ```
 
 Board activity uses `board:<board-id>` typed refs on emitted events. When
-debugging board flows, inspect both `boards workspace` and the primary thread
-timeline or thread workspace for the same board.
+debugging board flows, inspect both `boards workspace` and the read-only thread
+timeline or thread workspace that backs the board.
 
 Draft/commit flow:
 

@@ -90,7 +90,7 @@ When `OAR_BLOB_BACKEND=s3`, configure:
 
 The workspace root contains:
 
-- `state.sqlite`: canonical structured data (events, snapshots, artifacts metadata, actors, derived views)
+- `state.sqlite`: canonical structured data (events, topics, cards, artifacts metadata, documents, actors, derived views)
 - `artifacts/content/`: artifact bytes when `OAR_BLOB_BACKEND=filesystem` or `object`
 - `logs/`, `tmp/`: operational directories
 
@@ -368,7 +368,9 @@ concurrency token:
 
 Board lifecycle and card events are emitted on the primary thread timeline with
 `board:<board_id>` refs, so timeline/debug work should inspect both the board
-workspace and the primary thread timeline.
+workspace and the primary thread timeline. Topic and packet writes should be
+treated as the canonical coordination path; threads remain the read-only
+backing timeline for evidence inspection.
 
 ## Persistence check (restart behavior)
 
@@ -448,7 +450,7 @@ http {
       proxy_pass http://127.0.0.1:8000;
     }
 
-    location ~ ^/(threads|commitments|boards|docs|artifacts|events|work_orders|receipts|reviews|inbox/ack|derived/rebuild) {
+    location ~ ^/(topics|boards|docs|artifacts|events|work_orders|receipts|reviews|inbox/ack|derived/rebuild) {
       limit_req zone=oar_write burst=100 nodelay;
       proxy_pass http://127.0.0.1:8000;
     }
@@ -563,8 +565,9 @@ For the full repo smoke path, run the root script:
 ```
 
 That flow brings up `oar-core`, the real CLI, and `oar-ui`; it now includes a
-board-aware path that creates a board, mutates cards through CLI commands, and
-verifies the board workspace through both core and the UI proxy.
+topic-and-board path that creates topics, docs, boards, cards, and packets
+through CLI commands, then verifies the board workspace through both core and
+the UI proxy.
 
 ## Compatibility troubleshooting
 

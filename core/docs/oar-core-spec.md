@@ -135,7 +135,7 @@ Work orders, receipts, and reviews are stored as artifacts with structured conte
 ### 5.1 Packet validation rules
 - Packet content ID fields (`work_order_id`, `receipt_id`, `review_id`) MUST equal the enclosing artifact's `id`. oar-core MUST reject mismatches.
 - All required fields per the packet schema MUST be present. oar-core MUST reject packets missing required fields.
-- All packet artifacts MUST include `thread:<thread_id>` in `artifact.refs` (see reference conventions in `oar-schema.yaml`).
+- All packet artifacts MUST include `subject_ref` in `packet` and a matching `artifact:<packet_id>` ref; additional typed refs MUST satisfy the packet-kind conventions in `oar-schema.yaml` (for example the subject lineage and any work-order / receipt linkage refs).
 - All typed ref fields in packets (e.g., `context_refs`, `outputs`, `verification_evidence`, `evidence_refs`) MUST use typed reference strings.
 
 ### 5.2 Work order
@@ -179,7 +179,7 @@ Documents are a first-class canonical domain with their own API and storage. A d
 
 ### 5.6 Boards (canonical organizing layers)
 
-Boards are first-class canonical coordination resources. A board is not just UI sugar over threads: it is a durable organizational map over work with canonical board metadata plus canonical card membership over threads, and optional canonical links to document lineages.
+Boards are first-class canonical coordination resources. A board is not just UI sugar over threads: it is a durable organizational map over work with canonical board metadata plus canonical card membership over topics/backing threads, and optional canonical links to document lineages.
 
 **Canonical storage:**
 - `boards` table: durable board metadata, owners, primary thread, optional primary document, and optimistic concurrency token.
@@ -329,7 +329,7 @@ Key rules:
 - All ref strings MUST use typed prefixes (`artifact:`, `event:`, `thread:`, `topic:`, `document:`, `board:`, `card:`, `url:`, `inbox:`). Unknown prefixes are preserved, not rejected.
 - All thread-scoped events MUST set `thread_id`.
 - Each event type has required and optional refs (see schema for full list).
-- All packet artifacts MUST include `subject_ref` plus the corresponding `thread:<thread_id>` in `artifact.refs`.
+- All packet artifacts MUST include `subject_ref` plus the required packet-kind refs in `artifact.refs`; the subject can be a topic, thread, card, board, or document as allowed by the packet schema and core resolver.
 - `topic_updated`, `topic_status_changed`, `card_updated`, `card_moved`, and `card_resolved` events SHOULD include `changed_fields` or equivalent change details in their payload when applicable.
 - `card.resolution -> completed` MUST include either `artifact:<receipt_id>` or `event:<decision_event_id>` in refs (matching the restricted transition rule).
 
