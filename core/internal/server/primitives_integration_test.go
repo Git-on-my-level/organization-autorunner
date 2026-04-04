@@ -86,6 +86,56 @@ func TestPrimitivesCRUDRoundTrip(t *testing.T) {
 		t.Fatalf("unexpected event type: %#v", loadedEvent["event"]["type"])
 	}
 
+	listEventsResp, err := http.Get(h.baseURL + "/events")
+	if err != nil {
+		t.Fatalf("GET /events: %v", err)
+	}
+	defer listEventsResp.Body.Close()
+	if listEventsResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected GET /events status: got %d", listEventsResp.StatusCode)
+	}
+	var listPayload struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(listEventsResp.Body).Decode(&listPayload); err != nil {
+		t.Fatalf("decode GET /events: %v", err)
+	}
+	foundListed := false
+	for _, e := range listPayload.Events {
+		if anyString(e["id"]) == eventID {
+			foundListed = true
+			break
+		}
+	}
+	if !foundListed {
+		t.Fatalf("expected created event id %s in GET /events, got %d events", eventID, len(listPayload.Events))
+	}
+
+	threadFilteredResp, err := http.Get(h.baseURL + "/events?thread_id=thread-1")
+	if err != nil {
+		t.Fatalf("GET /events?thread_id=: %v", err)
+	}
+	defer threadFilteredResp.Body.Close()
+	if threadFilteredResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected GET /events?thread_id= status: got %d", threadFilteredResp.StatusCode)
+	}
+	var threadFiltered struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(threadFilteredResp.Body).Decode(&threadFiltered); err != nil {
+		t.Fatalf("decode GET /events?thread_id=: %v", err)
+	}
+	foundThread := false
+	for _, e := range threadFiltered.Events {
+		if anyString(e["id"]) == eventID {
+			foundThread = true
+			break
+		}
+	}
+	if !foundThread {
+		t.Fatalf("expected event in thread-filtered list, got %d events", len(threadFiltered.Events))
+	}
+
 	refs, ok := loadedEvent["event"]["refs"].([]any)
 	if !ok || len(refs) != 1 || refs[0] != "customprefix:abc" {
 		t.Fatalf("unexpected event refs: %#v", loadedEvent["event"]["refs"])
