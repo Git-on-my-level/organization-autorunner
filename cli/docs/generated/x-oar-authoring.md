@@ -24,6 +24,6 @@ Recommended:
 
 Surface classification:
 
-- `canonical`: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, events)
+- `canonical`: CRUD/list/get endpoints over canonical resources (topics, cards, artifacts, documents, boards, threads, events)
 - `projection`: operator convenience surfaces that aggregate multiple canonical resources (workspace/context endpoints, inbox)
 - `utility`: meta/handshake, auth bootstrap, rebuild/repair, and similar non-domain endpoints

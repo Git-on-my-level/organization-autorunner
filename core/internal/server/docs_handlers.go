@@ -263,6 +263,10 @@ func handleCreateDocumentRevision(w http.ResponseWriter, r *http.Request, opts h
 			writeError(w, http.StatusInternalServerError, "internal_error", "document has no head revision")
 			return
 		}
+		baseRevision := headID
+		if raw := strings.TrimSpace(anyString(probe["if_base_revision"])); raw != "" {
+			baseRevision = raw
+		}
 		bodyMD := strings.TrimSpace(anyString(rev["body_markdown"]))
 		if bodyMD == "" {
 			writeError(w, http.StatusBadRequest, "invalid_request", "revision.body_markdown is required")
@@ -290,7 +294,7 @@ func handleCreateDocumentRevision(w http.ResponseWriter, r *http.Request, opts h
 
 		synthetic := map[string]any{
 			"actor_id":         probe["actor_id"],
-			"if_base_revision": headID,
+			"if_base_revision": baseRevision,
 			"content":          bodyMD,
 			"content_type":     "text",
 			"refs":             refs,

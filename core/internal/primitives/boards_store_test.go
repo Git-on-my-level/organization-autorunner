@@ -102,8 +102,8 @@ func TestBoardStoreCreateUpdateAndListSummaries(t *testing.T) {
 	if got := summary["latest_activity_at"]; got != "2099-01-03T00:00:00Z" {
 		t.Fatalf("unexpected latest activity: %#v", got)
 	}
-	if got := summary["has_primary_document"]; got != true {
-		t.Fatalf("unexpected has_primary_document: %#v", got)
+	if got := summary["has_document_refs"]; got != true {
+		t.Fatalf("unexpected has_document_refs: %#v", got)
 	}
 
 	initialUpdatedAt := listed[0].Board["updated_at"].(string)
@@ -147,9 +147,9 @@ func TestBoardStoreCreateRejectsBoardIDsWithPathSeparators(t *testing.T) {
 	primaryThreadID := createBoardTestThread(t, ctx, store, "Primary board thread")
 
 	_, err = store.CreateBoard(ctx, "actor-1", map[string]any{
-		"id":                "board/with-slash",
-		"title":             "Invalid Board ID",
-		"primary_thread_id": primaryThreadID,
+		"id":        "board/with-slash",
+		"title":     "Invalid Board ID",
+		"thread_id": primaryThreadID,
 	})
 	if !errors.Is(err, primitives.ErrInvalidBoardRequest) {
 		t.Fatalf("expected ErrInvalidBoardRequest, got %v", err)
@@ -177,8 +177,8 @@ func TestBoardStoreCardOrderingAndMutations(t *testing.T) {
 	pinnedDocumentID := createBoardTestDocument(t, ctx, store, cardThreadA, "Pinned card doc")
 
 	board, err := store.CreateBoard(ctx, "actor-1", map[string]any{
-		"title":             "Execution Board",
-		"primary_thread_id": primaryThreadID,
+		"title":     "Execution Board",
+		"thread_id": primaryThreadID,
 	})
 	if err != nil {
 		t.Fatalf("create board: %v", err)
@@ -315,8 +315,8 @@ func TestBoardStoreMoveCardResolutionTransitions(t *testing.T) {
 	cardThreadB := createBoardTestThread(t, ctx, store, "Move card thread B")
 
 	board, err := store.CreateBoard(ctx, "actor-1", map[string]any{
-		"title":             "Resolution Board",
-		"primary_thread_id": primaryThreadID,
+		"title":     "Resolution Board",
+		"thread_id": primaryThreadID,
 	})
 	if err != nil {
 		t.Fatalf("create board: %v", err)
@@ -408,8 +408,8 @@ func TestBoardStoreArchiveBoardCardByGlobalID(t *testing.T) {
 	cardThreadID := createBoardTestThread(t, ctx, store, "Card thread")
 
 	board, err := store.CreateBoard(ctx, "actor-1", map[string]any{
-		"title":             "Archive Board",
-		"primary_thread_id": primaryThreadID,
+		"title":     "Archive Board",
+		"thread_id": primaryThreadID,
 	})
 	if err != nil {
 		t.Fatalf("create board: %v", err)
@@ -472,8 +472,8 @@ func TestBoardStoreRejectsArchivedCardMutations(t *testing.T) {
 	cardThreadID := createBoardTestThread(t, ctx, store, "Card thread")
 
 	board, err := store.CreateBoard(ctx, "actor-1", map[string]any{
-		"title":             "Archived Mutation Board",
-		"primary_thread_id": primaryThreadID,
+		"title":     "Archived Mutation Board",
+		"thread_id": primaryThreadID,
 	})
 	if err != nil {
 		t.Fatalf("create board: %v", err)
@@ -533,8 +533,8 @@ func TestBoardStoreRejectsMixedPlacementAnchorTypes(t *testing.T) {
 	cardThreadC := createBoardTestThread(t, ctx, store, "Card thread C")
 
 	board, err := store.CreateBoard(ctx, "actor-1", map[string]any{
-		"title":             "Anchor Board",
-		"primary_thread_id": primaryThreadID,
+		"title":     "Anchor Board",
+		"thread_id": primaryThreadID,
 	})
 	if err != nil {
 		t.Fatalf("create board: %v", err)
@@ -595,15 +595,15 @@ func TestBoardStoreMembershipValidationAndLookup(t *testing.T) {
 	memberThread := createBoardTestThread(t, ctx, store, "Shared member thread")
 
 	boardA, err := store.CreateBoard(ctx, "actor-1", map[string]any{
-		"title":             "Board A",
-		"primary_thread_id": primaryThreadA,
+		"title":     "Board A",
+		"thread_id": primaryThreadA,
 	})
 	if err != nil {
 		t.Fatalf("create board A: %v", err)
 	}
 	boardB, err := store.CreateBoard(ctx, "actor-1", map[string]any{
-		"title":             "Board B",
-		"primary_thread_id": primaryThreadB,
+		"title":     "Board B",
+		"thread_id": primaryThreadB,
 	})
 	if err != nil {
 		t.Fatalf("create board B: %v", err)
@@ -711,14 +711,14 @@ func createBoardTestDocument(t *testing.T, ctx context.Context, store *primitive
 	return documentID
 }
 
-func putBoardTestProjection(t *testing.T, ctx context.Context, store *primitives.Store, threadID, lastActivityAt string, openCommitmentCount, documentCount int) {
+func putBoardTestProjection(t *testing.T, ctx context.Context, store *primitives.Store, threadID, lastActivityAt string, openCardCount, documentCount int) {
 	t.Helper()
 
 	if err := store.PutDerivedThreadProjection(ctx, primitives.DerivedThreadProjection{
-		ThreadID:            threadID,
-		LastActivityAt:      lastActivityAt,
-		OpenCommitmentCount: openCommitmentCount,
-		DocumentCount:       documentCount,
+		ThreadID:       threadID,
+		LastActivityAt: lastActivityAt,
+		OpenCardCount:  openCardCount,
+		DocumentCount:  documentCount,
 	}); err != nil {
 		t.Fatalf("put derived projection for %s: %v", threadID, err)
 	}

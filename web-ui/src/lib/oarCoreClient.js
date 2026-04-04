@@ -629,9 +629,26 @@ export function createOarCoreClient(options = {}) {
           { query: filters },
         ),
       ),
-    listThreadTimeline: (threadId) =>
+    listThreadTimeline: (threadId, opts) =>
       invokeJSON("threads.timeline", () =>
-        generated.threadsTimeline({ thread_id: String(threadId) }),
+        generated.threadsTimeline(
+          { thread_id: String(threadId) },
+          opts && typeof opts === "object" ? opts : {},
+        ),
+      ),
+    getTopicWorkspace: (topicId, filters) =>
+      invokeJSON("topics.workspace", () =>
+        generated.topicsWorkspace(
+          { topic_id: String(topicId) },
+          { query: filters },
+        ),
+      ),
+    listTopicTimeline: (topicId, opts) =>
+      invokeJSON("topics.timeline", () =>
+        generated.topicsTimeline(
+          { topic_id: String(topicId) },
+          opts && typeof opts === "object" ? opts : {},
+        ),
       ),
     streamThreadEvents: async ({ threadId, lastEventId, signal, onEvent }) => {
       const response = await invokeDirectRaw("/events/stream", {
@@ -676,29 +693,26 @@ export function createOarCoreClient(options = {}) {
         generated.cardsGet({ card_id: String(cardId) }),
       ),
     archiveCard: (cardId, payload) =>
-      invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/archive`, {
-        method: "POST",
-        body: JSON.stringify(withActorId(payload)),
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
+      invokeJSON("cards.archive", () =>
+        generated.cardsArchive(
+          { card_id: String(cardId) },
+          { body: withActorId(payload ?? {}) },
+        ),
+      ),
     restoreCard: (cardId, payload) =>
-      invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/restore`, {
-        method: "POST",
-        body: JSON.stringify(withActorId(payload)),
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
+      invokeJSON("cards.restore", () =>
+        generated.cardsRestore(
+          { card_id: String(cardId) },
+          { body: withActorId(payload ?? {}) },
+        ),
+      ),
     purgeCard: (cardId, payload) =>
-      invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/purge`, {
-        method: "POST",
-        body: JSON.stringify(withActorId(payload)),
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
+      invokeJSON("cards.purge", () =>
+        generated.cardsPurge(
+          { card_id: String(cardId) },
+          { body: withActorId(payload ?? {}) },
+        ),
+      ),
 
     createArtifact: (payload) =>
       invokeDirectJSON("/artifacts", {
@@ -1046,13 +1060,12 @@ export function createOarCoreClient(options = {}) {
         },
       ),
     removeBoardCard: (boardId, cardId, payload) =>
-      invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/archive`, {
-        method: "POST",
-        body: JSON.stringify(withActorId(payload)),
-        headers: {
-          "content-type": "application/json",
-        },
-      }),
+      invokeJSON("cards.archive", () =>
+        generated.cardsArchive(
+          { card_id: String(cardId) },
+          { body: withActorId(payload ?? {}) },
+        ),
+      ),
     updateBoardCard: (boardId, cardId, payload) =>
       invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}`, {
         method: "PATCH",

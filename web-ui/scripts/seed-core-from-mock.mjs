@@ -124,13 +124,15 @@ async function seedTopics() {
 
     const created = response?.topic;
     const newId = String(created?.id ?? "").trim();
-    const primaryThreadRef = String(created?.primary_thread_ref ?? "").trim();
-    if (!newId || !primaryThreadRef) {
+    const backingThreadId = String(
+      created?.thread_id ?? created?.id ?? "",
+    ).trim();
+    if (!newId || !backingThreadId) {
       throw new Error(`Topic create returned incomplete data for ${sourceTopic.title}`);
     }
 
     topicIdMap.set(String(sourceTopic.id ?? "").trim(), newId);
-    threadIdMap.set(String(sourceTopic.id ?? "").trim(), primaryThreadRef.replace(/^thread:/, ""));
+    threadIdMap.set(String(sourceTopic.id ?? "").trim(), backingThreadId);
   }
 }
 
@@ -384,13 +386,12 @@ async function seedBoards() {
         : [];
 
   for (const sourceBoard of sourceBoards) {
-    const primaryThreadId =
-      normalizeMappedOptionalThreadRef(sourceBoard.primary_thread_id) ||
-      normalizeMappedOptionalThreadRef(sourceBoard.primary_thread_ref) ||
-      normalizeMappedOptionalThreadRef(sourceBoard.primary_topic_ref);
-    if (!primaryThreadId) {
+    const backingThreadId = normalizeMappedOptionalThreadRef(
+      sourceBoard.thread_id,
+    );
+    if (!backingThreadId) {
       console.warn(
-        `Skipping board ${String(sourceBoard.id ?? "<unknown>")}: primary thread is not seedable.`,
+        `Skipping board ${String(sourceBoard.id ?? "<unknown>")}: backing thread is not seedable.`,
       );
       continue;
     }
@@ -398,31 +399,20 @@ async function seedBoards() {
     const actorId = pickActorId(
       sourceBoard.created_by ?? sourceBoard.updated_by,
     );
-    const primaryDocumentId = mapOptionalDocumentId(
-      sourceBoard.primary_document_id,
-    );
-    const primaryTopicRef = mapRef(
-      sourceBoard.primary_topic_ref ?? sourceBoard.primary_thread_ref,
-    );
-    const documentRefs = mapRefs(
-      sourceBoard.document_refs ??
-        (primaryDocumentId ? [`document:${primaryDocumentId}`] : []),
-    );
+    const explicitRefs = mapRefs(sourceBoard.refs);
+    const documentRefs = mapRefs(sourceBoard.document_refs);
     const cardRefs = mapRefs(sourceBoard.card_refs);
     const pinnedRefs = mapRefs(sourceBoard.pinned_refs);
     const createResponse = await requestRetryOnServerError("POST", "/boards", {
       actor_id: actorId,
-        board: {
-          id: sourceBoard.id,
-          title: sourceBoard.title,
-          status: sourceBoard.status,
-          labels: sourceBoard.labels,
-          owners: sourceBoard.owners,
-          ...(primaryTopicRef ? { primary_topic_ref: primaryTopicRef } : {}),
-          primary_thread_id: primaryThreadId,
-          ...(primaryDocumentId
-            ? { primary_document_id: primaryDocumentId }
-            : {}),
+      board: {
+        id: sourceBoard.id,
+        title: sourceBoard.title,
+        status: sourceBoard.status,
+        labels: sourceBoard.labels,
+        owners: sourceBoard.owners,
+        thread_id: backingThreadId,
+        ...(explicitRefs.length > 0 ? { refs: explicitRefs } : {}),
         ...(documentRefs.length > 0 ? { document_refs: documentRefs } : {}),
         ...(cardRefs.length > 0 ? { card_refs: cardRefs } : {}),
         ...(pinnedRefs.length > 0 ? { pinned_refs: pinnedRefs } : {}),
@@ -460,9 +450,9 @@ async function seedBoards() {
         );
         continue;
       }
-      if (linkedThreadId && linkedThreadId === primaryThreadId) {
+      if (linkedThreadId && linkedThreadId === backingThreadId) {
         console.warn(
-          `Skipping board card ${linkedThreadId} on ${newBoardId}: primary thread cannot be added as a card.`,
+          `Skipping board card ${linkedThreadId} on ${newBoardId}: backing thread cannot be added as a card.`,
         );
         continue;
       }
@@ -581,11 +571,7 @@ async function seedEvents() {
       sourceEvent.type,
       sourceEvent.payload,
     );
-    const refs = normalizeEventRefs(
-      sourceEvent.type,
-      mapRefs(sourceEvent.refs),
-      mappedThreadId,
-    );
+    const refs = mapRefs(sourceEvent.refs);
     const sourceId = String(sourceEvent.id ?? "").trim();
     const eventPayload = {
       type: sourceEvent.type,
@@ -701,18 +687,6 @@ function mapRef(ref) {
     return `${prefix}:${mapped}`;
   }
 
-  if (prefix === "snapshot") {
-    const mappedTopic = mapTopicId(value);
-    if (mappedTopic && mappedTopic !== value) {
-      return `topic:${mappedTopic}`;
-    }
-    const mappedCard = cardIdMap.get(value);
-    if (mappedCard) {
-      return `card:${mappedCard}`;
-    }
-    return text;
-  }
-
   if (prefix === "document") {
     const mapped = mapDocumentId(value);
     return `${prefix}:${mapped}`;
@@ -813,19 +787,6 @@ function normalizeEventPayload(type, payload) {
   }
 
   return next;
-}
-
-function normalizeEventRefs(type, refs, mappedThreadId) {
-  const nextRefs = Array.isArray(refs) ? [...refs] : [];
-
-  if (type === "snapshot_updated") {
-    const hasSnapshotRef = nextRefs.some((ref) => ref.startsWith("snapshot:"));
-    if (!hasSnapshotRef && mappedThreadId) {
-      nextRefs.push(`snapshot:${mappedThreadId}`);
-    }
-  }
-
-  return nextRefs;
 }
 
 async function request(method, path, body, okStatuses = [200, 201]) {

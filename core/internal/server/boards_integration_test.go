@@ -39,8 +39,7 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 			"title":"Ops Board",
 			"labels":["ops","planning"],
 			"owners":["actor-1"],
-			"primary_thread_id":"`+primaryThreadID+`",
-			"primary_document_id":"`+primaryDocumentID+`",
+			"refs":["thread:`+primaryThreadID+`","document:`+primaryDocumentID+`"],
 			"pinned_refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
@@ -110,8 +109,8 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 	if got := intFromAny(summary["document_count"]); got != 1 {
 		t.Fatalf("expected document_count=1, got %#v", summary["document_count"])
 	}
-	if got := summary["has_primary_document"]; got != true {
-		t.Fatalf("expected has_primary_document=true, got %#v", got)
+	if got := summary["has_document_refs"]; got != true {
+		t.Fatalf("expected has_document_refs=true, got %#v", got)
 	}
 	cardsByColumn, ok := summary["cards_by_column"].(map[string]any)
 	if !ok || intFromAny(cardsByColumn["ready"]) != 1 {
@@ -128,11 +127,9 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 	}
 
 	var workspacePayload struct {
-		BoardID         string         `json:"board_id"`
-		Board           map[string]any `json:"board"`
-		PrimaryThread   map[string]any `json:"primary_thread"`
-		PrimaryDocument map[string]any `json:"primary_document"`
-		Cards           struct {
+		BoardID string         `json:"board_id"`
+		Board   map[string]any `json:"board"`
+		Cards   struct {
 			Items []struct {
 				Membership map[string]any `json:"membership"`
 				Backing    struct {
@@ -150,10 +147,6 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 			Items []map[string]any `json:"items"`
 			Count int              `json:"count"`
 		} `json:"documents"`
-		Commitments struct {
-			Items []map[string]any `json:"items"`
-			Count int              `json:"count"`
-		} `json:"commitments"`
 		Inbox struct {
 			Items []map[string]any `json:"items"`
 			Count int              `json:"count"`
@@ -172,12 +165,6 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 	if workspacePayload.BoardID != boardID || asString(workspacePayload.Board["id"]) != boardID {
 		t.Fatalf("unexpected board workspace id payload: %#v", workspacePayload)
 	}
-	if asString(workspacePayload.PrimaryThread["id"]) != boardID {
-		t.Fatalf("unexpected primary_thread payload: %#v", workspacePayload.PrimaryThread)
-	}
-	if asString(workspacePayload.PrimaryDocument["id"]) != primaryDocumentID {
-		t.Fatalf("unexpected primary_document payload: %#v", workspacePayload.PrimaryDocument)
-	}
 	if workspacePayload.Cards.Count != 1 || len(workspacePayload.Cards.Items) != 1 {
 		t.Fatalf("expected one board workspace card, got %#v", workspacePayload.Cards)
 	}
@@ -194,8 +181,8 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 	if got := asString(cardItem.Derived.Freshness["status"]); got != "current" {
 		t.Fatalf("expected card freshness current, got %#v", cardItem.Derived.Freshness)
 	}
-	if workspacePayload.Documents.Count != 1 || workspacePayload.Commitments.Count != 0 || workspacePayload.Inbox.Count != 0 {
-		t.Fatalf("unexpected workspace aggregate sections: documents=%#v commitments=%#v inbox=%#v", workspacePayload.Documents, workspacePayload.Commitments, workspacePayload.Inbox)
+	if workspacePayload.Documents.Count != 1 || workspacePayload.Inbox.Count != 0 {
+		t.Fatalf("unexpected workspace aggregate sections: documents=%#v inbox=%#v", workspacePayload.Documents, workspacePayload.Inbox)
 	}
 	if intFromAny(workspacePayload.BoardSummary["card_count"]) != 1 || intFromAny(workspacePayload.BoardSummary["at_risk_card_count"]) != 1 || intFromAny(workspacePayload.BoardSummary["document_count"]) != 1 {
 		t.Fatalf("unexpected board summary: %#v", workspacePayload.BoardSummary)
@@ -212,7 +199,6 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 	if workspacePayload.SectionKinds["board"] != "canonical" ||
 		workspacePayload.SectionKinds["cards"] != "convenience" ||
 		workspacePayload.SectionKinds["documents"] != "derived" ||
-		workspacePayload.SectionKinds["commitments"] != "derived" ||
 		workspacePayload.SectionKinds["inbox"] != "derived" ||
 		workspacePayload.SectionKinds["board_summary"] != "derived" {
 		t.Fatalf("unexpected board workspace section kinds: %#v", workspacePayload.SectionKinds)
@@ -247,7 +233,7 @@ func TestBoardsWorkspaceAndThreadWorkspaceMemberships(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Shared Membership Board",
-			"primary_thread_id":"`+secondPrimaryThreadID+`"
+			"refs":["thread:`+secondPrimaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer secondBoardResp.Body.Close()
@@ -319,8 +305,7 @@ func TestBoardLifecycleEventsAndConflictValidation(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Lifecycle Board",
-			"primary_thread_id":"`+primaryThreadID+`",
-			"primary_document_id":"`+primaryDocumentID+`"
+			"refs":["thread:`+primaryThreadID+`","document:`+primaryDocumentID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -515,7 +500,7 @@ func TestArchiveBoardCardGlobalRoute(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Archive Board",
-			"primary_thread_id":"`+primaryThreadID+`"
+			"refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -623,7 +608,7 @@ func TestCardGlobalTrashListRestoreAndPurge(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Trash Board",
-			"primary_thread_id":"`+primaryThreadID+`"
+			"refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -797,7 +782,7 @@ func TestBoardCardPatchAllowsContractValidNoOpShapes(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Patch Board",
-			"primary_thread_id":"`+primaryThreadID+`"
+			"refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -944,7 +929,7 @@ func TestBoardCardAddRequestKeyFallbackOnlyReplaysEquivalentState(t *testing.T) 
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Ops Board",
-			"primary_thread_id":"`+primaryThreadID+`"
+			"refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -1044,8 +1029,7 @@ func TestBoardCardMoveRejectsInvalidPlacementAnchors(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Anchor validation board",
-			"primary_thread_id":"`+primaryThreadID+`",
-			"primary_document_id":"`+primaryDocumentID+`"
+			"refs":["thread:`+primaryThreadID+`","document:`+primaryDocumentID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -1152,7 +1136,7 @@ func TestCardMoveResolutionTransitionsAndEvents(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Move resolution board",
-			"primary_thread_id":"`+primaryThreadID+`"
+			"refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -1365,37 +1349,6 @@ func createBoardDocumentViaHTTP(t *testing.T, h primitivesTestHarness, threadID,
 		t.Fatalf("expected document id for %q", title)
 	}
 	return documentID
-}
-
-func createBoardCommitmentViaHTTP(t *testing.T, h primitivesTestHarness, threadID, title string) string {
-	t.Helper()
-
-	resp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
-		"actor_id":"actor-1",
-		"commitment":{
-			"thread_id":"`+threadID+`",
-			"title":"`+title+`",
-			"owner":"actor-1",
-			"due_at":"2099-03-08T00:00:00Z",
-			"status":"open",
-			"definition_of_done":["done"],
-			"links":[],
-			"provenance":{"sources":["inferred"]}
-		}
-	}`, http.StatusCreated)
-	defer resp.Body.Close()
-
-	var payload struct {
-		Commitment map[string]any `json:"commitment"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		t.Fatalf("decode create commitment response: %v", err)
-	}
-	commitmentID := asString(payload.Commitment["id"])
-	if commitmentID == "" {
-		t.Fatalf("expected commitment id for %q", title)
-	}
-	return commitmentID
 }
 
 func intFromAny(raw any) int {

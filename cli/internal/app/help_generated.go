@@ -181,9 +181,9 @@ var localHelperTopics = []localHelperTopic{
 	},
 	{
 		Path:        "boards workspace",
-		Summary:     "Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.",
-		JSONShape:   "`board_id`, `board`, `primary_thread`, `primary_document`, `cards`, `board_summary`, `generated_at`",
-		Composition: "Resolves a board by id, fetches the canonical workspace view with hydrated thread summaries, and renders cards grouped by canonical column order (backlog, ready, in_progress, blocked, review, done).",
+		Summary:     "Canonical board read path: load one board's workspace: optional primary topic, cards by column, linked documents, inbox items, and summary.",
+		JSONShape:   "`board_id`, `board`, `primary_topic`, `cards`, `documents`, `inbox`, `board_summary`, `projection_freshness`, `board_summary_freshness`, `warnings`, `section_kinds`, `generated_at`",
+		Composition: "Resolves a board by id, fetches the projection workspace with per-card thread backing and renders cards grouped by canonical column order (backlog, ready, in_progress, blocked, review, done).",
 		Examples: []string{
 			"oar boards workspace --board-id <board-id>",
 			"oar boards workspace --board-id board_product_launch",

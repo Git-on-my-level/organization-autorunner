@@ -37,34 +37,6 @@ Each endpoint is classified with an `x-oar-surface` extension indicating its rol
 - `GET /actors`
   - Response: `{ "actors": [<actor>...] }`
 
-### Threads (read-only backing timelines)
-
-- `POST /threads`
-  - Body: `{ "actor_id": "...", "thread": <thread_snapshot_fields_without_id> }`
-  - `thread.cadence`:
-    - MUST be either literal `reactive` or a 5-field cron expression.
-    - Legacy values `daily`, `weekly`, `monthly`, `custom` MAY be accepted for backward compatibility.
-  - Response: `{ "thread": <thread_snapshot> }`
-
-- `GET /threads`
-  - Query (optional): `status`, `priority`, `tag`, `cadence`, `stale` (boolean)
-  - `cadence` filter semantics:
-    - Preset-based values: `reactive`, `daily`, `weekly`, `monthly`, `custom`.
-    - If a thread stores cron cadence directly, canonical daily/weekly/monthly cron expressions are matched to those presets; non-preset cron values are matched as `custom`.
-  - Response: `{ "threads": [<thread_snapshot>...] }`
-
-- `GET /threads/{thread_id}`
-  - Response: `{ "thread": <thread_snapshot> }`
-
-- `PATCH /threads/{thread_id}`
-  - Body: `{ "actor_id": "...", "patch": { <fields...> } , "if_updated_at"?: "..." }`
-  - Semantics: patch/merge; list-valued fields replace wholesale when present.
-  - `patch.cadence` follows the same `reactive` or 5-field cron rule as create.
-  - Response: `{ "thread": <thread_snapshot> }`
-
-- `GET /threads/{thread_id}/timeline`
-  - Response: `{ "events": [<event>...] }`
-
 ### Topics (canonical subject state)
 
 - `POST /topics`
@@ -83,6 +55,40 @@ Each endpoint is classified with an `x-oar-surface` extension indicating its rol
   - Notes:
     - Patch/merge semantics apply; list-valued fields replace wholesale.
   - Response: `{ "topic": <topic> }`
+
+### Cards (canonical board work items)
+
+- `GET /cards`
+  - Response: `{ "cards": [<card>...] }`
+
+- `GET /cards/{card_id}`
+  - Response: `{ "card": <card> }`
+
+- `PATCH /cards/{card_id}`
+  - Body: `{ "actor_id": "...", "patch": { <fields...> }, "if_updated_at"?: "..." }`
+  - Response: `{ "card": <card> }`
+
+- Board-scoped card lifecycle (create, patch, move, remove) is exposed under `POST|PATCH /boards/{board_id}/cards` and related paths; see `/contracts/oar-openapi.yaml`.
+
+### Threads (read-only backing inspection)
+
+Threads are backing infrastructure for timelines and packet subjects. The workspace contract exposes **GET-only** thread routes for inspection and projections; prefer **topics** and **cards** for operator mutations.
+
+- `GET /threads`
+  - Query (optional): `status`, `priority`, `tag`, `cadence`, `stale` (boolean)
+  - Response: `{ "threads": [<thread>...] }` (each `thread` matches the schema’s thread resource shape)
+
+- `GET /threads/{thread_id}`
+  - Response: `{ "thread": <thread> }`
+
+- `GET /threads/{thread_id}/timeline` (projection)
+  - Response: thread timeline envelope including `events` and related expansions per OpenAPI (`ThreadTimelineResponse`).
+
+- `GET /threads/{thread_id}/context` (projection)
+  - Response: compact coordination bundle for triage per OpenAPI.
+
+- `GET /threads/{thread_id}/workspace` (projection)
+  - Response: related topics, cards, documents, board memberships, inbox section, and freshness metadata per OpenAPI.
 
 ### Artifacts
 

@@ -31,7 +31,7 @@ oar-ui does **not**:
 
 ### 1.3 Typed references
 
-- All ref strings use typed prefixes as defined in `/contracts/oar-schema.yaml` → `ref_format` (e.g., `artifact:<id>`, `snapshot:<id>`, `event:<id>`, `thread:<id>`, `inbox:<id>`, `url:<url>`).
+- All ref strings use typed prefixes as defined in `/contracts/oar-schema.yaml` → `ref_format` (e.g., `artifact:<id>`, `topic:<id>`, `card:<id>`, `board:<id>`, `document:<id>`, `event:<id>`, `thread:<id>`, `inbox:<id>`, `url:<url>`).
 - oar-ui MUST parse ref prefixes to determine link targets and render appropriate navigation (e.g., `artifact:` links navigate to artifact detail, `url:` links open externally, `event:` links scroll to timeline entry).
 - Unknown ref prefixes MUST be rendered as raw text, not hidden or discarded.
 
@@ -54,9 +54,9 @@ oar-ui does **not**:
 - When `by_field` is present (restricted field updates), the UI MUST show per-field provenance on the relevant fields.
 - Provenance MUST be displayed on any field flagged as restricted by the schema, plus packet-linked outcomes and other state where evidence vs inference matters.
 
-### 1.6 Snapshot update semantics
+### 1.6 Topic and card patch semantics
 
-- oar-ui MUST use **patch/merge** semantics when updating snapshots: send only changed fields.
+- oar-ui MUST use **patch/merge** semantics when updating topics and cards: send only changed fields.
 - **List-valued fields** (e.g., `tags`, `key_artifacts`, `links`) are **replaced wholesale** when present in a patch. Absence means no change.
 - This ensures unknown fields (added by newer clients or agents) are preserved.
 - oar-ui MUST NOT write to core-maintained fields.
@@ -74,23 +74,23 @@ oar-ui does **not**:
 
 The primary navigation unit is the **topic**, with boards and cards for execution. Threads remain the read-only backing timeline for evidence and audit navigation.
 
-### 2.2 Thread detail: snapshot + timeline
+### 2.2 Topic detail: timeline + workspace
 
-A thread detail view presents two complementary layers:
+A topic detail view presents two complementary layers:
 
-**Snapshot (current state):** The current operator-facing state for the topic or board being viewed: title, status, priority, schedule (`cadence`), summary, next actions, and linked evidence. This is the "what's true right now" view. Editable in place only where the schema allows it.
+**Workspace (current state):** The operator-facing topic record plus related cards, boards, documents, and inbox context from projection endpoints where applicable — title, status, priority, schedule (`cadence`), summary, next actions, and linked evidence. This is the "what's true right now" view. Editable in place only where the schema allows it (topics and cards via their canonical patch APIs).
 
-**Timeline (audit trail):** A time-ordered, append-only sequence of all events associated with the backing thread. Each timeline entry shows type, timestamp, actor, summary, and refs (rendered as navigable typed-ref links). The timeline includes messages, work order creation, receipt submission, reviews, decisions, exceptions, acknowledgments, and state updates.
+**Timeline (audit trail):** A time-ordered, append-only sequence of all events on the topic's backing thread. Each timeline entry shows type, timestamp, actor, summary, and refs (rendered as navigable typed-ref links). The timeline includes messages, work order creation, receipt submission, reviews, decisions, exceptions, acknowledgments, and topic/card lifecycle updates.
 
-The snapshot is interpretive and mutable. The timeline is durable and immutable. The UI MUST make this distinction clear.
+Mutable topic and card fields are interpretive and versioned through events. The timeline is durable and append-only. The UI MUST make this distinction clear.
 
 ### 2.3 Timeline rendering
 
 - Ordering MUST be time-based and stable.
 - Different event types SHOULD be visually distinguishable (icons, colors, or labels).
-- Typed refs in event entries SHOULD render as navigable links (artifact refs open artifact detail, snapshot refs scroll to the snapshot, URL refs open externally).
+- Typed refs in event entries SHOULD render as navigable links (artifact refs open artifact detail, `topic:` / `card:` refs open topic or card detail, URL refs open externally).
 - Artifact-typed events (work orders, receipts, reviews) SHOULD be expandable inline or navigable to the artifact detail. The UI uses event `refs` (per reference conventions) to locate the linked artifacts.
-- `snapshot_updated` events SHOULD display `changed_fields` from the event payload when available.
+- `topic_updated`, `topic_status_changed`, `card_updated`, and related lifecycle events SHOULD display `changed_fields` (or equivalent change details) from the event payload when available.
 - Unknown event types MUST render without breaking the timeline.
 
 ### 2.4 URL-backed view state
@@ -124,9 +124,9 @@ A dedicated surface showing items that need human attention.
 - Acknowledge/dismiss an item → emits an `inbox_item_acknowledged` event with `inbox:<inbox_item_id>` in refs. Acknowledged items are suppressed from the inbox unless a new triggering event occurs after the acknowledgment.
 - Record a decision (creates a `decision_made` event with notes and typed refs).
 
-### 3.2 Thread list
+### 3.2 Topic list
 
-A filterable list of all threads.
+A filterable list of topics (the UI may still expose thread-indexed routes for inspection; the operator-facing noun is **topic**).
 
 **Filters:** status, priority, tags, cadence preset/staleness.
 
@@ -135,17 +135,17 @@ Storage is `reactive` or cron; preset filters map cron values to these categorie
 
 Each row shows: title, status, priority, cadence indicator, staleness indicator, last activity timestamp.
 
-### 3.3 Thread detail
+### 3.3 Topic detail
 
-The primary working surface. Combines the current-state view and timeline described in §2.
+The primary working surface. Combines the workspace-style current-state view and timeline described in §2.
 
 **Must support:**
 
-- Viewing and editing current-state fields: title, status, priority, type, cadence schedule (preset or custom cron), next check-in, tags, current summary, next actions.
+- Viewing and editing topic and card current-state fields: title, status, priority, type, cadence schedule (preset or custom cron), next check-in, tags, current summary, next actions (within schema and core-maintained rules).
 - Viewing linked evidence and packet outcomes with restricted transition enforcement where the schema requires it.
 - Viewing the full timeline with navigable typed-ref links.
-- Linking artifacts to the thread (adds typed refs to `key_artifacts`).
-- Posting messages (creates `message_posted` events on the thread).
+- Linking artifacts to the topic/thread context (adds typed refs to `key_artifacts` where the schema allows).
+- Posting messages (creates `message_posted` events on the backing thread).
 
 ### 3.4 Work order composer
 
@@ -227,7 +227,7 @@ When a user attempts to set a restricted state transition on a card or packet-ba
 
 The UI SHOULD make it easy to:
 
-- Attach typed refs (artifact IDs, external URLs) to any event or snapshot edit.
+- Attach typed refs (artifact IDs, external URLs) to any event or topic/card edit.
 - View all evidence associated with a packet or other restricted field (linked receipts, reviews, decisions - navigable via typed refs in related events).
 - See at a glance whether a restricted field is backed by evidence or inferred (via provenance display).
 
@@ -267,8 +267,8 @@ Replies SHOULD reference the parent event ID as `event:<parent_event_id>` in the
 
 oar-ui v0 is complete when it can:
 
-- Display the inbox grouped by category with navigation to relevant threads, and support acknowledgment that persists across inbox rebuilds.
-- List and filter threads.
+- Display the inbox grouped by category with navigation to relevant topics, boards, cards, or threads, and support acknowledgment that persists across inbox rebuilds.
+- List and filter topics.
 - Show topic and board detail with editable current state (patch/merge, respecting core-maintained fields) and full timeline with navigable typed-ref links.
 - Create work orders within a topic context with typed refs.
 - View receipts and their evidence links as navigable typed refs.

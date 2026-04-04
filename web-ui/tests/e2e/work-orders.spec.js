@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { threadWorkspaceToTopicWorkspace } from "../../src/lib/topicWorkspaceAdapter.js";
+
 test("work order composer validates typed refs and sends correct POST payload", async ({
   page,
 }) => {
@@ -44,7 +46,7 @@ test("work order composer validates typed refs and sends correct POST payload", 
           key_artifacts: ["artifact-policy-draft"],
           current_summary: "Thread detail summary.",
           next_actions: ["Collect legal signoff"],
-          open_commitments: [],
+          open_cards: [],
           next_check_in_at: "2026-03-05T00:00:00.000Z",
           updated_at: "2026-03-04T00:00:00.000Z",
           updated_by: actorId,
@@ -55,56 +57,55 @@ test("work order composer validates typed refs and sends correct POST payload", 
   });
 
   await page.route(
-    /\/threads\/thread-onboarding\/workspace(\?.*)?$/,
+    /\/(threads|topics)\/thread-onboarding\/workspace(\?.*)?$/,
     async (route) => {
+      const threadWs = {
+        thread_id: "thread-onboarding",
+        thread: {
+          id: "thread-onboarding",
+          type: "process",
+          title: "Customer Onboarding Workflow",
+          status: "active",
+          priority: "p1",
+          cadence: "weekly",
+          tags: ["ops", "customer"],
+          key_artifacts: ["artifact-policy-draft"],
+          current_summary: "Thread detail summary.",
+          next_actions: ["Collect legal signoff"],
+          open_cards: [],
+          next_check_in_at: "2026-03-05T00:00:00.000Z",
+          updated_at: "2026-03-04T00:00:00.000Z",
+          updated_by: actorId,
+          provenance: { sources: ["actor_statement:event-1001"] },
+        },
+        context: {
+          recent_events: timeline,
+          key_artifacts: [],
+          open_cards: [],
+          documents: [],
+        },
+      };
+      const payload = route.request().url().includes("/topics/")
+        ? threadWorkspaceToTopicWorkspace(threadWs, "thread-onboarding")
+        : threadWs;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          thread_id: "thread-onboarding",
-          thread: {
-            id: "thread-onboarding",
-            type: "process",
-            title: "Customer Onboarding Workflow",
-            status: "active",
-            priority: "p1",
-            cadence: "weekly",
-            tags: ["ops", "customer"],
-            key_artifacts: ["artifact-policy-draft"],
-            current_summary: "Thread detail summary.",
-            next_actions: ["Collect legal signoff"],
-            open_commitments: [],
-            next_check_in_at: "2026-03-05T00:00:00.000Z",
-            updated_at: "2026-03-04T00:00:00.000Z",
-            updated_by: actorId,
-            provenance: { sources: ["actor_statement:event-1001"] },
-          },
-          context: {
-            recent_events: timeline,
-            key_artifacts: [],
-            open_commitments: [],
-            documents: [],
-          },
-        }),
+        body: JSON.stringify(payload),
       });
     },
   );
 
-  await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ events: timeline }),
-    });
-  });
-
-  await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "text/event-stream",
-      body: ": keepalive\n\n",
-    });
-  });
+  await page.route(
+    /\/(threads|topics)\/thread-onboarding\/timeline$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ events: timeline }),
+      });
+    },
+  );
 
   await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
     await route.fulfill({
@@ -289,7 +290,7 @@ test("work order composer suggests thread context refs and preserves manual edit
           key_artifacts: ["artifact:artifact-policy-draft"],
           current_summary: "Thread detail summary.",
           next_actions: ["Collect legal signoff"],
-          open_commitments: [],
+          open_cards: [],
           next_check_in_at: "2026-03-05T00:00:00.000Z",
           updated_at: "2026-03-04T00:00:00.000Z",
           updated_by: actorId,
@@ -300,73 +301,80 @@ test("work order composer suggests thread context refs and preserves manual edit
   });
 
   await page.route(
-    /\/threads\/thread-onboarding\/workspace(\?.*)?$/,
+    /\/(threads|topics)\/thread-onboarding\/workspace(\?.*)?$/,
     async (route) => {
+      const threadWs = {
+        thread_id: "thread-onboarding",
+        thread: {
+          id: "thread-onboarding",
+          type: "process",
+          title: "Customer Onboarding Workflow",
+          status: "active",
+          priority: "p1",
+          cadence: "weekly",
+          tags: ["ops", "customer"],
+          key_artifacts: ["artifact:artifact-policy-draft"],
+          current_summary: "Thread detail summary.",
+          next_actions: ["Collect legal signoff"],
+          open_cards: [],
+          next_check_in_at: "2026-03-05T00:00:00.000Z",
+          updated_at: "2026-03-04T00:00:00.000Z",
+          updated_by: actorId,
+          provenance: { sources: ["actor_statement:event-1001"] },
+        },
+        context: {
+          recent_events: timeline,
+          key_artifacts: [
+            {
+              ref: "artifact:artifact-policy-draft",
+              artifact: {
+                id: "artifact-policy-draft",
+                kind: "doc",
+                thread_id: "thread-onboarding",
+                summary: "Policy draft",
+              },
+            },
+          ],
+          open_cards: [],
+          documents: [
+            {
+              id: "doc-1",
+              thread_id: "thread-onboarding",
+              title: "Launch runbook",
+              status: "active",
+              updated_at: "2026-03-06T02:00:00.000Z",
+              updated_by: actorId,
+              head_revision: {
+                revision_id: "rev-1",
+                revision_number: 3,
+                content_type: "text/markdown",
+                created_at: "2026-03-06T02:00:00.000Z",
+              },
+            },
+          ],
+        },
+      };
+      const payload = route.request().url().includes("/topics/")
+        ? threadWorkspaceToTopicWorkspace(threadWs, "thread-onboarding")
+        : threadWs;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          thread_id: "thread-onboarding",
-          thread: {
-            id: "thread-onboarding",
-            type: "process",
-            title: "Customer Onboarding Workflow",
-            status: "active",
-            priority: "p1",
-            cadence: "weekly",
-            tags: ["ops", "customer"],
-            key_artifacts: ["artifact:artifact-policy-draft"],
-            current_summary: "Thread detail summary.",
-            next_actions: ["Collect legal signoff"],
-            open_commitments: [],
-            next_check_in_at: "2026-03-05T00:00:00.000Z",
-            updated_at: "2026-03-04T00:00:00.000Z",
-            updated_by: actorId,
-            provenance: { sources: ["actor_statement:event-1001"] },
-          },
-          context: {
-            recent_events: timeline,
-            key_artifacts: [
-              {
-                ref: "artifact:artifact-policy-draft",
-                artifact: {
-                  id: "artifact-policy-draft",
-                  kind: "doc",
-                  thread_id: "thread-onboarding",
-                  summary: "Policy draft",
-                },
-              },
-            ],
-            open_commitments: [],
-            documents: [
-              {
-                id: "doc-1",
-                thread_id: "thread-onboarding",
-                title: "Launch runbook",
-                status: "active",
-                updated_at: "2026-03-06T02:00:00.000Z",
-                updated_by: actorId,
-                head_revision: {
-                  revision_id: "rev-1",
-                  revision_number: 3,
-                  content_type: "text/markdown",
-                  created_at: "2026-03-06T02:00:00.000Z",
-                },
-              },
-            ],
-          },
-        }),
+        body: JSON.stringify(payload),
       });
     },
   );
 
-  await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ events: timeline }),
-    });
-  });
+  await page.route(
+    /\/(threads|topics)\/thread-onboarding\/timeline$/,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ events: timeline }),
+      });
+    },
+  );
 
   await page.route(/\/docs(\?.*)?$/, async (route) => {
     const url = new URL(route.request().url());

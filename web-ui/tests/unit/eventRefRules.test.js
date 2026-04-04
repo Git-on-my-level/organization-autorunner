@@ -4,7 +4,6 @@ import {
   getPayloadStringAtPath,
   hasEventRefRule,
   validateEventRefRule,
-  validateCommitmentStatusRef,
 } from "../../src/lib/eventRefRules.js";
 
 describe("eventRefRules", () => {
@@ -130,62 +129,6 @@ describe("eventRefRules", () => {
     it("returns empty string for missing or non-string leaves", () => {
       expect(getPayloadStringAtPath({}, "a.b")).toBe("");
       expect(getPayloadStringAtPath({ a: { b: 1 } }, "a.b")).toBe("");
-    });
-  });
-
-  describe("validateCommitmentStatusRef", () => {
-    it("allows non-restricted statuses without ref", () => {
-      const result = validateCommitmentStatusRef("open", "");
-      expect(result.valid).toBe(true);
-    });
-
-    it("rejects done without ref", () => {
-      const result = validateCommitmentStatusRef("done", "");
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("artifact");
-    });
-
-    it("rejects canceled without ref", () => {
-      const result = validateCommitmentStatusRef("canceled", "");
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("event");
-    });
-
-    it("allows artifact ref for done", () => {
-      const result = validateCommitmentStatusRef("done", "artifact:receipt-1");
-      expect(result.valid).toBe(true);
-    });
-
-    it("allows event ref for done", () => {
-      const result = validateCommitmentStatusRef("done", "event:decision-1");
-      expect(result.valid).toBe(true);
-    });
-
-    it("rejects other prefixes for done", () => {
-      const result = validateCommitmentStatusRef("done", "snapshot:snap-1");
-      expect(result.valid).toBe(false);
-    });
-
-    it("allows event ref for canceled", () => {
-      const result = validateCommitmentStatusRef(
-        "canceled",
-        "event:decision-1",
-      );
-      expect(result.valid).toBe(true);
-    });
-
-    it("rejects artifact ref for canceled", () => {
-      const result = validateCommitmentStatusRef(
-        "canceled",
-        "artifact:receipt-1",
-      );
-      expect(result.valid).toBe(false);
-    });
-
-    it("rejects invalid typed ref format", () => {
-      const result = validateCommitmentStatusRef("done", "invalid-ref");
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain("valid typed ref");
     });
   });
 });

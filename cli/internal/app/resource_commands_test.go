@@ -693,7 +693,7 @@ func TestDocsCommands(t *testing.T) {
 			_, _ = w.Write([]byte(`{"document":{"id":"doc_1","head_revision_id":"rev_1"},"revision":{"revision_id":"rev_1","revision_number":1,"content":"initial","content_type":"text"}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/docs/doc_1/revisions":
 			body, _ := io.ReadAll(r.Body)
-			if !bytes.Contains(body, []byte(`"if_base_revision":"rev_1"`)) {
+			if !bytes.Contains(body, []byte(`"if_base_revision":"rev_1"`)) || !bytes.Contains(body, []byte(`"body_markdown"`)) {
 				t.Fatalf("unexpected docs update body: %s", string(body))
 			}
 			_, _ = w.Write([]byte(`{"document":{"id":"doc_1","head_revision_id":"rev_2"},"revision":{"revision_id":"rev_2","revision_number":2}}`))
@@ -1111,8 +1111,9 @@ func TestDocsProposeUpdateWithContentFileUsesFetchedDocumentState(t *testing.T) 
 		t.Fatalf("expected path /docs/doc_1/revisions, got %q payload=%#v", got, payload)
 	}
 	body, _ := data["body"].(map[string]any)
-	if got := anyStringValue(body["content"]); got != strings.TrimSpace(content) {
-		t.Fatalf("expected content-file override in proposal payload, got %q payload=%#v", got, payload)
+	revision, _ := body["revision"].(map[string]any)
+	if got := anyStringValue(revision["body_markdown"]); got != strings.TrimSpace(content) {
+		t.Fatalf("expected content-file override in proposal revision.body_markdown, got %q payload=%#v", got, payload)
 	}
 	diff, _ := data["diff"].(map[string]any)
 	if diffText := anyStringValue(diff["text"]); !strings.Contains(diffText, "line 1") {
@@ -1644,7 +1645,7 @@ func TestThreadsContextCommand(t *testing.T) {
 			t.Fatalf("expected include_artifact_content=true, got %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"thread":{"id":"thread_1"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+		_, _ = w.Write([]byte(`{"thread":{"id":"thread_1"},"recent_events":[],"key_artifacts":[],"open_cards":[]}`))
 	}))
 	defer server.Close()
 
@@ -1687,8 +1688,8 @@ func TestThreadsContextIncludesCollaborationSummarySections(t *testing.T) {
 			"key_artifacts":[
 				{"ref":"artifact:brief_1","artifact":{"id":"artifact_1","kind":"gtm-brief","summary":"Pilot rescue brief"}}
 			],
-			"open_commitments":[
-				{"id":"commitment_1","status":"open","title":"Publish launch brief"}
+			"open_cards":[
+				{"id":"card_1","status":"open","title":"Publish launch brief"}
 			]
 		}`))
 	}))
@@ -1768,7 +1769,7 @@ func TestBoardCommands(t *testing.T) {
 			if got := r.URL.Query()["owner"]; len(got) != 1 || got[0] != "actor_1" {
 				t.Fatalf("expected owner query [actor_1], got %#v", got)
 			}
-			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + boardID + `","title":"Launch","status":"active"},"summary":{"card_count":1,"cards_by_column":{"backlog":1,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":1,"document_count":1,"latest_activity_at":"` + updatedAt + `","has_primary_document":true}}]}`))
+			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + boardID + `","title":"Launch","status":"active"},"summary":{"card_count":1,"cards_by_column":{"backlog":1,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"unresolved_card_count":1,"document_count":1,"latest_activity_at":"` + updatedAt + `","has_document_refs":true}}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/boards":
 			body, _ := io.ReadAll(r.Body)
 			if !bytes.Contains(body, []byte(`"title":"Launch"`)) {
@@ -1786,7 +1787,7 @@ func TestBoardCommands(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"board":{"id":"` + boardID + `","title":"Launch Updated","status":"active","updated_at":"` + nextUpdatedAt + `"}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/boards/"+boardID+"/workspace":
-			_, _ = w.Write([]byte(`{"board_id":"` + boardID + `","board":{"id":"` + boardID + `","title":"Launch","status":"active","updated_at":"` + updatedAt + `"},"primary_thread":{"id":"thread_primary_1","title":"Primary"},"primary_document":{"id":"doc_primary_1","title":"Plan"},"cards":{"items":[{"card":{"board_id":"` + boardID + `","thread_id":"` + cardThreadID + `","column_key":"backlog","rank":"a"},"thread":{"id":"` + cardThreadID + `","title":"Card"},"summary":{"open_commitment_count":1,"decision_request_count":0,"decision_count":0,"recommendation_count":0,"document_count":1,"inbox_count":0,"latest_activity_at":"` + updatedAt + `","stale":false},"pinned_document":null}],"count":1},"documents":{"items":[],"count":0},"commitments":{"items":[],"count":0},"inbox":{"items":[],"count":0},"board_summary":{"card_count":1,"cards_by_column":{"backlog":1,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":1,"document_count":1,"latest_activity_at":"` + updatedAt + `","has_primary_document":true},"warnings":{"items":[],"count":0},"section_kinds":{"board":"canonical","cards":"canonical","documents":"derived","commitments":"derived","inbox":"derived","warnings":"derived"},"generated_at":"` + updatedAt + `"}`))
+			_, _ = w.Write([]byte(`{"board_id":"` + boardID + `","board":{"id":"` + boardID + `","title":"Launch","status":"active","updated_at":"` + updatedAt + `"},"cards":{"items":[{"card":{"board_id":"` + boardID + `","thread_id":"` + cardThreadID + `","column_key":"backlog","rank":"a"},"thread":{"id":"` + cardThreadID + `","title":"Card"},"summary":{"related_topic_count":1,"decision_request_count":0,"decision_count":0,"recommendation_count":0,"document_count":1,"inbox_count":0,"latest_activity_at":"` + updatedAt + `","stale":false},"pinned_document":null}],"count":1},"documents":{"items":[],"count":0},"inbox":{"items":[],"count":0},"board_summary":{"card_count":1,"cards_by_column":{"backlog":1,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"unresolved_card_count":1,"document_count":1,"latest_activity_at":"` + updatedAt + `","has_document_refs":true},"warnings":{"items":[],"count":0},"section_kinds":{"board":"canonical","cards":"canonical","documents":"derived","topics":"derived","inbox":"derived","warnings":"derived"},"generated_at":"` + updatedAt + `"}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/boards/"+boardID+"/cards":
 			_, _ = w.Write([]byte(`{"board_id":"` + boardID + `","cards":[{"id":"` + cardID + `","board_id":"` + boardID + `","thread_id":"` + cardThreadID + `","parent_thread":"` + cardThreadID + `","title":"Launch task","body":"","version":1,"column_key":"backlog","rank":"a","assignee":null,"priority":null,"status":"todo","pinned_document_id":null,"created_at":"` + updatedAt + `","created_by":"actor_1","updated_at":"` + updatedAt + `","updated_by":"actor_1","provenance":{"sources":["inferred"]}}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/boards/"+boardID+"/cards":
@@ -1848,7 +1849,7 @@ func TestBoardCommands(t *testing.T) {
 	env := map[string]string{}
 
 	assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "boards", "list", "--status", "active", "--label", "ops", "--owner", "actor_1"}))
-	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"board":{"title":"Launch","primary_thread_id":"thread_primary_1","status":"active"}}`), []string{"--json", "--base-url", server.URL, "boards", "create"}))
+	assertEnvelopeOK(t, runCLIForTest(t, home, env, strings.NewReader(`{"board":{"title":"Launch","thread_id":"thread_primary_1","status":"active"}}`), []string{"--json", "--base-url", server.URL, "boards", "create"}))
 
 	getPayload := assertEnvelopeOK(t, runCLIForTest(t, home, env, nil, []string{"--json", "--base-url", server.URL, "boards", "get", "--board-id", boardID}))
 	if got := anyStringValue(getPayload["command_id"]); got != "boards.get" {
@@ -1906,12 +1907,12 @@ func TestBoardsListAddsNestedShortIDAndWorkspaceResolvesShortBoardID(t *testing.
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/boards":
-			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":0,"document_count":0,"latest_activity_at":null,"has_primary_document":false}}]}`))
+			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"unresolved_card_count":0,"document_count":0,"latest_activity_at":null,"has_document_refs":false}}]}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/boards/"+shortID+"/workspace":
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"error":{"code":"not_found","message":"board not found"}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/boards/"+canonicalID+"/workspace":
-			_, _ = w.Write([]byte(`{"board_id":"` + canonicalID + `","board":{"id":"` + canonicalID + `","title":"Ops Board","status":"active"},"primary_thread":{"id":"thread_1"},"primary_document":null,"cards":{"items":[],"count":0},"documents":{"items":[],"count":0},"commitments":{"items":[],"count":0},"inbox":{"items":[],"count":0},"board_summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":0,"document_count":0,"latest_activity_at":null,"has_primary_document":false},"warnings":{"items":[],"count":0},"section_kinds":{"board":"canonical","cards":"canonical","documents":"derived","commitments":"derived","inbox":"derived","warnings":"derived"},"generated_at":"2026-03-08T00:00:00Z"}`))
+			_, _ = w.Write([]byte(`{"board_id":"` + canonicalID + `","board":{"id":"` + canonicalID + `","title":"Ops Board","status":"active"},"cards":{"items":[],"count":0},"documents":{"items":[],"count":0},"inbox":{"items":[],"count":0},"board_summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"unresolved_card_count":0,"document_count":0,"latest_activity_at":null,"has_document_refs":false},"warnings":{"items":[],"count":0},"section_kinds":{"board":"canonical","cards":"canonical","documents":"derived","topics":"derived","inbox":"derived","warnings":"derived"},"generated_at":"2026-03-08T00:00:00Z"}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -1988,7 +1989,7 @@ func TestBoardCardMutationsResolveShortThreadIDsInBodies(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/boards":
-			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalBoardID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":0,"document_count":0,"latest_activity_at":null,"has_primary_document":false}}]}`))
+			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalBoardID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"unresolved_card_count":0,"document_count":0,"latest_activity_at":null,"has_document_refs":false}}]}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads":
 			_, _ = w.Write([]byte(`{"threads":[{"id":"` + canonicalCardThreadID + `","title":"Execution Track"},{"id":"` + canonicalAnchorThreadID + `","title":"Review Anchor"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/boards/"+canonicalBoardID+"/cards":
@@ -2059,7 +2060,7 @@ func TestBoardCardMoveResolvesShortAfterCardID(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/boards":
-			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalBoardID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":0,"document_count":0,"latest_activity_at":null,"has_primary_document":false}}]}`))
+			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalBoardID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"unresolved_card_count":0,"document_count":0,"latest_activity_at":null,"has_document_refs":false}}]}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/boards/"+canonicalBoardID+"/cards":
 			_, _ = w.Write([]byte(`{"board_id":"` + canonicalBoardID + `","cards":[
 				{"id":"` + movingCardID + `","board_id":"` + canonicalBoardID + `","column_key":"ready","rank":"a","title":"Moving","body":"","version":1,"parent_thread":null,"thread_id":null,"pinned_document_id":null,"assignee":null,"priority":null,"status":"todo","created_at":"` + updatedAt + `","created_by":"actor_1","updated_at":"` + updatedAt + `","updated_by":"actor_1","provenance":{"sources":["inferred"]}},
@@ -2108,7 +2109,7 @@ func TestBoardCardMoveResolvesShortAfterCardIDFromFile(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/boards":
-			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalBoardID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"open_commitment_count":0,"document_count":0,"latest_activity_at":null,"has_primary_document":false}}]}`))
+			_, _ = w.Write([]byte(`{"boards":[{"board":{"id":"` + canonicalBoardID + `","title":"Ops Board","status":"active"},"summary":{"card_count":0,"cards_by_column":{"backlog":0,"ready":0,"in_progress":0,"blocked":0,"review":0,"done":0},"unresolved_card_count":0,"document_count":0,"latest_activity_at":null,"has_document_refs":false}}]}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/boards/"+canonicalBoardID+"/cards":
 			_, _ = w.Write([]byte(`{"board_id":"` + canonicalBoardID + `","cards":[
 				{"id":"` + movingCardID + `","board_id":"` + canonicalBoardID + `","column_key":"ready","rank":"a","title":"Moving","body":"","version":1,"parent_thread":null,"thread_id":null,"pinned_document_id":null,"assignee":null,"priority":null,"status":"todo","created_at":"` + updatedAt + `","created_by":"actor_1","updated_at":"` + updatedAt + `","updated_by":"actor_1","provenance":{"sources":["inferred"]}},
@@ -2255,7 +2256,7 @@ func TestThreadsContextAggregatesAcrossMultipleThreads(t *testing.T) {
 					{"id":"event_need_1","type":"decision_needed","summary":"pick launch day","created_at":"2026-03-06T10:01:00Z"}
 				],
 				"key_artifacts":[{"id":"artifact_1","kind":"brief"}],
-				"open_commitments":[{"id":"commitment_1","status":"open","title":"Publish brief"}]
+				"open_cards":[{"id":"card_1","status":"open","title":"Publish brief"}]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_2/context":
 			_, _ = w.Write([]byte(`{
@@ -2265,7 +2266,7 @@ func TestThreadsContextAggregatesAcrossMultipleThreads(t *testing.T) {
 					{"id":"event_done_2","type":"decision_made","summary":"ship Friday scope","created_at":"2026-03-06T10:10:00Z"}
 				],
 				"key_artifacts":[{"id":"artifact_2","kind":"plan"}],
-				"open_commitments":[{"id":"commitment_2","status":"open","title":"Prep release runbook"}]
+				"open_cards":[{"id":"card_2","status":"open","title":"Prep release runbook"}]
 			}`))
 		default:
 			http.NotFound(w, r)
@@ -2342,9 +2343,9 @@ func TestThreadsContextDiscoversByFiltersAndType(t *testing.T) {
 			mu.Unlock()
 			switch r.URL.Path {
 			case "/threads/thread_init_1/context":
-				_, _ = w.Write([]byte(`{"thread":{"id":"thread_init_1","type":"initiative"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+				_, _ = w.Write([]byte(`{"thread":{"id":"thread_init_1","type":"initiative"},"recent_events":[],"key_artifacts":[],"open_cards":[]}`))
 			case "/threads/thread_init_2/context":
-				_, _ = w.Write([]byte(`{"thread":{"id":"thread_init_2","type":"initiative"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+				_, _ = w.Write([]byte(`{"thread":{"id":"thread_init_2","type":"initiative"},"recent_events":[],"key_artifacts":[],"open_cards":[]}`))
 			default:
 				http.NotFound(w, r)
 			}
@@ -2383,7 +2384,7 @@ func TestThreadsContextSupportsFullIDForEventSections(t *testing.T) {
 
 	const eventID = "event_1234567890abcdef"
 	const artifactID = "artifact_1234567890abcdef"
-	const commitmentID = "commitment_1234567890abcdef"
+	const cardID = "card_1234567890abcdef"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/threads/thread_1/context" {
 			http.NotFound(w, r)
@@ -2396,7 +2397,7 @@ func TestThreadsContextSupportsFullIDForEventSections(t *testing.T) {
 				{"id":"` + eventID + `","type":"actor_statement","summary":"ship Friday rescue scope"}
 			],
 			"key_artifacts":[{"id":"` + artifactID + `","kind":"brief","summary":"Launch brief"}],
-			"open_commitments":[{"id":"` + commitmentID + `","status":"open","title":"Publish launch brief"}]
+			"open_cards":[{"id":"` + cardID + `","status":"open","title":"Publish launch brief"}]
 		}`))
 	}))
 	defer server.Close()
@@ -2414,8 +2415,8 @@ func TestThreadsContextSupportsFullIDForEventSections(t *testing.T) {
 	if !strings.Contains(humanFull, artifactID) {
 		t.Fatalf("expected full artifact id in output, got:\n%s", humanFull)
 	}
-	if !strings.Contains(humanFull, commitmentID) {
-		t.Fatalf("expected full commitment id in output, got:\n%s", humanFull)
+	if !strings.Contains(humanFull, cardID) {
+		t.Fatalf("expected full card id in output, got:\n%s", humanFull)
 	}
 
 	humanShort := runCLIForTest(t, home, map[string]string{}, nil, []string{
@@ -2432,8 +2433,8 @@ func TestThreadsContextSupportsFullIDForEventSections(t *testing.T) {
 	if strings.Contains(humanShort, artifactID) || !strings.Contains(humanShort, artifactID[:12]) {
 		t.Fatalf("expected short artifact id in default output, got:\n%s", humanShort)
 	}
-	if strings.Contains(humanShort, commitmentID) || !strings.Contains(humanShort, commitmentID[:12]) {
-		t.Fatalf("expected short commitment id in default output, got:\n%s", humanShort)
+	if strings.Contains(humanShort, cardID) || !strings.Contains(humanShort, cardID[:12]) {
+		t.Fatalf("expected short card id in default output, got:\n%s", humanShort)
 	}
 }
 
@@ -2454,7 +2455,7 @@ func TestThreadsInspectBuildsCoordinationView(t *testing.T) {
 					{"id":"event_need_1","thread_id":"thread_1","type":"decision_needed","summary":"approve launch date"}
 				],
 				"key_artifacts":[{"id":"artifact_1","kind":"brief"}],
-				"open_commitments":[{"id":"commitment_1","status":"open","title":"Publish brief"}]
+				"open_cards":[{"id":"card_1","status":"open","title":"Publish brief"}]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/inbox":
 			_, _ = w.Write([]byte(`{"items":[
@@ -2596,7 +2597,7 @@ func TestThreadsRecommendationsBuildsFocusedReview(t *testing.T) {
 					{"id":"` + decisionMadeID + `","thread_id":"thread_1","type":"decision_made","actor_id":"agent-pm","created_at":"2026-03-07T12:05:00Z","summary":"Approved Friday launch"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/inbox":
 			_, _ = w.Write([]byte(`{"items":[
@@ -2690,7 +2691,7 @@ func TestThreadsRecommendationsIncludesRelatedThreadReview(t *testing.T) {
 						{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","summary":"Main recommendation","refs":["thread:thread_related"]}
 					],
 					"key_artifacts":[],
-					"open_commitments":[],
+					"open_cards":[],
 					"documents":[]
 				},
 				"collaboration":{
@@ -2700,12 +2701,12 @@ func TestThreadsRecommendationsIncludesRelatedThreadReview(t *testing.T) {
 					"decision_requests":[],
 					"decisions":[],
 					"key_artifacts":[],
-					"open_commitments":[],
+					"open_cards":[],
 					"recommendation_count":1,
 					"decision_request_count":0,
 					"decision_count":0,
 					"artifact_count":0,
-					"open_commitment_count":0
+					"unresolved_card_count":0
 				},
 				"inbox":{"thread_id":"thread_main","items":[],"count":0},
 				"pending_decisions":{"thread_id":"thread_main","items":[],"count":0},
@@ -2758,7 +2759,7 @@ func TestThreadsRecommendationsIncludesRelatedThreadReview(t *testing.T) {
 						{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","actor_id":"agent-main","created_at":"2026-03-07T12:00:00Z","summary":"Main recommendation","refs":["thread:thread_related"]}
 					],
 					"key_artifacts":[],
-					"open_commitments":[
+					"open_cards":[
 						{"id":"commit_main_1","thread_id":"thread_main","title":"Coordinate related work","links":["thread:thread_main","thread:thread_related"]}
 					]
 				}`))
@@ -2769,7 +2770,7 @@ func TestThreadsRecommendationsIncludesRelatedThreadReview(t *testing.T) {
 					{"id":"event_related_1","thread_id":"thread_related","type":"actor_statement","actor_id":"agent-related","created_at":"2026-03-07T12:05:00Z","summary":"Related recommendation"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/inbox":
 			_, _ = w.Write([]byte(`{"items":[]}`))
@@ -2829,7 +2830,7 @@ func TestThreadsRecommendationsSkipsMissingRelatedThreadsWithWarnings(t *testing
 					{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","summary":"Main recommendation","refs":["thread:thread_missing","thread:thread_related"]}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_related/context":
 			_, _ = w.Write([]byte(`{
@@ -2838,7 +2839,7 @@ func TestThreadsRecommendationsSkipsMissingRelatedThreadsWithWarnings(t *testing
 					{"id":"event_related_1","thread_id":"thread_related","type":"actor_statement","summary":"Related recommendation"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_missing/context":
 			http.NotFound(w, r)
@@ -2907,7 +2908,7 @@ func TestThreadsRecommendationsCanHydrateRelatedEventContent(t *testing.T) {
 					{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","summary":"Main recommendation","refs":["thread:thread_related"]}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_related/context":
 			_, _ = w.Write([]byte(`{
@@ -2916,7 +2917,7 @@ func TestThreadsRecommendationsCanHydrateRelatedEventContent(t *testing.T) {
 					{"id":"event_related_1","thread_id":"thread_related","type":"actor_statement","actor_id":"agent-related","created_at":"2026-03-07T12:05:00Z","summary":"Related recommendation"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/events/event_related_1":
 			_, _ = w.Write([]byte(`{
@@ -2979,7 +2980,7 @@ func TestThreadsWorkspaceCanHydrateRelatedEventContent(t *testing.T) {
 						{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","summary":"Main recommendation","refs":["thread:thread_related"]}
 					],
 					"key_artifacts":[],
-					"open_commitments":[],
+					"open_cards":[],
 					"documents":[]
 				},
 				"collaboration":{
@@ -2989,12 +2990,12 @@ func TestThreadsWorkspaceCanHydrateRelatedEventContent(t *testing.T) {
 					"decision_requests":[],
 					"decisions":[],
 					"key_artifacts":[],
-					"open_commitments":[],
+					"open_cards":[],
 					"recommendation_count":1,
 					"decision_request_count":0,
 					"decision_count":0,
 					"artifact_count":0,
-					"open_commitment_count":0
+					"unresolved_card_count":0
 				},
 				"inbox":{"thread_id":"thread_main","items":[],"count":0},
 				"pending_decisions":{"thread_id":"thread_main","items":[],"count":0},
@@ -3047,7 +3048,7 @@ func TestThreadsWorkspaceCanHydrateRelatedEventContent(t *testing.T) {
 					{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","summary":"Main recommendation","refs":["thread:thread_related"]}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_related/context":
 			_, _ = w.Write([]byte(`{
@@ -3056,7 +3057,7 @@ func TestThreadsWorkspaceCanHydrateRelatedEventContent(t *testing.T) {
 					{"id":"event_related_1","thread_id":"thread_related","type":"actor_statement","summary":"Related recommendation"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/events/event_related_1":
 			_, _ = w.Write([]byte(`{
@@ -3114,7 +3115,7 @@ func TestThreadsRecommendationsWarnsWhenRelatedEventHydrationFails(t *testing.T)
 					{"id":"event_main_1","thread_id":"thread_main","type":"actor_statement","summary":"Main recommendation","refs":["thread:thread_related"]}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads/thread_related/context":
 			_, _ = w.Write([]byte(`{
@@ -3123,7 +3124,7 @@ func TestThreadsRecommendationsWarnsWhenRelatedEventHydrationFails(t *testing.T)
 					{"id":"event_related_1","thread_id":"thread_related","type":"actor_statement","summary":"Related recommendation"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/events/event_related_1":
 			http.NotFound(w, r)
@@ -3176,7 +3177,7 @@ func TestThreadsRecommendationsFullSummaryToggle(t *testing.T) {
 					{"id":"event_rec_1","thread_id":"thread_1","type":"actor_statement","actor_id":"agent-pm","created_at":"2026-03-07T12:00:00Z","summary":"` + longSummary + `"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/inbox":
 			_, _ = w.Write([]byte(`{"items":[]}`))
@@ -3221,7 +3222,7 @@ func TestThreadsRecommendationsCountsPendingDecisionsInTotalWhenRecentWindowExcl
 					{"id":"event_noise_1","thread_id":"thread_1","type":"status_changed","created_at":"2026-03-07T12:06:00Z","summary":"status moved to active"}
 				],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/inbox":
 			_, _ = w.Write([]byte(`{"items":[
@@ -3383,8 +3384,8 @@ func TestThreadsContextHumanOutputIsPayloadFirst(t *testing.T) {
 			"key_artifacts":[
 				{"id":"artifact_1","kind":"gtm-brief","summary":"NorthWave pilot rescue brief"}
 			],
-			"open_commitments":[
-				{"id":"commitment_1","status":"open","title":"Publish rescue brief"}
+			"open_cards":[
+				{"id":"card_1","status":"open","title":"Publish rescue brief"}
 			]
 		}`))
 	}))
@@ -3417,7 +3418,7 @@ func TestThreadsContextVerboseShowsFullBodyWithoutHeaders(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"thread":{"id":"thread_1"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+		_, _ = w.Write([]byte(`{"thread":{"id":"thread_1"},"recent_events":[],"key_artifacts":[],"open_cards":[]}`))
 	}))
 	defer server.Close()
 
@@ -3446,7 +3447,7 @@ func TestThreadsContextHeadersShowTransportMetadataOnOptIn(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"thread":{"id":"thread_1","title":"Pilot Rescue"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+		_, _ = w.Write([]byte(`{"thread":{"id":"thread_1","title":"Pilot Rescue"},"recent_events":[],"key_artifacts":[],"open_cards":[]}`))
 	}))
 	defer server.Close()
 
@@ -3481,7 +3482,7 @@ func TestThreadsContextCommandResolvesUniquePrefix(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/threads":
 			_, _ = w.Write([]byte(`{"threads":[{"id":"` + canonicalID + `"},{"id":"thread_2"}]}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/threads/"+canonicalID+"/context":
-			_, _ = w.Write([]byte(`{"thread":{"id":"` + canonicalID + `"},"recent_events":[],"key_artifacts":[],"open_commitments":[]}`))
+			_, _ = w.Write([]byte(`{"thread":{"id":"` + canonicalID + `"},"recent_events":[],"key_artifacts":[],"open_cards":[]}`))
 		default:
 			http.NotFound(w, r)
 		}
@@ -3522,7 +3523,7 @@ func TestThreadsContextDeduplicatesResolvedDuplicateIDs(t *testing.T) {
 				"thread":{"id":"` + canonicalID + `","title":"Pilot Rescue"},
 				"recent_events":[{"id":"event_actor_1","type":"actor_statement","summary":"ship Friday scope"}],
 				"key_artifacts":[],
-				"open_commitments":[]
+				"open_cards":[]
 			}`))
 		default:
 			http.NotFound(w, r)
@@ -4076,7 +4077,7 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 					{"id":"event_ctx_2","thread_id":"thread_123","type":"decision_needed","summary":"confirm canonical command labels"}
 				],
 				"key_artifacts":[{"id":"artifact_ctx_1","kind":"work_order"}],
-				"open_commitments":[{"id":"commitment_ctx_1","status":"open"}],
+				"open_cards":[{"id":"card_ctx_1","status":"open"}],
 					"documents":[
 						{"id":"doc_ctx_1","title":"Runbook","status":"active","updated_at":"2026-03-07T00:02:00Z","head_revision":{"revision_id":"rev_ctx_1","revision_number":3,"content_type":"text","artifact_id":"artifact_doc_ctx_1","created_at":"2026-03-07T00:02:00Z"}}
 					]
@@ -4092,7 +4093,7 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 							{"id":"event_ctx_2","thread_id":"thread_123","type":"decision_needed","summary":"confirm canonical command labels"}
 						],
 						"key_artifacts":[{"id":"artifact_ctx_1","kind":"work_order"}],
-						"open_commitments":[{"id":"commitment_ctx_1","status":"open"}],
+						"open_cards":[{"id":"card_ctx_1","status":"open"}],
 						"documents":[
 							{"id":"doc_ctx_1","title":"Runbook","status":"active","updated_at":"2026-03-07T00:02:00Z","head_revision":{"revision_id":"rev_ctx_1","revision_number":3,"content_type":"text","artifact_id":"artifact_doc_ctx_1","created_at":"2026-03-07T00:02:00Z"}}
 						]
@@ -4106,12 +4107,12 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 						],
 						"decisions":[],
 						"key_artifacts":[{"id":"artifact_ctx_1","kind":"work_order"}],
-						"open_commitments":[{"id":"commitment_ctx_1","status":"open"}],
+						"open_cards":[{"id":"card_ctx_1","status":"open"}],
 						"recommendation_count":1,
 						"decision_request_count":1,
 						"decision_count":0,
 						"artifact_count":1,
-						"open_commitment_count":1
+						"open_card_count":1
 					},
 					"inbox":{
 						"thread_id":"thread_123",
@@ -4154,10 +4155,10 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 						"summary":{
 							"card_count":1,
 							"cards_by_column":{"backlog":0,"ready":0,"in_progress":1,"blocked":0,"review":0,"done":0},
-							"open_commitment_count":2,
+							"unresolved_card_count":2,
 							"document_count":1,
 							"latest_activity_at":"2026-03-07T00:03:00Z",
-							"has_primary_document":true
+							"has_document_refs":true
 						}
 					}
 				]
@@ -4167,32 +4168,29 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 			_, _ = w.Write([]byte(`{
 				"board_id":"board_1234567890abcdef",
 				"board":{"id":"board_1234567890abcdef","title":"Machine Board","status":"active","updated_at":"2026-03-07T00:03:00Z"},
-				"primary_thread":{"id":"thread_123","title":"Machine-facing consistency"},
-				"primary_document":{"id":"doc_ctx_1","title":"Runbook","status":"active"},
 				"cards":{
 					"items":[
 						{
 							"card":{"board_id":"board_1234567890abcdef","thread_id":"thread_123","column_key":"in_progress","rank":"m","pinned_document_id":null,"created_at":"2026-03-07T00:00:00Z","created_by":"actor_1","updated_at":"2026-03-07T00:03:00Z","updated_by":"actor_1"},
 							"thread":{"id":"thread_123","title":"Machine-facing consistency"},
-							"summary":{"open_commitment_count":1,"decision_request_count":1,"decision_count":0,"recommendation_count":1,"document_count":1,"inbox_count":1,"latest_activity_at":"2026-03-07T00:03:00Z","stale":false},
+							"summary":{"related_topic_count":1,"decision_request_count":1,"decision_count":0,"recommendation_count":1,"document_count":1,"inbox_count":1,"latest_activity_at":"2026-03-07T00:03:00Z","stale":false},
 							"pinned_document":null
 						}
 					],
 					"count":1
 				},
 				"documents":{"items":[{"id":"doc_ctx_1","title":"Runbook","status":"active"}],"count":1},
-				"commitments":{"items":[{"id":"commitment_ctx_1","status":"open"}],"count":1},
 				"inbox":{"items":[{"id":"inbox:decision_needed:thread_123:none:event_ctx_2","thread_id":"thread_123","type":"decision_needed"}],"count":1},
 				"board_summary":{
 					"card_count":1,
 					"cards_by_column":{"backlog":0,"ready":0,"in_progress":1,"blocked":0,"review":0,"done":0},
-					"open_commitment_count":1,
+					"unresolved_card_count":1,
 					"document_count":1,
 					"latest_activity_at":"2026-03-07T00:03:00Z",
-					"has_primary_document":true
+					"has_document_refs":true
 				},
 				"warnings":{"items":[],"count":0},
-				"section_kinds":{"board":"canonical","cards":"canonical","documents":"derived","commitments":"derived","inbox":"derived","warnings":"derived"},
+				"section_kinds":{"board":"canonical","cards":"canonical","documents":"derived","topics":"derived","inbox":"derived","warnings":"derived"},
 				"generated_at":"2026-03-07T00:03:00Z"
 			}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/inbox":

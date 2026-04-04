@@ -24,10 +24,10 @@
           "kind": "work_order"
         }
       ],
-      "open_commitment_count": 1,
-      "open_commitments": [
+      "open_card_count": 1,
+      "open_cards": [
         {
-          "id": "commitment_ctx_1",
+          "id": "card_ctx_1",
           "status": "open"
         }
       ],
@@ -65,9 +65,9 @@
           "kind": "work_order"
         }
       ],
-      "open_commitments": [
+      "open_cards": [
         {
-          "id": "commitment_ctx_1",
+          "id": "card_ctx_1",
           "status": "open"
         }
       ],

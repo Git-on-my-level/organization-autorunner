@@ -164,8 +164,8 @@ run_cli_json() {
 }
 
 board_create_attempt() {
-  printf '{"board":{"id":"%s","title":"Smoke Board","status":"active","labels":["smoke","board"],"owners":["%s"],"primary_topic_ref":"topic:%s","primary_thread_id":"%s","primary_document_id":"%s","document_refs":["document:%s"],"pinned_refs":["document:%s"],"provenance":{"sources":["actor_statement:smoke"]}}}\n' \
-    "$BOARD_ID" "$USERNAME" "$MAIN_TOPIC_ID" "$THREAD_ID" "$PRIMARY_DOC_ID" "$PRIMARY_DOC_ID" "$PRIMARY_DOC_ID" \
+  printf '{"board":{"id":"%s","title":"Smoke Board","status":"active","labels":["smoke","board"],"owners":["%s"],"primary_topic_ref":"topic:%s","thread_id":"%s","document_refs":["document:%s"],"pinned_refs":["document:%s"],"provenance":{"sources":["actor_statement:smoke"]}}}\n' \
+    "$BOARD_ID" "$USERNAME" "$MAIN_TOPIC_ID" "$THREAD_ID" "$PRIMARY_DOC_ID" "$PRIMARY_DOC_ID" \
     | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" boards create >"$TMP_DIR/board-create.json"
 }
 

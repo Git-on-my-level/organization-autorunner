@@ -135,17 +135,6 @@ var threadsSubcommandSpec = subcommandSpec{
 	},
 }
 
-var commitmentsSubcommandSpec = subcommandSpec{
-	command:  "commitments",
-	valid:    []string{"list", "get", "create", "patch", "propose-patch", "apply"},
-	examples: []string{"oar commitments list --status open", "oar commitments get --commitment-id <commitment-id>"},
-	aliases: map[string]string{
-		"ls":      "list",
-		"show":    "get",
-		"inspect": "get",
-	},
-}
-
 var artifactsSubcommandSpec = subcommandSpec{
 	command:  "artifacts",
 	valid:    []string{"list", "get", "create", "content", "inspect", "archive", "unarchive", "tombstone", "restore", "purge"},

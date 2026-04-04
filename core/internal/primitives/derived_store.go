@@ -17,17 +17,17 @@ type DerivedInboxListFilter struct {
 }
 
 type DerivedInboxItem struct {
-	ID                 string
-	ThreadID           string
-	Category           string
-	TriggerAt          string
-	DueAt              string
-	HasDueAt           bool
-	SourceEventID      string
-	SourceCommitmentID string
-	GeneratedAt        string
-	Data               map[string]any
-	SourceHash         string
+	ID            string
+	ThreadID      string
+	Category      string
+	TriggerAt     string
+	DueAt         string
+	HasDueAt      bool
+	SourceEventID string
+	SourceCardID  string
+	GeneratedAt   string
+	Data          map[string]any
+	SourceHash    string
 }
 
 type DerivedThreadProjection struct {
@@ -41,7 +41,7 @@ type DerivedThreadProjection struct {
 	DecisionRequestCount   int
 	DecisionCount          int
 	ArtifactCount          int
-	OpenCommitmentCount    int
+	OpenCardCount          int
 	DocumentCount          int
 	GeneratedAt            string
 	Data                   map[string]any
@@ -135,7 +135,7 @@ func insertDerivedInboxItem(ctx context.Context, exec eventExec, threadID string
 
 	if _, err := exec.ExecContext(
 		ctx,
-		`INSERT INTO derived_inbox_items(id, thread_id, category, trigger_at, due_at, has_due_at, source_event_id, source_commitment_id, generated_at, data_json, source_hash)
+		`INSERT INTO derived_inbox_items(id, thread_id, category, trigger_at, due_at, has_due_at, source_event_id, source_card_id, generated_at, data_json, source_hash)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		item.ID,
 		item.ThreadID,
@@ -144,7 +144,7 @@ func insertDerivedInboxItem(ctx context.Context, exec eventExec, threadID string
 		nullableString(item.DueAt),
 		boolToInt(item.HasDueAt),
 		nullableString(item.SourceEventID),
-		nullableString(item.SourceCommitmentID),
+		nullableString(item.SourceCardID),
 		firstNonEmptyDerivedString(item.GeneratedAt, time.Now().UTC().Format(time.RFC3339Nano)),
 		dataJSON,
 		sourceHash,
@@ -159,7 +159,7 @@ func (s *Store) ListDerivedInboxItems(ctx context.Context, filter DerivedInboxLi
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 
-	query := `SELECT id, thread_id, category, trigger_at, due_at, has_due_at, source_event_id, source_commitment_id, generated_at, data_json, source_hash
+	query := `SELECT id, thread_id, category, trigger_at, due_at, has_due_at, source_event_id, source_card_id, generated_at, data_json, source_hash
 		FROM derived_inbox_items`
 	args := make([]any, 0, 1)
 	clauses := make([]string, 0, 1)
@@ -217,7 +217,7 @@ func (s *Store) GetDerivedInboxItem(ctx context.Context, id string) (DerivedInbo
 
 	row := s.db.QueryRowContext(
 		ctx,
-		`SELECT id, thread_id, category, trigger_at, due_at, has_due_at, source_event_id, source_commitment_id, generated_at, data_json, source_hash
+		`SELECT id, thread_id, category, trigger_at, due_at, has_due_at, source_event_id, source_card_id, generated_at, data_json, source_hash
 		 FROM derived_inbox_items WHERE id = ?`,
 		strings.TrimSpace(id),
 	)
@@ -237,13 +237,13 @@ type scanDerivedInboxItemRower interface {
 
 func scanDerivedInboxItem(row scanDerivedInboxItemRower) (DerivedInboxItem, error) {
 	var (
-		item             DerivedInboxItem
-		dueAt            sql.NullString
-		hasDueAt         int
-		sourceEventID    sql.NullString
-		sourceCommitment sql.NullString
-		dataJSON         string
-		sourceHash       sql.NullString
+		item          DerivedInboxItem
+		dueAt         sql.NullString
+		hasDueAt      int
+		sourceEventID sql.NullString
+		sourceCard    sql.NullString
+		dataJSON      string
+		sourceHash    sql.NullString
 	)
 	if err := row.Scan(
 		&item.ID,
@@ -253,7 +253,7 @@ func scanDerivedInboxItem(row scanDerivedInboxItemRower) (DerivedInboxItem, erro
 		&dueAt,
 		&hasDueAt,
 		&sourceEventID,
-		&sourceCommitment,
+		&sourceCard,
 		&item.GeneratedAt,
 		&dataJSON,
 		&sourceHash,
@@ -263,7 +263,7 @@ func scanDerivedInboxItem(row scanDerivedInboxItemRower) (DerivedInboxItem, erro
 	item.HasDueAt = hasDueAt != 0
 	item.DueAt = dueAt.String
 	item.SourceEventID = sourceEventID.String
-	item.SourceCommitmentID = sourceCommitment.String
+	item.SourceCardID = sourceCard.String
 	item.SourceHash = sourceHash.String
 	if err := json.Unmarshal([]byte(dataJSON), &item.Data); err != nil {
 		return DerivedInboxItem{}, fmt.Errorf("decode derived inbox item %s: %w", item.ID, err)
@@ -290,7 +290,7 @@ func (s *Store) PutDerivedThreadProjection(ctx context.Context, projection Deriv
 		`INSERT INTO derived_thread_views(
 			thread_id, stale, last_activity_at, latest_stale_exception_at,
 			inbox_count, pending_decision_count, recommendation_count, decision_request_count, decision_count,
-			artifact_count, open_commitment_count, document_count, generated_at, data_json, source_hash
+			artifact_count, open_card_count, document_count, generated_at, data_json, source_hash
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(thread_id) DO UPDATE SET
 			stale = excluded.stale,
@@ -302,7 +302,7 @@ func (s *Store) PutDerivedThreadProjection(ctx context.Context, projection Deriv
 			decision_request_count = excluded.decision_request_count,
 			decision_count = excluded.decision_count,
 			artifact_count = excluded.artifact_count,
-			open_commitment_count = excluded.open_commitment_count,
+			open_card_count = excluded.open_card_count,
 			document_count = excluded.document_count,
 			generated_at = excluded.generated_at,
 			data_json = excluded.data_json,
@@ -317,7 +317,7 @@ func (s *Store) PutDerivedThreadProjection(ctx context.Context, projection Deriv
 		projection.DecisionRequestCount,
 		projection.DecisionCount,
 		projection.ArtifactCount,
-		projection.OpenCommitmentCount,
+		projection.OpenCardCount,
 		projection.DocumentCount,
 		firstNonEmptyDerivedString(projection.GeneratedAt, time.Now().UTC().Format(time.RFC3339Nano)),
 		dataJSON,
@@ -460,7 +460,7 @@ func (s *Store) GetDerivedThreadProjection(ctx context.Context, threadID string)
 		ctx,
 		`SELECT thread_id, stale, last_activity_at, latest_stale_exception_at,
 		        inbox_count, pending_decision_count, recommendation_count, decision_request_count, decision_count,
-		        artifact_count, open_commitment_count, document_count, generated_at, data_json, source_hash
+		        artifact_count, open_card_count, document_count, generated_at, data_json, source_hash
 		   FROM derived_thread_views
 		  WHERE thread_id = ?`,
 		strings.TrimSpace(threadID),
@@ -494,7 +494,7 @@ func (s *Store) ListDerivedThreadProjections(ctx context.Context, threadIDs []st
 
 	query := `SELECT thread_id, stale, last_activity_at, latest_stale_exception_at,
 		        inbox_count, pending_decision_count, recommendation_count, decision_request_count, decision_count,
-		        artifact_count, open_commitment_count, document_count, generated_at, data_json, source_hash
+		        artifact_count, open_card_count, document_count, generated_at, data_json, source_hash
 		   FROM derived_thread_views
 		  WHERE thread_id IN (` + strings.Join(placeholders, ", ") + `)`
 
@@ -538,7 +538,7 @@ func scanDerivedThreadProjection(row scanDerivedInboxItemRower) (DerivedThreadPr
 		&projection.DecisionRequestCount,
 		&projection.DecisionCount,
 		&projection.ArtifactCount,
-		&projection.OpenCommitmentCount,
+		&projection.OpenCardCount,
 		&projection.DocumentCount,
 		&projection.GeneratedAt,
 		&dataJSON,

@@ -45,7 +45,6 @@ const INBOX_CATEGORY_URGENCY_BASE = {
 };
 
 const INBOX_CATEGORY_ALIASES = {
-  commitment_risk: "risk_review",
   work_item_risk: "risk_review",
   exception: "stale_topic",
 };
@@ -99,9 +98,7 @@ export function getInboxSubjectRef(item) {
   const documentId = String(item?.document_id ?? "").trim();
   if (documentId) return `document:${documentId}`;
 
-  const cardId = String(
-    item?.card_id ?? item?.commitment_id ?? item?.work_item_id ?? "",
-  ).trim();
+  const cardId = String(item?.card_id ?? item?.work_item_id ?? "").trim();
   if (cardId) return `card:${cardId}`;
 
   return "";

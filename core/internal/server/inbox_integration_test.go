@@ -136,7 +136,7 @@ func TestInboxDerivationAndAcknowledgmentSuppression(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Inbox board",
-			"primary_thread_id":"`+threadID+`"
+			"refs":["thread:`+threadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()

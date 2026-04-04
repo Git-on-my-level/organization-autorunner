@@ -50,7 +50,7 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 
 Each endpoint is classified with an `x-oar-surface` extension indicating its role:
 
-- **`canonical`**: CRUD/list/get endpoints over canonical resources (topics, cards, artifacts, documents, boards, board cards, events, packets). These are the durable substrate for automation.
+- **`canonical`**: CRUD/list/get endpoints over canonical resources (topics, cards, artifacts, documents, boards, board cards, events, packets), plus **read-only** thread list/inspect routes for backing-thread inspection. These are the durable substrate for automation.
 
 - **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `threads.context`, `threads.workspace`, `boards.workspace`, `inbox.list/get/stream/ack`. **Do not build durable automation directly on projection payload shapes.** Use canonical APIs or CLI commands for durable substrate.
 
@@ -230,6 +230,26 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
 - `POST /cards/{card_id}/move`
   - Body: `{ "actor_id": "...", "column_key": "...", "rank"?: "..." }`
   - Response: `{ "card": <card> }`
+
+### Threads (read-only inspection)
+
+Backing threads hold append-only timelines and anchor many packet subjects. They are **not** the primary operator noun; topics and cards are. The contract exposes read-only thread routes for diagnostics, CLI inspection, and compatibility reads.
+
+- `GET /threads`
+  - Query (optional): `status`, `priority`, `tag`, `cadence`, `stale` (boolean)
+  - Response: `{ "threads": [<thread>...] }`
+
+- `GET /threads/{thread_id}`
+  - Response: `{ "thread": <thread> }`
+
+- `GET /threads/{thread_id}/timeline` (projection)
+  - Response: `{ "thread": <thread>, "events": [<event>...], ... }` per `ThreadTimelineResponse` in OpenAPI (includes linked artifact/topic/card/document expansions).
+
+- `GET /threads/{thread_id}/context` (projection)
+  - Response: compact thread coordination bundle per OpenAPI (`ThreadContextResponse`).
+
+- `GET /threads/{thread_id}/workspace` (projection)
+  - Response: `{ "thread": <thread>, "related_topics": [...], "cards": [...], "documents": [...], "board_memberships": [...], "inbox": [...], "projection_freshness": ... }` per OpenAPI.
 
 ### Boards
 

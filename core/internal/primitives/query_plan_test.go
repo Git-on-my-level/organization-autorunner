@@ -41,20 +41,6 @@ func TestWorkspaceListQueriesUseIndexedPlans(t *testing.T) {
 	}
 	threadID, _ := threadResult.Snapshot["id"].(string)
 
-	if _, err := store.CreateCommitment(ctx, "actor-1", map[string]any{
-		"id":                 "commitment-plan-1",
-		"thread_id":          threadID,
-		"title":              "Indexed commitment",
-		"owner":              "actor-1",
-		"due_at":             "2026-03-18T00:00:00Z",
-		"status":             "open",
-		"definition_of_done": []string{"done"},
-		"links":              []string{"url:https://example.com"},
-		"provenance":         map[string]any{"sources": []string{"inferred"}},
-	}); err != nil {
-		t.Fatalf("create commitment: %v", err)
-	}
-
 	if _, err := store.CreateArtifact(ctx, "actor-1", map[string]any{
 		"id":   "artifact-plan-1",
 		"kind": "work_order",
@@ -76,14 +62,9 @@ func TestWorkspaceListQueriesUseIndexedPlans(t *testing.T) {
 	threadPlan := explainQueryPlan(t, workspace.DB(), threadQuery, threadArgs...)
 	assertPlanUsesIndex(t, "threads", threadPlan, "idx_threads_status_updated_at")
 
-	commitmentQuery, commitmentArgs := buildListCommitmentsQuery(CommitmentListFilter{
-		ThreadID:  threadID,
-		Status:    "open",
-		DueAfter:  "2026-03-01T00:00:00Z",
-		DueBefore: "2026-03-31T00:00:00Z",
-	})
-	commitmentPlan := explainQueryPlan(t, workspace.DB(), commitmentQuery, commitmentArgs...)
-	assertPlanUsesIndex(t, "commitments", commitmentPlan, "idx_commitments_thread_status_due_updated_at")
+	cardsQuery := `SELECT id FROM cards WHERE parent_thread_id = ? AND archived_at IS NULL`
+	cardsPlan := explainQueryPlan(t, workspace.DB(), cardsQuery, threadID)
+	assertPlanUsesIndex(t, "cards", cardsPlan, "idx_cards_parent_thread_id")
 
 	artifactQuery, artifactArgs := buildListArtifactsQuery(ArtifactListFilter{
 		ThreadID: threadID,

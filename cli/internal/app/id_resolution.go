@@ -8,12 +8,11 @@ import (
 )
 
 var typedRefLookupByPrefix = map[string]resourceIDLookupSpec{
-	"thread":     threadIDLookupSpec,
-	"topic":      topicIDLookupSpec,
-	"card":       cardIDLookupSpec,
-	"artifact":   artifactIDLookupSpec,
-	"board":      boardIDLookupSpec,
-	"commitment": commitmentIDLookupSpec,
+	"thread":   threadIDLookupSpec,
+	"topic":    topicIDLookupSpec,
+	"card":     cardIDLookupSpec,
+	"artifact": artifactIDLookupSpec,
+	"board":    boardIDLookupSpec,
 }
 
 type mutationFieldKind int
@@ -62,9 +61,7 @@ func (a *App) normalizeMutationBodyIDs(ctx context.Context, cfg config.Resolved,
 
 func commandSupportsMutationIDResolution(commandID string) bool {
 	switch strings.TrimSpace(commandID) {
-	case "commitments.create",
-		"commitments.patch",
-		"topics.create",
+	case "topics.create",
 		"topics.patch",
 		"boards.create",
 		"boards.update",

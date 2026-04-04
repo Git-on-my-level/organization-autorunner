@@ -48,7 +48,7 @@ func (a *App) runThreadsContextCommand(ctx context.Context, args []string, cfg c
 	contexts := make([]any, 0, len(threadIDs))
 	recentEvents := make([]any, 0, len(threadIDs)*4)
 	keyArtifacts := make([]any, 0, len(threadIDs)*2)
-	openCommitments := make([]any, 0, len(threadIDs)*2)
+	openCards := make([]any, 0, len(threadIDs)*2)
 	documents := make([]any, 0, len(threadIDs)*2)
 	seenContextThreadIDs := make(map[string]struct{}, len(threadIDs))
 	statusCode := http.StatusOK
@@ -92,7 +92,7 @@ func (a *App) runThreadsContextCommand(ctx context.Context, args []string, cfg c
 		contexts = append(contexts, body)
 		recentEvents = append(recentEvents, asSlice(body["recent_events"])...)
 		keyArtifacts = append(keyArtifacts, asSlice(body["key_artifacts"])...)
-		openCommitments = append(openCommitments, asSlice(body["open_commitments"])...)
+		openCards = append(openCards, asSlice(body["open_cards"])...)
 		documents = append(documents, asSlice(body["documents"])...)
 	}
 	resolvedThreadIDs = normalizeIDFilters(resolvedThreadIDs)
@@ -107,7 +107,7 @@ func (a *App) runThreadsContextCommand(ctx context.Context, args []string, cfg c
 		"contexts":         contexts,
 		"recent_events":    uniqueMapsByID(recentEvents),
 		"key_artifacts":    uniqueContextArtifactItems(keyArtifacts),
-		"open_commitments": uniqueMapsByID(openCommitments),
+		"open_cards": uniqueMapsByID(openCards),
 		"documents":        uniqueMapsByID(documents),
 		"contexts_generated": true,
 		"full_id":            selection.fullID,
@@ -254,8 +254,8 @@ func (a *App) loadThreadContextFromInspect(ctx context.Context, cfg config.Resol
 	if asSlice(contextBody["key_artifacts"]) == nil {
 		contextBody["key_artifacts"] = asSlice(body["key_artifacts"])
 	}
-	if asSlice(contextBody["open_commitments"]) == nil {
-		contextBody["open_commitments"] = asSlice(body["open_commitments"])
+	if asSlice(contextBody["open_cards"]) == nil {
+		contextBody["open_cards"] = asSlice(body["open_cards"])
 	}
 	if asSlice(contextBody["documents"]) == nil {
 		contextBody["documents"] = asSlice(body["documents"])

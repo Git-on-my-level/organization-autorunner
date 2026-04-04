@@ -77,16 +77,16 @@ func refreshDerivedThreadProjection(ctx context.Context, opts handlerOptions, th
 	projectionItems := make([]primitives.DerivedInboxItem, 0, len(inboxItems))
 	for _, item := range inboxItems {
 		projectionItems = append(projectionItems, primitives.DerivedInboxItem{
-			ID:                 item.ID,
-			ThreadID:           threadID,
-			Category:           item.Category,
-			TriggerAt:          item.TriggerAt.Format(time.RFC3339Nano),
-			DueAt:              formatOptionalTime(item.DueAt),
-			HasDueAt:           item.HasDueAt,
-			SourceEventID:      strings.TrimSpace(anyString(item.Data["source_event_id"])),
-			SourceCommitmentID: strings.TrimSpace(firstNonEmptyString(item.Data["card_id"], item.Data["commitment_id"])),
-			GeneratedAt:        generatedAt,
-			Data:               cloneWorkspaceMap(item.Data),
+			ID:            item.ID,
+			ThreadID:      threadID,
+			Category:      item.Category,
+			TriggerAt:     item.TriggerAt.Format(time.RFC3339Nano),
+			DueAt:         formatOptionalTime(item.DueAt),
+			HasDueAt:      item.HasDueAt,
+			SourceEventID: strings.TrimSpace(anyString(item.Data["source_event_id"])),
+			SourceCardID:  strings.TrimSpace(anyString(item.Data["card_id"])),
+			GeneratedAt:   generatedAt,
+			Data:          cloneWorkspaceMap(item.Data),
 		})
 	}
 
@@ -111,7 +111,7 @@ func refreshDerivedThreadProjection(ctx context.Context, opts handlerOptions, th
 		"latest_stale_exception_at":  formatOptionalTime(lastStale),
 		"generated_at":               generatedAt,
 	}
-	summary["open_commitment_count"] = workItemSummary.OpenCount
+	summary["open_card_count"] = workItemSummary.OpenCount
 
 	if err := opts.primitiveStore.ReplaceDerivedInboxItems(ctx, threadID, projectionItems); err != nil {
 		return err
@@ -127,7 +127,7 @@ func refreshDerivedThreadProjection(ctx context.Context, opts handlerOptions, th
 		DecisionRequestCount:   workspaceIntValue(collaboration["decision_request_count"]),
 		DecisionCount:          workspaceIntValue(collaboration["decision_count"]),
 		ArtifactCount:          len(rawKeyArtifacts),
-		OpenCommitmentCount:    workItemSummary.OpenCount,
+		OpenCardCount:          workItemSummary.OpenCount,
 		DocumentCount:          len(documents),
 		GeneratedAt:            generatedAt,
 		Data:                   summary,
@@ -251,6 +251,7 @@ func defaultDerivedThreadProjection(threadID string) primitives.DerivedThreadPro
 			"last_work_item_activity_at": "",
 			"latest_stale_exception_at":  "",
 			"generated_at":               generatedAt,
+			"open_card_count":            0,
 		},
 	}
 }

@@ -183,12 +183,12 @@ func TestIsMeaningfulThreadActivityEvent(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "derived open commitments update is coordination noise",
+			name: "derived open cards update is coordination noise",
 			event: map[string]any{
 				"type":      "snapshot_updated",
 				"thread_id": "thread-1",
 				"ts":        "2026-03-04T12:00:00Z",
-				"payload":   map[string]any{"changed_fields": []string{"open_commitments"}},
+				"payload":   map[string]any{"changed_fields": []string{"open_cards"}},
 			},
 			want: false,
 		},

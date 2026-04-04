@@ -467,8 +467,6 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 		return []string{fmt.Sprintf("command %q does not accept a request body", commandID)}
 	}
 	validators := map[string]func(map[string]any) []string{
-		"commitments.create":         validateDraftCommitmentCreate,
-		"commitments.patch":          validateDraftCommitmentPatch,
 		"topics.create":              validateDraftTopicCreate,
 		"topics.patch":               validateDraftTopicPatch,
 		"cards.patch":                validateDraftCardPatch,
@@ -532,25 +530,6 @@ func validateDraftDocsUpdate(body map[string]any) []string {
 	return out
 }
 
-func validateDraftThreadPatch(body map[string]any) []string {
-	out := make([]string, 0)
-	validateOptionalNonEmptyString(body, "actor_id", "actor_id", &out)
-	validateOptionalRFC3339(body, "if_updated_at", "if_updated_at", &out)
-	patch, ok := requiredObjectField(body, "patch", "patch", &out)
-	if !ok {
-		return out
-	}
-	if len(patch) == 0 {
-		out = append(out, "patch is required")
-		return out
-	}
-	if _, exists := patch["open_commitments"]; exists {
-		out = append(out, "thread.open_commitments is core-maintained and cannot be patched")
-	}
-	validateThreadFields(patch, false, "patch", &out)
-	return out
-}
-
 func validateThreadFields(thread map[string]any, createMode bool, path string, out *[]string) {
 	stringFields := map[string]bool{
 		"title":           true,
@@ -564,9 +543,8 @@ func validateThreadFields(thread map[string]any, createMode bool, path string, o
 		"next_check_in_at": true,
 	}
 	stringListFields := map[string]bool{
-		"tags":             true,
-		"next_actions":     true,
-		"open_commitments": true,
+		"tags":         true,
+		"next_actions": true,
 	}
 	typedRefListFields := map[string]bool{
 		"key_artifacts": true,
@@ -616,59 +594,6 @@ func validateThreadFields(thread map[string]any, createMode bool, path string, o
 			validateProvenance(provenance, full, out)
 		}
 	}
-}
-
-func validateDraftCommitmentCreate(body map[string]any) []string {
-	out := make([]string, 0)
-	validateOptionalNonEmptyString(body, "actor_id", "actor_id", &out)
-	commitment, ok := requiredObjectField(body, "commitment", "commitment", &out)
-	if !ok {
-		return out
-	}
-	requiredFields := []string{
-		"thread_id",
-		"title",
-		"owner",
-		"due_at",
-		"status",
-		"definition_of_done",
-		"links",
-		"provenance",
-	}
-	for _, field := range requiredFields {
-		if _, exists := commitment[field]; !exists {
-			out = append(out, fmt.Sprintf("commitment.%s is required", field))
-		}
-	}
-	validateCommitmentFields(commitment, true, "commitment", &out)
-	return out
-}
-
-func validateDraftCommitmentPatch(body map[string]any) []string {
-	out := make([]string, 0)
-	validateOptionalNonEmptyString(body, "actor_id", "actor_id", &out)
-	validateOptionalRFC3339(body, "if_updated_at", "if_updated_at", &out)
-	patch, ok := requiredObjectField(body, "patch", "patch", &out)
-	if !ok {
-		return out
-	}
-	if len(patch) == 0 {
-		out = append(out, "patch is required")
-		return out
-	}
-	if _, exists := patch["thread_id"]; exists {
-		out = append(out, "commitment.thread_id cannot be patched")
-	}
-	validateCommitmentFields(patch, false, "patch", &out)
-	if refs, exists := body["refs"]; exists {
-		values, ok := asStringList(refs)
-		if !ok {
-			out = append(out, "refs must be a list of strings")
-		} else {
-			validateTypedRefs(values, "refs", &out)
-		}
-	}
-	return out
 }
 
 func validateDraftTopicCreate(body map[string]any) []string {
@@ -835,59 +760,6 @@ func validateCardFields(card map[string]any, createMode bool, path string, out *
 			}
 			validateProvenance(provenance, full, out)
 		case "column_key":
-			text, ok := raw.(string)
-			if !ok {
-				*out = append(*out, full+" must be a string")
-				continue
-			}
-			if createMode && strings.TrimSpace(text) == "" {
-				*out = append(*out, full+" must be non-empty")
-			}
-		}
-	}
-}
-
-func validateCommitmentFields(commitment map[string]any, createMode bool, path string, out *[]string) {
-	stringFields := map[string]bool{
-		"thread_id": true,
-		"title":     true,
-		"owner":     true,
-		"status":    true,
-	}
-	for field, raw := range commitment {
-		full := path + "." + field
-		switch field {
-		case "due_at":
-			text, ok := raw.(string)
-			if !ok {
-				*out = append(*out, full+" must be an RFC3339 datetime string")
-				continue
-			}
-			if _, err := time.Parse(time.RFC3339, text); err != nil {
-				*out = append(*out, full+" must be an RFC3339 datetime string")
-			}
-		case "definition_of_done":
-			if _, ok := asStringList(raw); !ok {
-				*out = append(*out, full+" must be a list of strings")
-			}
-		case "links":
-			values, ok := asStringList(raw)
-			if !ok {
-				*out = append(*out, full+" must be a list of strings")
-				continue
-			}
-			validateTypedRefs(values, full, out)
-		case "provenance":
-			provenance, ok := raw.(map[string]any)
-			if !ok {
-				*out = append(*out, full+" must be an object")
-				continue
-			}
-			validateProvenance(provenance, full, out)
-		default:
-			if !stringFields[field] {
-				continue
-			}
 			text, ok := raw.(string)
 			if !ok {
 				*out = append(*out, full+" must be a string")

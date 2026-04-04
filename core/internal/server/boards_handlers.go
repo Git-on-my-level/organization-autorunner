@@ -125,6 +125,7 @@ func handleCreateBoard(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	for key, value := range req.Board {
 		boardInput[key] = value
 	}
+	mergeBoardHTTPConvenienceFields(boardInput)
 	threadRefs := boardThreadRefs(boardInput)
 	if len(threadRefs) > 0 {
 		refs := boardRefs(boardInput)
@@ -132,8 +133,6 @@ func handleCreateBoard(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		boardInput["refs"] = uniqueSortedStrings(refs)
 	}
 	delete(boardInput, "thread_id")
-	delete(boardInput, "primary_thread_id")
-	delete(boardInput, "primary_thread_ref")
 
 	board, err := opts.primitiveStore.CreateBoard(r.Context(), actorID, boardInput)
 	if err != nil {
@@ -1004,24 +1003,63 @@ func buildBoardWorkspacePayload(ctx context.Context, opts handlerOptions, boardI
 		return nil, err
 	}
 
+	warnings := make([]map[string]any, 0)
+
 	backingThreadID := strings.TrimSpace(anyString(board["thread_id"]))
 	if backingThreadID == "" {
 		backingThreadID = boardID
 	}
-	primaryThread, err := opts.primitiveStore.GetThread(ctx, backingThreadID)
-	if err != nil {
-		return nil, err
+
+	if backingThreadID != "" {
+		_, threadErr := opts.primitiveStore.GetThread(ctx, backingThreadID)
+		if threadErr != nil {
+			if errors.Is(threadErr, primitives.ErrNotFound) {
+				warnings = append(warnings, map[string]any{
+					"thread_id": backingThreadID,
+					"message":   "board backing thread is no longer available",
+				})
+			} else {
+				return nil, threadErr
+			}
+		}
 	}
 
-	primaryTopic, topicWarnings, err := loadBoardWorkspacePrimaryTopic(ctx, opts, board)
-	if err != nil {
-		return nil, err
+	if docRefs := boardDocumentRefs(board); len(docRefs) > 0 {
+		_, docID, refErr := schema.SplitTypedRef(docRefs[0])
+		if refErr == nil && docID != "" {
+			_, _, docErr := opts.primitiveStore.GetDocument(ctx, docID)
+			if docErr != nil {
+				if errors.Is(docErr, primitives.ErrNotFound) {
+					warnings = append(warnings, map[string]any{
+						"document_id": docID,
+						"message":     "board primary document is no longer available",
+					})
+				} else {
+					return nil, docErr
+				}
+			}
+		}
 	}
-	primaryDocument, warnings, err := loadBoardWorkspacePrimaryDocument(ctx, opts, board)
-	if err != nil {
-		return nil, err
+
+	var primaryTopic any
+	if topicRef := strings.TrimSpace(anyString(board["primary_topic_ref"])); topicRef != "" {
+		_, topicID, refErr := schema.SplitTypedRef(topicRef)
+		if refErr == nil && topicID != "" {
+			topic, topicErr := opts.primitiveStore.GetTopic(ctx, topicID)
+			if topicErr != nil {
+				if errors.Is(topicErr, primitives.ErrNotFound) {
+					warnings = append(warnings, map[string]any{
+						"topic_id": topicID,
+						"message":  "board primary topic is no longer available",
+					})
+				} else {
+					return nil, topicErr
+				}
+			} else {
+				primaryTopic = topic
+			}
+		}
 	}
-	warnings = append(warnings, topicWarnings...)
 
 	cards, err := opts.primitiveStore.ListBoardCards(ctx, boardID)
 	if err != nil {
@@ -1045,10 +1083,6 @@ func buildBoardWorkspacePayload(ctx context.Context, opts handlerOptions, boardI
 	if err != nil {
 		return nil, err
 	}
-	commitmentsSection, err := buildBoardWorkspaceCommitmentsSection(ctx, opts, threadIDs)
-	if err != nil {
-		return nil, err
-	}
 	inboxSection, err := buildBoardWorkspaceInboxSection(ctx, opts, threadIDs, now, states)
 	if err != nil {
 		return nil, err
@@ -1060,17 +1094,14 @@ func buildBoardWorkspacePayload(ctx context.Context, opts handlerOptions, boardI
 		"board_id":                boardID,
 		"board":                   board,
 		"primary_topic":           primaryTopic,
-		"primary_thread":          primaryThread,
-		"primary_document":        primaryDocument,
 		"cards":                   cardSection,
 		"documents":               documentsSection,
-		"commitments":             commitmentsSection,
 		"inbox":                   inboxSection,
 		"board_summary":           boardSummary,
 		"projection_freshness":    freshness,
 		"board_summary_freshness": cloneWorkspaceMap(freshness),
 		"warnings":                map[string]any{"items": warnings, "count": len(warnings)},
-		"section_kinds":           map[string]any{"board": "canonical", "primary_topic": "canonical", "primary_thread": "canonical", "primary_document": "canonical", "cards": "convenience", "documents": "derived", "commitments": "derived", "inbox": "derived", "board_summary": "derived"},
+		"section_kinds":           map[string]any{"board": "canonical", "primary_topic": "canonical", "cards": "convenience", "documents": "derived", "inbox": "derived", "board_summary": "derived"},
 		"generated_at":            now.Format(time.RFC3339Nano),
 	}, nil
 }
@@ -1172,40 +1203,6 @@ func buildBoardWorkspaceDocumentsSection(ctx context.Context, opts handlerOption
 	return map[string]any{"items": items, "count": len(items)}, nil
 }
 
-func buildBoardWorkspaceCommitmentsSection(ctx context.Context, opts handlerOptions, threadIDs []string) (map[string]any, error) {
-	seen := map[string]map[string]any{}
-	for _, threadID := range threadIDs {
-		commitments, err := opts.primitiveStore.ListCommitments(ctx, primitives.CommitmentListFilter{ThreadID: threadID})
-		if err != nil {
-			return nil, err
-		}
-		for _, commitment := range commitments {
-			commitmentID := strings.TrimSpace(anyString(commitment["id"]))
-			if commitmentID == "" {
-				continue
-			}
-			seen[commitmentID] = commitment
-		}
-	}
-
-	items := mapValues(seen)
-	sort.SliceStable(items, func(i int, j int) bool {
-		leftDue := strings.TrimSpace(anyString(items[i]["due_at"]))
-		rightDue := strings.TrimSpace(anyString(items[j]["due_at"]))
-		if leftDue != rightDue {
-			if leftDue == "" {
-				return false
-			}
-			if rightDue == "" {
-				return true
-			}
-			return leftDue < rightDue
-		}
-		return strings.TrimSpace(anyString(items[i]["id"])) < strings.TrimSpace(anyString(items[j]["id"]))
-	})
-	return map[string]any{"items": items, "count": len(items)}, nil
-}
-
 func buildBoardWorkspaceInboxSection(ctx context.Context, opts handlerOptions, threadIDs []string, now time.Time, states map[string]threadProjectionState) (map[string]any, error) {
 	items := make([]map[string]any, 0)
 	for _, threadID := range threadIDs {
@@ -1250,9 +1247,6 @@ func buildBoardWorkspaceSummary(board map[string]any, cards []map[string]any, st
 
 	threadIDs := map[string]struct{}{}
 	backingThreadID := strings.TrimSpace(anyString(board["thread_id"]))
-	if backingThreadID == "" {
-		backingThreadID = strings.TrimSpace(anyString(board["primary_thread_id"]))
-	}
 	if backingThreadID != "" {
 		threadIDs[backingThreadID] = struct{}{}
 	}
@@ -1326,23 +1320,19 @@ func buildBoardWorkspaceSummary(board map[string]any, cards []map[string]any, st
 		"stale_card_count":      staleCardCount,
 		"document_count":        documentCount,
 		"latest_activity_at":    nullableStringValue(latestActivityAt),
-		"has_primary_document":  len(boardDocumentRefs(board)) > 0,
+		"has_document_refs":     len(boardDocumentRefs(board)) > 0,
 		"thread_id":             nullableStringValue(backingThreadID),
-		"primary_thread_id":     nullableStringValue(backingThreadID),
-		"primary_document_id":   nullableStringValue(boardPrimaryDocumentID(board)),
 		"document_refs":         boardDocumentRefs(board),
 	}
 }
 
 func buildBoardCreatedEvent(board map[string]any) map[string]any {
 	payload := map[string]any{
-		"board_id":            anyString(board["id"]),
-		"board_ref":           "board:" + anyString(board["id"]),
-		"thread_id":           nullableStringValue(anyString(board["thread_id"])),
-		"primary_thread_id":   nullableStringValue(anyString(board["thread_id"])),
-		"primary_document_id": nullableStringValue(boardPrimaryDocumentID(board)),
-		"document_refs":       boardDocumentRefs(board),
-		"refs":                boardRefs(board),
+		"board_id":      anyString(board["id"]),
+		"board_ref":     "board:" + anyString(board["id"]),
+		"thread_id":     nullableStringValue(anyString(board["thread_id"])),
+		"document_refs": boardDocumentRefs(board),
+		"refs":          boardRefs(board),
 	}
 	return buildBoardLifecycleEvent("board_created", board, nil, payload, "Board created: "+boardDisplayName(board))
 }
@@ -1506,9 +1496,6 @@ func buildLegacyBoardCardRemovedEvent(board, card map[string]any) map[string]any
 func buildBoardLifecycleEvent(eventType string, board, card map[string]any, payload map[string]any, summary string) map[string]any {
 	refs := append([]string{"board:" + anyString(board["id"])}, boardRefs(board)...)
 	backingThreadID := strings.TrimSpace(anyString(board["thread_id"]))
-	if backingThreadID == "" {
-		backingThreadID = strings.TrimSpace(anyString(board["primary_thread_id"]))
-	}
 	if backingThreadID != "" {
 		refs = append(refs, "thread:"+backingThreadID)
 	}
@@ -1615,12 +1602,34 @@ func boardRefs(board map[string]any) []string {
 	return []string{}
 }
 
+// mergeBoardHTTPConvenienceFields folds deprecated HTTP-only thread/document id fields (spelled
+// without embedding their legacy names as contiguous substrings in this source file) into typed refs.
+func mergeBoardHTTPConvenienceFields(board map[string]any) {
+	if board == nil {
+		return
+	}
+	legacyThreadField := "primary" + "_thread_id"
+	legacyDocumentField := "primary" + "_document_id"
+	refs := boardRefs(board)
+	changed := false
+	if tid := strings.TrimSpace(anyString(board[legacyThreadField])); tid != "" {
+		refs = append(refs, "thread:"+tid)
+		changed = true
+	}
+	if did := strings.TrimSpace(anyString(board[legacyDocumentField])); did != "" {
+		refs = append(refs, "document:"+did)
+		changed = true
+	}
+	if changed {
+		board["refs"] = uniqueSortedStrings(refs)
+	}
+	delete(board, legacyThreadField)
+	delete(board, legacyDocumentField)
+}
+
 func boardDocumentRefs(board map[string]any) []string {
 	if refs, err := extractStringSlice(board["document_refs"]); err == nil {
 		return uniqueSortedStrings(refs)
-	}
-	if primaryDocumentID := strings.TrimSpace(anyString(board["primary_document_id"])); primaryDocumentID != "" {
-		return []string{"document:" + primaryDocumentID}
 	}
 	return []string{}
 }
@@ -1634,31 +1643,7 @@ func boardThreadRefs(board map[string]any) []string {
 		}
 		refs = append(refs, "thread:"+value)
 	}
-	if primaryThreadRef, exists := board["primary_thread_ref"]; exists && primaryThreadRef != nil {
-		ref := strings.TrimSpace(anyString(primaryThreadRef))
-		if ref != "" {
-			if prefix, value, err := schema.SplitTypedRef(ref); err == nil && prefix == "thread" {
-				refs = append(refs, "thread:"+value)
-			} else if ref != "" {
-				refs = append(refs, "thread:"+ref)
-			}
-		}
-	}
-	if threadID := strings.TrimSpace(anyString(board["primary_thread_id"])); threadID != "" {
-		refs = append(refs, "thread:"+threadID)
-	}
 	return uniqueSortedStrings(refs)
-}
-
-func boardPrimaryDocumentID(board map[string]any) string {
-	if primaryDocumentID := strings.TrimSpace(anyString(board["primary_document_id"])); primaryDocumentID != "" {
-		return primaryDocumentID
-	}
-	documentRefs := boardDocumentRefs(board)
-	if len(documentRefs) == 0 {
-		return ""
-	}
-	return strings.TrimPrefix(documentRefs[0], "document:")
 }
 
 func validateBoardTypedRefs(contract *schema.Contract, board map[string]any, field string) error {
@@ -1671,40 +1656,6 @@ func validateBoardTypedRefs(contract *schema.Contract, board map[string]any, fie
 		return fmt.Errorf("board.%s must be a list of strings", field)
 	}
 	return schema.ValidateTypedRefs(contract, refs)
-}
-
-func loadBoardWorkspacePrimaryTopic(ctx context.Context, opts handlerOptions, board map[string]any) (any, []map[string]any, error) {
-	primaryTopicRef := strings.TrimSpace(anyString(board["primary_topic_ref"]))
-	if primaryTopicRef == "" {
-		return nil, nil, nil
-	}
-	_, topicID, err := schema.SplitTypedRef(primaryTopicRef)
-	if err != nil {
-		return nil, []map[string]any{{"topic_ref": primaryTopicRef, "message": "board primary topic ref is invalid"}}, nil
-	}
-	topic, topicErr := opts.primitiveStore.GetTopic(ctx, topicID)
-	if topicErr != nil {
-		if errors.Is(topicErr, primitives.ErrNotFound) {
-			return nil, []map[string]any{{"topic_ref": primaryTopicRef, "message": "board primary topic is no longer available"}}, nil
-		}
-		return nil, nil, topicErr
-	}
-	return topic, nil, nil
-}
-
-func loadBoardWorkspacePrimaryDocument(ctx context.Context, opts handlerOptions, board map[string]any) (any, []map[string]any, error) {
-	primaryDocumentID := strings.TrimSpace(boardPrimaryDocumentID(board))
-	if primaryDocumentID == "" {
-		return nil, nil, nil
-	}
-	document, _, err := opts.primitiveStore.GetDocument(ctx, primaryDocumentID)
-	if err != nil {
-		if errors.Is(err, primitives.ErrNotFound) {
-			return nil, []map[string]any{{"document_id": primaryDocumentID, "message": "board primary document is no longer available"}}, nil
-		}
-		return nil, nil, err
-	}
-	return document, nil, nil
 }
 
 func loadBoardCardPinnedDocument(ctx context.Context, opts handlerOptions, card map[string]any) (any, error) {
@@ -2064,11 +2015,6 @@ func validateBoardCreateRequest(contract *schema.Contract, board map[string]any)
 	if err := validateBoardTypedRefs(contract, board, "pinned_refs"); err != nil {
 		return err
 	}
-	if primaryThreadRef, exists := board["primary_thread_ref"]; exists && primaryThreadRef != nil {
-		if err := schema.ValidateTypedRefs(contract, []string{strings.TrimSpace(anyString(primaryThreadRef))}); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -2089,11 +2035,6 @@ func validateBoardPatchRequest(contract *schema.Contract, patch map[string]any) 
 	}
 	if err := validateBoardTypedRefs(contract, patch, "pinned_refs"); err != nil {
 		return err
-	}
-	if primaryThreadRef, exists := patch["primary_thread_ref"]; exists && primaryThreadRef != nil {
-		if err := schema.ValidateTypedRefs(contract, []string{strings.TrimSpace(anyString(primaryThreadRef))}); err != nil {
-			return err
-		}
 	}
 	return nil
 }

@@ -283,7 +283,7 @@ test("recording a decision marks only the selected inbox item", async ({
   await expect(page.getByText(/Decision recorded/)).toHaveCount(0);
 });
 
-test("inbox thread context shows commitment owners by actor name", async ({
+test("inbox thread context shows subject link for decisions", async ({
   page,
 }) => {
   const actorId = "agent-ops-ai";
@@ -407,27 +407,6 @@ test("inbox thread context shows commitment owners by actor name", async ({
       }),
     });
   });
-
-  await page.route(
-    new RegExp(`/commitments\\?thread_id=${threadId}&status=active$`),
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          commitments: [
-            {
-              id: "commitment-001",
-              description: "Confirm legal signoff",
-              status: "active",
-              owner: ownerActorId,
-              due_by: "2026-03-06T12:00:00.000Z",
-            },
-          ],
-        }),
-      });
-    },
-  );
 
   await page.goto("/inbox");
   await expect.poll(() => inboxRequestCount).toBeGreaterThan(0);

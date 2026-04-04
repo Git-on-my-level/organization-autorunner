@@ -362,20 +362,7 @@ func handleThreadTimeline(w http.ResponseWriter, r *http.Request, opts handlerOp
 		return
 	}
 
-	snapshotIDs, artifactIDs, documentIDs, documentRevisionIDs := collectTimelineReferencedObjectIDs(events)
-
-	snapshots := make(map[string]map[string]any, len(snapshotIDs))
-	for _, snapshotID := range snapshotIDs {
-		snapshot, err := opts.primitiveStore.GetSnapshot(r.Context(), snapshotID)
-		if err != nil {
-			if errors.Is(err, primitives.ErrNotFound) {
-				continue
-			}
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load referenced snapshots")
-			return
-		}
-		snapshots[snapshotID] = snapshot
-	}
+	artifactIDs, documentIDs, documentRevisionIDs := collectTimelineReferencedObjectIDs(events)
 
 	artifacts := make(map[string]map[string]any, len(artifactIDs))
 	for _, artifactID := range artifactIDs {
@@ -436,7 +423,6 @@ func handleThreadTimeline(w http.ResponseWriter, r *http.Request, opts handlerOp
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"events":             events,
-		"snapshots":          snapshots,
 		"artifacts":          artifacts,
 		"documents":          documents,
 		"document_revisions": documentRevisions,
@@ -516,49 +502,6 @@ func buildThreadContextArtifacts(ctx context.Context, opts handlerOptions, threa
 	return artifacts, nil
 }
 
-func buildThreadContextOpenCommitments(ctx context.Context, opts handlerOptions, threadID string, thread map[string]any) ([]map[string]any, error) {
-	rawOpenCommitments, exists := thread["open_commitments"]
-	if !exists || rawOpenCommitments == nil {
-		return []map[string]any{}, nil
-	}
-	openCommitmentIDs, err := extractStringSlice(rawOpenCommitments)
-	if err != nil {
-		return nil, fmt.Errorf("thread.open_commitments: %w", err)
-	}
-	if len(openCommitmentIDs) == 0 {
-		return []map[string]any{}, nil
-	}
-
-	commitments, err := opts.primitiveStore.ListCommitments(ctx, primitives.CommitmentListFilter{ThreadID: threadID})
-	if err != nil {
-		return nil, err
-	}
-
-	commitmentsByID := make(map[string]map[string]any, len(commitments))
-	for _, commitment := range commitments {
-		commitmentID, _ := commitment["id"].(string)
-		commitmentID = strings.TrimSpace(commitmentID)
-		if commitmentID == "" {
-			continue
-		}
-		commitmentsByID[commitmentID] = commitment
-	}
-
-	ordered := make([]map[string]any, 0, len(openCommitmentIDs))
-	for _, commitmentID := range openCommitmentIDs {
-		commitmentID = strings.TrimSpace(commitmentID)
-		if commitmentID == "" {
-			continue
-		}
-		commitment, ok := commitmentsByID[commitmentID]
-		if !ok {
-			continue
-		}
-		ordered = append(ordered, commitment)
-	}
-	return ordered, nil
-}
-
 func buildThreadContextDocuments(ctx context.Context, opts handlerOptions, threadID string) ([]map[string]any, error) {
 	if strings.TrimSpace(threadID) == "" {
 		return []map[string]any{}, nil
@@ -588,8 +531,7 @@ func artifactContentPreview(content []byte) string {
 	return string(runes[:threadContextContentPreviewChars])
 }
 
-func collectTimelineReferencedObjectIDs(events []map[string]any) ([]string, []string, []string, []string) {
-	snapshotSet := make(map[string]struct{})
+func collectTimelineReferencedObjectIDs(events []map[string]any) ([]string, []string, []string) {
 	artifactSet := make(map[string]struct{})
 	documentSet := make(map[string]struct{})
 	documentRevisionSet := make(map[string]struct{})
@@ -605,8 +547,6 @@ func collectTimelineReferencedObjectIDs(events []map[string]any) ([]string, []st
 				continue
 			}
 			switch prefix {
-			case "snapshot":
-				snapshotSet[id] = struct{}{}
 			case "artifact":
 				artifactSet[id] = struct{}{}
 			case "document":
@@ -617,11 +557,10 @@ func collectTimelineReferencedObjectIDs(events []map[string]any) ([]string, []st
 		}
 	}
 
-	snapshotIDs := mapKeysSorted(snapshotSet)
 	artifactIDs := mapKeysSorted(artifactSet)
 	documentIDs := mapKeysSorted(documentSet)
 	documentRevisionIDs := mapKeysSorted(documentRevisionSet)
-	return snapshotIDs, artifactIDs, documentIDs, documentRevisionIDs
+	return artifactIDs, documentIDs, documentRevisionIDs
 }
 
 func mapKeysSorted(values map[string]struct{}) []string {

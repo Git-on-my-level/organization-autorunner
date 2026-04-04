@@ -40,8 +40,8 @@
 
   let createTitle = $state("");
   let createStatus = $state("active");
-  let createPrimaryThreadId = $state("");
-  let createPrimaryDocumentId = $state("");
+  let createBackingThreadId = $state("");
+  let createBoardDocumentId = $state("");
   let createLabels = $state("");
   let createOwnerIds = $state([]);
   let createPinnedRefs = $state("");
@@ -103,8 +103,8 @@
   function resetCreateForm() {
     createTitle = "";
     createStatus = "active";
-    createPrimaryThreadId = "";
-    createPrimaryDocumentId = "";
+    createBackingThreadId = "";
+    createBoardDocumentId = "";
     createLabels = "";
     createOwnerIds = [];
     createPinnedRefs = "";
@@ -130,17 +130,17 @@
     createError = "";
 
     const title = createTitle.trim();
-    const primaryThreadId = createPrimaryThreadId.trim();
+    const backingThreadId = createBackingThreadId.trim();
 
-    if (!title || !primaryThreadId) {
-      createError = "Title and primary thread are required.";
+    if (!title || !backingThreadId) {
+      createError = "Title and backing thread are required.";
       return;
     }
 
     const board = {
       title,
       status: createStatus,
-      primary_thread_id: primaryThreadId,
+      thread_id: backingThreadId,
     };
     const labels = parseDelimitedValues(createLabels);
     const owners = [...createOwnerIds];
@@ -148,8 +148,8 @@
 
     if (labels.length > 0) board.labels = labels;
     if (owners.length > 0) board.owners = owners;
-    if (createPrimaryDocumentId.trim()) {
-      board.primary_document_id = createPrimaryDocumentId.trim();
+    if (createBoardDocumentId.trim()) {
+      board.document_refs = [`document:${createBoardDocumentId.trim()}`];
     }
     if (pinnedRefs.length > 0) board.pinned_refs = pinnedRefs;
 
@@ -323,22 +323,22 @@
         </label>
 
         <SearchableEntityPicker
-          bind:value={createPrimaryThreadId}
-          advancedLabel="Use a manual primary thread ID"
-          helperText="Pick the canonical thread this board organizes around."
-          label="Primary thread"
-          manualLabel="Primary thread ID"
+          bind:value={createBackingThreadId}
+          advancedLabel="Use a manual backing thread ID"
+          helperText="Pick the backing thread this board organizes around."
+          label="Backing thread"
+          manualLabel="Backing thread ID"
           manualPlaceholder="thread-q2-initiative"
           placeholder="Search topics by title, ID, or tags"
           searchFn={searchThreadOptions}
         />
 
         <SearchableEntityPicker
-          bind:value={createPrimaryDocumentId}
-          advancedLabel="Use a manual primary document ID"
-          helperText="Optional: pin the canonical doc lineage this board should foreground."
-          label="Primary document"
-          manualLabel="Primary document ID"
+          bind:value={createBoardDocumentId}
+          advancedLabel="Use a manual document ID"
+          helperText="Optional: add a document ref to the board (included in refs)."
+          label="Board document"
+          manualLabel="Document ID"
           manualPlaceholder="product-constitution"
           placeholder="Search documents by title, ID, or thread"
           searchFn={searchDocumentOptions}
@@ -492,7 +492,7 @@
                     {freshnessStatusLabel(projectionFreshness.status)}
                   </span>
                 {/if}
-                {#if summary?.has_primary_document}
+                {#if summary?.has_document_ref}
                   <span
                     class="rounded bg-indigo-500/10 px-1.5 py-0.5 text-[10px] text-indigo-300"
                   >
@@ -529,11 +529,11 @@
                   <a
                     class="text-indigo-300 transition-colors hover:text-indigo-200"
                     href={workspaceHref(
-                      `/topics/${encodeURIComponent(board.primary_thread_id)}`,
+                      `/topics/${encodeURIComponent(board.thread_id ?? "")}`,
                     )}
                     onclick={(event) => event.stopPropagation()}
                   >
-                    {board.primary_thread_id}
+                    {board.thread_id ?? "—"}
                   </a>
                 </span>
                 <span>

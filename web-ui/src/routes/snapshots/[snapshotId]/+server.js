@@ -1,6 +1,6 @@
 import { json } from "@sveltejs/kit";
 
-import { getMockCommitment, getMockThread } from "$lib/mockCoreData";
+import { getMockCard, getMockThread } from "$lib/mockCoreData";
 import { assertMockModeEnabled } from "$lib/server/mockGuard";
 
 export function GET({ params, url }) {
@@ -16,9 +16,9 @@ export function GET({ params, url }) {
     return json({ snapshot: thread });
   }
 
-  const commitment = getMockCommitment(snapshotId);
-  if (commitment) {
-    return json({ snapshot: commitment });
+  const card = getMockCard(snapshotId);
+  if (card) {
+    return json({ snapshot: { ...card, kind: "card" } });
   }
 
   return json({ error: "Snapshot not found." }, { status: 404 });

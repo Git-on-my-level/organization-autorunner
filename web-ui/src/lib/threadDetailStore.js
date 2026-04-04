@@ -2,6 +2,67 @@ import { coreClient } from "./coreClient";
 import { computeStaleness } from "./threadFilters";
 import { get, writable } from "svelte/store";
 
+function parseTypedRefId(ref, prefix) {
+  const s = String(ref ?? "").trim();
+  const p = `${prefix}:`;
+  if (s.startsWith(p)) return s.slice(p.length).trim();
+  return "";
+}
+
+function primaryThreadFromTopicWorkspace(workspace) {
+  const topic = workspace?.topic;
+  const primaryId = parseTypedRefId(topic?.primary_thread_ref, "thread");
+  const threads = Array.isArray(workspace?.threads) ? workspace.threads : [];
+  if (primaryId) {
+    const found = threads.find((t) => String(t?.id) === primaryId);
+    if (found) return found;
+  }
+  return threads[0] ?? null;
+}
+
+function deriveBoardPanelsFromTopicWorkspace(workspace, topicId) {
+  const boards = Array.isArray(workspace?.boards) ? workspace.boards : [];
+  const cards = Array.isArray(workspace?.cards) ? workspace.cards : [];
+  const primaryThread = primaryThreadFromTopicWorkspace(workspace);
+  const primaryThreadId = String(primaryThread?.id ?? "").trim();
+  const topicIdStr = String(topicId ?? "").trim();
+
+  const ownedBoards = boards
+    .filter((b) => {
+      const fromRef = parseTypedRefId(b?.primary_topic_ref, "topic");
+      if (topicIdStr && fromRef === topicIdStr) return true;
+      const raw = String(b?.primary_topic_ref ?? "").trim();
+      return topicIdStr && raw === `topic:${topicIdStr}`;
+    })
+    .map((b) => ({
+      id: b.id,
+      title: b.title,
+      status: b.status,
+      card_count: cards.filter((c) => String(c?.board_id) === String(b.id))
+        .length,
+      updated_at: b.updated_at,
+    }));
+
+  const boardById = new Map(boards.map((b) => [String(b.id), b]));
+  const boardMemberships = [];
+  for (const card of cards) {
+    const cid = String(card?.thread_id ?? "").trim();
+    const refThread = parseTypedRefId(card?.thread_ref, "thread");
+    const threadMatch =
+      (primaryThreadId && cid === primaryThreadId) ||
+      (primaryThreadId && refThread === primaryThreadId);
+    if (!threadMatch) continue;
+    const boardId =
+      String(card?.board_id ?? "").trim() ||
+      parseTypedRefId(card?.board_ref, "board");
+    if (!boardId) continue;
+    const board = boardById.get(boardId) ?? { id: boardId, title: boardId };
+    boardMemberships.push({ board, card });
+  }
+
+  return { ownedBoards, boardMemberships };
+}
+
 function initialState() {
   return {
     workspace: null,
@@ -11,8 +72,6 @@ function initialState() {
     documents: [],
     documentsLoading: false,
     documentsError: "",
-    commitments: [],
-    commitmentsLoading: false,
     boardMemberships: [],
     ownedBoards: [],
     timelineThreadId: "",
@@ -21,6 +80,8 @@ function initialState() {
     timelineError: "",
     workOrders: [],
     workOrdersLoading: false,
+    /** When true, workspace/timeline loads use topic-scoped APIs for the route id. */
+    detailAsTopic: false,
   };
 }
 
@@ -32,6 +93,8 @@ function createThreadDetailStore() {
   let queuedRefreshThreadId = "";
   let queuedRefreshPromise = null;
   let timelineRequestSeq = 0;
+  /** Controls thread vs topic API for workspace/timeline refresh coalescing. */
+  let detailAsTopic = false;
 
   function mergeRefreshFlags(base, next) {
     const left = base ?? {};
@@ -41,18 +104,27 @@ function createThreadDetailStore() {
       snapshot: Boolean(left.snapshot || right.snapshot),
       documents: Boolean(left.documents || right.documents),
       timeline: Boolean(left.timeline || right.timeline),
-      commitments: Boolean(left.commitments || right.commitments),
       workOrders: Boolean(left.workOrders || right.workOrders),
     };
   }
 
-  async function loadWorkspace(threadId, filters = {}) {
+  function timelineScopeIdForRoute(routeId) {
+    return String(routeId ?? "").trim();
+  }
+
+  async function loadWorkspace(routeId, opts = {}) {
+    if (typeof opts.asTopic === "boolean") {
+      detailAsTopic = opts.asTopic;
+      patchState({ detailAsTopic });
+    }
+
+    const threadId = timelineScopeIdForRoute(routeId);
+    const asTopic = detailAsTopic;
     const currentState = get(store);
     const hasWorkspaceData =
       currentState.workspace !== null ||
       currentState.snapshot !== null ||
       currentState.documents.length > 0 ||
-      currentState.commitments.length > 0 ||
       currentState.timeline.length > 0;
 
     patchState({
@@ -60,48 +132,67 @@ function createThreadDetailStore() {
       snapshotError: hasWorkspaceData ? currentState.snapshotError : "",
       documentsLoading: hasWorkspaceData ? currentState.documentsLoading : true,
       documentsError: hasWorkspaceData ? currentState.documentsError : "",
-      commitmentsLoading: hasWorkspaceData
-        ? currentState.commitmentsLoading
-        : true,
     });
     try {
-      const workspace = await coreClient.getThreadWorkspace(threadId, filters);
-      const context =
-        workspace && typeof workspace.context === "object"
-          ? workspace.context
-          : {};
-      const boardMembershipsData =
-        workspace && typeof workspace.board_memberships === "object"
-          ? workspace.board_memberships
-          : {};
-      const ownedBoardsData =
-        workspace && typeof workspace.owned_boards === "object"
-          ? workspace.owned_boards
-          : {};
+      let workspace;
+      let snapshot;
+      let documents = [];
+      let boardMemberships = [];
+      let ownedBoards = [];
+
+      if (asTopic) {
+        workspace = await coreClient.getTopicWorkspace(threadId, {});
+        const primaryThread = primaryThreadFromTopicWorkspace(workspace);
+        snapshot = primaryThread;
+        documents = Array.isArray(workspace?.documents)
+          ? workspace.documents
+          : [];
+        const derived = deriveBoardPanelsFromTopicWorkspace(
+          workspace,
+          threadId,
+        );
+        boardMemberships = derived.boardMemberships;
+        ownedBoards = derived.ownedBoards;
+      } else {
+        workspace = await coreClient.getThreadWorkspace(threadId, {});
+        const context =
+          workspace && typeof workspace.context === "object"
+            ? workspace.context
+            : {};
+        const boardMembershipsData =
+          workspace && typeof workspace.board_memberships === "object"
+            ? workspace.board_memberships
+            : {};
+        const ownedBoardsData =
+          workspace && typeof workspace.owned_boards === "object"
+            ? workspace.owned_boards
+            : {};
+        snapshot = workspace?.thread ?? null;
+        documents = Array.isArray(context.documents) ? context.documents : [];
+        boardMemberships = Array.isArray(boardMembershipsData.items)
+          ? boardMembershipsData.items
+          : [];
+        ownedBoards = Array.isArray(ownedBoardsData.items)
+          ? ownedBoardsData.items
+          : [];
+      }
+
       const latestState = get(store);
       const canReuseTimeline =
         latestState.timelineThreadId === threadId &&
         latestState.timeline.length > 0;
-      patchState({
-        workspace,
-        snapshot: workspace?.thread ?? null,
-        snapshotError: "",
-        documents: Array.isArray(context.documents) ? context.documents : [],
-        documentsError: "",
-        commitments: Array.isArray(context.open_commitments)
-          ? context.open_commitments
-          : [],
-        boardMemberships: Array.isArray(boardMembershipsData.items)
-          ? boardMembershipsData.items
-          : [],
-        ownedBoards: Array.isArray(ownedBoardsData.items)
-          ? ownedBoardsData.items
-          : [],
-        // Seed timeline from workspace context only before the dedicated
-        // timeline fetch has populated the full event history. Background
-        // workspace refreshes should not replace the mounted message list
-        // with the smaller recent-events slice.
-        ...(canReuseTimeline
+
+      let timelinePatch;
+      if (asTopic) {
+        timelinePatch = canReuseTimeline
+          ? {}
+          : { timeline: [], timelineThreadId: "" };
+      } else {
+        const context =
+          workspace && typeof workspace.context === "object"
+            ? workspace.context
+            : {};
+        timelinePatch = canReuseTimeline
           ? {}
           : {
               timeline: Array.isArray(context.recent_events)
@@ -110,7 +201,18 @@ function createThreadDetailStore() {
               timelineThreadId: Array.isArray(context.recent_events)
                 ? threadId
                 : "",
-            }),
+            };
+      }
+
+      patchState({
+        workspace,
+        snapshot,
+        snapshotError: "",
+        documents,
+        documentsError: "",
+        boardMemberships,
+        ownedBoards,
+        ...timelinePatch,
       });
       return workspace;
     } catch (error) {
@@ -126,10 +228,10 @@ function createThreadDetailStore() {
           snapshot: null,
           documentsError: `Failed to load workspace: ${message}`,
           documents: [],
-          commitments: [],
           boardMemberships: [],
           ownedBoards: [],
           timeline: [],
+          timelineThreadId: "",
         });
       }
       return null;
@@ -137,21 +239,28 @@ function createThreadDetailStore() {
       patchState({
         snapshotLoading: false,
         documentsLoading: false,
-        commitmentsLoading: false,
       });
     }
   }
 
-  async function loadTimeline(threadId) {
+  function resolveTimelineAsTopic(opts = {}) {
+    if (typeof opts.asTopic === "boolean") return opts.asTopic;
+    return detailAsTopic;
+  }
+
+  async function loadTimeline(routeId, opts = {}) {
     const requestSeq = ++timelineRequestSeq;
+    const threadId = timelineScopeIdForRoute(routeId);
+    const asTopic = resolveTimelineAsTopic(opts);
     const currentState = get(store);
     const canReuseTimeline =
       currentState.timelineThreadId === threadId &&
       currentState.timeline.length > 0;
     patchState({ timelineLoading: true, timelineError: "" });
     try {
-      const nextTimeline =
-        (await coreClient.listThreadTimeline(threadId)).events ?? [];
+      const nextTimeline = asTopic
+        ? ((await coreClient.listTopicTimeline(threadId)).events ?? [])
+        : ((await coreClient.listThreadTimeline(threadId)).events ?? []);
       if (requestSeq !== timelineRequestSeq) {
         return;
       }
@@ -175,7 +284,8 @@ function createThreadDetailStore() {
     }
   }
 
-  async function loadWorkOrders(threadId) {
+  async function loadWorkOrders(backingThreadId) {
+    const threadId = timelineScopeIdForRoute(backingThreadId);
     patchState({ workOrdersLoading: true, workOrdersError: "" });
     try {
       const response = await coreClient.listArtifacts({
@@ -193,39 +303,37 @@ function createThreadDetailStore() {
     }
   }
 
-  async function refreshThreadDetail(threadId, flags = {}) {
+  async function refreshThreadDetail(routeId, flags = {}) {
     const {
       workspace: refreshWorkspace = false,
       snapshot: refreshSnapshot = false,
       documents: refreshDocuments = false,
       timeline: refreshTimeline = false,
-      commitments: refreshCommitments = false,
       workOrders: refreshWorkOrders = false,
     } = flags;
 
     const promises = [];
-    if (
-      refreshWorkspace ||
-      refreshSnapshot ||
-      refreshDocuments ||
-      refreshCommitments
-    ) {
-      promises.push(loadWorkspace(threadId));
+    if (refreshWorkspace || refreshSnapshot || refreshDocuments) {
+      promises.push(loadWorkspace(routeId));
     }
-    if (refreshTimeline) promises.push(loadTimeline(threadId));
-    if (refreshWorkOrders) promises.push(loadWorkOrders(threadId));
+    if (refreshTimeline) promises.push(loadTimeline(routeId));
+    if (refreshWorkOrders) {
+      const sid = get(store).snapshot?.id ?? routeId;
+      promises.push(loadWorkOrders(sid));
+    }
     await Promise.all(promises);
   }
 
-  async function queueRefreshThreadDetail(threadId, flags = {}) {
-    if (!threadId) return;
+  async function queueRefreshThreadDetail(routeId, flags = {}) {
+    const id = timelineScopeIdForRoute(routeId);
+    if (!id) return;
 
-    if (queuedRefreshThreadId && queuedRefreshThreadId !== threadId) {
+    if (queuedRefreshThreadId && queuedRefreshThreadId !== id) {
       queuedRefreshFlags = null;
       queuedRefreshPromise = null;
     }
 
-    queuedRefreshThreadId = threadId;
+    queuedRefreshThreadId = id;
     queuedRefreshFlags = mergeRefreshFlags(queuedRefreshFlags, flags);
 
     if (queuedRefreshPromise) {
@@ -246,16 +354,19 @@ function createThreadDetailStore() {
     return queuedRefreshPromise;
   }
 
-  async function fullRefresh(threadId) {
-    await Promise.all([loadWorkspace(threadId), loadWorkOrders(threadId)]);
+  async function fullRefresh(routeId, opts = {}) {
+    if (typeof opts.asTopic === "boolean") {
+      detailAsTopic = opts.asTopic;
+      patchState({ detailAsTopic });
+    }
+    const id = timelineScopeIdForRoute(routeId);
+    await loadWorkspace(id);
+    const backingThreadId = get(store).snapshot?.id ?? id;
+    await loadWorkOrders(backingThreadId);
   }
 
   function setSnapshot(value) {
     patchState({ snapshot: value });
-  }
-
-  function setCommitments(value) {
-    patchState({ commitments: value });
   }
 
   function setDocuments(value) {
@@ -280,6 +391,11 @@ function createThreadDetailStore() {
   }
 
   function reset() {
+    detailAsTopic = false;
+    queuedRefreshFlags = null;
+    queuedRefreshThreadId = "";
+    queuedRefreshPromise = null;
+    timelineRequestSeq = 0;
     set(initialState());
   }
 
@@ -293,7 +409,6 @@ function createThreadDetailStore() {
     fullRefresh,
     setSnapshot,
     setDocuments,
-    setCommitments,
     setTimeline,
     setWorkOrders,
     getStaleness,

@@ -232,6 +232,56 @@ func TestPrimitivesCRUDRoundTrip(t *testing.T) {
 	}
 }
 
+func TestListEventsFiltersByEventType(t *testing.T) {
+	t.Parallel()
+
+	h := newPrimitivesTestServer(t)
+	postJSONExpectStatus(t, h.baseURL+"/actors", `{"actor":{"id":"actor-evt-filter","display_name":"Actor","created_at":"2026-03-04T10:00:00Z"}}`, http.StatusCreated)
+
+	postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-evt-filter",
+		"event":{
+			"type":"filter_kept_alpha",
+			"thread_id":"thread-evfilter",
+			"refs":["thread:thread-evfilter"],
+			"summary":"alpha",
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+
+	postJSONExpectStatus(t, h.baseURL+"/events", `{
+		"actor_id":"actor-evt-filter",
+		"event":{
+			"type":"filter_drop_beta",
+			"thread_id":"thread-evfilter",
+			"refs":["thread:thread-evfilter"],
+			"summary":"beta",
+			"provenance":{"sources":["inferred"]}
+		}
+	}`, http.StatusCreated)
+
+	filteredResp, err := http.Get(h.baseURL + "/events?thread_id=thread-evfilter&type=filter_kept_alpha")
+	if err != nil {
+		t.Fatalf("GET /events?thread_id=&type=: %v", err)
+	}
+	defer filteredResp.Body.Close()
+	if filteredResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected GET /events filtered status: got %d", filteredResp.StatusCode)
+	}
+	var filtered struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.NewDecoder(filteredResp.Body).Decode(&filtered); err != nil {
+		t.Fatalf("decode filtered events: %v", err)
+	}
+	if len(filtered.Events) != 1 {
+		t.Fatalf("expected 1 event after type filter, got %d", len(filtered.Events))
+	}
+	if anyString(filtered.Events[0]["type"]) != "filter_kept_alpha" {
+		t.Fatalf("unexpected event type after filter: %#v", filtered.Events[0]["type"])
+	}
+}
+
 func TestPrimitivesCRUDRoundTripWithObjectBackend(t *testing.T) {
 	t.Parallel()
 
@@ -1496,12 +1546,6 @@ func maybeHandleLegacyWorkspaceRequest(t *testing.T, method string, rawURL strin
 		return legacyThreadCreateResponse(t, ctx, body, headers), true
 	case method == http.MethodPatch && strings.HasPrefix(path, "/threads/"):
 		return legacyThreadPatchResponse(t, ctx, strings.TrimPrefix(path, "/threads/"), body, headers), true
-	case method == http.MethodPost && path == "/commitments":
-		return legacyCommitmentCreateResponse(t, ctx, body, headers), true
-	case method == http.MethodGet && strings.HasPrefix(path, "/commitments/"):
-		return legacyCommitmentGetResponse(t, ctx, strings.TrimPrefix(path, "/commitments/")), true
-	case method == http.MethodPatch && strings.HasPrefix(path, "/commitments/"):
-		return legacyCommitmentPatchResponse(t, ctx, strings.TrimPrefix(path, "/commitments/"), body, headers), true
 	default:
 		return nil, false
 	}
@@ -1538,8 +1582,8 @@ func legacyThreadCreateResponse(t *testing.T, ctx legacyTestWorkspaceContext, bo
 	if req.Thread == nil {
 		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "thread is required"))
 	}
-	if _, has := req.Thread["open_commitments"]; has {
-		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "thread.open_commitments is core-maintained and cannot be set"))
+	if _, has := req.Thread["open_cards"]; has {
+		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "thread.open_cards is core-maintained and cannot be set"))
 	}
 	if err := validateLegacyThreadBody(req.Thread, true); err != nil {
 		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", err.Error()))
@@ -1613,8 +1657,8 @@ func legacyThreadPatchResponse(t *testing.T, ctx legacyTestWorkspaceContext, thr
 		}
 		req.IfUpdatedAt = &ifUpdatedAt
 	}
-	if _, has := req.Patch["open_commitments"]; has {
-		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "thread.open_commitments is core-maintained and cannot be patched"))
+	if _, has := req.Patch["open_cards"]; has {
+		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "thread.open_cards is core-maintained and cannot be patched"))
 	}
 	if err := validateLegacyThreadBody(req.Patch, false); err != nil {
 		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", err.Error()))
@@ -1642,151 +1686,6 @@ func legacyThreadPatchResponse(t *testing.T, ctx legacyTestWorkspaceContext, thr
 		return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "projection maintainer step failed"))
 	}
 	return legacyJSONResponse(http.StatusOK, map[string]any{"thread": result.Snapshot})
-}
-
-func legacyCommitmentCreateResponse(t *testing.T, ctx legacyTestWorkspaceContext, body string, headers map[string]string) *http.Response {
-	t.Helper()
-
-	var req struct {
-		ActorID    string         `json:"actor_id"`
-		RequestKey string         `json:"request_key"`
-		Commitment map[string]any `json:"commitment"`
-	}
-	if err := json.Unmarshal([]byte(body), &req); err != nil {
-		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_json", err.Error()))
-	}
-	if req.Commitment == nil {
-		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "commitment is required"))
-	}
-
-	actorID, resp, ok := legacyResolveWriteActorID(ctx, headers, req.ActorID)
-	if !ok {
-		return resp
-	}
-
-	requestKey := strings.TrimSpace(req.RequestKey)
-	replayRequest := req
-	if requestKey != "" && firstNonEmptyString(replayRequest.Commitment["id"]) == "" {
-		replayRequest.Commitment["id"] = deriveRequestScopedID("commitments.create", actorID, requestKey, "commitment")
-	}
-
-	replayStatus, replayPayload, replayed, err := readIdempotencyReplay(context.Background(), ctx.primitiveStore, "commitments.create", actorID, requestKey, replayRequest)
-	if err != nil {
-		if writeLegacyIdempotencyError(ctx, err) {
-			return legacyJSONResponse(http.StatusConflict, errorPayload("conflict", err.Error()))
-		}
-		return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "failed to load idempotency replay"))
-	}
-	if replayed {
-		return legacyJSONResponse(replayStatus, replayPayload)
-	}
-
-	result, err := ctx.primitiveStore.CreateCommitment(context.Background(), actorID, req.Commitment)
-	if err != nil {
-		if errors.Is(err, primitives.ErrConflict) && requestKey != "" && firstNonEmptyString(replayRequest.Commitment["id"]) != "" {
-			commitmentID := firstNonEmptyString(replayRequest.Commitment["id"])
-			commitment, loadErr := ctx.primitiveStore.GetCommitment(context.Background(), commitmentID)
-			if loadErr == nil {
-				response := map[string]any{"commitment": commitment}
-				status, payload, replayErr := persistIdempotencyReplay(context.Background(), ctx.primitiveStore, "commitments.create", actorID, requestKey, replayRequest, http.StatusCreated, response)
-				if replayErr != nil {
-					if writeLegacyIdempotencyError(ctx, replayErr) {
-						return legacyJSONResponse(http.StatusConflict, errorPayload("conflict", replayErr.Error()))
-					}
-					return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "failed to persist idempotency replay"))
-				}
-				if err := legacyStepProjectionMaintainer(ctx); err != nil {
-					return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "projection maintainer step failed"))
-				}
-				return legacyJSONResponse(status, payload)
-			}
-		}
-		switch {
-		case errors.Is(err, primitives.ErrNotFound):
-			return legacyJSONResponse(http.StatusNotFound, errorPayload("not_found", "thread not found"))
-		case errors.Is(err, primitives.ErrConflict):
-			return legacyJSONResponse(http.StatusConflict, errorPayload("conflict", "commitment already exists"))
-		default:
-			return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", err.Error()))
-		}
-	}
-
-	legacyMarkThreadProjectionsDirty(ctx, firstNonEmptyString(result.Snapshot["thread_id"]))
-	if err := legacyStepProjectionMaintainer(ctx); err != nil {
-		return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "projection maintainer step failed"))
-	}
-	status, payload, err := persistIdempotencyReplay(context.Background(), ctx.primitiveStore, "commitments.create", actorID, requestKey, replayRequest, http.StatusCreated, map[string]any{"commitment": result.Snapshot})
-	if err != nil {
-		if writeLegacyIdempotencyError(ctx, err) {
-			return legacyJSONResponse(http.StatusConflict, errorPayload("conflict", err.Error()))
-		}
-		return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "failed to persist idempotency replay"))
-	}
-	return legacyJSONResponse(status, payload)
-}
-
-func legacyCommitmentPatchResponse(t *testing.T, ctx legacyTestWorkspaceContext, commitmentID string, body string, headers map[string]string) *http.Response {
-	t.Helper()
-
-	var req struct {
-		ActorID     string         `json:"actor_id"`
-		Patch       map[string]any `json:"patch"`
-		Refs        []string       `json:"refs"`
-		IfUpdatedAt *string        `json:"if_updated_at"`
-	}
-	if err := json.Unmarshal([]byte(body), &req); err != nil {
-		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_json", err.Error()))
-	}
-	if req.Patch == nil || len(req.Patch) == 0 {
-		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "patch is required"))
-	}
-	if req.IfUpdatedAt != nil {
-		ifUpdatedAt := strings.TrimSpace(*req.IfUpdatedAt)
-		if _, err := time.Parse(time.RFC3339, ifUpdatedAt); err != nil {
-			return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "if_updated_at must be an RFC3339 datetime string"))
-		}
-		req.IfUpdatedAt = &ifUpdatedAt
-	}
-	if _, has := req.Patch["thread_id"]; has {
-		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", "commitment.thread_id cannot be patched"))
-	}
-	actorID, resp, ok := legacyResolveWriteActorID(ctx, headers, req.ActorID)
-	if !ok {
-		return resp
-	}
-
-	result, err := ctx.primitiveStore.PatchCommitment(context.Background(), actorID, commitmentID, req.Patch, req.Refs, req.IfUpdatedAt)
-	if err != nil {
-		switch {
-		case errors.Is(err, primitives.ErrNotFound):
-			return legacyJSONResponse(http.StatusNotFound, errorPayload("not_found", "commitment not found"))
-		case errors.Is(err, primitives.ErrConflict):
-			return legacyJSONResponse(http.StatusConflict, errorPayload("conflict", "commitment has been updated; refresh and retry"))
-		default:
-			return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", err.Error()))
-		}
-	}
-
-	legacyMarkThreadProjectionsDirty(ctx, firstNonEmptyString(result.Snapshot["thread_id"]))
-	if err := legacyStepProjectionMaintainer(ctx); err != nil {
-		return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "projection maintainer step failed"))
-	}
-	return legacyJSONResponse(http.StatusOK, map[string]any{"commitment": result.Snapshot})
-}
-
-func legacyCommitmentGetResponse(t *testing.T, ctx legacyTestWorkspaceContext, commitmentID string) *http.Response {
-	t.Helper()
-
-	commitment, err := ctx.primitiveStore.GetCommitment(context.Background(), commitmentID)
-	if err != nil {
-		switch {
-		case errors.Is(err, primitives.ErrNotFound):
-			return legacyJSONResponse(http.StatusNotFound, errorPayload("not_found", "commitment not found"))
-		default:
-			return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "failed to load commitment"))
-		}
-	}
-	return legacyJSONResponse(http.StatusOK, map[string]any{"commitment": commitment})
 }
 
 func legacyResolveWriteActorID(ctx legacyTestWorkspaceContext, headers map[string]string, requestedActorID string) (string, *http.Response, bool) {
@@ -3428,7 +3327,7 @@ func TestBoardArchiveLifecycle(t *testing.T) {
 
 	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
-		"board":{"title":"Archive board test","primary_thread_id":"`+threadID+`"}
+		"board":{"title":"Archive board test","refs":["thread:`+threadID+`"]}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
 	var createPayload struct {
@@ -3569,7 +3468,7 @@ func TestBoardTombstoneLifecycle(t *testing.T) {
 
 	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
-		"board":{"title":"Tomb board","primary_thread_id":"`+threadID+`"}
+		"board":{"title":"Tomb board","refs":["thread:`+threadID+`"]}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
 	var createPayload struct {
@@ -3628,7 +3527,7 @@ func TestBoardRestoreLifecycle(t *testing.T) {
 
 	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
-		"board":{"title":"Restore board","primary_thread_id":"`+threadID+`"}
+		"board":{"title":"Restore board","refs":["thread:`+threadID+`"]}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
 	var createPayload struct {
@@ -3803,7 +3702,7 @@ func TestBoardArchiveThenTrash(t *testing.T) {
 
 	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
-		"board":{"title":"Archive then trash board","primary_thread_id":"`+threadID+`"}
+		"board":{"title":"Archive then trash board","refs":["thread:`+threadID+`"]}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
 	var createPayload struct {
@@ -3869,7 +3768,7 @@ func TestBoardCannotArchiveTrashed(t *testing.T) {
 
 	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
-		"board":{"title":"Trashed board","primary_thread_id":"`+threadID+`"}
+		"board":{"title":"Trashed board","refs":["thread:`+threadID+`"]}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
 	var createPayload struct {
@@ -3953,7 +3852,7 @@ func TestBoardPurgeLifecycle(t *testing.T) {
 
 	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
-		"board":{"title":"Purge board","primary_thread_id":"`+threadID+`"}
+		"board":{"title":"Purge board","refs":["thread:`+threadID+`"]}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
 	var createPayload struct {

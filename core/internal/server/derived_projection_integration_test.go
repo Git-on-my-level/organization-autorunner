@@ -78,7 +78,7 @@ func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Projection board",
-			"primary_thread_id":"`+threadID+`"
+			"refs":["thread:`+threadID+`"]
 		}
 	}`, 201)
 	defer boardResp.Body.Close()

@@ -2,6 +2,7 @@ import { json } from "@sveltejs/kit";
 
 import { getMockThreadWorkspace } from "$lib/mockCoreData";
 import { assertMockModeEnabled } from "$lib/server/mockGuard";
+import { threadWorkspaceToTopicWorkspace } from "$lib/topicWorkspaceAdapter";
 
 export function GET({ params, url }) {
   const guardResponse = assertMockModeEnabled(url.pathname);
@@ -22,5 +23,5 @@ export function GET({ params, url }) {
     return json({ error: "Topic not found." }, { status: 404 });
   }
 
-  return json(workspace);
+  return json(threadWorkspaceToTopicWorkspace(workspace, params.topicId));
 }

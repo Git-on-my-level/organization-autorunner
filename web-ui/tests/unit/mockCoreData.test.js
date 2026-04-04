@@ -23,8 +23,7 @@ describe("mockCoreData parity behaviors", () => {
       });
       expect(seed.boards[0]).toMatchObject({
         id: "board-product-launch",
-        primary_topic_ref: "topic:thread-q2-initiative",
-        primary_thread_ref: "thread:thread-q2-initiative",
+        thread_id: "thread-q2-initiative",
       });
       expect(seed.cards[0]).toMatchObject({
         board_id: "board-product-launch",
@@ -126,7 +125,7 @@ describe("mockCoreData parity behaviors", () => {
         actor_id: "actor-test",
         board: {
           title: "Invalid",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
           status: "archived",
         },
       });
@@ -144,7 +143,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-owner-default-test",
           title: "Owner Default",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
 
@@ -157,7 +156,7 @@ describe("mockCoreData parity behaviors", () => {
         actor_id: "actor-test",
         board: {
           title: "   ",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
 
@@ -200,7 +199,7 @@ describe("mockCoreData parity behaviors", () => {
       });
     });
 
-    it("aggregates workspace documents and commitments across all board threads", async () => {
+    it("aggregates workspace documents and cards across all board threads", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const workspace = mod.getMockBoardWorkspace("board-summer-menu");
 
@@ -208,28 +207,26 @@ describe("mockCoreData parity behaviors", () => {
         "incident-response-playbook",
         "onboarding-guide-v1",
       ]);
-      expect(
-        workspace?.commitments?.items?.map((commitment) => commitment.id),
-      ).toEqual([
-        "commitment-pricing-patch",
-        "commitment-pricing-audit",
-        "commitment-menu-board",
-      ]);
+      const threadIds = new Set(
+        workspace?.cards?.items
+          ?.map((item) => item.membership?.thread_id)
+          .filter(Boolean) ?? [],
+      );
+      expect(threadIds.has("thread-onboarding")).toBe(true);
+      expect(threadIds.has("thread-pricing-glitch")).toBe(true);
       expect(workspace?.section_kinds).toMatchObject({
         board: "canonical",
-        primary_thread: "canonical",
-        primary_document: "canonical",
         cards: "convenience",
       });
     });
 
-    it("includes primary-thread activity in board summaries", async () => {
+    it("includes backing-thread activity in board summaries", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const boardListItem = mod
         .listMockBoards()
         .find((item) => item.board.id === "board-supply-crisis");
 
-      expect(boardListItem?.summary?.open_commitment_count).toBe(3);
+      expect(boardListItem?.summary?.open_card_count).toBe(3);
       expect(
         Date.parse(String(boardListItem?.summary?.latest_activity_at ?? "")),
       ).toBeGreaterThan(
@@ -245,7 +242,7 @@ describe("mockCoreData parity behaviors", () => {
       );
 
       expect(pricingCard?.derived?.summary).toMatchObject({
-        open_commitment_count: 0,
+        open_card_count: 0,
         decision_request_count: 1,
         decision_count: 1,
         recommendation_count: 0,
@@ -278,7 +275,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-rank-remove-test",
           title: "Rank remove",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;
@@ -320,7 +317,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-card-archive-test",
           title: "Archive test",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;
@@ -355,7 +352,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-card-restore-test",
           title: "Restore test",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;
@@ -393,7 +390,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-card-patch-test",
           title: "Patch test",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;
@@ -433,7 +430,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-global-card-patch",
           title: "Global patch board",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;

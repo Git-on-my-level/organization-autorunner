@@ -62,8 +62,12 @@ test("trash page restores archived topics, boards, cards, documents, and artifac
         status: "archived",
         labels: [],
         owners: [actorId],
-        primary_topic_ref: "topic:topic-trash-1",
-        primary_thread_ref: "thread:topic-trash-1",
+        thread_id: "topic-trash-1",
+        refs: [
+          "document:doc-trash-1",
+          "thread:topic-trash-1",
+          "topic:topic-trash-1",
+        ],
         document_refs: ["document:doc-trash-1"],
         card_refs: ["card:card-trash-1"],
         pinned_refs: [],
@@ -88,7 +92,7 @@ test("trash page restores archived topics, boards, cards, documents, and artifac
           done: 1,
         },
         latest_activity_at: "2026-03-05T08:00:00.000Z",
-        has_primary_document: true,
+        has_document_ref: true,
       },
     },
   ];
@@ -165,7 +169,9 @@ test("trash page restores archived topics, boards, cards, documents, and artifac
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        actors: [{ id: actorId, display_name: "Trash Tester" }],
+        actors: [
+          { id: actorId, display_name: "Trash Tester", tags: ["human"] },
+        ],
       }),
     });
   });
@@ -315,6 +321,81 @@ test("trash page restores archived topics, boards, cards, documents, and artifac
     });
   });
 
+  await page.route(/\/artifacts\/[^/?]+\/purge$/, async (route) => {
+    const artifactId = route.request().url().split("/").at(-2) ?? "";
+    const idx = artifacts.findIndex((a) => String(a.id) === artifactId);
+    if (idx >= 0) {
+      artifacts.splice(idx, 1);
+    }
+    await route.fulfill({
+      status: idx >= 0 ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(
+        idx >= 0 ? { artifact_id: artifactId } : { error: "not found" },
+      ),
+    });
+  });
+
+  await page.route(/\/docs\/[^/?]+\/purge$/, async (route) => {
+    const documentId = route.request().url().split("/").at(-2) ?? "";
+    const idx = documents.findIndex((d) => String(d.id) === documentId);
+    if (idx >= 0) {
+      documents.splice(idx, 1);
+    }
+    await route.fulfill({
+      status: idx >= 0 ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(
+        idx >= 0 ? { document_id: documentId } : { error: "not found" },
+      ),
+    });
+  });
+
+  await page.route(/\/threads\/[^/?]+\/purge$/, async (route) => {
+    const topicId = route.request().url().split("/").at(-2) ?? "";
+    const idx = topics.findIndex((t) => String(t.id) === topicId);
+    if (idx >= 0) {
+      topics.splice(idx, 1);
+    }
+    await route.fulfill({
+      status: idx >= 0 ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(
+        idx >= 0 ? { thread_id: topicId } : { error: "not found" },
+      ),
+    });
+  });
+
+  await page.route(/\/boards\/[^/?]+\/purge$/, async (route) => {
+    const boardId = route.request().url().split("/").at(-2) ?? "";
+    const idx = boards.findIndex((b) => String(b?.board?.id ?? "") === boardId);
+    if (idx >= 0) {
+      boards.splice(idx, 1);
+    }
+    await route.fulfill({
+      status: idx >= 0 ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(
+        idx >= 0 ? { board_id: boardId } : { error: "not found" },
+      ),
+    });
+  });
+
+  await page.route(/\/cards\/[^/?]+\/purge$/, async (route) => {
+    const cardId = route.request().url().split("/").at(-2) ?? "";
+    const idx = cards.findIndex((c) => String(c.id) === cardId);
+    if (idx >= 0) {
+      cards.splice(idx, 1);
+    }
+    await route.fulfill({
+      status: idx >= 0 ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(
+        idx >= 0 ? { card_id: cardId } : { error: "not found" },
+      ),
+    });
+  });
+
   await page.goto("/local/trash");
 
   await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
@@ -354,4 +435,121 @@ test("trash page restores archived topics, boards, cards, documents, and artifac
   await expect(page.getByText("Archived work order")).toBeVisible();
   await page.getByRole("button", { name: "Restore" }).click();
   await expect(page.getByText("Archived work order")).toHaveCount(0);
+});
+
+test("trash page purges a card after confirmation (human principal)", async ({
+  page,
+}) => {
+  const actorId = "actor-trash-purge-card";
+  const cardId = "card-purge-e2e";
+  let cards = [
+    {
+      id: cardId,
+      board_id: "board-purge-e2e",
+      board_ref: "board:board-purge-e2e",
+      topic_ref: "topic:t-purge",
+      thread_ref: "thread:t-purge",
+      document_ref: null,
+      title: "Card pending purge",
+      summary: "",
+      column_key: "done",
+      rank: "a",
+      assignee_refs: [],
+      risk: "medium",
+      resolution: "completed",
+      resolution_refs: [],
+      related_refs: [],
+      created_at: "2026-03-01T08:00:00.000Z",
+      created_by: actorId,
+      updated_at: "2026-03-05T08:00:00.000Z",
+      updated_by: actorId,
+      archived_at: "2026-03-05T08:00:00.000Z",
+      archived_by: actorId,
+      tombstoned_at: "2026-03-05T08:00:00.000Z",
+      tombstoned_by: actorId,
+      tombstone_reason: "e2e purge",
+    },
+  ];
+
+  await page.addInitScript((selectedActorId) => {
+    window.localStorage.setItem("oar_ui_actor_id", selectedActorId);
+  }, actorId);
+
+  await page.route(/\/actors$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        actors: [
+          { id: actorId, display_name: "Purge Tester", tags: ["human"] },
+        ],
+      }),
+    });
+  });
+
+  const emptyListRoutes = [
+    [/\/artifacts(\?.*)?$/, { artifacts: [] }],
+    [/\/docs(\?.*)?$/, { documents: [] }],
+    [/\/topics(\?.*)?$/, { topics: [] }],
+    [/\/boards(\?.*)?$/, { boards: [] }],
+  ];
+  for (const [pattern, json] of emptyListRoutes) {
+    await page.route(pattern, async (route) => {
+      const request = route.request();
+      if (request.method() !== "GET") {
+        await route.continue();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(json),
+      });
+    });
+  }
+
+  await page.route(/\/cards(\?.*)?$/, async (route) => {
+    const request = route.request();
+    if (request.method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        cards: cards.filter(
+          (card) =>
+            Boolean(card?.archived_at) ||
+            Boolean(card?.tombstoned_at) ||
+            String(card?.status ?? "").trim() === "archived",
+        ),
+      }),
+    });
+  });
+
+  await page.route(/\/cards\/[^/?]+\/purge$/, async (route) => {
+    const id = route.request().url().split("/").at(-2) ?? "";
+    const idx = cards.findIndex((c) => String(c.id) === id);
+    if (idx >= 0) {
+      cards.splice(idx, 1);
+    }
+    await route.fulfill({
+      status: idx >= 0 ? 200 : 404,
+      contentType: "application/json",
+      body: JSON.stringify(idx >= 0 ? { card_id: id } : { error: "not found" }),
+    });
+  });
+
+  await page.goto("/local/trash");
+  await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
+  await page.getByRole("tab", { name: /Cards/ }).click();
+  await expect(
+    page.getByText("Card pending purge", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Purge" }).click();
+  await page.getByRole("button", { name: "Confirm purge" }).click();
+  await expect(
+    page.getByText("Card pending purge", { exact: true }),
+  ).toHaveCount(0);
 });

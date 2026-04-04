@@ -298,14 +298,14 @@ readiness checks before the instance is treated as ready.
 
 `/ops/health` is for authenticated or loopback-only operator diagnostics. When
 the readiness check passes, it also includes projection maintenance status and
-the embedded sidecar snapshot:
+the embedded sidecar status block:
 
 - `mode`: `background` when the async maintainer loop is running, `manual` when
   writes only queue dirty projections and operators are expected to trigger
   rebuilds explicitly.
 - `pending_dirty_count`: thread projections queued for refresh.
 - `oldest_dirty_at` / `oldest_dirty_lag_seconds`: lag indicator for the oldest queued projection refresh.
-- `last_successful_stale_scan_at`: last successful stale-thread scan, whether it
+- `last_successful_stale_scan_at`: last successful stale-topic scan, whether it
   came from the background loop or an explicit rebuild.
 - `last_error`: last maintenance failure, if one has occurred since the most recent successful pass.
 
@@ -313,7 +313,7 @@ the embedded sidecar snapshot:
 It reports blob bytes, blob object count, canonical artifact/document/revision counts,
 and the configured quota limits. Those blob totals now come from the workspace DB's
 blob usage ledger rather than a live filesystem walk or object-store listing. Use it
-when you need an explicit storage/usage snapshot without scraping filesystem layout.
+when you need an explicit storage/usage summary without scraping filesystem layout.
 
 `POST /ops/blob-usage/rebuild` is the explicit blob-ledger repair tool. Use it after
 operator blob cleanup, backend drift, or older-workspace migration issues when the

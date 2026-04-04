@@ -14,7 +14,7 @@ export const navigationItems = [
   {
     label: "Topics",
     href: "/topics",
-    icon: "threads",
+    icon: "topics",
     hint: "Ongoing work",
   },
   {

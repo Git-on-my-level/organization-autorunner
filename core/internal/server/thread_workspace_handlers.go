@@ -106,22 +106,17 @@ func buildThreadContextPayload(ctx context.Context, opts handlerOptions, threadI
 		return nil, err
 	}
 
-	openCommitments, err := buildThreadContextOpenCommitments(ctx, opts, threadID, thread)
-	if err != nil {
-		return nil, err
-	}
-
 	documents, err := buildThreadContextDocuments(ctx, opts, threadID)
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]any{
-		"thread":           thread,
-		"recent_events":    recentEvents,
-		"key_artifacts":    keyArtifacts,
-		"open_commitments": openCommitments,
-		"documents":        documents,
+		"thread":        thread,
+		"recent_events": recentEvents,
+		"key_artifacts": keyArtifacts,
+		"open_cards":    []map[string]any{},
+		"documents":     documents,
 	}, nil
 }
 
@@ -173,12 +168,12 @@ func buildThreadWorkspacePayload(ctx context.Context, opts handlerOptions, threa
 			"decision_requests":      decisionRequests,
 			"decisions":              decisions,
 			"key_artifacts":          contextBody["key_artifacts"],
-			"open_commitments":       contextBody["open_commitments"],
+			"open_cards":             contextBody["open_cards"],
 			"recommendation_count":   len(recommendations),
 			"decision_request_count": len(decisionRequests),
 			"decision_count":         len(decisions),
 			"artifact_count":         workspaceSliceLen(contextBody["key_artifacts"]),
-			"open_commitment_count":  workspaceSliceLen(contextBody["open_commitments"]),
+			"open_card_count":        workspaceSliceLen(contextBody["open_cards"]),
 		},
 		"board_memberships":           boardMembershipSectionResponse(boardMemberships),
 		"inbox":                       inboxSection,
@@ -262,7 +257,7 @@ func buildThreadWorkspaceCollaborationSummary(contextBody map[string]any) map[st
 		"decision_request_count": len(decisionRequests),
 		"decision_count":         len(decisions),
 		"artifact_count":         workspaceSliceLen(contextBody["key_artifacts"]),
-		"open_commitment_count":  workspaceSliceLen(contextBody["open_commitments"]),
+		"open_card_count":        workspaceSliceLen(contextBody["open_cards"]),
 	}
 }
 

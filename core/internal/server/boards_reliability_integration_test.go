@@ -109,7 +109,7 @@ func TestBoardCreateSucceedsWhenLifecycleEventAppendFails(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Ops Board",
-			"primary_thread_id":"`+primaryThreadID+`"
+			"refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -157,7 +157,7 @@ func TestBoardAddCardSucceedsWhenLifecycleProjectionRefreshFails(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Ops Board",
-			"primary_thread_id":"`+primaryThreadID+`"
+			"refs":["thread:`+primaryThreadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()

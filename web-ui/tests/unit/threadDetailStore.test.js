@@ -3,14 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const coreClientMocks = vi.hoisted(() => ({
   getThreadWorkspace: vi.fn(),
+  getTopicWorkspace: vi.fn(),
   listThreadTimeline: vi.fn(),
+  listTopicTimeline: vi.fn(),
   listArtifacts: vi.fn(),
 }));
 
 vi.mock("../../src/lib/coreClient.js", () => ({
   coreClient: {
     getThreadWorkspace: coreClientMocks.getThreadWorkspace,
+    getTopicWorkspace: coreClientMocks.getTopicWorkspace,
     listThreadTimeline: coreClientMocks.listThreadTimeline,
+    listTopicTimeline: coreClientMocks.listTopicTimeline,
     listArtifacts: coreClientMocks.listArtifacts,
   },
 }));
@@ -43,7 +47,7 @@ describe("threadDetailStore", () => {
       context: {
         recent_events: [{ id: "event-seed", type: "actor_statement" }],
         documents: [],
-        open_commitments: [],
+        open_cards: [],
       },
     });
 
@@ -79,7 +83,7 @@ describe("threadDetailStore", () => {
       context: {
         recent_events: [{ id: "event-1", type: "actor_statement" }],
         documents: [{ id: "doc-1", title: "Doc 1" }],
-        open_commitments: [{ id: "commit-1", status: "open" }],
+        open_cards: [{ id: "card-1", title: "Example" }],
       },
     });
 
@@ -90,7 +94,6 @@ describe("threadDetailStore", () => {
       timelineThreadId: "thread-1",
       timeline: [{ id: "event-full", type: "message_posted" }],
       documents: [{ id: "doc-1", title: "Doc 1" }],
-      commitments: [{ id: "commit-1", status: "open" }],
       snapshotLoading: false,
       snapshotError: "",
       documentsError: "",
@@ -127,7 +130,7 @@ describe("threadDetailStore", () => {
         context: {
           recent_events: [{ id: "event-seed", type: "message_posted" }],
           documents: [],
-          open_commitments: [],
+          open_cards: [],
         },
       })
       .mockReturnValueOnce(pendingWorkspace.promise);
@@ -151,7 +154,7 @@ describe("threadDetailStore", () => {
       context: {
         recent_events: [{ id: "event-stale", type: "message_posted" }],
         documents: [{ id: "doc-1", title: "Doc 1" }],
-        open_commitments: [],
+        open_cards: [],
       },
     });
 
@@ -197,7 +200,7 @@ describe("threadDetailStore", () => {
         context: {
           recent_events: [{ id: "event-a", type: "message_posted" }],
           documents: [],
-          open_commitments: [],
+          open_cards: [],
         },
       })
       .mockResolvedValueOnce({
@@ -205,7 +208,7 @@ describe("threadDetailStore", () => {
         context: {
           recent_events: [{ id: "event-b", type: "message_posted" }],
           documents: [],
-          open_commitments: [],
+          open_cards: [],
         },
       });
 
@@ -242,6 +245,66 @@ describe("threadDetailStore", () => {
     });
   });
 
+  it("topic detail uses topic workspace, timeline, and backing thread for work orders", async () => {
+    const topicId = "topic-99";
+    const threadRow = {
+      id: "thread-backing-99",
+      title: "Backing thread",
+      topic_ref: `topic:${topicId}`,
+      updated_at: "2026-01-01T00:00:00Z",
+      updated_by: "actor-1",
+    };
+    coreClientMocks.getTopicWorkspace.mockResolvedValueOnce({
+      topic: {
+        id: topicId,
+        primary_thread_ref: `thread:${threadRow.id}`,
+        title: "Topic title",
+        summary: "S",
+        type: "other",
+        status: "active",
+        owner_refs: [],
+        document_refs: [],
+        board_refs: [],
+        related_refs: [],
+        created_at: "2026-01-01T00:00:00Z",
+        created_by: "actor-1",
+        updated_at: "2026-01-01T00:00:00Z",
+        updated_by: "actor-1",
+        provenance: { sources: [] },
+      },
+      documents: [{ id: "doc-1", title: "D1" }],
+      boards: [],
+      cards: [],
+      threads: [threadRow],
+      inbox: [],
+      projection_freshness: {},
+      generated_at: "2026-01-01T00:00:00Z",
+    });
+    coreClientMocks.listTopicTimeline.mockResolvedValueOnce({
+      events: [{ id: "evt-t1", type: "message_posted" }],
+    });
+    coreClientMocks.listArtifacts.mockResolvedValue({ artifacts: [] });
+
+    await threadDetailStore.fullRefresh(topicId, { asTopic: true });
+    await threadDetailStore.loadTimeline(topicId);
+
+    expect(coreClientMocks.getTopicWorkspace).toHaveBeenCalledWith(topicId, {});
+    expect(coreClientMocks.getThreadWorkspace).not.toHaveBeenCalled();
+    expect(coreClientMocks.listTopicTimeline).toHaveBeenCalledWith(topicId);
+    expect(coreClientMocks.listThreadTimeline).not.toHaveBeenCalled();
+    expect(coreClientMocks.listArtifacts).toHaveBeenCalledWith({
+      kind: "work_order",
+      thread_id: threadRow.id,
+    });
+    expect(get(threadDetailStore)).toMatchObject({
+      detailAsTopic: true,
+      snapshot: threadRow,
+      documents: [{ id: "doc-1", title: "D1" }],
+      timelineThreadId: topicId,
+      timeline: [{ id: "evt-t1", type: "message_posted" }],
+    });
+  });
+
   it("coalesces queued refresh requests while a refresh is in flight", async () => {
     const firstRefresh = deferred();
 
@@ -251,7 +314,7 @@ describe("threadDetailStore", () => {
         context: {
           recent_events: [],
           documents: [],
-          open_commitments: [],
+          open_cards: [],
         },
       })
       .mockReturnValueOnce(firstRefresh.promise)
@@ -260,7 +323,7 @@ describe("threadDetailStore", () => {
         context: {
           recent_events: [{ id: "event-2", type: "message_posted" }],
           documents: [{ id: "doc-2", title: "Concurrent doc" }],
-          open_commitments: [{ id: "commit-2", status: "blocked" }],
+          open_cards: [{ id: "card-2", title: "Blocked" }],
         },
       });
     coreClientMocks.listThreadTimeline.mockResolvedValue({
@@ -291,7 +354,7 @@ describe("threadDetailStore", () => {
       context: {
         recent_events: [],
         documents: [],
-        open_commitments: [],
+        open_cards: [],
       },
     });
 
@@ -304,7 +367,6 @@ describe("threadDetailStore", () => {
       snapshot: { id: "thread-1", title: "First refresh" },
       timeline: [{ id: "event-2", type: "message_posted" }],
       documents: [],
-      commitments: [],
       workOrders: [{ id: "artifact-2", kind: "work_order" }],
     });
   });

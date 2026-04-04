@@ -12,12 +12,12 @@ describe("thread patch builder", () => {
       title: "Original title",
       status: "active",
       priority: "p1",
-      open_commitments: ["commitment-1"],
+      open_cards: ["card-1"],
     };
     const draft = {
       ...original,
       title: "Updated title",
-      open_commitments: ["commitment-2"],
+      open_cards: ["card-2"],
     };
 
     expect(buildThreadPatch(original, draft)).toEqual({

@@ -25,9 +25,9 @@ const scenarioConfigs = {
       riskRegister: "artifact-risk-register",
       pilotMetrics: "artifact-pilot-metrics",
     },
-    commitmentTitles: {
-      digestFix: "Patch pilot digest cards to include commitment owner and due date",
-      dedupeFix: "Stop duplicate escalation thread creation on commitment updates",
+    cardTitles: {
+      digestFix: "Patch pilot digest cards to include card owner and due date",
+      dedupeFix: "Stop duplicate escalation thread creation on status updates",
       closurePack: "Publish pilot rescue brief and customer closure plan",
     },
     roles: [
@@ -37,7 +37,7 @@ const scenarioConfigs = {
         primaryThreadKey: "feedback",
         relatedThreadKeys: ["main"],
         artifactIds: ["feedbackMatrix", "feedbackQuotes"],
-        commitmentTitles: [],
+        cardTitles: [],
         privateContext: [
           "NorthWave's sponsor will judge Friday readiness mostly on the digest owner/due-date fix.",
           "BriskPay can tolerate staged artifact timeline work if support noise drops immediately.",
@@ -55,7 +55,7 @@ const scenarioConfigs = {
         primaryThreadKey: "delivery",
         relatedThreadKeys: ["main", "feedback"],
         artifactIds: ["riskRegister", "launchChecklist"],
-        commitmentTitles: ["digestFix", "dedupeFix"],
+        cardTitles: ["digestFix", "dedupeFix"],
         privateContext: [
           "The digest field omission is low-risk and should fit Friday.",
           "Duplicate escalation thread creation is moderate risk but can still fit as a narrow pilot-path fix.",
@@ -73,7 +73,7 @@ const scenarioConfigs = {
         primaryThreadKey: "delivery",
         relatedThreadKeys: ["main", "feedback"],
         artifactIds: ["launchChecklist", "pilotMetrics"],
-        commitmentTitles: ["digestFix", "dedupeFix", "closurePack"],
+        cardTitles: ["digestFix", "dedupeFix", "closurePack"],
         privateContext: [
           "There is only one practical Friday launch window. If the rescue brief is not credible by 11:00 local time, the pilot should slip one week.",
           "Your job is sequencing and risk ownership, not product scope definition.",
@@ -91,7 +91,7 @@ const scenarioConfigs = {
         primaryThreadKey: "main",
         relatedThreadKeys: ["feedback", "delivery"],
         artifactIds: ["pilotMetrics", "feedbackMatrix", "launchChecklist"],
-        commitmentTitles: ["closurePack"],
+        cardTitles: ["closurePack"],
         privateContext: [
           "You can approve a limited Friday pilot rescue, but you cannot promise a platform rewrite this week.",
           "Your recommendation should explicitly separate Friday scope from follow-up scope.",
@@ -238,8 +238,8 @@ Read workflow state:
 - List artifacts: \`oar artifacts list --thread-id <thread-id>\`
 - Read artifact metadata: \`oar artifacts get --artifact-id <artifact-id>\`
 - Read artifact content: \`oar artifacts content --artifact-id <artifact-id>\`
-- List commitments for a thread: \`oar commitments list --thread-id <thread-id> --status open\`
-- Read one commitment in full: \`oar commitments get --commitment-id <commitment-id>\`
+- List cards: \`oar cards list\`
+- Read one card: \`oar cards get --card-id <card-id>\`
 - Read a seeded brief document: \`oar docs get --document-id northwave-pilot-rescue-brief\`
 - Stage a document revision update: \`oar docs propose-update --document-id northwave-pilot-rescue-brief --from-file doc-update-template.json\`
 - Apply a staged document update: \`oar docs apply --proposal-id <proposal-id>\`
@@ -306,9 +306,9 @@ async function resolveSharedTargets(baseUrl, config) {
     artifacts[artifactId] = response?.artifact;
   }
 
-  const commitmentsResponse = await apiJSON(baseUrl, "/commitments?status=open");
-  const allCommitments = Array.isArray(commitmentsResponse?.commitments) ? commitmentsResponse.commitments : [];
-  const commitmentsByTitle = Object.fromEntries(allCommitments.map((commitment) => [valueFrom(commitment, "title", "summary"), commitment]));
+  const cardsResponse = await apiJSON(baseUrl, "/cards");
+  const allCards = Array.isArray(cardsResponse?.cards) ? cardsResponse.cards : [];
+  const cardsByTitle = Object.fromEntries(allCards.map((card) => [valueFrom(card, "title", "summary"), card]));
 
   const inboxResponse = await apiJSON(baseUrl, "/inbox");
   const inboxItems = Array.isArray(inboxResponse?.items) ? inboxResponse.items : [];
@@ -322,11 +322,11 @@ async function resolveSharedTargets(baseUrl, config) {
       delivery: deliveryThread,
     },
     artifacts,
-    commitments: {
-      digestFix: commitmentsByTitle[config.commitmentTitles.digestFix] ?? null,
-      dedupeFix: commitmentsByTitle[config.commitmentTitles.dedupeFix] ?? null,
-      closurePack: commitmentsByTitle[config.commitmentTitles.closurePack] ?? null,
-      all: allCommitments,
+    cards: {
+      digestFix: cardsByTitle[config.cardTitles.digestFix] ?? null,
+      dedupeFix: cardsByTitle[config.cardTitles.dedupeFix] ?? null,
+      closurePack: cardsByTitle[config.cardTitles.closurePack] ?? null,
+      all: allCards,
     },
     inboxItems,
     document: {
@@ -340,7 +340,7 @@ function roleTargets(config, shared, role) {
   const primaryThread = shared.threads[role.primaryThreadKey];
   const relatedThreads = role.relatedThreadKeys.map((key) => shared.threads[key]).filter(Boolean);
   const roleArtifacts = role.artifactIds.map((key) => shared.artifacts[config.artifactIds[key]]).filter(Boolean);
-  const roleCommitments = role.commitmentTitles.map((key) => shared.commitments[key]).filter(Boolean);
+  const roleCards = role.cardTitles.map((key) => shared.cards[key]).filter(Boolean);
   const relevantThreadIds = new Set([primaryThread?.id, ...relatedThreads.map((thread) => thread.id)]);
   const relevantInboxItems = shared.inboxItems.filter((item) => relevantThreadIds.has(valueFrom(item, "thread_id", "threadId")));
   return {
@@ -348,7 +348,7 @@ function roleTargets(config, shared, role) {
     primaryThread,
     relatedThreads,
     artifacts: roleArtifacts,
-    commitments: roleCommitments,
+    cards: roleCards,
     inboxItems: relevantInboxItems,
     document: shared.document,
   };
@@ -373,8 +373,8 @@ function eventTemplate(role, targets) {
   for (const artifact of targets.artifacts) {
     refs.push(`artifact:${artifact.id}`);
   }
-  for (const commitment of targets.commitments) {
-    refs.push(`commitment:${commitment.id}`);
+  for (const card of targets.cards) {
+    refs.push(`card:${card.id}`);
   }
   const uniqueRefs = [...new Set(refs.filter(Boolean))];
   return `{
@@ -386,7 +386,7 @@ function eventTemplate(role, targets) {
     "payload": {
       "recommendation": "Replace this with a concrete recommendation from your role.",
       "evidence": [
-        "Replace with specific facts from the threads, artifacts, and commitments you inspected."
+        "Replace with specific facts from the threads, artifacts, and cards you inspected."
       ],
       "follow_ups": [
         "Replace with explicit next steps and owners."
@@ -413,7 +413,7 @@ function docUpdateTemplate(targets) {
     "artifact:artifact-launch-checklist"
   ],
   "content_type": "text",
-  "content": "# NorthWave Pilot Rescue Brief\n\nStatus: replace with recommended status\n\nFriday scope:\n- replace with scoped fixes\n\nDeferred follow-up:\n- replace with follow-up work\n\nLaunch recommendation:\n- replace with go/no-go call and rationale\n\nCustomer closure plan:\n- replace with exact commitments to NorthWave and BriskPay\n"
+  "content": "# NorthWave Pilot Rescue Brief\n\nStatus: replace with recommended status\n\nFriday scope:\n- replace with scoped fixes\n\nDeferred follow-up:\n- replace with follow-up work\n\nLaunch recommendation:\n- replace with go/no-go call and rationale\n\nCustomer closure plan:\n- replace with exact deliverables to NorthWave and BriskPay\n"
 }
 `;
 }
@@ -452,11 +452,11 @@ function targetsGuide(role, targets) {
     }
   }
 
-  if (targets.commitments.length > 0) {
-    lines.push("", "Commitments in scope:");
-    for (const commitment of targets.commitments) {
-      lines.push(`- ${commitment.id} :: ${valueFrom(commitment, "title", "summary")}`);
-      lines.push(`  detail: oar commitments get --commitment-id ${commitment.id}`);
+  if (targets.cards.length > 0) {
+    lines.push("", "Cards in scope:");
+    for (const card of targets.cards) {
+      lines.push(`- ${card.id} :: ${valueFrom(card, "title", "summary")}`);
+      lines.push(`  detail: oar cards get --card-id ${card.id}`);
     }
   }
 

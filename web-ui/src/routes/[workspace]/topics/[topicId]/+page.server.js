@@ -9,5 +9,7 @@ export async function load(event) {
   return {
     workspaceId:
       resolved.workspace?.workspaceId ?? resolved.workspace?.id ?? "",
+    detailScope: "topic",
+    topicId: event.params.topicId,
   };
 }

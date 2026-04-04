@@ -12,7 +12,6 @@
   import ThreadOverviewTab from "$lib/components/thread-detail/ThreadOverviewTab.svelte";
   import ThreadBoardsPanel from "$lib/components/thread-detail/ThreadBoardsPanel.svelte";
   import ThreadDocumentsPanel from "$lib/components/thread-detail/ThreadDocumentsPanel.svelte";
-  import ThreadCommitmentsPanel from "$lib/components/thread-detail/ThreadCommitmentsPanel.svelte";
   import ThreadMessagesTab from "$lib/components/thread-detail/ThreadMessagesTab.svelte";
   import ThreadWorkTab from "$lib/components/thread-detail/ThreadWorkTab.svelte";
   import ThreadTimelineTab from "$lib/components/thread-detail/ThreadTimelineTab.svelte";
@@ -20,7 +19,13 @@
   const THREAD_DETAIL_TABS = ["overview", "work", "messages", "timeline"];
 
   let { data } = $props();
-  let threadId = $derived($page.params.topicId || $page.params.threadId);
+  /** Canonical id for the URL (topic id on /topics/…, else thread id when that route is used). */
+  let threadId = $derived(
+    data?.topicId || $page.params.topicId || $page.params.threadId,
+  );
+  let detailAsTopic = $derived(
+    data?.detailScope === "topic" || Boolean($page.params.topicId),
+  );
 
   let snapshot = $derived($threadDetailStore.snapshot);
   let snapshotLoading = $derived($threadDetailStore.snapshotLoading);
@@ -126,12 +131,19 @@
   }
 
   onMount(async () => {
-    await threadDetailStore.fullRefresh(threadId);
-    const latestKnownEventId = getLatestKnownEventId(
-      get(threadDetailStore).timeline,
-    );
+    const routeId =
+      data?.topicId || get(page).params.topicId || get(page).params.threadId;
+    const asTopic =
+      data?.detailScope === "topic" || Boolean(get(page).params.topicId);
+    await threadDetailStore.fullRefresh(routeId, { asTopic });
+    if (get(threadDetailStore).detailAsTopic) {
+      await threadDetailStore.loadTimeline(routeId);
+    }
+    const state = get(threadDetailStore);
+    const streamThreadId = String(state.snapshot?.id ?? "").trim() || routeId;
+    const latestKnownEventId = getLatestKnownEventId(state.timeline);
     liveCoordination.stopThreadStream = startThreadEventStream(
-      threadId,
+      streamThreadId,
       latestKnownEventId,
     );
     liveCoordination.reconcileTimer = setInterval(
@@ -239,6 +251,9 @@
 
     const connect = async () => {
       if (stopped) return;
+      if (!lastEventId) {
+        lastEventId = getLatestKnownEventId(get(threadDetailStore).timeline);
+      }
       controller = new AbortController();
       try {
         await coreClient.streamThreadEvents({
@@ -281,7 +296,9 @@
 
   $effect(() => {
     if ((activeTab === "messages" || activeTab === "timeline") && threadId) {
-      void threadDetailStore.loadTimeline(threadId);
+      void threadDetailStore.loadTimeline(threadId, {
+        asTopic: detailAsTopic,
+      });
     }
   });
 
@@ -338,7 +355,6 @@
       />
       <ThreadBoardsPanel {threadId} />
       <ThreadDocumentsPanel {threadId} />
-      <ThreadCommitmentsPanel {threadId} />
     </div>
   {/if}
 

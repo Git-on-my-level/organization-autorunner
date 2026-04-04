@@ -47,6 +47,9 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `cards get` (command): Get card
 - `cards patch` (command): Patch card
 - `cards move` (command): Move card
+- `cards archive` (command): Archive card
+- `cards purge` (command): Purge archived card
+- `cards restore` (command): Restore archived card
 - `artifacts list` (command): List artifacts
 - `artifacts get` (command): Get artifact metadata
 - `artifacts create` (command): Create artifact
@@ -72,7 +75,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `threads inspect` (local-helper): Canonical thread coordination read path: compose one view from read-only thread data and related `inbox list` items.
 - `threads workspace` (local-helper): Single holistic thread coordination read: combine context, inbox, recommendation review, and related-thread signals in one command.
 - `threads recommendations` (local-helper): Compose a recommendation-oriented review of one thread with related follow-up context.
-- `boards workspace` (local-helper): Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.
+- `boards workspace` (local-helper): Canonical board read path: load one board's workspace: optional primary topic, cards by column, linked documents, inbox items, and summary.
 - `boards cards list` (local-helper): List all cards on a board in canonical column order without hydrating thread details.
 - `docs propose-update` (local-helper): Stage a document update proposal locally and show the content diff before applying it.
 - `docs content` (local-helper): Show the current document content together with authoritative head revision metadata.
@@ -184,7 +187,7 @@ boards
 inbox
 - Use when: You need the derived queue of what currently needs attention from the active actor's perspective.
 - Not for: Durable automation contracts or historical truth.
-- Examples: pending decisions, exceptions, commitment risk
+- Examples: pending decisions, exceptions, stalled work
 - Read next: oar inbox list ; oar inbox get ; oar inbox ack
 
 draft
@@ -1148,10 +1151,13 @@ Manage board-scoped cards
 Generated Help: cards
 
 Commands:
+  cards archive            Archive card
   cards get                Get card
   cards list               List cards
   cards move               Move card
   cards patch              Patch card
+  cards purge              Purge archived card
+  cards restore            Restore archived card
 
 Global flags:
   Global flags can appear before or after the command path.
@@ -1443,8 +1449,8 @@ Generated Help: threads context
 - HTTP: `GET /threads/{thread_id}/context`
 - Stability: `beta`
 - Input mode: `none`
-- Why: Load a compact coordination bundle (thread, recent events, key artifacts, commitments, documents) for inspection and triage.
-- Output: Returns `{ thread, recent_events, key_artifacts, open_commitments, documents }` plus forward-compatible fields.
+- Why: Load a compact coordination bundle (thread, recent events, key artifacts, cards, documents) for inspection and triage.
+- Output: Returns `{ thread, recent_events, key_artifacts, open_cards, documents }` plus forward-compatible fields.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`
 - Concepts: `threads`, `inspection`
 - Adjacent commands: `threads inspect`, `threads list`, `threads timeline`, `threads workspace`
@@ -1784,6 +1790,98 @@ Inputs:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json cards move ... ; oar cards move ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `cards archive`
+
+Archive card
+
+```text
+Generated Help: cards archive
+
+- Command ID: `cards.archive`
+- CLI path: `cards archive`
+- HTTP: `POST /cards/{card_id}/archive`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Soft-delete a first-class card by setting archived_at (board concurrency via if_board_updated_at).
+- Output: Returns `{ board, card }`.
+- Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`, `conflict`
+- Concepts: `cards`, `write`
+- Adjacent commands: `cards get`, `cards list`, `cards move`, `cards patch`, `cards purge`, `cards restore`
+
+Inputs:
+  Required:
+  - path `card_id`
+  Optional:
+  - body `actor_id` (string)
+  - body `if_board_updated_at` (datetime): Optimistic concurrency token. Copy `board.updated_at` from `oar boards get --board-id <board-id>`, `oar boards workspace --board-id <board-id>`, or the latest board mutation response.
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json cards archive ... ; oar cards archive ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `cards purge`
+
+Purge archived card
+
+```text
+Generated Help: cards purge
+
+- Command ID: `cards.purge`
+- CLI path: `cards purge`
+- HTTP: `POST /cards/{card_id}/purge`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Permanently delete an archived card (human-gated; requires archived_at).
+- Output: Returns `{ purged, card_id }`.
+- Error codes: `auth_required`, `human_only`, `invalid_token`, `not_found`, `conflict`
+- Concepts: `cards`, `write`
+- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards patch`, `cards restore`
+
+Inputs:
+  Required:
+  - path `card_id`
+  Optional:
+  - body `actor_id` (string)
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json cards purge ... ; oar cards purge ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `cards restore`
+
+Restore archived card
+
+```text
+Generated Help: cards restore
+
+- Command ID: `cards.restore`
+- CLI path: `cards restore`
+- HTTP: `POST /cards/{card_id}/restore`
+- Stability: `beta`
+- Input mode: `json-body`
+- Why: Clear archived_at on a soft-deleted card so it reappears on boards.
+- Output: Returns `{ board, card }`.
+- Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`, `conflict`
+- Concepts: `cards`, `write`
+- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards patch`, `cards purge`
+
+Inputs:
+  Required:
+  - path `card_id`
+  Optional:
+  - body `actor_id` (string)
+  - body `if_board_updated_at` (datetime): Optimistic concurrency token. Copy `board.updated_at` from `oar boards get --board-id <board-id>`, `oar boards workspace --board-id <board-id>`, or the latest board mutation response.
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json cards restore ... ; oar cards restore ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
@@ -2607,15 +2705,15 @@ Global flags:
 
 ## `boards workspace`
 
-Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.
+Canonical board read path: load one board's workspace: optional primary topic, cards by column, linked documents, inbox items, and summary.
 
 ```text
 Local Help: boards workspace
 
 - Kind: `local helper`
-- Summary: Canonical board read path: load one board's full state including primary thread, primary document, and all cards grouped by column.
-- Composition: Resolves a board by id, fetches the canonical workspace view with hydrated thread summaries, and renders cards grouped by canonical column order (backlog, ready, in_progress, blocked, review, done).
-- JSON body: `board_id`, `board`, `primary_thread`, `primary_document`, `cards`, `board_summary`, `generated_at`
+- Summary: Canonical board read path: load one board's workspace: optional primary topic, cards by column, linked documents, inbox items, and summary.
+- Composition: Resolves a board by id, fetches the projection workspace with per-card thread backing and renders cards grouped by canonical column order (backlog, ready, in_progress, blocked, review, done).
+- JSON body: `board_id`, `board`, `primary_topic`, `cards`, `documents`, `inbox`, `board_summary`, `projection_freshness`, `board_summary_freshness`, `warnings`, `section_kinds`, `generated_at`
 - Examples:
   - `oar boards workspace --board-id <board-id>`
   - `oar boards workspace --board-id board_product_launch`

@@ -69,15 +69,6 @@ var (
 		listField:      "cards",
 		notFoundHints:  []string{"card not found"},
 	}
-	commitmentIDLookupSpec = resourceIDLookupSpec{
-		idLabel:        "commitment id",
-		resource:       "commitment",
-		resourcePlural: "commitments",
-		listCommand:    "commitments list",
-		listCommandID:  "commitments.list",
-		listField:      "commitments",
-		notFoundHints:  []string{"commitment not found"},
-	}
 	artifactIDLookupSpec = resourceIDLookupSpec{
 		idLabel:        "artifact id",
 		resource:       "artifact",
@@ -629,82 +620,6 @@ func (a *App) runThreadsCommand(ctx context.Context, args []string, cfg config.R
 		return nil, "threads purge", threadsMutationUnsupportedErr("purge")
 	default:
 		return nil, "threads", threadsSubcommandSpec.unknownError(args[0])
-	}
-}
-
-func (a *App) runCommitmentsCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, string, error) {
-	if len(args) == 0 {
-		return nil, "commitments", commitmentsSubcommandSpec.requiredError()
-	}
-	sub := commitmentsSubcommandSpec.normalize(args[0])
-	switch sub {
-	case "list":
-		fs := newSilentFlagSet("commitments list")
-		var threadIDFlag, ownerFlag, statusFlag, dueBeforeFlag, dueAfterFlag trackedString
-		fs.Var(&threadIDFlag, "thread-id", "Filter by thread id")
-		fs.Var(&ownerFlag, "owner", "Filter by owner")
-		fs.Var(&statusFlag, "status", "Filter by status")
-		fs.Var(&dueBeforeFlag, "due-before", "Filter by due timestamp upper bound")
-		fs.Var(&dueAfterFlag, "due-after", "Filter by due timestamp lower bound")
-		if err := fs.Parse(args[1:]); err != nil {
-			return nil, "commitments list", errnorm.Usage("invalid_flags", err.Error())
-		}
-		if len(fs.Args()) > 0 {
-			return nil, "commitments list", errnorm.Usage("invalid_args", "unexpected positional arguments for `oar commitments list`")
-		}
-		resolvedThreadID := strings.TrimSpace(threadIDFlag.value)
-		if resolvedThreadID != "" {
-			resolved, err := a.resolveThreadIDFilters(ctx, cfg, []string{resolvedThreadID})
-			if err != nil {
-				return nil, "commitments list", err
-			}
-			if len(resolved) > 0 {
-				resolvedThreadID = resolved[0]
-			}
-		}
-		query := make([]queryParam, 0, 5)
-		addSingleQuery(&query, "thread_id", resolvedThreadID)
-		addSingleQuery(&query, "owner", ownerFlag.value)
-		addSingleQuery(&query, "status", statusFlag.value)
-		addSingleQuery(&query, "due_before", dueBeforeFlag.value)
-		addSingleQuery(&query, "due_after", dueAfterFlag.value)
-		result, err := a.invokeTypedJSON(ctx, cfg, "commitments list", "commitments.list", nil, query, nil)
-		return result, "commitments list", err
-	case "get":
-		id, err := parseIDArg(args[1:], "commitment-id", "commitment id")
-		if err != nil {
-			return nil, "commitments get", err
-		}
-		result, callErr := a.invokeTypedJSONWithIDResolution(
-			ctx,
-			cfg,
-			"commitments get",
-			"commitments.get",
-			"commitment_id",
-			id,
-			commitmentIDLookupSpec,
-			nil,
-			nil,
-		)
-		return result, "commitments get", callErr
-	case "create":
-		body, err := a.parseJSONBodyInput(args[1:], "commitments create")
-		if err != nil {
-			return nil, "commitments create", err
-		}
-		result, callErr := a.invokeTypedJSON(ctx, cfg, "commitments create", "commitments.create", nil, nil, body)
-		return result, "commitments create", callErr
-	case "patch":
-		result, callErr := a.runCommitmentsPatchCommand(ctx, args[1:], cfg)
-		return result, "commitments patch", callErr
-	case "propose-patch":
-		result, callErr := a.runCommitmentsProposePatchCommand(ctx, args[1:], cfg)
-		return result, "commitments propose-patch", callErr
-	case "apply":
-		result, callErr := a.runCommitmentsApplyCommand(ctx, args[1:], cfg)
-		return result, "commitments apply", callErr
-	default:
-		return nil, "commitments", commitmentsSubcommandSpec.unknownError(args[0])
 	}
 }
 
@@ -2602,30 +2517,13 @@ func (a *App) runDocsContentCommand(ctx context.Context, args []string, cfg conf
 	return result, nil
 }
 
-func (a *App) runCommitmentsPatchCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, error) {
-	id, body, err := a.parseCommitmentPatchInput(args, "commitments patch")
-	if err != nil {
-		return nil, err
-	}
-	return a.invokeTypedJSONWithIDResolution(
-		ctx,
-		cfg,
-		"commitments patch",
-		"commitments.patch",
-		"commitment_id",
-		id,
-		commitmentIDLookupSpec,
-		nil,
-		body,
-	)
-}
-
 func (a *App) runDocsUpdateCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, error) {
 	id, body, err := a.parseDocsUpdateInput(args, "docs update", cfg)
 	if err != nil {
 		return nil, err
 	}
-	return a.invokeTypedJSON(ctx, cfg, "docs update", "docs.revisions.create", map[string]string{"document_id": id}, nil, body)
+	wireBody := normalizeDocsRevisionRequestForContract(body)
+	return a.invokeTypedJSON(ctx, cfg, "docs update", "docs.revisions.create", map[string]string{"document_id": id}, nil, wireBody)
 }
 
 func (a *App) runEventsListCommand(ctx context.Context, args []string, cfg config.Resolved) (*commandResult, error) {
@@ -4648,8 +4546,6 @@ func enrichListBodyWithShortIDs(commandID string, body any) (any, bool) {
 	switch strings.TrimSpace(commandID) {
 	case "threads.list":
 		return body, addShortIDToListField(typedBody, "threads")
-	case "commitments.list":
-		return body, addShortIDToListField(typedBody, "commitments")
 	case "artifacts.list":
 		return body, addShortIDToListField(typedBody, "artifacts")
 	case "boards.list":
@@ -4810,14 +4706,6 @@ func applyInboxIdentifiers(item map[string]any, alias string) bool {
 		sourceShortID := shortID(sourceEventID)
 		if current := strings.TrimSpace(anyString(item["source_event_short_id"])); current != sourceShortID {
 			item["source_event_short_id"] = sourceShortID
-			changed = true
-		}
-	}
-	commitmentID := strings.TrimSpace(anyString(item["commitment_id"]))
-	if commitmentID != "" {
-		commitmentShortID := shortID(commitmentID)
-		if current := strings.TrimSpace(anyString(item["commitment_short_id"])); current != commitmentShortID {
-			item["commitment_short_id"] = commitmentShortID
 			changed = true
 		}
 	}
@@ -5355,13 +5243,13 @@ func addThreadContextCollaborationSummary(body map[string]any) bool {
 		"decision_requests": filterEventsByType(recentEvents, []string{"decision_needed"}),
 		"decisions":         filterEventsByType(recentEvents, []string{"decision_made"}),
 		"key_artifacts":     asSlice(body["key_artifacts"]),
-		"open_commitments":  asSlice(body["open_commitments"]),
+		"open_cards":        asSlice(body["open_cards"]),
 	}
 	collaboration["recommendation_count"] = len(asSlice(collaboration["recommendations"]))
 	collaboration["decision_request_count"] = len(asSlice(collaboration["decision_requests"]))
 	collaboration["decision_count"] = len(asSlice(collaboration["decisions"]))
 	collaboration["artifact_count"] = len(asSlice(collaboration["key_artifacts"]))
-	collaboration["open_commitment_count"] = len(asSlice(collaboration["open_commitments"]))
+	collaboration["open_card_count"] = len(asSlice(collaboration["open_cards"]))
 
 	body["collaboration_summary"] = collaboration
 	return true
@@ -5651,6 +5539,10 @@ func validateDocsUpdateBody(body any, commandName string) error {
 		return errnorm.Usage("invalid_request", fmt.Sprintf("JSON body for `oar %s` must be an object", commandName))
 	}
 
+	if rev, ok := payload["revision"].(map[string]any); ok && len(rev) > 0 {
+		return validateContractDocsRevisionCreateBody(payload, commandName)
+	}
+
 	issues := make([]string, 0, 8)
 	rawContent, hasContent := payload["content"]
 	if !hasContent || rawContent == nil {
@@ -5680,6 +5572,87 @@ func validateDocsUpdateBody(body any, commandName string) error {
 		return errnorm.Usage("invalid_request", fmt.Sprintf("docs.revisions.create payload failed local validation: %s", strings.Join(issues, "; ")))
 	}
 	return nil
+}
+
+func validateContractDocsRevisionCreateBody(payload map[string]any, commandName string) error {
+	issues := make([]string, 0, 8)
+	rev, ok := payload["revision"].(map[string]any)
+	if !ok || len(rev) == 0 {
+		issues = append(issues, "revision must be a non-empty object")
+	} else {
+		if strings.TrimSpace(anyString(rev["body_markdown"])) == "" {
+			issues = append(issues, "revision.body_markdown is required")
+		}
+		provenance, ok := rev["provenance"].(map[string]any)
+		if !ok || provenance == nil {
+			issues = append(issues, "revision.provenance is required")
+		} else {
+			validateProvenance(provenance, "revision.provenance", &issues)
+		}
+		if _, has := rev["refs"]; !has {
+			issues = append(issues, "revision.refs is required")
+		} else if _, ok := asStringList(rev["refs"]); !ok {
+			issues = append(issues, "revision.refs must be a list of strings")
+		} else {
+			validateTypedRefs(stringList(rev["refs"]), "revision.refs", &issues)
+		}
+	}
+	appendDocsCommonValidationIssues(payload, &issues)
+	if len(issues) > 0 {
+		return errnorm.Usage("invalid_request", fmt.Sprintf("docs.revisions.create payload failed local validation: %s", strings.Join(issues, "; ")))
+	}
+	return nil
+}
+
+func normalizeDocsRevisionRequestForContract(body map[string]any) map[string]any {
+	if body == nil {
+		return body
+	}
+	if rev, ok := body["revision"].(map[string]any); ok && len(rev) > 0 {
+		return body
+	}
+	contentType := strings.TrimSpace(anyString(body["content_type"]))
+	if contentType != "text" {
+		return body
+	}
+	baseRevision := strings.TrimSpace(anyString(body["if_base_revision"]))
+	if baseRevision == "" {
+		return body
+	}
+	content := body["content"]
+	bodyMD, _ := content.(string)
+	if strings.TrimSpace(bodyMD) == "" && content != nil {
+		bodyMD = anyString(content)
+	}
+	provenance, _ := body["provenance"].(map[string]any)
+	if provenance == nil {
+		provenance = map[string]any{"sources": []any{}}
+	}
+	refs := body["refs"]
+	if refs == nil {
+		refs = []any{}
+	}
+	rev := map[string]any{
+		"body_markdown": strings.TrimSpace(bodyMD),
+		"provenance":    provenance,
+		"refs":          refs,
+	}
+	if doc, ok := body["document"].(map[string]any); ok {
+		if title := strings.TrimSpace(anyString(doc["title"])); title != "" {
+			rev["summary"] = title
+		}
+	}
+	out := map[string]any{
+		"revision":         rev,
+		"if_base_revision": baseRevision,
+	}
+	if id := strings.TrimSpace(anyString(body["actor_id"])); id != "" {
+		out["actor_id"] = id
+	}
+	if raw := strings.TrimSpace(anyString(body["if_document_updated_at"])); raw != "" {
+		out["if_document_updated_at"] = raw
+	}
+	return out
 }
 
 func appendDocsCommonValidationIssues(payload map[string]any, issues *[]string) {

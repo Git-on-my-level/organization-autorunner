@@ -57,7 +57,7 @@ func emitStaleThreadExceptions(ctx context.Context, opts handlerOptions, now tim
 		_, err := opts.primitiveStore.AppendEvent(ctx, actor, map[string]any{
 			"type":      "exception_raised",
 			"thread_id": threadID,
-			"refs":      []string{"snapshot:" + threadID},
+			"refs":      []string{"thread:" + threadID},
 			"summary":   "thread is stale",
 			"payload": map[string]any{
 				"subtype": "stale_topic",
@@ -145,16 +145,14 @@ func isMeaningfulThreadActivityEvent(event map[string]any) bool {
 		"document_created",
 		"document_updated",
 		"document_tombstoned",
-		"document_restored",
-		"commitment_created",
-		"commitment_status_changed":
+		"document_restored":
 		return true
 	case "inbox_item_acknowledged", "exception_raised":
 		return false
 	case "snapshot_updated":
 		payload, _ := event["payload"].(map[string]any)
 		changedFields, err := extractStringSlice(payload["changed_fields"])
-		if err == nil && len(changedFields) == 1 && strings.TrimSpace(changedFields[0]) == "open_commitments" {
+		if err == nil && len(changedFields) == 1 && strings.TrimSpace(changedFields[0]) == "open_cards" {
 			return false
 		}
 		return strings.TrimSpace(anyString(event["summary"])) != "thread snapshot created"

@@ -60,24 +60,21 @@ func TestThreadEventHandoffScenario(t *testing.T) {
 	h.registerAgent(t, "coordinator", "coordinator."+runID)
 	h.registerAgent(t, "worker", "worker."+runID)
 
-	thread := h.runCLIExpectOK(t, "coordinator", map[string]any{
-		"thread": map[string]any{
-			"title":           "Harness Incident " + runID,
-			"type":            "incident",
-			"status":          "active",
-			"priority":        "p2",
-			"tags":            []string{"harness", "thread-handoff"},
-			"cadence":         "reactive",
-			"current_summary": "Thread created by CLI integration coverage.",
-			"next_actions":    []string{"Record decision-needed event", "Worker acknowledges state"},
-			"key_artifacts":   []string{},
-			"provenance": map[string]any{
-				"sources": []string{"inferred"},
-			},
+	topic := h.runCLIExpectOK(t, "coordinator", map[string]any{
+		"topic": map[string]any{
+			"title":          "Harness Incident " + runID,
+			"type":           "incident",
+			"status":         "active",
+			"summary":        "Topic created by CLI integration coverage.",
+			"owner_refs":     []any{},
+			"document_refs":  []any{},
+			"board_refs":     []any{},
+			"related_refs":   []any{},
+			"provenance":     map[string]any{"sources": []any{"inferred"}},
 		},
-	}, "threads", "create")
+	}, "topics", "create")
 
-	threadID := mustStringPath(t, thread.Payload, "data.body.thread.thread_id")
+	threadID := mustStringPath(t, topic.Payload, "data.body.topic.thread_id")
 
 	h.runCLIExpectOK(t, "coordinator", map[string]any{
 		"event": map[string]any{
@@ -137,23 +134,21 @@ func TestDocumentLifecycleConflictScenario(t *testing.T) {
 	h.registerAgent(t, "worker", "worker."+runID)
 	h.registerAgent(t, "reviewer", "reviewer."+runID)
 
-	thread := h.runCLIExpectOK(t, "coordinator", map[string]any{
-		"thread": map[string]any{
-			"title":           "Harness Docs Lifecycle " + runID,
-			"type":            "process",
-			"status":          "active",
-			"priority":        "p2",
-			"tags":            []string{"harness", "docs", "review"},
-			"cadence":         "reactive",
-			"current_summary": "Coordinator started docs lifecycle integration run " + runID + ".",
-			"next_actions":    []string{"Worker updates draft document", "Reviewer resolves concurrency-safe review"},
-			"key_artifacts":   []string{},
-			"provenance": map[string]any{
-				"sources": []string{"inferred"},
-			},
+	topic := h.runCLIExpectOK(t, "coordinator", map[string]any{
+		"topic": map[string]any{
+			"title":          "Harness Docs Lifecycle " + runID,
+			"type":           "incident",
+			"status":         "active",
+			"summary":        "Coordinator started docs lifecycle integration run " + runID + ".",
+			"owner_refs":     []any{},
+			"document_refs":  []any{},
+			"board_refs":     []any{},
+			"related_refs":   []any{},
+			"provenance":     map[string]any{"sources": []any{"inferred"}},
 		},
-	}, "threads", "create")
-	threadID := mustStringPath(t, thread.Payload, "data.body.thread.thread_id")
+	}, "topics", "create")
+	threadID := mustStringPath(t, topic.Payload, "data.body.topic.thread_id")
+	topicID := mustStringPath(t, topic.Payload, "data.body.topic.id")
 
 	doc := h.runCLIExpectOK(t, "coordinator", map[string]any{
 		"document": map[string]any{
@@ -189,13 +184,9 @@ func TestDocumentLifecycleConflictScenario(t *testing.T) {
 
 	h.runCLIExpectOK(t, "coordinator", map[string]any{
 		"patch": map[string]any{
-			"current_summary": "Worker owns draft " + documentID + " revisioning for run " + runID + ".",
-			"next_actions": []string{
-				"Worker drafts updated revision",
-				"Reviewer validates and records review outcome",
-			},
+			"summary": "Worker owns draft " + documentID + " revisioning for run " + runID + ". Next: worker drafts updated revision; reviewer validates and records review outcome.",
 		},
-	}, "threads", "patch", "--thread-id", threadID)
+	}, "topics", "patch", "--topic-id", topicID)
 
 	h.runCLIExpectOK(t, "worker", nil, "threads", "context", "--thread-id", threadID)
 	h.runCLIExpectOK(t, "worker", nil, "events", "get", "--event-id", decisionEventID)
@@ -293,10 +284,9 @@ func TestDocumentLifecycleConflictScenario(t *testing.T) {
 
 	h.runCLIExpectOK(t, "reviewer", map[string]any{
 		"patch": map[string]any{
-			"current_summary": "Reviewer reviewed run " + runID + " and recorded outcome event.",
-			"next_actions":    []string{"Coordinator closes thread"},
+			"summary": "Reviewer reviewed run " + runID + " and recorded outcome event. Coordinator may close the thread.",
 		},
-	}, "threads", "patch", "--thread-id", threadID)
+	}, "topics", "patch", "--topic-id", topicID)
 
 	coordThread := h.runCLIExpectOK(t, "coordinator", nil, "threads", "get", "--thread-id", threadID)
 	if !strings.Contains(coordThread.Stdout, "Harness Docs Lifecycle") || !strings.Contains(coordThread.Stdout, runID) {
@@ -346,23 +336,20 @@ func TestProvenanceWalkScenario(t *testing.T) {
 	}, "artifacts", "create")
 	artifactID := mustStringPath(t, artifact.Payload, "data.body.artifact.id")
 
-	thread := h.runCLIExpectOK(t, "investigator", map[string]any{
-		"thread": map[string]any{
-			"title":           "Provenance Walk Harness " + runID,
-			"type":            "incident",
-			"status":          "active",
-			"priority":        "p2",
-			"tags":            []string{"harness", "provenance"},
-			"cadence":         "reactive",
-			"current_summary": "Validate event -> snapshot -> artifact traversal.",
-			"next_actions":    []string{"Create event referencing snapshot"},
-			"key_artifacts":   []string{"artifact:" + artifactID},
-			"provenance": map[string]any{
-				"sources": []string{"artifact:" + artifactID},
-			},
+	topic := h.runCLIExpectOK(t, "investigator", map[string]any{
+		"topic": map[string]any{
+			"title":          "Provenance Walk Harness " + runID,
+			"type":           "incident",
+			"status":         "active",
+			"summary":        "Validate event -> snapshot -> artifact traversal. Create event referencing snapshot.",
+			"owner_refs":     []any{},
+			"document_refs":  []any{},
+			"board_refs":     []any{},
+			"related_refs":   []any{"artifact:" + artifactID},
+			"provenance":     map[string]any{"sources": []any{"artifact:" + artifactID}},
 		},
-	}, "threads", "create")
-	threadID := mustStringPath(t, thread.Payload, "data.body.thread.thread_id")
+	}, "topics", "create")
+	threadID := mustStringPath(t, topic.Payload, "data.body.topic.thread_id")
 
 	event := h.runCLIExpectOK(t, "investigator", map[string]any{
 		"event": map[string]any{

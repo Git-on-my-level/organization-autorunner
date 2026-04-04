@@ -688,16 +688,22 @@ func validateTopicWriteInput(contract *schema.Contract, topic map[string]any, cr
 		}
 	}
 
-	if raw, exists := topic["primary_thread_ref"]; exists && raw != nil {
+	if raw, exists := topic["thread_ref"]; exists && raw != nil {
 		ref, ok := raw.(string)
 		if !ok || strings.TrimSpace(ref) == "" {
-			return fmt.Errorf("topic.primary_thread_ref must be a typed ref string")
+			return fmt.Errorf("topic.thread_ref must be a typed ref string")
 		}
 		if err := schema.ValidateTypedRef(contract, strings.TrimSpace(ref)); err != nil {
-			return fmt.Errorf("topic.primary_thread_ref: %w", err)
+			return fmt.Errorf("topic.thread_ref: %w", err)
 		}
 		if !strings.HasPrefix(strings.TrimSpace(ref), "thread:") {
-			return fmt.Errorf("topic.primary_thread_ref must use the thread: prefix")
+			return fmt.Errorf("topic.thread_ref must use the thread: prefix")
+		}
+	}
+	if raw, exists := topic["thread_id"]; exists && raw != nil {
+		tid := strings.TrimSpace(anyString(raw))
+		if tid == "" {
+			return fmt.Errorf("topic.thread_id must be a non-empty string")
 		}
 	}
 
@@ -718,11 +724,11 @@ func topicPrimaryThreadID(topic map[string]any) string {
 	if topic == nil {
 		return ""
 	}
-	if ref := strings.TrimSpace(anyString(topic["primary_thread_ref"])); strings.HasPrefix(ref, "thread:") {
-		return strings.TrimSpace(strings.TrimPrefix(ref, "thread:"))
-	}
-	if id := strings.TrimSpace(anyString(topic["primary_thread_id"])); id != "" {
+	if id := strings.TrimSpace(anyString(topic["thread_id"])); id != "" {
 		return id
+	}
+	if ref := strings.TrimSpace(anyString(topic["thread_ref"])); strings.HasPrefix(ref, "thread:") {
+		return strings.TrimSpace(strings.TrimPrefix(ref, "thread:"))
 	}
 	return ""
 }

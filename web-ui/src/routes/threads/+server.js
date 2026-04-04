@@ -42,11 +42,11 @@ export async function POST({ request, url }) {
     );
   }
 
-  if (body.thread?.open_commitments !== undefined) {
+  if (body.thread?.open_cards !== undefined) {
     return json(
       {
         error:
-          "open_commitments cannot be set on thread create; manage commitments via commitments API.",
+          "open_cards is core-maintained and cannot be set on thread create.",
       },
       { status: 400 },
     );

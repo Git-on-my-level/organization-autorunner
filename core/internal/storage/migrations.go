@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 type migration struct {
 	Version    int
 	Statements []string
+	// AfterApply runs in the same transaction after Statements (optional).
+	AfterApply func(ctx context.Context, tx *sql.Tx) error
 }
 
 var migrations = []migration{
@@ -71,37 +73,12 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_threads_archived_at ON threads (archived_at);`,
 			`CREATE INDEX IF NOT EXISTS idx_threads_tombstoned_at ON threads (tombstoned_at);`,
 
-			`CREATE TABLE IF NOT EXISTS commitments (
-				id TEXT PRIMARY KEY,
-				kind TEXT NOT NULL DEFAULT 'commitment',
-				thread_id TEXT,
-				updated_at TEXT NOT NULL,
-				updated_by TEXT NOT NULL,
-				body_json TEXT NOT NULL,
-				provenance_json TEXT NOT NULL DEFAULT '{}',
-				filter_status TEXT,
-				filter_priority TEXT,
-				filter_owner TEXT,
-				filter_due_at TEXT,
-				filter_cadence TEXT,
-				filter_cadence_preset TEXT,
-				filter_tags_json TEXT NOT NULL DEFAULT '[]',
-				archived_at TEXT,
-				archived_by TEXT,
-				tombstoned_at TEXT,
-				tombstoned_by TEXT,
-				tombstone_reason TEXT
-			);`,
-			`CREATE INDEX IF NOT EXISTS idx_commitments_thread_updated_at ON commitments (thread_id, updated_at DESC, id);`,
-			`CREATE INDEX IF NOT EXISTS idx_commitments_thread_status_due_updated_at ON commitments (thread_id, filter_status, filter_due_at, updated_at DESC, id);`,
-			`CREATE INDEX IF NOT EXISTS idx_commitments_owner_status_due_updated_at ON commitments (filter_owner, filter_status, filter_due_at, updated_at DESC, id);`,
-
 			`CREATE TABLE IF NOT EXISTS topics (
 				id TEXT PRIMARY KEY,
 				title TEXT,
 				status TEXT,
 				type TEXT,
-				primary_thread_id TEXT,
+				thread_id TEXT,
 				body_json TEXT NOT NULL DEFAULT '{}',
 				provenance_json TEXT NOT NULL DEFAULT '{}',
 				created_at TEXT NOT NULL,
@@ -116,7 +93,7 @@ var migrations = []migration{
 			);`,
 			`CREATE INDEX IF NOT EXISTS idx_topics_status_updated_at ON topics (status, updated_at DESC, id);`,
 			`CREATE INDEX IF NOT EXISTS idx_topics_type_updated_at ON topics (type, updated_at DESC, id);`,
-			`CREATE INDEX IF NOT EXISTS idx_topics_primary_thread_id ON topics (primary_thread_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_topics_thread_id ON topics (thread_id);`,
 			`CREATE INDEX IF NOT EXISTS idx_topics_updated_at ON topics (updated_at DESC, id);`,
 			`CREATE INDEX IF NOT EXISTS idx_topics_archived_at ON topics (archived_at);`,
 			`CREATE INDEX IF NOT EXISTS idx_topics_tombstoned_at ON topics (tombstoned_at);`,
@@ -292,21 +269,6 @@ var migrations = []migration{
 			);`,
 			`CREATE INDEX IF NOT EXISTS idx_card_versions_card_id_version ON card_versions (card_id, version);`,
 
-			`CREATE TABLE IF NOT EXISTS board_cards (
-				board_id TEXT NOT NULL,
-				card_id TEXT NOT NULL,
-				column_key TEXT NOT NULL,
-				rank TEXT NOT NULL,
-				created_at TEXT NOT NULL,
-				created_by TEXT NOT NULL,
-				updated_at TEXT NOT NULL,
-				updated_by TEXT NOT NULL,
-				PRIMARY KEY (board_id, card_id),
-				FOREIGN KEY(board_id) REFERENCES boards(id) ON DELETE CASCADE,
-				FOREIGN KEY(card_id) REFERENCES cards(id) ON DELETE CASCADE
-			);`,
-			`CREATE INDEX IF NOT EXISTS idx_board_cards_board_column_rank ON board_cards (board_id, column_key, rank, card_id);`,
-
 			`CREATE TABLE IF NOT EXISTS agents (
 				id TEXT PRIMARY KEY,
 				username TEXT NOT NULL UNIQUE,
@@ -453,7 +415,7 @@ var migrations = []migration{
 				due_at TEXT,
 				has_due_at INTEGER NOT NULL DEFAULT 0,
 				source_event_id TEXT,
-				source_commitment_id TEXT,
+				source_card_id TEXT,
 				generated_at TEXT NOT NULL,
 				data_json TEXT NOT NULL,
 				source_hash TEXT
@@ -473,7 +435,7 @@ var migrations = []migration{
 				decision_request_count INTEGER NOT NULL DEFAULT 0,
 				decision_count INTEGER NOT NULL DEFAULT 0,
 				artifact_count INTEGER NOT NULL DEFAULT 0,
-				open_commitment_count INTEGER NOT NULL DEFAULT 0,
+				open_card_count INTEGER NOT NULL DEFAULT 0,
 				document_count INTEGER NOT NULL DEFAULT 0,
 				generated_at TEXT NOT NULL,
 				data_json TEXT NOT NULL DEFAULT '{}',
@@ -502,6 +464,57 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_thread_projection_refresh_status_generations ON thread_projection_refresh_status (desired_generation, materialized_generation, in_progress_generation, queued_at, thread_id);`,
 		},
 	},
+	{
+		Version:    2,
+		Statements: []string{},
+		AfterApply: migrateTopicsThreadIDColumnIfNeeded,
+	},
+}
+
+// migrateTopicsThreadIDColumnIfNeeded upgrades older workspaces that used the legacy topics backing-thread
+// column name, renames it to thread_id, and reconciles indexes. Fresh installs already use thread_id from migration 1.
+func migrateTopicsThreadIDColumnIfNeeded(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(topics)`)
+	if err != nil {
+		return fmt.Errorf("pragma table_info(topics): %w", err)
+	}
+	defer rows.Close()
+
+	legacyTopicsThreadCol := "primary" + "_thread_id"
+	var hasLegacy, hasThreadID bool
+	for rows.Next() {
+		var cid int
+		var name, colType string
+		var notnull, pk int
+		var dflt any
+		if err := rows.Scan(&cid, &name, &colType, &notnull, &dflt, &pk); err != nil {
+			return fmt.Errorf("scan topics pragma row: %w", err)
+		}
+		switch name {
+		case legacyTopicsThreadCol:
+			hasLegacy = true
+		case "thread_id":
+			hasThreadID = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate topics pragma rows: %w", err)
+	}
+
+	if hasLegacy && !hasThreadID {
+		renameSQL := "ALTER TABLE topics RENAME COLUMN " + legacyTopicsThreadCol + " TO thread_id"
+		if _, err := tx.ExecContext(ctx, renameSQL); err != nil {
+			return fmt.Errorf("rename topics backing-thread column: %w", err)
+		}
+	}
+	legacyThreadIdx := "idx_topics_" + "primary" + "_thread_id"
+	if _, err := tx.ExecContext(ctx, "DROP INDEX IF EXISTS "+legacyThreadIdx); err != nil {
+		return fmt.Errorf("drop legacy topics thread index: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_topics_thread_id ON topics (thread_id)`); err != nil {
+		return fmt.Errorf("ensure idx_topics_thread_id: %w", err)
+	}
+	return nil
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {
@@ -528,6 +541,12 @@ func applyMigrations(ctx context.Context, db *sql.DB) error {
 			if _, err := tx.ExecContext(ctx, statement); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("apply migration %d: %w", m.Version, err)
+			}
+		}
+		if m.AfterApply != nil {
+			if err := m.AfterApply(ctx, tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("apply migration %d after hook: %w", m.Version, err)
 			}
 		}
 

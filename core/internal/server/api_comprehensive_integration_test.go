@@ -66,7 +66,8 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 	if loadedThread.Thread["custom_unknown"] != "preserve_me" {
 		t.Fatalf("expected unknown field preserved, got %#v", loadedThread.Thread["custom_unknown"])
 	}
-	tags := sortedStringList(loadedThread.Thread["tags"])
+	tagsRaw, _ := loadedThread.Thread["tags"].([]any)
+	tags := anyListToSortedStrings(tagsRaw)
 	if len(tags) != 1 || tags[0] != "backend" {
 		t.Fatalf("expected list replacement for tags, got %#v", loadedThread.Thread["tags"])
 	}
@@ -88,71 +89,6 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 		}
 	}`, http.StatusCreated)
 	defer staleThreadResp.Body.Close()
-
-	dueSoon := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
-
-	commitment1Resp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
-		"actor_id":"actor-1",
-		"commitment":{
-			"thread_id":"`+threadID+`",
-			"title":"Commitment one",
-			"owner":"actor-1",
-			"due_at":"`+dueSoon+`",
-			"status":"open",
-			"definition_of_done":["done"],
-			"links":["url:https://example.com/c1"],
-			"provenance":{"sources":["inferred"]}
-		}
-	}`, http.StatusCreated)
-	defer commitment1Resp.Body.Close()
-	var commitment1Payload struct {
-		Commitment map[string]any `json:"commitment"`
-	}
-	if err := json.NewDecoder(commitment1Resp.Body).Decode(&commitment1Payload); err != nil {
-		t.Fatalf("decode commitment1 response: %v", err)
-	}
-	commitment1ID := asString(commitment1Payload.Commitment["id"])
-
-	commitment2Resp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
-		"actor_id":"actor-1",
-		"commitment":{
-			"thread_id":"`+threadID+`",
-			"title":"Commitment two",
-			"owner":"actor-1",
-			"due_at":"`+dueSoon+`",
-			"status":"open",
-			"definition_of_done":["done"],
-			"links":["url:https://example.com/c2"],
-			"provenance":{"sources":["inferred"]}
-		}
-	}`, http.StatusCreated)
-	defer commitment2Resp.Body.Close()
-	var commitment2Payload struct {
-		Commitment map[string]any `json:"commitment"`
-	}
-	if err := json.NewDecoder(commitment2Resp.Body).Decode(&commitment2Payload); err != nil {
-		t.Fatalf("decode commitment2 response: %v", err)
-	}
-	commitment2ID := asString(commitment2Payload.Commitment["id"])
-
-	threadAfterCommitmentsResp, err := http.Get(h.baseURL + "/threads/" + threadID)
-	if err != nil {
-		t.Fatalf("GET /threads/{id} after commitments: %v", err)
-	}
-	defer threadAfterCommitmentsResp.Body.Close()
-	if threadAfterCommitmentsResp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected get thread status: got %d", threadAfterCommitmentsResp.StatusCode)
-	}
-	var threadAfterCommitments struct {
-		Thread map[string]any `json:"thread"`
-	}
-	if err := json.NewDecoder(threadAfterCommitmentsResp.Body).Decode(&threadAfterCommitments); err != nil {
-		t.Fatalf("decode thread after commitments response: %v", err)
-	}
-	openCommitments := sortedStringList(threadAfterCommitments.Thread["open_commitments"])
-	if len(openCommitments) < 2 || !containsString(openCommitments, commitment1ID) || !containsString(openCommitments, commitment2ID) {
-		t.Fatalf("expected thread.open_commitments to include both commitments, got %#v", threadAfterCommitments.Thread["open_commitments"])
-	}
 
 	workOrderID := "wo-comprehensive"
 	workOrderResp := postJSONExpectStatus(t, h.baseURL+"/work_orders", `{
@@ -247,30 +183,6 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 	}
 	assertRefsContain(t, reviewCompleted["refs"], "artifact:"+reviewID, "artifact:"+receiptID, "artifact:"+workOrderID)
 
-	patchJSONExpectStatus(t, h.baseURL+"/commitments/"+commitment1ID, `{
-		"actor_id":"actor-1",
-		"patch":{"status":"done"}
-	}`, http.StatusBadRequest).Body.Close()
-
-	doneResp := patchJSONExpectStatus(t, h.baseURL+"/commitments/"+commitment1ID, `{
-		"actor_id":"actor-1",
-		"patch":{"status":"done"},
-		"refs":["artifact:`+receiptID+`"]
-	}`, http.StatusOK)
-	defer doneResp.Body.Close()
-	var donePayload struct {
-		Commitment map[string]any `json:"commitment"`
-	}
-	if err := json.NewDecoder(doneResp.Body).Decode(&donePayload); err != nil {
-		t.Fatalf("decode done response: %v", err)
-	}
-	provenance, _ := donePayload.Commitment["provenance"].(map[string]any)
-	byField, _ := provenance["by_field"].(map[string]any)
-	statusSources := sortedStringList(byField["status"])
-	if len(statusSources) != 1 || statusSources[0] != "receipt:"+receiptID {
-		t.Fatalf("unexpected status provenance: %#v", byField["status"])
-	}
-
 	postJSONExpectStatus(t, h.baseURL+"/events", `{
 		"actor_id":"actor-1",
 		"event":{
@@ -287,7 +199,7 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Comprehensive inbox board",
-			"primary_thread_id":"`+threadID+`"
+			"refs":["thread:`+threadID+`"]
 		}
 	}`, http.StatusCreated)
 	defer createBoardResp.Body.Close()
@@ -410,17 +322,4 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 		}
 	}`, http.StatusBadRequest).Body.Close()
 
-	patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
-		"actor_id":"actor-1",
-		"patch":{"open_commitments":["x"]}
-	}`, http.StatusBadRequest).Body.Close()
-}
-
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
 }

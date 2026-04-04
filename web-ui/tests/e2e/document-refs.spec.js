@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { threadWorkspaceToTopicWorkspace } from "../../src/lib/topicWorkspaceAdapter.js";
+
 test("document typed refs navigate from overview chips, timeline refs, and work-order context", async ({
   page,
 }) => {
@@ -115,7 +117,7 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
           key_artifacts: [`document:${documentId}`],
           current_summary: "Thread detail summary.",
           next_actions: ["Collect legal signoff"],
-          open_commitments: [],
+          open_cards: [],
           next_check_in_at: "2026-03-12T00:00:00.000Z",
           updated_at: "2026-03-11T00:00:00.000Z",
           updated_by: actorId,
@@ -126,106 +128,105 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
   });
 
   await page.route(
-    /\/threads\/thread-onboarding\/workspace(\?.*)?$/,
+    /\/(threads|topics)\/thread-onboarding\/workspace(\?.*)?$/,
+    async (route) => {
+      const threadWs = {
+        thread_id: threadId,
+        thread: {
+          id: threadId,
+          type: "process",
+          title: "Customer Onboarding Workflow",
+          status: "active",
+          priority: "p1",
+          cadence: "weekly",
+          tags: ["ops", "customer"],
+          key_artifacts: [`document:${documentId}`],
+          current_summary: "Thread detail summary.",
+          next_actions: ["Collect legal signoff"],
+          open_cards: [],
+          next_check_in_at: "2026-03-12T00:00:00.000Z",
+          updated_at: "2026-03-11T00:00:00.000Z",
+          updated_by: actorId,
+          provenance: { sources: ["actor_statement:event-doc-1"] },
+        },
+        context: {
+          recent_events: [
+            {
+              id: "evt-doc-1",
+              ts: "2026-03-11T09:00:00.000Z",
+              type: "message_posted",
+              actor_id: actorId,
+              thread_id: threadId,
+              refs: [
+                `document:${documentId}`,
+                `document_revision:${previousRevision.revision_id}`,
+              ],
+              summary: "Document refs linked for review.",
+              payload: { text: "Please review the constitution updates." },
+              provenance: { sources: ["actor_statement:event-doc-1"] },
+            },
+          ],
+          key_artifacts: [],
+          open_cards: [],
+          documents: [
+            {
+              ...documentRecord,
+              head_revision: {
+                revision_id: headRevision.revision_id,
+                revision_number: headRevision.revision_number,
+                artifact_id: headRevision.artifact_id,
+                content_type: headRevision.content_type,
+                created_at: headRevision.created_at,
+                created_by: headRevision.created_by,
+              },
+            },
+          ],
+        },
+      };
+      const payload = route.request().url().includes("/topics/")
+        ? threadWorkspaceToTopicWorkspace(threadWs, threadId)
+        : threadWs;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(payload),
+      });
+    },
+  );
+
+  await page.route(
+    /\/(threads|topics)\/thread-onboarding\/timeline$/,
     async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          thread_id: threadId,
-          thread: {
-            id: threadId,
-            type: "process",
-            title: "Customer Onboarding Workflow",
-            status: "active",
-            priority: "p1",
-            cadence: "weekly",
-            tags: ["ops", "customer"],
-            key_artifacts: [`document:${documentId}`],
-            current_summary: "Thread detail summary.",
-            next_actions: ["Collect legal signoff"],
-            open_commitments: [],
-            next_check_in_at: "2026-03-12T00:00:00.000Z",
-            updated_at: "2026-03-11T00:00:00.000Z",
-            updated_by: actorId,
-            provenance: { sources: ["actor_statement:event-doc-1"] },
-          },
-          context: {
-            recent_events: [
-              {
-                id: "evt-doc-1",
-                ts: "2026-03-11T09:00:00.000Z",
-                type: "message_posted",
-                actor_id: actorId,
-                thread_id: threadId,
-                refs: [
-                  `document:${documentId}`,
-                  `document_revision:${previousRevision.revision_id}`,
-                ],
-                summary: "Document refs linked for review.",
-                payload: { text: "Please review the constitution updates." },
-                provenance: { sources: ["actor_statement:event-doc-1"] },
-              },
-            ],
-            key_artifacts: [],
-            open_commitments: [],
-            documents: [
-              {
-                ...documentRecord,
-                head_revision: {
-                  revision_id: headRevision.revision_id,
-                  revision_number: headRevision.revision_number,
-                  artifact_id: headRevision.artifact_id,
-                  content_type: headRevision.content_type,
-                  created_at: headRevision.created_at,
-                  created_by: headRevision.created_by,
-                },
-              },
-            ],
-          },
+          events: [
+            {
+              id: "evt-doc-1",
+              ts: "2026-03-11T09:00:00.000Z",
+              type: "message_posted",
+              actor_id: actorId,
+              thread_id: threadId,
+              refs: [
+                `document:${documentId}`,
+                `document_revision:${previousRevision.revision_id}`,
+              ],
+              summary: "Document refs linked for review.",
+              payload: { text: "Please review the constitution updates." },
+              provenance: { sources: ["actor_statement:event-doc-1"] },
+            },
+          ],
         }),
       });
     },
   );
-
-  await page.route(/\/threads\/thread-onboarding\/timeline$/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        events: [
-          {
-            id: "evt-doc-1",
-            ts: "2026-03-11T09:00:00.000Z",
-            type: "message_posted",
-            actor_id: actorId,
-            thread_id: threadId,
-            refs: [
-              `document:${documentId}`,
-              `document_revision:${previousRevision.revision_id}`,
-            ],
-            summary: "Document refs linked for review.",
-            payload: { text: "Please review the constitution updates." },
-            provenance: { sources: ["actor_statement:event-doc-1"] },
-          },
-        ],
-      }),
-    });
-  });
 
   await page.route(/\/events\/stream(\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "text/event-stream",
       body: ": keepalive\n\n",
-    });
-  });
-
-  await page.route(/\/commitments(\?.*)?$/, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ commitments: [] }),
     });
   });
 

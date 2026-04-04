@@ -45,7 +45,6 @@ async function main() {
 
   await seedActors();
   await seedThreads();
-  await seedCommitments();
   await seedArtifacts();
   await seedDocuments();
   const eventStats = await seedEvents();
@@ -105,31 +104,6 @@ async function seedThreads() {
     }
     threadIdMap.set(sourceThread.id, newId);
     snapshotIdMap.set(sourceThread.id, newId);
-  }
-}
-
-async function seedCommitments() {
-  for (const sourceCommitment of seed.commitments) {
-    const actorId = pickActorId(sourceCommitment.updated_by);
-    const response = await request("POST", "/commitments", {
-      actor_id: actorId,
-      commitment: {
-        thread_id: mustMapThreadId(sourceCommitment.thread_id),
-        title: sourceCommitment.title,
-        owner: sourceCommitment.owner,
-        due_at: sourceCommitment.due_at,
-        status: sourceCommitment.status,
-        definition_of_done: sourceCommitment.definition_of_done,
-        links: mapRefs(sourceCommitment.links),
-        provenance: sourceCommitment.provenance,
-      },
-    });
-
-    const newId = String(response?.commitment?.id ?? "").trim();
-    if (!newId) {
-      throw new Error(`Commitment create returned no id for ${sourceCommitment.title}`);
-    }
-    snapshotIdMap.set(sourceCommitment.id, newId);
   }
 }
 
@@ -244,9 +218,6 @@ function mapRef(ref) {
     return `${prefix}:${mapThreadId(value)}`;
   }
   if (prefix === "snapshot") {
-    return `${prefix}:${snapshotIdMap.get(value) ?? value}`;
-  }
-  if (prefix === "commitment") {
     return `${prefix}:${snapshotIdMap.get(value) ?? value}`;
   }
   return text;

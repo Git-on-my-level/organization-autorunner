@@ -66,7 +66,7 @@ var conceptsGuidePrimitives = []conceptsPrimitive{
 		Name:        "inbox",
 		UseWhen:     "You need the derived queue of what currently needs attention from the active actor's perspective.",
 		NotFor:      "Durable automation contracts or historical truth.",
-		Examples:    []string{"pending decisions", "exceptions", "commitment risk"},
+		Examples:    []string{"pending decisions", "exceptions", "stalled work"},
 		RelatedRead: []string{"oar inbox list", "oar inbox get", "oar inbox ack"},
 	},
 	{

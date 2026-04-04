@@ -336,4 +336,41 @@ describe("oarCoreClient error messaging", () => {
       thread_id: "thread-1",
     });
   });
+
+  it("routes card archive, restore, and purge through generated command paths", async () => {
+    const seen = [];
+    const client = createOarCoreClient({
+      baseUrl: "http://core.test",
+      actorIdProvider: () => "actor-1",
+      fetchFn: async (url, init) => {
+        seen.push({
+          url: String(url),
+          method: String(init?.method ?? "GET"),
+        });
+        return new Response(JSON.stringify({ card: { id: "c1" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+
+    await client.archiveCard("card-1", {});
+    await client.restoreCard("card-1", {});
+    await client.purgeCard("card-1", {});
+
+    expect(seen).toEqual([
+      {
+        url: "http://core.test/cards/card-1/archive",
+        method: "POST",
+      },
+      {
+        url: "http://core.test/cards/card-1/restore",
+        method: "POST",
+      },
+      {
+        url: "http://core.test/cards/card-1/purge",
+        method: "POST",
+      },
+    ]);
+  });
 });

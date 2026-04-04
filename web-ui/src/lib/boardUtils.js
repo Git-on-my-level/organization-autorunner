@@ -51,6 +51,27 @@ export function boardSummaryCounts(summary) {
 }
 
 /** Thread link target from membership (core mirrors parent_thread and thread_id when linked). */
+/** Backing thread id for a board row (core `thread_id`). */
+export function boardBackingThreadId(board) {
+  return String(board?.thread_id ?? "").trim();
+}
+
+/** First `document:` id from `document_refs` or `refs`. */
+export function firstBoardDocumentId(board) {
+  const fromList = (list) => {
+    for (const ref of list ?? []) {
+      const s = String(ref ?? "").trim();
+      if (s.startsWith("document:")) {
+        return s.slice("document:".length).trim();
+      }
+    }
+    return "";
+  };
+  const doc = fromList(board?.document_refs);
+  if (doc) return doc;
+  return fromList(board?.refs);
+}
+
 export function boardCardLinkedThreadId(membership) {
   const a = String(membership?.thread_id ?? "").trim();
   if (a) return a;

@@ -64,8 +64,18 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatTopicTimeline(body)
 	case "topics.workspace":
 		return formatTopicWorkspace(body)
-	case "cards.get", "cards.patch", "cards.move":
+	case "cards.get", "cards.patch", "cards.move", "cards.archive", "cards.restore":
+		if board := extractNestedMap(body, "board"); board != nil && extractNestedMap(body, "card") != nil {
+			return formatBoardCardMutationResult(body)
+		}
 		return formatCardRecord(extractNestedMap(body, "card"))
+	case "cards.purge":
+		root := asMap(body)
+		id, _ := root["card_id"].(string)
+		if purged, _ := root["purged"].(bool); purged && id != "" {
+			return "Card " + id + " permanently deleted"
+		}
+		return formatPrettyBody(body)
 	case "threads.context":
 		return formatThreadContext(body)
 	case "threads.inspect":
@@ -78,15 +88,6 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatThreadRecommendations(body)
 	case "threads.timeline":
 		return formatThreadTimeline(body)
-	case "threads.purge":
-		root := asMap(body)
-		id, _ := root["thread_id"].(string)
-		if id != "" {
-			return "Thread " + id + " permanently deleted"
-		}
-		return formatPrettyBody(body)
-	case "commitments.get", "commitments.create", "commitments.patch":
-		return formatCommitmentRecord(extractNestedMap(body, "commitment"))
 	case "artifacts.get", "artifacts.create", "artifacts.tombstone", "artifacts.restore", "artifacts.archive", "artifacts.unarchive":
 		return formatArtifactRecord(extractNestedMap(body, "artifact"))
 	case "artifacts.purge":
@@ -102,9 +103,9 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatEventRecord(extractNestedMap(body, "event"))
 	case "docs.get", "docs.create", "docs.update", "docs.revisions.create", "docs.tombstone", "docs.archive", "docs.unarchive", "docs.restore":
 		return formatDocumentRecord(body)
-	case "threads.patch.propose", "docs.update.propose", "docs.revisions.create.propose":
+	case "docs.update.propose", "docs.revisions.create.propose":
 		return formatProposalPreview(body)
-	case "threads.patch.apply", "docs.update.apply", "docs.revisions.create.apply":
+	case "docs.update.apply", "docs.revisions.create.apply":
 		return formatProposalApply(body)
 	case "docs.purge":
 		root := asMap(body)
@@ -164,7 +165,7 @@ func formatThreadContext(body any) string {
 	}
 	lines = appendEventListSection(lines, "recent_events", asSlice(root["recent_events"]), fullID)
 	lines = appendArtifactListSection(lines, "key_artifacts", asSlice(root["key_artifacts"]), fullID)
-	lines = appendCommitmentListSection(lines, "open_commitments", asSlice(root["open_commitments"]), fullID)
+	lines = appendOpenCardListSection(lines, "open_cards", asSlice(root["open_cards"]), fullID)
 	lines = appendDocumentListSection(lines, "documents", asSlice(root["documents"]), fullID)
 	return strings.Join(lines, "\n")
 }
@@ -184,15 +185,15 @@ func formatThreadContextAggregate(root map[string]any, fullID bool) string {
 		recommendations := len(asSlice(collaboration["recommendations"]))
 		decisionRequests := len(asSlice(collaboration["decision_requests"]))
 		decisions := len(asSlice(collaboration["decisions"]))
-		openCommitments := len(asSlice(context["open_commitments"]))
+		openCards := len(asSlice(context["open_cards"]))
 		documents := len(asSlice(context["documents"]))
 		lines = append(lines, fmt.Sprintf(
-			"- %s :: recommendations=%d :: decision_requests=%d :: decisions=%d :: open_commitments=%d :: documents=%d",
+			"- %s :: recommendations=%d :: decision_requests=%d :: decisions=%d :: open_cards=%d :: documents=%d",
 			displayID(thread),
 			recommendations,
 			decisionRequests,
 			decisions,
-			openCommitments,
+			openCards,
 			documents,
 		))
 	}
@@ -204,7 +205,7 @@ func formatThreadContextAggregate(root map[string]any, fullID bool) string {
 	}
 	lines = appendEventListSection(lines, "recent_events", asSlice(root["recent_events"]), fullID)
 	lines = appendArtifactListSection(lines, "key_artifacts", asSlice(root["key_artifacts"]), fullID)
-	lines = appendCommitmentListSection(lines, "open_commitments", asSlice(root["open_commitments"]), fullID)
+	lines = appendOpenCardListSection(lines, "open_cards", asSlice(root["open_cards"]), fullID)
 	lines = appendDocumentListSection(lines, "documents", asSlice(root["documents"]), fullID)
 	return strings.Join(lines, "\n")
 }
@@ -213,7 +214,7 @@ func formatThreadTimeline(body any) string {
 	root := asMap(body)
 	lines := []string{
 		fmt.Sprintf("Timeline events: %d", len(asSlice(root["events"]))),
-		fmt.Sprintf("Referenced snapshots: %d", len(asMap(root["snapshots"]))),
+		fmt.Sprintf("Referenced threads: %d", len(asMap(root["snapshots"]))),
 		fmt.Sprintf("Referenced artifacts: %d", len(asMap(root["artifacts"]))),
 	}
 	lines = appendListSection(lines, "events", asSlice(root["events"]), renderEventListItem)
@@ -232,7 +233,7 @@ func formatEventsList(body any) string {
 	}
 	lines = appendScalar(lines, "total_events", root, "total_events")
 	lines = appendScalar(lines, "returned_events", root, "returned_events")
-	lines = append(lines, fmt.Sprintf("referenced_snapshots: %d", len(asMap(root["snapshots"]))))
+	lines = append(lines, fmt.Sprintf("referenced_threads: %d", len(asMap(root["snapshots"]))))
 	lines = append(lines, fmt.Sprintf("referenced_artifacts: %d", len(asMap(root["artifacts"]))))
 	lines = appendStringList(lines, "types", stringList(root["types"]))
 	if actorID := strings.TrimSpace(anyString(root["actor_id"])); actorID != "" {
@@ -283,7 +284,7 @@ func formatThreadInspect(body any) string {
 	if context != nil {
 		lines = appendEventListSection(lines, "recent_events", asSlice(context["recent_events"]), fullID)
 		lines = appendArtifactListSection(lines, "key_artifacts", asSlice(context["key_artifacts"]), fullID)
-		lines = appendCommitmentListSection(lines, "open_commitments", asSlice(context["open_commitments"]), fullID)
+		lines = appendOpenCardListSection(lines, "open_cards", asSlice(context["open_cards"]), fullID)
 		lines = appendDocumentListSection(lines, "documents", asSlice(context["documents"]), fullID)
 	}
 	inbox := extractNestedMap(root, "inbox")
@@ -324,7 +325,7 @@ func formatThreadWorkspace(body any) string {
 	if context != nil {
 		lines = appendEventListSection(lines, "recent_events", asSlice(context["recent_events"]), fullID)
 		lines = appendArtifactListSection(lines, "key_artifacts", asSlice(context["key_artifacts"]), fullID)
-		lines = appendCommitmentListSection(lines, "open_commitments", asSlice(context["open_commitments"]), fullID)
+		lines = appendOpenCardListSection(lines, "open_cards", asSlice(context["open_cards"]), fullID)
 		lines = appendDocumentListSection(lines, "documents", asSlice(context["documents"]), fullID)
 	}
 	inbox := extractNestedMap(root, "inbox")
@@ -559,7 +560,7 @@ func formatThreadRecord(thread map[string]any) string {
 	lines = appendStringList(lines, "tags", stringList(thread["tags"]))
 	lines = appendStringList(lines, "next_actions", stringList(thread["next_actions"]))
 	lines = appendStringList(lines, "key_artifacts", stringList(thread["key_artifacts"]))
-	lines = appendStringList(lines, "open_commitments", stringList(thread["open_commitments"]))
+	lines = appendStringList(lines, "open_cards", stringList(thread["open_cards"]))
 	if tombstonedAt := anyString(thread["tombstoned_at"]); tombstonedAt != "" {
 		lines = append(lines, "⚠ TOMBSTONED")
 		lines = appendScalar(lines, "tombstoned_at", thread, "tombstoned_at")
@@ -570,25 +571,6 @@ func formatThreadRecord(thread map[string]any) string {
 		lines = appendScalar(lines, "archived_at", thread, "archived_at")
 		lines = appendScalar(lines, "archived_by", thread, "archived_by")
 	}
-	return strings.Join(lines, "\n")
-}
-
-func formatCommitmentRecord(commitment map[string]any) string {
-	if commitment == nil {
-		return formatPrettyBody(commitment)
-	}
-	lines := []string{"Commitment " + displayID(commitment)}
-	lines = appendScalar(lines, "title", commitment, "title")
-	lines = appendScalar(lines, "status", commitment, "status")
-	lines = appendScalar(lines, "thread_id", commitment, "thread_id")
-	lines = appendScalar(lines, "owner", commitment, "owner")
-	lines = appendScalar(lines, "due_at", commitment, "due_at", "due_on")
-	lines = appendScalar(lines, "summary", commitment, "summary")
-	links := stringList(commitment["links"])
-	if len(links) == 0 {
-		links = stringList(commitment["refs"])
-	}
-	lines = appendStringList(lines, "links", links)
 	return strings.Join(lines, "\n")
 }
 
@@ -738,11 +720,11 @@ func renderThreadListItem(item map[string]any) string {
 	return compactSummary(displayID(item), firstNonEmpty(anyString(item["status"]), anyString(item["priority"])), firstNonEmpty(anyString(item["title"]), anyString(item["current_summary"])))
 }
 
-func renderCommitmentListItem(item map[string]any) string {
-	return renderCommitmentListItemWithMode(item, false)
+func renderOpenCardListItem(item map[string]any) string {
+	return renderOpenCardListItemWithMode(item, false)
 }
 
-func renderCommitmentListItemWithMode(item map[string]any, fullID bool) string {
+func renderOpenCardListItemWithMode(item map[string]any, fullID bool) string {
 	return compactSummary(displayCompactIDWithMode(item, fullID), firstNonEmpty(anyString(item["status"]), anyString(item["owner"])), firstNonEmpty(anyString(item["title"]), anyString(item["summary"])))
 }
 
@@ -887,14 +869,14 @@ func appendArtifactListSection(lines []string, label string, items []any, fullID
 	return lines
 }
 
-func appendCommitmentListSection(lines []string, label string, items []any, fullID bool) []string {
+func appendOpenCardListSection(lines []string, label string, items []any, fullID bool) []string {
 	lines = append(lines, fmt.Sprintf("%s (%d):", label, len(items)))
 	for _, raw := range items {
 		item := asMap(raw)
 		if item == nil {
 			continue
 		}
-		lines = append(lines, "- "+renderCommitmentListItemWithMode(item, fullID))
+		lines = append(lines, "- "+renderOpenCardListItemWithMode(item, fullID))
 	}
 	return lines
 }
@@ -1292,14 +1274,14 @@ func renderBoardListItem(board map[string]any, summary map[string]any) string {
 	title := anyString(board["title"])
 	status := anyString(board["status"])
 	cardCount := intValue(summary["card_count"])
-	openCommitments := intValue(summary["open_commitment_count"])
+	unresolved := intValue(summary["unresolved_card_count"])
 	docCount := intValue(summary["document_count"])
 	return compactSummary(
 		id,
 		status,
 		title,
 		fmt.Sprintf("cards=%d", cardCount),
-		fmt.Sprintf("commitments=%d", openCommitments),
+		fmt.Sprintf("unresolved_cards=%d", unresolved),
 		fmt.Sprintf("docs=%d", docCount),
 	)
 }
@@ -1311,8 +1293,8 @@ func formatBoardRecord(board map[string]any) string {
 	lines := []string{"Board " + displayID(board)}
 	lines = appendScalar(lines, "title", board, "title")
 	lines = appendScalar(lines, "status", board, "status")
-	lines = appendScalar(lines, "primary_thread_id", board, "primary_thread_id")
-	lines = appendScalar(lines, "primary_document_id", board, "primary_document_id")
+	lines = appendScalar(lines, "thread_id", board, "thread_id")
+	lines = appendStringList(lines, "document_refs", stringList(board["document_refs"]))
 	lines = appendStringList(lines, "labels", stringList(board["labels"]))
 	lines = appendStringList(lines, "owners", stringList(board["owners"]))
 	lines = appendScalar(lines, "updated_at", board, "updated_at")
@@ -1333,8 +1315,7 @@ func formatBoardRecord(board map[string]any) string {
 func formatBoardWorkspace(body any) string {
 	root := asMap(body)
 	board := extractNestedMap(root, "board")
-	primaryThread := extractNestedMap(root, "primary_thread")
-	primaryDocument := extractNestedMap(root, "primary_document")
+	primaryTopic := extractNestedMap(root, "primary_topic")
 	boardSummary := extractNestedMap(root, "board_summary")
 	cards := extractNestedMap(root, "cards")
 
@@ -1343,33 +1324,24 @@ func formatBoardWorkspace(body any) string {
 	lines = append(lines, "Board "+displayID(board))
 	lines = appendScalar(lines, "title", board, "title")
 	lines = appendScalar(lines, "status", board, "status")
+	lines = appendStringList(lines, "document_refs", stringList(board["document_refs"]))
 
-	if primaryThread != nil {
+	if primaryTopic != nil {
 		lines = append(lines, "")
-		lines = append(lines, "Primary Thread:")
-		lines = append(lines, "- "+formatThreadRecord(primaryThread))
-	}
-
-	if primaryDocument != nil {
-		lines = append(lines, "")
-		lines = append(lines, "Primary Document:")
-		lines = append(lines, "- "+renderDocumentListItem(primaryDocument))
+		lines = append(lines, "Primary topic:")
+		lines = append(lines, "- "+formatTopicRecord(primaryTopic))
 	}
 
 	if boardSummary != nil {
 		lines = append(lines, "")
 		lines = append(lines, "Summary:")
 		cardCount := intValue(boardSummary["card_count"])
-		openCommitments := intValue(boardSummary["open_commitment_count"])
+		unresolved := intValue(boardSummary["unresolved_card_count"])
 		docCount := intValue(boardSummary["document_count"])
 		latestActivity := anyString(boardSummary["latest_activity_at"])
-		hasPrimaryDoc := asBool(boardSummary["has_primary_document"])
-		lines = append(lines, fmt.Sprintf("- cards=%d :: commitments=%d :: documents=%d", cardCount, openCommitments, docCount))
+		lines = append(lines, fmt.Sprintf("- cards=%d :: unresolved_cards=%d :: documents=%d", cardCount, unresolved, docCount))
 		if latestActivity != "" {
 			lines = append(lines, fmt.Sprintf("- latest_activity: %s", latestActivity))
-		}
-		if hasPrimaryDoc {
-			lines = append(lines, "- primary_document: yes")
 		}
 	}
 
@@ -1433,7 +1405,7 @@ func renderBoardCardItem(cardWrapper map[string]any) string {
 
 	badges := make([]string, 0, 8)
 	if summary != nil {
-		openCommitments := intValue(summary["open_commitment_count"])
+		relatedTopics := intValue(summary["related_topic_count"])
 		decisionRequests := intValue(summary["decision_request_count"])
 		decisions := intValue(summary["decision_count"])
 		recommendations := intValue(summary["recommendation_count"])
@@ -1441,8 +1413,8 @@ func renderBoardCardItem(cardWrapper map[string]any) string {
 		inbox := intValue(summary["inbox_count"])
 		stale := asBool(summary["stale"])
 
-		if openCommitments > 0 {
-			badges = append(badges, fmt.Sprintf("c=%d", openCommitments))
+		if relatedTopics > 0 {
+			badges = append(badges, fmt.Sprintf("topics=%d", relatedTopics))
 		}
 		if decisionRequests > 0 {
 			badges = append(badges, fmt.Sprintf("dr=%d", decisionRequests))

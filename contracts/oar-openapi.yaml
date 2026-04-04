@@ -365,10 +365,10 @@ paths:
       x-oar-surface: projection
       x-oar-command-id: threads.context
       x-oar-cli-path: threads context
-      x-oar-why: Load a compact coordination bundle (thread, recent events, key artifacts, commitments, documents) for inspection and triage.
+      x-oar-why: Load a compact coordination bundle (thread, recent events, key artifacts, cards, documents) for inspection and triage.
       x-oar-input-mode: none
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ thread, recent_events, key_artifacts, open_commitments, documents }` plus forward-compatible fields."
+      x-oar-output-envelope: "Returns `{ thread, recent_events, key_artifacts, open_cards, documents }` plus forward-compatible fields."
       x-oar-error-codes: [auth_required, invalid_request, invalid_token, not_found]
       x-oar-concepts: [threads, inspection]
       x-oar-stability: beta
@@ -744,7 +744,7 @@ paths:
       x-oar-why: Load the operator-facing board workspace with cards, docs, and inbox sections.
       x-oar-input-mode: none
       x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ board, primary_topic, primary_thread, cards, documents, inbox, board_summary, projection_freshness, section_kinds, generated_at }`."
+      x-oar-output-envelope: "Returns `{ board_id, board, primary_topic, cards, documents, inbox, board_summary, projection_freshness, board_summary_freshness, warnings, section_kinds, generated_at }`."
       x-oar-error-codes: [auth_required, invalid_token, not_found]
       x-oar-concepts: [boards, workspace]
       x-oar-stability: beta
@@ -1470,6 +1470,36 @@ paths:
         '404':
           $ref: '#/components/responses/ErrorResponse'
 
+  /inbox/ack:
+    post:
+      operationId: acknowledgeInboxItemLegacy
+      summary: Acknowledge inbox item (legacy body-only path)
+      description: >
+        Compatibility alias for clients that post the inbox item id in the JSON body
+        (`inbox_item_id`) instead of using `POST /inbox/{inbox_id}/acknowledge`. Prefer the
+        path-parameter form for new integrations.
+      deprecated: true
+      tags: [inbox]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcknowledgeInboxItemRequest'
+      responses:
+        '201':
+          description: Acknowledgment event appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgeInboxItemResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
 components:
   responses:
     ErrorResponse:
@@ -1772,6 +1802,10 @@ components:
         resolved_card_count: { type: integer }
         document_count: { type: integer }
         latest_activity_at: { type: string, format: date-time }
+        has_document_refs: { type: boolean }
+        document_refs:
+          type: array
+          items: { $ref: '#/components/schemas/TypedRef' }
       required: [card_count, cards_by_column, unresolved_card_count, resolved_card_count, document_count]
 
     BoardCardSummary:
@@ -2108,6 +2142,12 @@ components:
         if_document_updated_at:
           type: string
           format: date-time
+        if_base_revision:
+          type: string
+          description: >
+            Optional base revision id for optimistic concurrency (must match the document head
+            when appending from the current tip). When omitted with the nested `revision` envelope,
+            the server defaults to the document head revision.
       required: [revision]
 
     CreateBoardRequest:
@@ -2366,7 +2406,6 @@ components:
       properties:
         board: { $ref: '#/components/schemas/Board' }
         primary_topic: { $ref: '#/components/schemas/Topic' }
-        primary_thread: { $ref: '#/components/schemas/Thread' }
         cards:
           type: array
           items: { $ref: '#/components/schemas/BoardWorkspaceCard' }
@@ -2509,14 +2548,14 @@ components:
         key_artifacts:
           type: array
           items: { $ref: '#/components/schemas/ThreadContextArtifactEntry' }
-        open_commitments:
+        open_cards:
           type: array
           items: { type: object, additionalProperties: true }
         documents:
           type: array
           items: { type: object, additionalProperties: true }
       additionalProperties: true
-      required: [thread, recent_events, key_artifacts, open_commitments, documents]
+      required: [thread, recent_events, key_artifacts, open_cards, documents]
 
     ArchiveCardRequest:
       type: object

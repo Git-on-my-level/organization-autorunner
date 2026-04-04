@@ -43,7 +43,6 @@ func TestWorkspaceInitializationAndRestart(t *testing.T) {
 		"schema_migrations",
 		"events",
 		"threads",
-		"commitments",
 		"topics",
 		"ref_edges",
 		"artifacts",
@@ -53,7 +52,6 @@ func TestWorkspaceInitializationAndRestart(t *testing.T) {
 		"boards",
 		"cards",
 		"card_versions",
-		"board_cards",
 		"derived_inbox_items",
 		"derived_thread_views",
 		"derived_thread_dirty_queue",
@@ -106,11 +104,11 @@ func TestWorkspaceInitializationAndRestart(t *testing.T) {
 	}
 
 	var migrationCount int
-	if err := second.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE version = 1`).Scan(&migrationCount); err != nil {
+	if err := second.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&migrationCount); err != nil {
 		t.Fatalf("count schema migration rows: %v", err)
 	}
-	if migrationCount != 1 {
-		t.Fatalf("expected exactly one schema_migrations row for version 1, got %d", migrationCount)
+	if migrationCount < 2 {
+		t.Fatalf("expected at least two schema_migrations rows (baseline + topic thread_id migration), got %d", migrationCount)
 	}
 
 	if got := filepath.Dir(layout.DatabasePath); got != layout.RootDir {

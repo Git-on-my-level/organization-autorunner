@@ -48,9 +48,11 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 		t.Fatal("expected created thread id")
 	}
 
-	openCommitments, ok := created.Thread["open_commitments"].([]any)
-	if !ok || len(openCommitments) != 0 {
-		t.Fatalf("expected open_commitments=[], got %#v", created.Thread["open_commitments"])
+	if raw, exists := created.Thread["open_cards"]; exists && raw != nil {
+		openCards, ok := raw.([]any)
+		if !ok || len(openCards) != 0 {
+			t.Fatalf("expected open_cards absent, null, or [], got %#v", raw)
+		}
 	}
 
 	patchResp := patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
@@ -159,8 +161,8 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 
 	for _, event := range timeline.Events {
 		refs, ok := event["refs"].([]any)
-		if !ok || !containsAny(refs, "snapshot:"+threadID) {
-			t.Fatalf("timeline event missing snapshot ref: %#v", event)
+		if !ok || (!containsAny(refs, "snapshot:"+threadID) && !containsAny(refs, "thread:"+threadID)) {
+			t.Fatalf("timeline event missing thread or snapshot ref: %#v", event)
 		}
 		assertActorStatementProvenance(t, event)
 	}
@@ -181,12 +183,6 @@ func TestThreadsCreatePatchListAndTimeline(t *testing.T) {
 	if len(gotFields) != len(wantFields) || gotFields[0] != wantFields[0] || gotFields[1] != wantFields[1] {
 		t.Fatalf("unexpected changed_fields: got %#v want %#v", gotFields, wantFields)
 	}
-
-	rejectResp := patchJSONExpectStatus(t, h.baseURL+"/threads/"+threadID, `{
-		"actor_id":"actor-1",
-		"patch":{"open_commitments":["c-1"]}
-	}`, http.StatusBadRequest)
-	defer rejectResp.Body.Close()
 }
 
 func TestThreadsCreateWithRequestKeyReturnsConflictForExplicitDuplicateID(t *testing.T) {
@@ -797,57 +793,6 @@ func TestThreadTimelineIncludesReferencedObjectsAndOmitsMissingRefs(t *testing.T
 		t.Fatal("expected created thread id")
 	}
 
-	createCommitmentResp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
-		"actor_id":"actor-1",
-		"commitment":{
-			"thread_id":"`+threadID+`",
-			"title":"Timeline commitment",
-			"owner":"actor-1",
-			"due_at":"2026-03-08T00:00:00Z",
-			"status":"open",
-			"definition_of_done":["done"],
-			"links":["url:https://example.com/work"],
-			"provenance":{"sources":["inferred"]}
-		}
-	}`, http.StatusCreated)
-	defer createCommitmentResp.Body.Close()
-
-	var createdCommitment struct {
-		Commitment map[string]any `json:"commitment"`
-	}
-	if err := json.NewDecoder(createCommitmentResp.Body).Decode(&createdCommitment); err != nil {
-		t.Fatalf("decode create commitment response: %v", err)
-	}
-	commitmentID, _ := createdCommitment.Commitment["id"].(string)
-	if commitmentID == "" {
-		t.Fatal("expected created commitment id")
-	}
-
-	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
-		"actor_id":"actor-1",
-		"board":{
-			"title":"Context workspace board",
-			"primary_thread_id":"`+threadID+`"
-		}
-	}`, http.StatusCreated)
-	defer createBoardResp.Body.Close()
-	var createdBoard struct {
-		Board map[string]any `json:"board"`
-	}
-	if err := json.NewDecoder(createBoardResp.Body).Decode(&createdBoard); err != nil {
-		t.Fatalf("decode create board response: %v", err)
-	}
-	boardID := asString(createdBoard.Board["id"])
-	boardUpdatedAt := asString(createdBoard.Board["updated_at"])
-	postJSONExpectStatus(t, h.baseURL+"/boards/"+boardID+"/cards", `{
-		"actor_id":"actor-1",
-		"if_board_updated_at":"`+boardUpdatedAt+`",
-		"thread_id":"`+threadID+`",
-		"title":"Context work item",
-		"column_key":"ready",
-		"due_at":"2026-03-08T00:00:00Z"
-	}`, http.StatusCreated).Body.Close()
-
 	const artifactID = "timeline-artifact-1"
 	createArtifactResp := postJSONExpectStatus(t, h.baseURL+"/artifacts", `{
 		"actor_id":"actor-1",
@@ -869,9 +814,7 @@ func TestThreadTimelineIncludesReferencedObjectsAndOmitsMissingRefs(t *testing.T
 			"thread_id":"`+threadID+`",
 			"refs":[
 				"thread:`+threadID+`",
-				"snapshot:`+commitmentID+`",
 				"artifact:`+artifactID+`",
-				"snapshot:missing-snapshot-id",
 				"artifact:missing-artifact-id"
 			],
 			"summary":"timeline ref expansion event",
@@ -892,7 +835,6 @@ func TestThreadTimelineIncludesReferencedObjectsAndOmitsMissingRefs(t *testing.T
 
 	var timeline struct {
 		Events    []map[string]any          `json:"events"`
-		Snapshots map[string]map[string]any `json:"snapshots"`
 		Artifacts map[string]map[string]any `json:"artifacts"`
 	}
 	if err := json.NewDecoder(timelineResp.Body).Decode(&timeline); err != nil {
@@ -901,19 +843,8 @@ func TestThreadTimelineIncludesReferencedObjectsAndOmitsMissingRefs(t *testing.T
 	if len(timeline.Events) == 0 {
 		t.Fatal("expected timeline events")
 	}
-	if len(timeline.Snapshots) == 0 {
-		t.Fatal("expected referenced snapshots in timeline response")
-	}
 	if len(timeline.Artifacts) == 0 {
 		t.Fatal("expected referenced artifacts in timeline response")
-	}
-
-	if snapshot, ok := timeline.Snapshots[commitmentID]; !ok {
-		t.Fatalf("expected commitment snapshot %q in timeline response, got keys=%#v", commitmentID, mapKeysMapAny(timeline.Snapshots))
-	} else {
-		if snapshot["id"] != commitmentID {
-			t.Fatalf("unexpected commitment snapshot payload: %#v", snapshot)
-		}
 	}
 
 	if artifact, ok := timeline.Artifacts[artifactID]; !ok {
@@ -924,9 +855,6 @@ func TestThreadTimelineIncludesReferencedObjectsAndOmitsMissingRefs(t *testing.T
 		}
 	}
 
-	if _, exists := timeline.Snapshots["missing-snapshot-id"]; exists {
-		t.Fatalf("did not expect missing snapshot to be expanded: %#v", timeline.Snapshots["missing-snapshot-id"])
-	}
 	if _, exists := timeline.Artifacts["missing-artifact-id"]; exists {
 		t.Fatalf("did not expect missing artifact to be expanded: %#v", timeline.Artifacts["missing-artifact-id"])
 	}
@@ -1028,7 +956,6 @@ func TestThreadTimelineIncludesDocumentLifecycleEventsAndExpansions(t *testing.T
 
 	var timeline struct {
 		Events            []map[string]any          `json:"events"`
-		Snapshots         map[string]map[string]any `json:"snapshots"`
 		Artifacts         map[string]map[string]any `json:"artifacts"`
 		Documents         map[string]map[string]any `json:"documents"`
 		DocumentRevisions map[string]map[string]any `json:"document_revisions"`
@@ -1074,7 +1001,7 @@ func TestThreadTimelineIncludesDocumentLifecycleEventsAndExpansions(t *testing.T
 	}
 }
 
-func TestThreadContextBundlesRecentEventsArtifactsAndOpenCommitments(t *testing.T) {
+func TestThreadContextBundlesRecentEventsArtifactsAndOpenCards(t *testing.T) {
 	t.Parallel()
 
 	h := newPrimitivesTestServer(t)
@@ -1131,32 +1058,6 @@ func TestThreadContextBundlesRecentEventsArtifactsAndOpenCommitments(t *testing.
 	}`, http.StatusCreated)
 	defer createDocumentResp.Body.Close()
 
-	createCommitmentResp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
-		"actor_id":"actor-1",
-		"commitment":{
-			"thread_id":"`+threadID+`",
-			"title":"Context commitment",
-			"owner":"actor-1",
-			"due_at":"2026-03-08T00:00:00Z",
-			"status":"open",
-			"definition_of_done":["done"],
-			"links":["url:https://example.com/work"],
-			"provenance":{"sources":["inferred"]}
-		}
-	}`, http.StatusCreated)
-	defer createCommitmentResp.Body.Close()
-
-	var createdCommitment struct {
-		Commitment map[string]any `json:"commitment"`
-	}
-	if err := json.NewDecoder(createCommitmentResp.Body).Decode(&createdCommitment); err != nil {
-		t.Fatalf("decode create commitment response: %v", err)
-	}
-	commitmentID, _ := createdCommitment.Commitment["id"].(string)
-	if commitmentID == "" {
-		t.Fatal("expected created commitment id")
-	}
-
 	postJSONExpectStatus(t, h.baseURL+"/events", `{
 		"actor_id":"actor-1",
 		"event":{
@@ -1191,11 +1092,11 @@ func TestThreadContextBundlesRecentEventsArtifactsAndOpenCommitments(t *testing.
 	}
 
 	var payload struct {
-		Thread          map[string]any   `json:"thread"`
-		RecentEvents    []map[string]any `json:"recent_events"`
-		KeyArtifacts    []map[string]any `json:"key_artifacts"`
-		OpenCommitments []map[string]any `json:"open_commitments"`
-		Documents       []map[string]any `json:"documents"`
+		Thread       map[string]any   `json:"thread"`
+		RecentEvents []map[string]any `json:"recent_events"`
+		KeyArtifacts []map[string]any `json:"key_artifacts"`
+		OpenCards    []map[string]any `json:"open_cards"`
+		Documents    []map[string]any `json:"documents"`
 	}
 	if err := json.NewDecoder(contextResp.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode context response: %v", err)
@@ -1226,8 +1127,8 @@ func TestThreadContextBundlesRecentEventsArtifactsAndOpenCommitments(t *testing.
 		t.Fatalf("expected preview length 500, got %d", len(preview))
 	}
 
-	if len(payload.OpenCommitments) != 1 || asString(payload.OpenCommitments[0]["id"]) != commitmentID {
-		t.Fatalf("unexpected open commitments payload: %#v", payload.OpenCommitments)
+	if len(payload.OpenCards) != 0 {
+		t.Fatalf("expected empty open_cards in context payload, got %#v", payload.OpenCards)
 	}
 	if len(payload.Documents) != 1 {
 		t.Fatalf("expected 1 thread document, got %#v", payload.Documents)
@@ -1391,21 +1292,6 @@ func TestThreadWorkspaceBundlesCanonicalAndDerivedSections(t *testing.T) {
 		"content_type":"text"
 	}`, http.StatusCreated).Body.Close()
 
-	createCommitmentResp := postJSONExpectStatus(t, h.baseURL+"/commitments", `{
-		"actor_id":"actor-1",
-		"commitment":{
-			"thread_id":"`+rootThreadID+`",
-			"title":"Coordinate related work",
-			"owner":"actor-1",
-			"due_at":"2026-03-08T00:00:00Z",
-			"status":"open",
-			"definition_of_done":["done"],
-			"links":["thread:`+relatedThreadID+`"],
-			"provenance":{"sources":["inferred"]}
-		}
-	}`, http.StatusCreated)
-	createCommitmentResp.Body.Close()
-
 	postJSONExpectStatus(t, h.baseURL+"/events", `{
 		"actor_id":"actor-1",
 		"event":{
@@ -1457,10 +1343,10 @@ func TestThreadWorkspaceBundlesCanonicalAndDerivedSections(t *testing.T) {
 		ThreadID string         `json:"thread_id"`
 		Thread   map[string]any `json:"thread"`
 		Context  struct {
-			RecentEvents    []map[string]any `json:"recent_events"`
-			KeyArtifacts    []map[string]any `json:"key_artifacts"`
-			OpenCommitments []map[string]any `json:"open_commitments"`
-			Documents       []map[string]any `json:"documents"`
+			RecentEvents []map[string]any `json:"recent_events"`
+			KeyArtifacts []map[string]any `json:"key_artifacts"`
+			OpenCards    []map[string]any `json:"open_cards"`
+			Documents    []map[string]any `json:"documents"`
 		} `json:"context"`
 		Collaboration struct {
 			Recommendations  []map[string]any `json:"recommendations"`
@@ -1497,8 +1383,8 @@ func TestThreadWorkspaceBundlesCanonicalAndDerivedSections(t *testing.T) {
 	if len(payload.Context.KeyArtifacts) != 1 || asString(payload.Context.KeyArtifacts[0]["ref"]) != "artifact:workspace-artifact-1" {
 		t.Fatalf("expected key artifact in workspace context, got %#v", payload.Context.KeyArtifacts)
 	}
-	if len(payload.Context.OpenCommitments) != 1 {
-		t.Fatalf("expected one open commitment in workspace context, got %#v", payload.Context.OpenCommitments)
+	if len(payload.Context.OpenCards) != 0 {
+		t.Fatalf("expected empty open_cards in workspace context, got %#v", payload.Context.OpenCards)
 	}
 	if len(payload.Context.Documents) != 1 || asString(payload.Context.Documents[0]["id"]) != "workspace-doc-1" {
 		t.Fatalf("expected workspace document in context, got %#v", payload.Context.Documents)

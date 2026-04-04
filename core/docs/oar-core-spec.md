@@ -24,7 +24,7 @@ oar-core does **not**:
 ## 1. Design constraints
 
 ### 1.1 Canonical vs derived
-- oar-core MUST separate **canonical truth** (events, topics, artifacts) from **derived views** (inbox items, staleness flags).
+- oar-core MUST separate **canonical truth** (events, topics, cards, boards, documents, artifacts) from **derived views** (inbox items, staleness flags).
 - Derived views MUST be regenerable from canonical data.
 - Canonical data MUST be replayable and auditable.
 
@@ -32,7 +32,7 @@ oar-core does **not**:
 - Any state change that closes a loop (marking "done", asserting "shipped", claiming "metric improved") MUST be grounded in a receipt artifact or an explicit decision event.
 
 ### 1.3 Small, stable primitives
-- oar-core centers on three canonical primitives. Everything else is a typed convention over those primitives.
+- oar-core centers on append-only **events**, mutable **resource** records (topics, cards, boards, documents), and **artifacts** (immutable content, including packet kinds). Backing **threads** tie timelines and many packet subjects together. Everything else is a typed convention over those building blocks.
 
 ### 1.4 Actor-agnostic
 - oar-core treats all actors as opaque IDs. It does not distinguish between humans and agents at the API or storage level. Identity metadata (display name, tags) lives in a lightweight actor registry.
@@ -308,7 +308,7 @@ rebuild, oar-core MUST:
 - Emit an `exception_raised` event with subtype `stale_topic`.
 - Surface the topic as an inbox item with category `stale_topic`.
 
-Read handlers MUST NOT mint stale-thread exceptions as a side effect of GET
+Read handlers MUST NOT mint stale-topic exceptions as a side effect of GET
 requests.
 
 Staleness computation SHOULD run on a regular interval (implementation-defined)

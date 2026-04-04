@@ -1599,14 +1599,14 @@ func clearDocumentBackingThreadSubjectTx(ctx context.Context, tx *sql.Tx, actorI
 
 func buildDocumentBackingThreadBody(documentID, threadID, title string) map[string]any {
 	return map[string]any{
-		"id":               strings.TrimSpace(threadID),
-		"subject_ref":      "document:" + strings.TrimSpace(documentID),
-		"title":            documentBackingThreadTitle(documentID, title),
-		"status":           "active",
-		"priority":         "p2",
-		"tags":             []string{},
-		"open_commitments": []string{},
-		"provenance":       map[string]any{"sources": []string{"inferred"}},
+		"id":          strings.TrimSpace(threadID),
+		"subject_ref": "document:" + strings.TrimSpace(documentID),
+		"title":       documentBackingThreadTitle(documentID, title),
+		"status":      "active",
+		"priority":    "p2",
+		"tags":        []string{},
+		"open_cards":  []string{},
+		"provenance":  map[string]any{"sources": []string{"inferred"}},
 	}
 }
 

@@ -112,7 +112,7 @@ go test -tags=integration ./integration/...
 
 These tests:
 - build the real `oar` and `oar-core` binaries
-- copy the repo's workspace snapshot into a temp directory
+- copy the repo's workspace fixture directory into a temp directory
 - run multi-step thread/event, docs/conflict, and board workspace flows through the real CLI
 
 ## Pi Dogfood

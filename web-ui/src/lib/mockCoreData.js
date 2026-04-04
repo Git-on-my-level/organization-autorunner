@@ -65,7 +65,7 @@ const threads = [
       "SqueezeBot to hold half-batch mode until restock confirmed",
       "File SLA breach report with CitrusBot Farm after supply is stable",
     ],
-    open_commitments: ["commitment-emergency-restock", "commitment-sla-review"],
+    open_cards: ["card-emergency-restock", "card-sla-review"],
     next_check_in_at: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 45 * 60 * 1000).toISOString(),
     updated_by: "actor-supply-rover",
@@ -92,7 +92,7 @@ const threads = [
       "Till-E to update POS system and digital menu board",
       "SupplyRover to add lavender syrup to inventory system on delivery",
     ],
-    open_commitments: ["commitment-menu-board"],
+    open_cards: ["thread-summer-menu"],
     next_check_in_at: new Date(now + 2 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 3 * 60 * 60 * 1000).toISOString(),
     updated_by: "actor-flavor-ai",
@@ -119,7 +119,7 @@ const threads = [
       "SqueezeBot to run recalibration sequence per maintenance work order",
       "FlavorMind QA scan to validate seed contamination rate <1% post-repair",
     ],
-    open_commitments: ["commitment-part-install"],
+    open_cards: ["thread-squeezebot-maintenance"],
     next_check_in_at: new Date(now + 1 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
     updated_by: "actor-squeeze-bot",
@@ -146,7 +146,7 @@ const threads = [
       "SqueezeBot to prep double batch tonight for tomorrow's morning rush",
       "Monitor POS API response times — escalate if delays recur tomorrow",
     ],
-    open_commitments: [],
+    open_cards: [],
     next_check_in_at: new Date(now + 18 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 30 * 60 * 1000).toISOString(),
     updated_by: "actor-cashier-bot",
@@ -173,7 +173,7 @@ const threads = [
       "via payment processor bot. Pricing cache invalidation logic patched and deployed. " +
       "Incident closed.",
     next_actions: [],
-    open_commitments: [],
+    open_cards: [],
     next_check_in_at: null,
     updated_at: new Date(
       now - 7 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
@@ -202,7 +202,7 @@ const threads = [
       "FlavorMind to draft Riverside seasonal menu by April 1",
       "SupplyRover to confirm SqueezeBot 2000 delivery and setup checklist",
     ],
-    open_commitments: ["commitment-q2-permit", "commitment-q2-menu"],
+    open_cards: ["card-q2-permit", "card-q2-menu"],
     next_check_in_at: new Date(now + 25 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
     updated_by: "actor-ops-ai",
@@ -227,7 +227,7 @@ const threads = [
       "Update onboarding guide with POS and inventory system setup steps",
       "Schedule knowledge-transfer session before Riverside go-live",
     ],
-    open_commitments: [],
+    open_cards: [],
     next_check_in_at: new Date(now + 5 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
     updated_by: "actor-ops-ai",
@@ -248,7 +248,7 @@ const inboxItems = [
       "($31.00 total, 2-hour delivery). Current inventory covers ~2 hours. " +
       "CitrusFresh API is the alternative at $0.48/lemon if LocalGrove is unavailable.",
     thread_id: "thread-lemon-shortage",
-    commitment_id: "commitment-emergency-restock",
+    card_id: "card-emergency-restock",
     refs: [
       "thread:thread-lemon-shortage",
       "artifact:artifact-supplier-sla",
@@ -274,7 +274,7 @@ const inboxItems = [
     recommended_action:
       "Update summer menu thread with expected unblock date once lemon restock is confirmed.",
     thread_id: "thread-summer-menu",
-    commitment_id: "commitment-menu-board",
+    card_id: "thread-summer-menu",
     refs: ["thread:thread-summer-menu", "thread:thread-lemon-shortage"],
     source_event_time: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
   },
@@ -287,7 +287,7 @@ const inboxItems = [
       "When RoboSupply Inc. delivers part #TL-3000-L (ETA tomorrow 09:00), " +
       "authorize SqueezeBot to begin the recalibration sequence.",
     thread_id: "thread-squeezebot-maintenance",
-    commitment_id: "commitment-part-install",
+    card_id: "thread-squeezebot-maintenance",
     refs: [
       "thread:thread-squeezebot-maintenance",
       "artifact:artifact-maintenance-log",
@@ -498,7 +498,7 @@ const events = [
     provenance: { sources: ["actor_statement:evt-ops-101"] },
   },
 
-  // ── Lemon shortage: exception raised + commitment created ─────────────────
+  // ── Lemon shortage: exception raised + card created ──────────────────────
   {
     id: "evt-supply-exception",
     ts: new Date(now - 18 * 60 * 60 * 1000 - 2 * 60 * 1000).toISOString(),
@@ -516,17 +516,18 @@ const events = [
     provenance: { sources: ["inferred"] },
   },
   {
-    id: "evt-supply-commitment-created",
+    id: "evt-supply-card-restock",
     ts: new Date(now - 18 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString(),
-    type: "commitment_created",
+    type: "card_created",
     actor_id: "actor-ops-ai",
     thread_id: "thread-lemon-shortage",
     refs: [
       "thread:thread-lemon-shortage",
-      "snapshot:commitment-emergency-restock",
+      "board:board-supply-crisis",
+      "card:card-emergency-restock",
     ],
-    summary: "Commitment created: place emergency restock order.",
-    payload: { commitment_id: "commitment-emergency-restock" },
+    summary: "Card created: place emergency restock order.",
+    payload: { card_id: "card-emergency-restock" },
     provenance: { sources: ["actor_statement:evt-supply-002"] },
   },
 
@@ -547,14 +548,18 @@ const events = [
     provenance: { sources: ["actor_statement:evt-menu-003"] },
   },
   {
-    id: "evt-menu-commitment-created",
+    id: "evt-menu-card-board",
     ts: new Date(now - 3 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString(),
-    type: "commitment_created",
+    type: "card_created",
     actor_id: "actor-flavor-ai",
     thread_id: "thread-summer-menu",
-    refs: ["thread:thread-summer-menu", "snapshot:commitment-menu-board"],
-    summary: "Commitment created: update menu board with summer flavors.",
-    payload: { commitment_id: "commitment-menu-board" },
+    refs: [
+      "thread:thread-summer-menu",
+      "board:board-product-launch",
+      "card:thread-summer-menu",
+    ],
+    summary: "Card created: update menu board with summer flavors.",
+    payload: { card_id: "thread-summer-menu" },
     provenance: { sources: ["actor_statement:evt-menu-003"] },
   },
   {
@@ -679,13 +684,16 @@ const events = [
     ts: new Date(
       now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000 + 5 * 60 * 1000,
     ).toISOString(),
-    type: "commitment_created",
+    type: "card_created",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
-    refs: ["thread:thread-pricing-glitch", "snapshot:commitment-pricing-patch"],
-    summary:
-      "Commitment created: patch and validate pricing cache invalidation.",
-    payload: { commitment_id: "commitment-pricing-patch" },
+    refs: [
+      "thread:thread-pricing-glitch",
+      "board:board-summer-menu",
+      "card:thread-pricing-glitch",
+    ],
+    summary: "Card created: patch and validate pricing cache invalidation.",
+    payload: { card_id: "thread-pricing-glitch" },
     provenance: { sources: ["actor_statement:evt-price-004"] },
   },
   {
@@ -742,7 +750,7 @@ const events = [
     refs: [
       "thread:thread-pricing-glitch",
       "artifact:artifact-pricing-evidence",
-      "snapshot:commitment-pricing-patch",
+      "card:thread-pricing-glitch",
     ],
     summary: "Decision made: issue refunds and proceed with cache fix.",
     payload: {
@@ -799,40 +807,35 @@ const events = [
   {
     id: "evt-price-011",
     ts: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    type: "commitment_status_changed",
+    type: "card_resolved",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
     refs: [
       "thread:thread-pricing-glitch",
-      "snapshot:commitment-pricing-patch",
+      "board:board-summer-menu",
+      "card:thread-pricing-glitch",
       "artifact:artifact-receipt-pricing-v2",
     ],
-    summary:
-      "Commitment marked done: pricing cache fix deployed and validated.",
-    payload: {
-      commitment_id: "commitment-pricing-patch",
-      from_status: "open",
-      to_status: "done",
-    },
+    summary: "Card resolved: pricing cache fix deployed and validated.",
+    payload: { resolution: "completed" },
     provenance: { sources: ["actor_statement:evt-price-011"] },
   },
   {
     id: "evt-price-012",
     ts: new Date(now - 7 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000).toISOString(),
-    type: "commitment_status_changed",
+    type: "card_resolved",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
     refs: [
       "thread:thread-pricing-glitch",
-      "snapshot:commitment-pricing-audit",
+      "board:board-summer-menu",
+      "card:card-pricing-audit",
       "event:evt-price-008",
     ],
     summary:
-      "Commitment canceled: full pricing audit deemed unnecessary after root cause confirmed.",
+      "Card resolved: full pricing audit canceled after root cause confirmed.",
     payload: {
-      commitment_id: "commitment-pricing-audit",
-      from_status: "open",
-      to_status: "canceled",
+      resolution: "canceled",
       reason:
         "Root cause confirmed as a single stale cache entry from March 3rd menu push. " +
         "A full historical audit is not warranted. Decision made per evt-price-008.",
@@ -887,25 +890,33 @@ const events = [
     provenance: { sources: ["actor_statement:evt-q2-002"] },
   },
   {
-    id: "evt-q2-commitment-permit",
+    id: "evt-q2-card-permit",
     ts: new Date(now - 14 * 24 * 60 * 60 * 1000 + 15 * 60 * 1000).toISOString(),
-    type: "commitment_created",
+    type: "card_created",
     actor_id: "actor-ops-ai",
     thread_id: "thread-q2-initiative",
-    refs: ["thread:thread-q2-initiative", "snapshot:commitment-q2-permit"],
-    summary: "Commitment created: monitor city permit and confirm approval.",
-    payload: { commitment_id: "commitment-q2-permit" },
+    refs: [
+      "thread:thread-q2-initiative",
+      "board:board-product-launch",
+      "card:card-q2-permit",
+    ],
+    summary: "Card created: monitor city permit and confirm approval.",
+    payload: { card_id: "card-q2-permit" },
     provenance: { sources: ["actor_statement:evt-q2-001"] },
   },
   {
-    id: "evt-q2-commitment-menu",
+    id: "evt-q2-card-menu",
     ts: new Date(now - 14 * 24 * 60 * 60 * 1000 + 20 * 60 * 1000).toISOString(),
-    type: "commitment_created",
+    type: "card_created",
     actor_id: "actor-ops-ai",
     thread_id: "thread-q2-initiative",
-    refs: ["thread:thread-q2-initiative", "snapshot:commitment-q2-menu"],
-    summary: "Commitment created: FlavorMind to draft Riverside seasonal menu.",
-    payload: { commitment_id: "commitment-q2-menu" },
+    refs: [
+      "thread:thread-q2-initiative",
+      "board:board-product-launch",
+      "card:card-q2-menu",
+    ],
+    summary: "Card created: FlavorMind to draft Riverside seasonal menu.",
+    payload: { card_id: "card-q2-menu" },
     provenance: { sources: ["actor_statement:evt-q2-001"] },
   },
 
@@ -928,178 +939,12 @@ const events = [
   },
 ];
 
-const commitments = [
-  {
-    id: "commitment-emergency-restock",
-    thread_id: "thread-lemon-shortage",
-    title: "Place emergency lemon restock order with approved backup supplier",
-    owner: "actor-supply-rover",
-    due_at: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
-    status: "open",
-    definition_of_done: [
-      "OpsAI approves supplier selection (LocalGrove Bot recommended)",
-      "100-unit purchase order placed via supplier API",
-      "Delivery confirmation received with ETA",
-    ],
-    links: ["thread:thread-lemon-shortage", "artifact:artifact-supplier-sla"],
-    updated_at: new Date(now - 1 * 60 * 60 * 1000).toISOString(),
-    updated_by: "actor-supply-rover",
-    provenance: { sources: ["actor_statement:evt-supply-001"] },
-  },
-  {
-    id: "commitment-sla-review",
-    thread_id: "thread-lemon-shortage",
-    title: "File SLA breach report with CitrusBot Farm for today's outage",
-    owner: "actor-ops-ai",
-    due_at: new Date(now + 5 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "open",
-    definition_of_done: [
-      "Outage timeline documented (start, Tier 1 breach confirmation, resolution)",
-      "SLA breach formally submitted to CitrusBot Farm API",
-      "Credit or remediation plan response received and logged",
-    ],
-    links: ["thread:thread-lemon-shortage", "artifact:artifact-supplier-sla"],
-    updated_at: new Date(now - 14 * 60 * 60 * 1000).toISOString(),
-    updated_by: "actor-ops-ai",
-    provenance: { sources: ["actor_statement:evt-supply-003"] },
-  },
-  {
-    id: "commitment-menu-board",
-    thread_id: "thread-summer-menu",
-    title: "Update stand menu board and POS with summer flavors",
-    owner: "actor-cashier-bot",
-    due_at: new Date(now + 10 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "open",
-    definition_of_done: [
-      "Lavender Lemonade and Mango Chili Lemonade added to POS system",
-      "Digital menu board display updated at Stand #1",
-      "Prices and descriptions confirmed accurate",
-    ],
-    links: ["thread:thread-summer-menu", "artifact:artifact-summer-menu-draft"],
-    updated_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_by: "actor-flavor-ai",
-    provenance: { sources: ["actor_statement:evt-menu-003"] },
-  },
-  {
-    id: "commitment-part-install",
-    thread_id: "thread-squeezebot-maintenance",
-    title:
-      "Install torque limiter #TL-3000-L and run post-repair QA validation",
-    owner: "actor-squeeze-bot",
-    due_at: new Date(
-      now + 1 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
-    ).toISOString(),
-    status: "blocked",
-    definition_of_done: [
-      "Part #TL-3000-L received from RoboSupply Inc.",
-      "Part installed per maintenance spec",
-      "Post-repair calibration sequence completed",
-      "FlavorMind QA scan confirms seed contamination rate <1%",
-    ],
-    links: [
-      "thread:thread-squeezebot-maintenance",
-      "artifact:artifact-maintenance-log",
-    ],
-    updated_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_by: "actor-ops-ai",
-    provenance: {
-      sources: ["inferred"],
-      by_field: {
-        status: ["inferred"],
-      },
-    },
-  },
-  {
-    id: "commitment-pricing-patch",
-    thread_id: "thread-pricing-glitch",
-    title: "Patch pricing cache invalidation logic in Till-E POS",
-    owner: "actor-cashier-bot",
-    due_at: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "done",
-    definition_of_done: [
-      "Root cause of stale price cache identified",
-      "Cache invalidation fix deployed to Till-E POS system",
-      "Pricing validated correct on 10 consecutive test transactions",
-      "Customer refunds confirmed by payment processor bot",
-    ],
-    links: [
-      "thread:thread-pricing-glitch",
-      "artifact:artifact-receipt-pricing-v2",
-    ],
-    updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_by: "actor-ops-ai",
-    provenance: {
-      sources: ["actor_statement:evt-price-011"],
-      by_field: {
-        status: ["artifact:artifact-receipt-pricing-v2"],
-      },
-    },
-  },
-  {
-    id: "commitment-pricing-audit",
-    thread_id: "thread-pricing-glitch",
-    title: "Full historical pricing audit for March (canceled)",
-    owner: "actor-ops-ai",
-    due_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "canceled",
-    definition_of_done: [
-      "All transactions in March audited for pricing accuracy",
-      "Audit report filed as artifact",
-    ],
-    links: ["thread:thread-pricing-glitch"],
-    updated_at: new Date(
-      now - 7 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000,
-    ).toISOString(),
-    updated_by: "actor-ops-ai",
-    provenance: {
-      sources: ["actor_statement:evt-price-008"],
-      by_field: {
-        status: ["event:evt-price-008"],
-      },
-    },
-  },
-  {
-    id: "commitment-q2-permit",
-    thread_id: "thread-q2-initiative",
-    title: "Confirm city permit approval for Riverside Park Stand #2",
-    owner: "actor-ops-ai",
-    due_at: new Date(now + 40 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "open",
-    definition_of_done: [
-      "City permit PERMIT-2026-0882 approved",
-      "Permit document filed as artifact in this thread",
-      "SupplyRover notified to add Stand #2 as provisioning location",
-    ],
-    links: ["thread:thread-q2-initiative"],
-    updated_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_by: "actor-ops-ai",
-    provenance: { sources: ["actor_statement:evt-q2-001"] },
-  },
-  {
-    id: "commitment-q2-menu",
-    thread_id: "thread-q2-initiative",
-    title: "FlavorMind to draft Riverside Park seasonal menu by April 1",
-    owner: "actor-flavor-ai",
-    due_at: new Date(now + 27 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "open",
-    definition_of_done: [
-      "Seasonal menu draft covers at least 4 items",
-      "At least one item uses locally-sourced ingredient (farmer's market proximity)",
-      "Draft reviewed and approved by OpsAI",
-    ],
-    links: ["thread:thread-q2-initiative"],
-    updated_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
-    updated_by: "actor-ops-ai",
-    provenance: { sources: ["actor_statement:evt-q2-001"] },
-  },
-];
-
 const artifacts = [
   {
     id: "artifact-supplier-sla",
     kind: "doc",
     thread_id: "thread-lemon-shortage",
-    summary: "CitrusBot Farm SLA — uptime and delivery commitments",
+    summary: "CitrusBot Farm SLA — uptime and delivery terms",
     refs: ["thread:thread-lemon-shortage"],
     content_type: "text/markdown",
     content_text: `# CitrusBot Farm Supplier SLA
@@ -1110,11 +955,11 @@ const artifacts = [
 
 ---
 
-## Uptime Commitment
+## Uptime SLA
 - 99.5% monthly uptime on procurement API
 - Maximum 4-hour outage response time (acknowledgement)
 
-## Delivery Commitments
+## Delivery windows
 - Standard orders: fulfilled within 24 hours of confirmation
 - Emergency orders (priority flag): fulfilled within 4 hours
 - Minimum order: 20 lemons | Maximum single order: 500 lemons
@@ -1143,7 +988,7 @@ const artifacts = [
     id: "artifact-supplier-sla-v2",
     kind: "doc",
     thread_id: "thread-lemon-shortage",
-    summary: "CitrusBot Farm SLA — uptime and delivery commitments",
+    summary: "CitrusBot Farm SLA — uptime and delivery terms",
     refs: ["thread:thread-lemon-shortage", "artifact:artifact-supplier-sla"],
     content_type: "text/markdown",
     content_text: `# CitrusBot Farm Supplier SLA (Amended)
@@ -1155,11 +1000,11 @@ const artifacts = [
 
 ---
 
-## Uptime Commitment
+## Uptime SLA
 - 99.5% monthly uptime on procurement API
 - Maximum **2-hour** outage response time (reduced from 4h after breach)
 
-## Delivery Commitments
+## Delivery windows
 - Standard orders: fulfilled within 24 hours of confirmation
 - Emergency orders (priority flag): fulfilled within 4 hours
 - Minimum order: 20 lemons | Maximum single order: 500 lemons
@@ -1229,7 +1074,7 @@ const artifacts = [
 ## Launch Blockers
 
 1. 🔴 Lemon supply crisis must resolve before pilot batch (see thread-lemon-shortage)
-2. 🟡 Menu board update pending (Till-E — commitment-menu-board)
+2. 🟡 Menu board update pending (Till-E — thread-summer-menu card)
 3. 🟢 Lavender syrup: contracted and on order`,
     created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-flavor-ai",
@@ -1380,7 +1225,7 @@ const artifacts = [
       notes:
         "BotBotanicals pricing checks out — margin target preserved at 81%. " +
         "Two suppliers evaluated as required. Manual reorder gap is acceptable for now; " +
-        "flag for Q3 automation sprint. Sourcing commitment can close once delivery is confirmed " +
+        "flag for Q3 automation sprint. Sourcing work can close once delivery is confirmed " +
         "by SupplyRover and inventory is updated.",
       evidence_refs: ["artifact:artifact-summer-menu-draft"],
     },
@@ -1573,7 +1418,7 @@ const artifacts = [
         "All acceptance criteria met: root cause documented, fix deployed and validated on " +
         "10 test transactions, all 3 customer refunds confirmed. The cache TTL reduction from " +
         "7 days to 1 hour is a good systemic improvement — this won't recur on future config pushes. " +
-        "Commitment can be marked done. Thread ready to close.",
+        "Open work can be marked done. Thread ready to close.",
       evidence_refs: [
         "artifact:artifact-pricing-evidence",
         "artifact:artifact-receipt-pricing-v2",
@@ -1888,7 +1733,7 @@ function cardResolutionFromRow(card) {
 function buildCanonicalTopicSeed(thread) {
   const threadId = String(thread?.id ?? "").trim();
   const boardRefs = boards
-    .filter((board) => String(board.primary_thread_id ?? "") === threadId)
+    .filter((board) => String(board.thread_id ?? "") === threadId)
     .map((board) => `board:${board.id}`);
   const documentRefs = listMockDocuments({ thread_id: threadId }).map(
     (document) => `document:${document.id}`,
@@ -1896,8 +1741,8 @@ function buildCanonicalTopicSeed(thread) {
   const relatedRefs = [
     `thread:${threadId}`,
     ...(Array.isArray(thread?.key_artifacts) ? thread.key_artifacts : []),
-    ...(Array.isArray(thread?.open_commitments)
-      ? thread.open_commitments.map((id) => `card:${id}`)
+    ...(Array.isArray(thread?.open_cards)
+      ? thread.open_cards.map((id) => `card:${id}`)
       : []),
   ].filter(Boolean);
 
@@ -1978,24 +1823,21 @@ function buildCanonicalCardSeed(card) {
 
 function buildCanonicalBoardSeed(board) {
   const boardId = String(board?.id ?? "").trim();
-  const primaryThreadId = String(board?.primary_thread_id ?? "").trim();
+  const backingThreadId = String(board?.thread_id ?? "").trim();
   const cardRefs = boardCards
     .filter((card) => String(card?.board_id ?? "") === boardId)
     .map((card) => `card:${String(card?.id ?? card?.thread_id ?? "").trim()}`)
     .filter(Boolean);
+  const rawRefs = Array.isArray(board?.refs) ? board.refs : [];
   const documentRefs = [
-    board?.primary_document_id
-      ? `document:${String(board.primary_document_id).trim()}`
-      : null,
-    ...listMockDocuments({ thread_id: primaryThreadId }).map(
+    ...rawRefs.filter((r) => String(r).startsWith("document:")),
+    ...listMockDocuments({ thread_id: backingThreadId }).map(
       (document) => `document:${document.id}`,
     ),
   ].filter(Boolean);
 
   return {
     ...deepClone(board),
-    primary_topic_ref: primaryThreadId ? `topic:${primaryThreadId}` : null,
-    primary_thread_ref: primaryThreadId ? `thread:${primaryThreadId}` : null,
     document_refs: [...new Set(documentRefs)],
     card_refs: [...new Set(cardRefs)],
   };
@@ -2034,7 +1876,6 @@ export function getMockSeedData() {
     cards: deepClone(boardCards.map(buildCanonicalCardSeed)),
     packets: deepClone(artifacts.map(buildCanonicalPacketSeed).filter(Boolean)),
     threads: deepClone(threads),
-    commitments: deepClone(commitments),
     documents: deepClone(MOCK_DOCUMENTS),
     documentRevisions: deepClone(MOCK_DOCUMENT_REVISIONS),
     artifacts: deepClone(artifacts),
@@ -2067,9 +1908,6 @@ function splitLegacyTypedRef(refValue) {
 
 function normalizeMockInboxCategory(category) {
   const normalized = String(category ?? "").trim();
-  if (normalized === "commitment_risk") {
-    return "risk_review";
-  }
   return normalized;
 }
 
@@ -2094,9 +1932,7 @@ function deriveMockInboxSubjectRef(item) {
     return `document:${documentId}`;
   }
 
-  const cardId = String(
-    item?.card_id ?? item?.commitment_id ?? item?.work_item_id ?? "",
-  ).trim();
+  const cardId = String(item?.card_id ?? item?.work_item_id ?? "").trim();
   if (cardId) {
     return `card:${cardId}`;
   }
@@ -2179,13 +2015,14 @@ function mockSnapshotByID(snapshotId) {
     };
   }
 
-  const commitmentSnapshot = commitments.find(
-    (commitment) => commitment.id === snapshotId,
-  );
-  if (commitmentSnapshot) {
+  const cardRow = boardCards.find((card) => {
+    const normalized = normalizeMockBoardCard(card);
+    return normalized && String(normalized.id) === String(snapshotId);
+  });
+  if (cardRow) {
     return {
-      ...commitmentSnapshot,
-      kind: "commitment",
+      ...normalizeMockBoardCard(cardRow),
+      kind: "card",
     };
   }
 
@@ -2241,11 +2078,6 @@ export function getMockThreadTimeline(threadId) {
   };
 }
 
-function isOpenCommitmentStatus(status) {
-  const normalized = String(status ?? "").trim();
-  return normalized !== "done" && normalized !== "canceled";
-}
-
 function normalizeRefList(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -2263,22 +2095,6 @@ function isTypedRef(refValue) {
   }
 
   return separatorIndex < input.length - 1;
-}
-
-function commitmentHasRequiredStatusRef(status, refs) {
-  const prefixes = normalizeRefList(refs).map(
-    (ref) => String(ref).split(":")[0],
-  );
-
-  if (status === "done") {
-    return prefixes.includes("artifact") || prefixes.includes("event");
-  }
-
-  if (status === "canceled") {
-    return prefixes.includes("event");
-  }
-
-  return true;
 }
 
 function isThreadStale(thread) {
@@ -2361,9 +2177,7 @@ export function createMockThread({ actor_id, thread }) {
       ? thread.key_artifacts
       : [],
     next_actions: Array.isArray(thread.next_actions) ? thread.next_actions : [],
-    open_commitments: Array.isArray(thread.open_commitments)
-      ? thread.open_commitments
-      : [],
+    open_cards: Array.isArray(thread.open_cards) ? thread.open_cards : [],
   };
 
   threads.unshift(created);
@@ -2392,12 +2206,12 @@ export function listMockTopics(filters = {}) {
       (doc) => `document:${doc.id}`,
     ),
     board_refs: boards
-      .filter((board) => board.primary_thread_id === thread.id)
+      .filter((board) => board.thread_id === thread.id)
       .map((board) => `board:${board.id}`),
     related_refs: [
       ...new Set([
         ...(thread.key_artifacts ?? []).map((ref) => String(ref).trim()),
-        ...(thread.open_commitments ?? []).map((id) => `card:${id}`),
+        ...(thread.open_cards ?? []).map((id) => `card:${id}`),
         `thread:${thread.id}`,
       ]),
     ].filter(Boolean),
@@ -2413,6 +2227,32 @@ export function getMockTopic(topicId) {
   return listMockTopics().find((topic) => topic.id === topicId) ?? null;
 }
 
+function listMockOpenCardsForThread(threadId) {
+  const tid = String(threadId ?? "").trim();
+  if (!tid) {
+    return [];
+  }
+
+  const threadRefs = new Set([`thread:${tid}`, `topic:${tid}`]);
+
+  return boardCards
+    .filter((card) => {
+      if (!isVisibleBoardCard(card)) {
+        return false;
+      }
+      const cid = String(card.thread_id ?? card.parent_thread ?? "").trim();
+      if (cid === tid) {
+        return true;
+      }
+      const refs = normalizeRefList(card.related_refs);
+      return refs.some((ref) => threadRefs.has(ref));
+    })
+    .map((card) => normalizeMockBoardCard(card))
+    .filter(
+      (row) => row && String(row.resolution ?? "").trim() === "unresolved",
+    );
+}
+
 function artifactContentPreview(content) {
   const text = String(content ?? "").trim();
   if (!text) {
@@ -2424,7 +2264,7 @@ function artifactContentPreview(content) {
 function buildMockWorkspaceCollaboration(
   recentEvents,
   keyArtifacts,
-  openCommitments,
+  openCards,
 ) {
   const recommendations = recentEvents.filter(
     (event) => String(event.type) === "actor_statement",
@@ -2441,12 +2281,12 @@ function buildMockWorkspaceCollaboration(
     decision_requests: decisionRequests,
     decisions,
     key_artifacts: keyArtifacts,
-    open_commitments: openCommitments,
+    open_cards: openCards,
     recommendation_count: recommendations.length,
     decision_request_count: decisionRequests.length,
     decision_count: decisions.length,
     artifact_count: keyArtifacts.length,
-    open_commitment_count: openCommitments.length,
+    open_card_count: openCards.length,
   };
 }
 
@@ -2463,10 +2303,7 @@ export function getMockThreadWorkspace(
   const recentEvents = threadEvents.slice(
     Math.max(0, threadEvents.length - Number(max_events || 0)),
   );
-  const openCommitments = listMockCommitments({
-    thread_id: threadId,
-    status: "open",
-  });
+  const openCards = listMockOpenCardsForThread(threadId);
   const documents = listMockDocuments({ thread_id: threadId });
   const keyArtifacts = normalizeRefList(thread.key_artifacts).map((ref) => {
     const { prefix, id } = splitTypedRef(ref);
@@ -2480,7 +2317,7 @@ export function getMockThreadWorkspace(
   const collaboration = buildMockWorkspaceCollaboration(
     recentEvents,
     keyArtifacts,
-    openCommitments,
+    openCards,
   );
 
   const boardMemberships = boardCards
@@ -2510,7 +2347,7 @@ export function getMockThreadWorkspace(
     .filter(Boolean);
 
   const ownedBoards = boards
-    .filter((b) => b.primary_thread_id === threadId)
+    .filter((b) => b.thread_id === threadId)
     .map((b) => ({
       id: b.id,
       title: b.title,
@@ -2527,7 +2364,7 @@ export function getMockThreadWorkspace(
     context: {
       recent_events: recentEvents,
       key_artifacts: keyArtifacts,
-      open_commitments: openCommitments,
+      open_cards: openCards,
       documents,
     },
     collaboration,
@@ -2580,29 +2417,6 @@ export function getMockThreadWorkspace(
   };
 }
 
-function updateThreadOpenCommitments({ thread_id, commitment_id, status }) {
-  const thread = getMockThread(thread_id);
-  if (!thread) {
-    return;
-  }
-
-  const openCommitments = Array.isArray(thread.open_commitments)
-    ? [...thread.open_commitments]
-    : [];
-  const existingIndex = openCommitments.findIndex((id) => id === commitment_id);
-  const shouldBeOpen = isOpenCommitmentStatus(status);
-
-  if (shouldBeOpen && existingIndex === -1) {
-    openCommitments.push(commitment_id);
-  }
-
-  if (!shouldBeOpen && existingIndex >= 0) {
-    openCommitments.splice(existingIndex, 1);
-  }
-
-  thread.open_commitments = openCommitments;
-}
-
 export function updateMockThread({
   actor_id,
   thread_id,
@@ -2624,7 +2438,7 @@ export function updateMockThread({
   const next = { ...thread };
 
   for (const [field, value] of Object.entries(patch)) {
-    if (field === "open_commitments") {
+    if (field === "open_cards") {
       continue;
     }
 
@@ -2649,164 +2463,6 @@ export function updateMockThread({
   threads[index] = next;
 
   return { thread: next };
-}
-
-export function listMockCommitments(filters = {}) {
-  return commitments.filter((commitment) => {
-    if (
-      filters.thread_id &&
-      String(commitment.thread_id) !== String(filters.thread_id)
-    ) {
-      return false;
-    }
-
-    if (filters.owner && String(commitment.owner) !== String(filters.owner)) {
-      return false;
-    }
-
-    if (
-      filters.status &&
-      String(commitment.status) !== String(filters.status)
-    ) {
-      return false;
-    }
-
-    if (
-      filters.due_before &&
-      Date.parse(String(commitment.due_at)) >
-        Date.parse(String(filters.due_before))
-    ) {
-      return false;
-    }
-
-    if (
-      filters.due_after &&
-      Date.parse(String(commitment.due_at)) <
-        Date.parse(String(filters.due_after))
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
-export function getMockCommitment(commitmentId) {
-  return (
-    commitments.find((commitment) => commitment.id === commitmentId) ?? null
-  );
-}
-
-export function createMockCommitment({ actor_id, commitment }) {
-  const created = {
-    id: `commitment-${Math.random().toString(36).slice(2, 10)}`,
-    thread_id: commitment.thread_id,
-    title: commitment.title,
-    owner: commitment.owner,
-    due_at: commitment.due_at,
-    status: commitment.status ?? "open",
-    definition_of_done: Array.isArray(commitment.definition_of_done)
-      ? commitment.definition_of_done
-          .map((item) => String(item).trim())
-          .filter(Boolean)
-      : [],
-    links: normalizeRefList(commitment.links),
-    updated_at: new Date().toISOString(),
-    updated_by: actor_id,
-    provenance: commitment.provenance ?? {
-      sources: ["actor_statement:ui"],
-    },
-  };
-
-  commitments.unshift(created);
-  updateThreadOpenCommitments({
-    thread_id: created.thread_id,
-    commitment_id: created.id,
-    status: created.status,
-  });
-
-  return created;
-}
-
-export function updateMockCommitment({
-  actor_id,
-  commitment_id,
-  patch = {},
-  refs = [],
-  if_updated_at,
-}) {
-  const commitment = getMockCommitment(commitment_id);
-  if (!commitment) {
-    return { error: "not_found" };
-  }
-
-  if (
-    if_updated_at &&
-    String(if_updated_at) !== String(commitment.updated_at ?? "")
-  ) {
-    return { error: "conflict", current: commitment };
-  }
-
-  const next = { ...commitment };
-
-  for (const [field, value] of Object.entries(patch)) {
-    if (field === "definition_of_done" || field === "links") {
-      next[field] = Array.isArray(value)
-        ? value.map((item) => String(item).trim()).filter(Boolean)
-        : [];
-      continue;
-    }
-
-    next[field] = value;
-  }
-
-  const statusChanged =
-    Object.prototype.hasOwnProperty.call(patch, "status") &&
-    String(next.status) !== String(commitment.status);
-
-  if (
-    statusChanged &&
-    (String(next.status) === "done" || String(next.status) === "canceled") &&
-    !commitmentHasRequiredStatusRef(String(next.status), refs)
-  ) {
-    return {
-      error: "invalid_transition",
-      message:
-        String(next.status) === "done"
-          ? "status=done requires artifact:<receipt_id> or event:<decision_event_id> in refs."
-          : "status=canceled requires event:<decision_event_id> in refs.",
-    };
-  }
-
-  if (
-    statusChanged &&
-    (String(next.status) === "done" || String(next.status) === "canceled")
-  ) {
-    const statusRefs = normalizeRefList(refs);
-    next.provenance = {
-      ...(next.provenance ?? { sources: [] }),
-      by_field: {
-        ...((next.provenance ?? {}).by_field ?? {}),
-        status: statusRefs,
-      },
-    };
-  }
-
-  next.updated_at = new Date().toISOString();
-  next.updated_by = actor_id;
-
-  const index = commitments.findIndex(
-    (candidate) => candidate.id === commitment_id,
-  );
-  commitments[index] = next;
-
-  updateThreadOpenCommitments({
-    thread_id: next.thread_id,
-    commitment_id: next.id,
-    status: next.status,
-  });
-
-  return { commitment: next };
 }
 
 export function createMockWorkOrder({ actor_id, artifact = {}, packet = {} }) {
@@ -3542,8 +3198,12 @@ const boards = [
     status: "active",
     labels: ["product", "launch", "q2"],
     owners: ["actor-ops-ai"],
-    primary_thread_id: "thread-q2-initiative",
-    primary_document_id: "product-constitution",
+    thread_id: "thread-q2-initiative",
+    refs: [
+      "document:product-constitution",
+      "thread:thread-q2-initiative",
+      "topic:thread-q2-initiative",
+    ],
     column_schema: canonicalColumnSchema,
     pinned_refs: ["thread:thread-q2-initiative"],
     created_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3557,8 +3217,13 @@ const boards = [
     status: "active",
     labels: ["supply-chain", "incident", "critical"],
     owners: ["actor-ops-ai", "actor-supply-rover"],
-    primary_thread_id: "thread-lemon-shortage",
-    primary_document_id: "incident-response-playbook",
+    thread_id: "thread-lemon-shortage",
+    refs: [
+      "artifact:artifact-supplier-sla",
+      "document:incident-response-playbook",
+      "thread:thread-lemon-shortage",
+      "topic:thread-lemon-shortage",
+    ],
     column_schema: canonicalColumnSchema,
     pinned_refs: [
       "thread:thread-lemon-shortage",
@@ -3575,8 +3240,12 @@ const boards = [
     status: "active",
     labels: ["product", "menu", "q2"],
     owners: ["actor-flavor-ai", "actor-cashier-bot"],
-    primary_thread_id: "thread-summer-menu",
-    primary_document_id: "onboarding-guide-v1",
+    thread_id: "thread-summer-menu",
+    refs: [
+      "document:onboarding-guide-v1",
+      "thread:thread-summer-menu",
+      "topic:thread-summer-menu",
+    ],
     column_schema: canonicalColumnSchema,
     pinned_refs: ["thread:thread-summer-menu"],
     created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3653,6 +3322,79 @@ const boardCards = [
     updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
     updated_by: "actor-ops-ai",
   },
+  {
+    id: "card-pricing-audit",
+    board_id: "board-summer-menu",
+    column_key: "done",
+    rank: "0002",
+    status: "cancelled",
+    title: "Full historical pricing audit for March (canceled)",
+    related_refs: ["thread:thread-pricing-glitch"],
+    created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(
+      now - 7 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000,
+    ).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
+  {
+    id: "card-emergency-restock",
+    board_id: "board-supply-crisis",
+    column_key: "in_progress",
+    rank: "0003",
+    title: "Place emergency lemon restock order with approved backup supplier",
+    related_refs: [
+      "thread:thread-lemon-shortage",
+      "artifact:artifact-supplier-sla",
+    ],
+    assignee_refs: ["actor:actor-supply-rover"],
+    due_at: new Date(now + 2 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(now - 18 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-supply-rover",
+    updated_at: new Date(now - 1 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-supply-rover",
+  },
+  {
+    id: "card-sla-review",
+    board_id: "board-supply-crisis",
+    column_key: "ready",
+    rank: "0004",
+    title: "File SLA breach report with CitrusBot Farm for today's outage",
+    related_refs: [
+      "thread:thread-lemon-shortage",
+      "artifact:artifact-supplier-sla",
+    ],
+    assignee_refs: ["actor:actor-ops-ai"],
+    due_at: new Date(now + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: new Date(now - 14 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 14 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
+  {
+    id: "card-q2-permit",
+    board_id: "board-product-launch",
+    column_key: "ready",
+    rank: "0003",
+    title: "Confirm city permit approval for Riverside Park Stand #2",
+    related_refs: ["thread:thread-q2-initiative"],
+    created_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
+  {
+    id: "card-q2-menu",
+    board_id: "board-product-launch",
+    column_key: "backlog",
+    rank: "0004",
+    title: "FlavorMind to draft Riverside Park seasonal menu by April 1",
+    related_refs: ["thread:thread-q2-initiative"],
+    created_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    created_by: "actor-ops-ai",
+    updated_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_by: "actor-ops-ai",
+  },
 ];
 
 function cloneBoard(board) {
@@ -3662,6 +3404,7 @@ function cloneBoard(board) {
     ...board,
     labels: [...(board.labels ?? [])],
     owners: [...(board.owners ?? [])],
+    refs: [...(board.refs ?? [])],
     pinned_refs: [...(board.pinned_refs ?? [])],
     column_schema: (board.column_schema ?? canonicalColumnSchema).map(
       (column) => ({
@@ -3963,10 +3706,10 @@ function buildBoardSummary(board) {
   let unresolvedCardCount = 0;
   let resolvedCardCount = 0;
   let documentCount = 0;
-  let openCommitmentCount = 0;
+  let openCardCount = 0;
   const threadIds = collectMockBoardWorkspaceThreadIds(
     board.id,
-    board.primary_thread_id,
+    board.thread_id,
   );
 
   for (const card of cards) {
@@ -3981,8 +3724,8 @@ function buildBoardSummary(board) {
 
   for (const threadId of threadIds) {
     const thread = getMockThread(threadId);
-    openCommitmentCount += Array.isArray(thread?.open_commitments)
-      ? thread.open_commitments.length
+    openCardCount += Array.isArray(thread?.open_cards)
+      ? thread.open_cards.length
       : 0;
     if (thread?.updated_at) {
       if (
@@ -4019,14 +3762,16 @@ function buildBoardSummary(board) {
     card_count: cards.length,
     cards_by_column: cardsByColumn,
     related_topic_count: relatedTopicCount,
-    open_commitment_count: openCommitmentCount,
+    open_card_count: openCardCount,
     unresolved_card_count: unresolvedCardCount,
     resolved_card_count: resolvedCardCount,
     document_count: documentCount,
     inbox_count: inboxCount,
     stale,
     latest_activity_at: latestActivityAt,
-    has_primary_document: Boolean(board.primary_document_id),
+    has_document_ref: (board.refs ?? []).some((r) =>
+      String(r).startsWith("document:"),
+    ),
   };
 }
 
@@ -4072,7 +3817,7 @@ function buildBoardWorkspaceCard(card) {
       derived: {
         summary: {
           related_topic_count: relatedTopicCount,
-          open_commitment_count: 0,
+          open_card_count: 0,
           document_count: documentCount,
           inbox_count: 0,
           latest_activity_at: normalizedCard.updated_at ?? null,
@@ -4100,14 +3845,11 @@ function buildBoardWorkspaceCard(card) {
     ref,
     artifact: null,
   }));
-  const openCommitments = listMockCommitments({
-    thread_id: threadId,
-    status: "open",
-  });
+  const openCards = listMockOpenCardsForThread(threadId);
   const collaboration = buildMockWorkspaceCollaboration(
     recentEvents,
     keyArtifacts,
-    openCommitments,
+    openCards,
   );
   const inboxCount = listMockInboxItems().filter(
     (item) => String(item.thread_id ?? "") === String(threadId),
@@ -4126,7 +3868,7 @@ function buildBoardWorkspaceCard(card) {
         decision_count: collaboration.decision_count,
         recommendation_count: collaboration.recommendation_count,
         related_topic_count: relatedTopicCount || (thread ? 1 : 0),
-        open_commitment_count: openCommitments.length,
+        open_card_count: openCards.length,
         document_count: documentCount || documents.length,
         inbox_count: inboxCount,
         latest_activity_at:
@@ -4207,7 +3949,7 @@ export function getMockBoard(boardId) {
   return cloneBoard(board);
 }
 
-function collectMockBoardWorkspaceThreadIds(boardId, primaryThreadId) {
+function collectMockBoardWorkspaceThreadIds(boardId, backingThreadId) {
   const seen = new Set();
   const threadIds = [];
   const pushThreadId = (threadId) => {
@@ -4217,7 +3959,7 @@ function collectMockBoardWorkspaceThreadIds(boardId, primaryThreadId) {
     threadIds.push(normalized);
   };
 
-  pushThreadId(primaryThreadId);
+  pushThreadId(backingThreadId);
   for (const card of boardCards) {
     if (card.board_id === boardId && isVisibleBoardCard(card)) {
       pushThreadId(card.thread_id);
@@ -4244,40 +3986,18 @@ function listMockBoardWorkspaceDocuments(threadIds) {
   });
 }
 
-function listMockBoardWorkspaceCommitments(threadIds) {
-  const threadIdSet = new Set(threadIds);
-  return commitments
-    .filter((commitment) => threadIdSet.has(String(commitment.thread_id ?? "")))
-    .map((commitment) => ({ ...commitment }))
-    .sort((left, right) => {
-      const leftDue = String(left.due_at ?? "").trim();
-      const rightDue = String(right.due_at ?? "").trim();
-      if (leftDue !== rightDue) {
-        if (!leftDue) return 1;
-        if (!rightDue) return -1;
-        return leftDue.localeCompare(rightDue);
-      }
-      return String(left.id ?? "").localeCompare(String(right.id ?? ""));
-    });
-}
-
 export function getMockBoardWorkspace(boardId) {
   const board = boards.find((candidate) => candidate.id === boardId);
   if (!board) return null;
 
-  const primaryThread = getMockThread(board.primary_thread_id);
-  const primaryDocument = board.primary_document_id
-    ? (getMockDocument(board.primary_document_id)?.document ?? null)
-    : null;
   const cards = listMockBoardCards(boardId)
     .map((card) => buildBoardWorkspaceCard(card))
     .filter(Boolean);
   const threadIds = collectMockBoardWorkspaceThreadIds(
     boardId,
-    board.primary_thread_id,
+    board.thread_id,
   );
   const documents = listMockBoardWorkspaceDocuments(threadIds);
-  const workspaceCommitments = listMockBoardWorkspaceCommitments(threadIds);
   const generatedAt = new Date().toISOString();
   const freshnessThreads = threadIds.map((threadId) => ({
     thread_id: threadId,
@@ -4292,11 +4012,13 @@ export function getMockBoardWorkspace(boardId) {
     refresh_in_flight: false,
   }));
 
+  const backingThreadId = String(board.thread_id ?? "").trim();
+  const backingThread = backingThreadId ? getMockThread(backingThreadId) : null;
+
   return {
     board_id: board.id,
     board: cloneBoard(board),
-    primary_thread: primaryThread ? { ...primaryThread } : null,
-    primary_document: primaryDocument ? { ...primaryDocument } : null,
+    backing_thread: backingThread ? { ...backingThread } : null,
     cards: {
       items: cards,
       count: cards.length,
@@ -4304,10 +4026,6 @@ export function getMockBoardWorkspace(boardId) {
     documents: {
       items: documents,
       count: documents.length,
-    },
-    commitments: {
-      items: workspaceCommitments,
-      count: workspaceCommitments.length,
     },
     inbox: {
       items: [],
@@ -4331,11 +4049,8 @@ export function getMockBoardWorkspace(boardId) {
     },
     section_kinds: {
       board: "canonical",
-      primary_thread: "canonical",
-      primary_document: "canonical",
       cards: "convenience",
       documents: "derived",
-      commitments: "derived",
       inbox: "derived",
       board_summary: "derived",
     },
@@ -4449,10 +4164,10 @@ export function createMockBoardCard(boardId, payload) {
     if (!getMockThread(threadId)) {
       return { error: "not_found", message: `Thread not found: ${threadId}` };
     }
-    if (threadId === board.primary_thread_id) {
+    if (threadId === board.thread_id) {
       return {
         error: "validation",
-        message: "The board primary thread cannot be added as a card.",
+        message: "The board backing thread cannot be added as a card.",
       };
     }
     if (
@@ -4628,10 +4343,10 @@ export function updateMockBoardCard(boardId, cardId, payload) {
             message: `Thread not found: ${nextParent}`,
           };
         }
-        if (nextParent === board.primary_thread_id) {
+        if (nextParent === board.thread_id) {
           return {
             error: "validation",
-            message: "board.primary_thread_id cannot be added as a board card",
+            message: "board.thread_id cannot be added as a board card",
           };
         }
         const duplicate = boardCards.some(
@@ -5092,6 +4807,19 @@ export function purgeMockBoardCardByCardId(cardId, payload = {}) {
   };
 }
 
+function normalizeBoardCreateDocumentRefs(raw) {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out = [];
+  for (const item of raw) {
+    const s = String(item ?? "").trim();
+    if (!s) continue;
+    out.push(s.startsWith("document:") ? s : `document:${s}`);
+  }
+  return [...new Set(out)].sort();
+}
+
 export function createMockBoard(payload) {
   const requestedId = String(payload.board.id ?? "").trim();
   const boardId =
@@ -5104,11 +4832,17 @@ export function createMockBoard(payload) {
     };
   }
 
-  const primaryThreadId = String(payload.board.primary_thread_id ?? "").trim();
-  if (!getMockThread(primaryThreadId)) {
+  const threadId = String(payload.board.thread_id ?? "").trim();
+  if (!threadId) {
+    return {
+      error: "validation",
+      message: "board.thread_id is required",
+    };
+  }
+  if (!getMockThread(threadId)) {
     return {
       error: "not_found",
-      message: `Thread not found: ${primaryThreadId}`,
+      message: `Thread not found: ${threadId}`,
     };
   }
   const boardTitle = String(payload.board.title ?? "").trim();
@@ -5125,15 +4859,32 @@ export function createMockBoard(payload) {
       message: "board.status must be one of: active, paused, closed",
     };
   }
-  const primaryDocumentId = String(
-    payload.board.primary_document_id ?? "",
-  ).trim();
-  if (primaryDocumentId && !getMockDocument(primaryDocumentId)) {
-    return {
-      error: "not_found",
-      message: `Document not found: ${primaryDocumentId}`,
-    };
+  const documentRefStrings = normalizeBoardCreateDocumentRefs(
+    payload.board.document_refs,
+  );
+  for (const ref of documentRefStrings) {
+    const docId = ref.startsWith("document:")
+      ? ref.slice("document:".length).trim()
+      : ref;
+    if (docId && !getMockDocument(docId)) {
+      return {
+        error: "not_found",
+        message: `Document not found: ${docId}`,
+      };
+    }
   }
+
+  const pinnedRefsRaw = Array.isArray(payload.board.pinned_refs)
+    ? payload.board.pinned_refs
+        .map((r) => String(r ?? "").trim())
+        .filter(Boolean)
+    : [];
+  const refsSet = new Set([
+    `thread:${threadId}`,
+    `topic:${threadId}`,
+    ...documentRefStrings,
+    ...pinnedRefsRaw,
+  ]);
 
   const nowIso = new Date().toISOString();
   const newBoard = {
@@ -5142,12 +4893,12 @@ export function createMockBoard(payload) {
     status: boardStatus,
     labels: payload.board.labels || [],
     owners: payload.board.owners || [],
-    primary_thread_id: primaryThreadId,
-    primary_document_id: primaryDocumentId || null,
+    thread_id: threadId,
+    refs: [...refsSet].sort(),
     column_schema: (payload.board.column_schema || canonicalColumnSchema).map(
       (column) => ({ ...column }),
     ),
-    pinned_refs: payload.board.pinned_refs || [],
+    pinned_refs: pinnedRefsRaw,
     created_at: nowIso,
     created_by: payload.actor_id || "unknown",
     updated_at: nowIso,
@@ -5187,13 +4938,18 @@ export function updateMockBoard(boardId, payload) {
       message: "board.title is required",
     };
   }
-  if (patch.primary_document_id !== undefined && patch.primary_document_id) {
-    const primaryDocumentId = String(patch.primary_document_id).trim();
-    if (primaryDocumentId && !getMockDocument(primaryDocumentId)) {
-      return {
-        error: "not_found",
-        message: `Document not found: ${primaryDocumentId}`,
-      };
+  if (patch.document_refs !== undefined) {
+    const next = normalizeBoardCreateDocumentRefs(patch.document_refs);
+    for (const ref of next) {
+      const docId = ref.startsWith("document:")
+        ? ref.slice("document:".length).trim()
+        : ref;
+      if (docId && !getMockDocument(docId)) {
+        return {
+          error: "not_found",
+          message: `Document not found: ${docId}`,
+        };
+      }
     }
   }
 
@@ -5201,8 +4957,12 @@ export function updateMockBoard(boardId, payload) {
   if (patch.status !== undefined) board.status = patch.status;
   if (patch.labels !== undefined) board.labels = patch.labels;
   if (patch.owners !== undefined) board.owners = patch.owners;
-  if (patch.primary_document_id !== undefined) {
-    board.primary_document_id = patch.primary_document_id ?? null;
+  if (patch.document_refs !== undefined) {
+    const next = normalizeBoardCreateDocumentRefs(patch.document_refs);
+    const base = (board.refs ?? []).filter(
+      (r) => !String(r).trim().startsWith("document:"),
+    );
+    board.refs = [...new Set([...base, ...next])].sort();
   }
   if (patch.pinned_refs !== undefined) {
     board.pinned_refs = patch.pinned_refs;

@@ -136,7 +136,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - Why: Load the operator-facing board workspace with cards, docs, and inbox sections.
 - Concepts: `boards`, `workspace`
 - Error codes: `auth_required`, `invalid_token`, `not_found`
-- Output: Returns `{ board, primary_topic, primary_thread, cards, documents, inbox, board_summary, projection_freshness, section_kinds, generated_at }`.
+- Output: Returns `{ board_id, board, primary_topic, cards, documents, inbox, board_summary, projection_freshness, board_summary_freshness, warnings, section_kinds, generated_at }`.
 
 ## `cards.archive`
 
@@ -419,10 +419,10 @@ Generated from `contracts/oar-openapi.yaml`.
 - Stability: `beta`
 - Surface: `projection`
 - Input mode: `none`
-- Why: Load a compact coordination bundle (thread, recent events, key artifacts, commitments, documents) for inspection and triage.
+- Why: Load a compact coordination bundle (thread, recent events, key artifacts, cards, documents) for inspection and triage.
 - Concepts: `threads`, `inspection`
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`
-- Output: Returns `{ thread, recent_events, key_artifacts, open_commitments, documents }` plus forward-compatible fields.
+- Output: Returns `{ thread, recent_events, key_artifacts, open_cards, documents }` plus forward-compatible fields.
 
 ## `threads.inspect`
 

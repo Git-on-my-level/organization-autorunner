@@ -640,7 +640,7 @@ export const commandRegistry: CommandSpec[] = [
     "streaming": {
       "mode": "none"
     },
-    "output_envelope": "Returns `{ board, primary_topic, primary_thread, cards, documents, inbox, board_summary, projection_freshness, section_kinds, generated_at }`.",
+    "output_envelope": "Returns `{ board_id, board, primary_topic, cards, documents, inbox, board_summary, projection_freshness, board_summary_freshness, warnings, section_kinds, generated_at }`.",
     "error_codes": [
       "auth_required",
       "invalid_token",
@@ -1292,6 +1292,10 @@ export const commandRegistry: CommandSpec[] = [
       ],
       "optional": [
         {
+          "name": "if_base_revision",
+          "type": "string"
+        },
+        {
           "name": "if_document_updated_at",
           "type": "datetime"
         },
@@ -1905,12 +1909,12 @@ export const commandRegistry: CommandSpec[] = [
     "path": "/threads/{thread_id}/context",
     "operation_id": "getThreadContext",
     "summary": "Get backing thread coordination context",
-    "why": "Load a compact coordination bundle (thread, recent events, key artifacts, commitments, documents) for inspection and triage.",
+    "why": "Load a compact coordination bundle (thread, recent events, key artifacts, cards, documents) for inspection and triage.",
     "input_mode": "none",
     "streaming": {
       "mode": "none"
     },
-    "output_envelope": "Returns `{ thread, recent_events, key_artifacts, open_commitments, documents }` plus forward-compatible fields.",
+    "output_envelope": "Returns `{ thread, recent_events, key_artifacts, open_cards, documents }` plus forward-compatible fields.",
     "error_codes": [
       "auth_required",
       "invalid_request",

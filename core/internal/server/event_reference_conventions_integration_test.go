@@ -40,7 +40,7 @@ func TestEventReferenceConventionsRejectMissingRequiredRefs(t *testing.T) {
 	}`, http.StatusBadRequest)
 	assertEventErrorMessageContains(t, receiptResp, "at least 2 refs with prefix \"artifact\"")
 
-	commitmentStatusResp := postJSONExpectStatus(t, h.baseURL+"/events", `{
+	decisionNeededResp := postJSONExpectStatus(t, h.baseURL+"/events", `{
 		"actor_id":"actor-1",
 		"event":{
 			"type":"decision_needed",
@@ -51,7 +51,7 @@ func TestEventReferenceConventionsRejectMissingRequiredRefs(t *testing.T) {
 			"provenance":{"sources":["inferred"]}
 		}
 	}`, http.StatusBadRequest)
-	assertEventErrorMessageContains(t, commitmentStatusResp, "event.refs must include")
+	assertEventErrorMessageContains(t, decisionNeededResp, "event.refs must include")
 }
 
 func TestEventReferenceConventionsRejectMissingRequiredPayloadFields(t *testing.T) {

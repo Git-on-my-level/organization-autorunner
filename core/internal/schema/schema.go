@@ -180,8 +180,7 @@ type rawRefPrefixReq struct {
 }
 
 type rawSnapshots struct {
-	Thread     rawSnapshotSchema `yaml:"thread"`
-	Commitment rawSnapshotSchema `yaml:"commitment"`
+	Thread rawSnapshotSchema `yaml:"thread"`
 }
 
 type rawSnapshotSchema struct {
@@ -218,7 +217,7 @@ func Load(path string) (*Contract, error) {
 		Provenance: ProvenanceSpec{
 			Fields: make(map[string]FieldSpec, len(file.Provenance.Fields)),
 		},
-		Snapshots: make(map[string]SnapshotSchema, 2),
+		Snapshots: make(map[string]SnapshotSchema, 1),
 		Packets:   make(map[string]PacketSchema, 3),
 		ArtifactRefRules: map[string][]string{
 			"work_order": append([]string(nil), file.ReferenceConventions.ArtifactRefs.WorkOrder.RefsMustInclude...),
@@ -262,11 +261,10 @@ func Load(path string) (*Contract, error) {
 	}
 
 	snapshotSource := file.Primitives
-	if len(snapshotSource.Thread.Fields) == 0 && len(snapshotSource.Commitment.Fields) == 0 {
+	if len(snapshotSource.Thread.Fields) == 0 {
 		snapshotSource = file.Snapshots
 	}
 	contract.Snapshots["thread"] = normalizeSnapshot("thread", snapshotSource.Thread)
-	contract.Snapshots["commitment"] = normalizeSnapshot("commitment", snapshotSource.Commitment)
 
 	contract.Packets["work_order"] = normalizePacket("work_order", file.Packets.WorkOrder)
 	contract.Packets["receipt"] = normalizePacket("receipt", file.Packets.Receipt)

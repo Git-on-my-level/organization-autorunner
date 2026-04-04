@@ -682,24 +682,13 @@ func applyOARSchemaOverlays(acc map[string]bodyFieldState, schemaDoc oarSchemaDo
 	case "threads.create":
 		if source, ok := schemaDoc.Snapshots["thread"]; ok {
 			expandContainerFromOAR(acc, schemaDoc, "thread", source, oarExpansionOptions{
-				exclude: map[string]struct{}{"open_commitments": {}},
+				exclude: map[string]struct{}{"open_cards": {}},
 			})
 		}
 	case "threads.patch":
 		if source, ok := schemaDoc.Snapshots["thread"]; ok {
 			expandContainerFromOAR(acc, schemaDoc, "patch", source, oarExpansionOptions{
-				exclude:          map[string]struct{}{"open_commitments": {}},
-				forceOptionalAll: true,
-			})
-		}
-	case "commitments.create":
-		if source, ok := schemaDoc.Snapshots["commitment"]; ok {
-			expandContainerFromOAR(acc, schemaDoc, "commitment", source, oarExpansionOptions{})
-		}
-	case "commitments.patch":
-		if source, ok := schemaDoc.Snapshots["commitment"]; ok {
-			expandContainerFromOAR(acc, schemaDoc, "patch", source, oarExpansionOptions{
-				exclude:          map[string]struct{}{"thread_id": {}},
+				exclude:          map[string]struct{}{"open_cards": {}},
 				forceOptionalAll: true,
 			})
 		}
@@ -1198,7 +1187,7 @@ Recommended:
 
 Surface classification:
 
-- `+"`canonical`"+`: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, events)
+- `+"`canonical`"+`: CRUD/list/get endpoints over canonical resources (topics, cards, artifacts, documents, boards, threads, events)
 - `+"`projection`"+`: operator convenience surfaces that aggregate multiple canonical resources (workspace/context endpoints, inbox)
 - `+"`utility`"+`: meta/handshake, auth bootstrap, rebuild/repair, and similar non-domain endpoints
 `) + "\n"

@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"organization-autorunner-cli/internal/config"
+	"organization-autorunner-cli/internal/errnorm"
 )
 
 var topicsSubcommandSpec = subcommandSpec{
@@ -20,8 +22,8 @@ var topicsSubcommandSpec = subcommandSpec{
 
 var cardsSubcommandSpec = subcommandSpec{
 	command:  "cards",
-	valid:    []string{"list", "get", "patch", "move"},
-	examples: []string{"oar cards list", "oar cards get --card-id <card-id>", "oar cards move --card-id <card-id> --from-file move.json"},
+	valid:    []string{"list", "get", "patch", "move", "archive", "purge", "restore"},
+	examples: []string{"oar cards list", "oar cards get --card-id <card-id>", "oar cards move --card-id <card-id> --from-file move.json", "oar cards archive --card-id <card-id>"},
 	aliases: map[string]string{
 		"ls":     "list",
 		"show":   "get",
@@ -114,6 +116,27 @@ func (a *App) runCardsCommand(ctx context.Context, args []string, cfg config.Res
 		}
 		result, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "cards move", "cards.move", "card_id", id, cardIDLookupSpec, nil, body)
 		return result, "cards move", callErr
+	case "archive":
+		id, body, err := a.parseCardIDAndOptionalJSONBody(args[1:], "cards archive")
+		if err != nil {
+			return nil, "cards archive", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "cards archive", "cards.archive", "card_id", id, cardIDLookupSpec, nil, body)
+		return result, "cards archive", callErr
+	case "restore":
+		id, body, err := a.parseCardIDAndOptionalJSONBody(args[1:], "cards restore")
+		if err != nil {
+			return nil, "cards restore", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "cards restore", "cards.restore", "card_id", id, cardIDLookupSpec, nil, body)
+		return result, "cards restore", callErr
+	case "purge":
+		id, body, err := a.parseCardIDAndOptionalJSONBody(args[1:], "cards purge")
+		if err != nil {
+			return nil, "cards purge", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "cards purge", "cards.purge", "card_id", id, cardIDLookupSpec, nil, body)
+		return result, "cards purge", callErr
 	default:
 		return nil, "cards", cardsSubcommandSpec.unknownError(args[0])
 	}
@@ -192,23 +215,9 @@ func (a *App) normalizeMutationCommandBody(ctx context.Context, cfg config.Resol
 
 func (a *App) normalizeMutationCommandBodyLegacy(ctx context.Context, cfg config.Resolved, commandID string, pathParams map[string]string, body map[string]any) error {
 	switch commandID {
-	case "commitments.create":
-		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "commitment"), []mutationFieldSpec{
-			{key: "thread_id", kind: mutationFieldThreadID},
-			{key: "links", kind: mutationFieldTypedRefList},
-		})
-	case "commitments.patch":
-		if err := a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "patch"), []mutationFieldSpec{
-			{key: "links", kind: mutationFieldTypedRefList},
-		}); err != nil {
-			return err
-		}
-		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
-			{key: "refs", kind: mutationFieldTypedRefList},
-		})
 	case "boards.create":
 		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "board"), []mutationFieldSpec{
-			{key: "primary_thread_id", kind: mutationFieldThreadID},
+			{key: "thread_id", kind: mutationFieldThreadID},
 			{key: "pinned_refs", kind: mutationFieldTypedRefList},
 		})
 	case "boards.update":
@@ -245,6 +254,13 @@ func (a *App) normalizeMutationCommandBodyLegacy(ctx context.Context, cfg config
 		}
 		return a.normalizeBoardMutationCardAnchorField(ctx, cfg, resolvedBoard, body, "after_card_id")
 	case "docs.create", "docs.update", "docs.revisions.create":
+		if rev, ok := body["revision"].(map[string]any); ok && rev != nil {
+			if err := a.normalizeMutationFields(ctx, cfg, rev, []mutationFieldSpec{
+				{key: "refs", kind: mutationFieldTypedRefList},
+			}); err != nil {
+				return err
+			}
+		}
 		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
 			{key: "refs", kind: mutationFieldTypedRefList},
 		})
@@ -294,4 +310,42 @@ func (a *App) normalizeMutationCommandBodyLegacy(ctx context.Context, cfg config
 	default:
 		return nil
 	}
+}
+
+func (a *App) parseCardIDAndOptionalJSONBody(args []string, commandName string) (string, map[string]any, error) {
+	fs := newSilentFlagSet(commandName)
+	var cardIDFlag, fromFile trackedString
+	fs.Var(&cardIDFlag, "card-id", "Card id")
+	fs.Var(&fromFile, "from-file", "Load JSON body from file path")
+	if err := fs.Parse(args); err != nil {
+		return "", nil, errnorm.Usage("invalid_flags", err.Error())
+	}
+	positionals := fs.Args()
+	id := strings.TrimSpace(cardIDFlag.value)
+	if id == "" && len(positionals) > 0 {
+		id = strings.TrimSpace(positionals[0])
+		positionals = positionals[1:]
+	}
+	if err := validateID(id, "card id"); err != nil {
+		return "", nil, err
+	}
+	if len(positionals) > 0 {
+		return "", nil, errnorm.Usage("invalid_args", fmt.Sprintf("unexpected positional arguments for `oar %s`", commandName))
+	}
+	payload, err := a.readBodyInput(strings.TrimSpace(fromFile.value))
+	if err != nil {
+		return "", nil, err
+	}
+	if len(payload) == 0 {
+		return id, map[string]any{}, nil
+	}
+	decoded, err := decodeJSONPayload(payload)
+	if err != nil {
+		return "", nil, err
+	}
+	bodyMap, ok := decoded.(map[string]any)
+	if !ok {
+		return "", nil, errnorm.Usage("invalid_request", fmt.Sprintf("JSON body for `oar %s` must be an object", commandName))
+	}
+	return id, bodyMap, nil
 }

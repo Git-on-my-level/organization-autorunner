@@ -10,13 +10,36 @@ const columns = [
   { key: "done", title: "Done", wip_limit: null },
 ];
 
+function backingThreadId(board) {
+  return String(board?.thread_id ?? "").trim();
+}
+
+function firstDocumentIdFromBoard(board) {
+  for (const ref of board?.document_refs ?? []) {
+    const s = String(ref ?? "").trim();
+    if (s.startsWith("document:")) {
+      return s.slice("document:".length).trim();
+    }
+    if (s && !s.includes(":")) {
+      return s;
+    }
+  }
+  for (const ref of board?.refs ?? []) {
+    const s = String(ref ?? "").trim();
+    if (s.startsWith("document:")) {
+      return s.slice("document:".length).trim();
+    }
+  }
+  return "";
+}
+
 function buildSummary(board, cards, threads, documents) {
   const cardsByColumn = Object.fromEntries(
     columns.map((column) => [column.key, 0]),
   );
-  const threadIds = new Set([board.primary_thread_id]);
+  const threadIds = new Set([backingThreadId(board)].filter(Boolean));
   let latestActivityAt = board.updated_at;
-  let openCommitmentCount = 0;
+  let openCardCount = 0;
   let documentCount = 0;
 
   cards.forEach((card) => {
@@ -33,8 +56,8 @@ function buildSummary(board, cards, threads, documents) {
     ) {
       latestActivityAt = thread.updated_at;
     }
-    openCommitmentCount += Array.isArray(thread?.open_commitments)
-      ? thread.open_commitments.length
+    openCardCount += Array.isArray(thread?.open_cards)
+      ? thread.open_cards.length
       : 0;
     documentCount += documents.filter(
       (document) => document.thread_id === threadId,
@@ -44,10 +67,10 @@ function buildSummary(board, cards, threads, documents) {
   return {
     card_count: cards.length,
     cards_by_column: cardsByColumn,
-    open_commitment_count: openCommitmentCount,
+    open_card_count: openCardCount,
     document_count: documentCount,
     latest_activity_at: latestActivityAt,
-    has_primary_document: Boolean(board.primary_document_id),
+    has_document_ref: Boolean(firstDocumentIdFromBoard(board)),
   };
 }
 
@@ -75,21 +98,17 @@ function buildWorkspace(
   cards,
   threads,
   documents,
-  commitments,
   inboxItems,
   options = {},
 ) {
   const sortedCards = sortCards(cards);
-  const threadIds = new Set([board.primary_thread_id]);
+  const threadIds = new Set([backingThreadId(board)].filter(Boolean));
   for (const card of cards) {
     const tid = String(card.thread_id ?? "").trim();
     if (tid) threadIds.add(tid);
   }
   const workspaceDocuments = documents.filter((document) =>
     threadIds.has(document.thread_id),
-  );
-  const workspaceCommitments = commitments.filter((commitment) =>
-    threadIds.has(commitment.thread_id),
   );
   const workspaceInbox = inboxItems.filter((item) =>
     threadIds.has(item.thread_id),
@@ -113,12 +132,8 @@ function buildWorkspace(
   return {
     board_id: board.id,
     board,
-    primary_thread: threads.find(
-      (thread) => thread.id === board.primary_thread_id,
-    ),
-    primary_document:
-      documents.find((document) => document.id === board.primary_document_id) ??
-      null,
+    backing_thread:
+      threads.find((thread) => thread.id === backingThreadId(board)) ?? null,
     cards: {
       items: sortedCards.map((card) => ({
         membership: card,
@@ -135,9 +150,9 @@ function buildWorkspace(
         },
         derived: {
           summary: {
-            open_commitment_count:
-              threads.find((thread) => thread.id === card.thread_id)
-                ?.open_commitments?.length ?? 0,
+            open_card_count:
+              threads.find((thread) => thread.id === card.thread_id)?.open_cards
+                ?.length ?? 0,
             decision_request_count: workspaceInbox.filter(
               (item) =>
                 item.thread_id === card.thread_id &&
@@ -171,10 +186,6 @@ function buildWorkspace(
       items: workspaceDocuments,
       count: workspaceDocuments.length,
     },
-    commitments: {
-      items: workspaceCommitments,
-      count: workspaceCommitments.length,
-    },
     inbox: {
       items: workspaceInbox,
       count: workspaceInbox.length,
@@ -202,11 +213,8 @@ function buildWorkspace(
     },
     section_kinds: {
       board: "canonical",
-      primary_thread: "canonical",
-      primary_document: "canonical",
       cards: "convenience",
       documents: "derived",
-      commitments: "derived",
       inbox: "derived",
       board_summary: "derived",
     },
@@ -234,7 +242,7 @@ test("board UI supports create/edit and card mutation flows", async ({
       priority: "p1",
       updated_at: "2026-03-06T08:00:00.000Z",
       updated_by: actorId,
-      open_commitments: ["commitment-primary"],
+      open_cards: ["card-primary"],
     },
     {
       id: "thread-execution",
@@ -244,7 +252,7 @@ test("board UI supports create/edit and card mutation flows", async ({
       priority: "p2",
       updated_at: "2026-03-05T06:00:00.000Z",
       updated_by: actorId,
-      open_commitments: ["commitment-execution"],
+      open_cards: ["card-execution"],
     },
     {
       id: "thread-review",
@@ -254,7 +262,7 @@ test("board UI supports create/edit and card mutation flows", async ({
       priority: "p2",
       updated_at: "2026-03-05T07:00:00.000Z",
       updated_by: actorId,
-      open_commitments: [],
+      open_cards: [],
       staleness: "stale",
     },
   ];
@@ -280,24 +288,6 @@ test("board UI supports create/edit and card mutation flows", async ({
       labels: [],
       head_revision_id: "rev-doc-playbook-1",
       head_revision_number: 1,
-    },
-  ];
-  const commitments = [
-    {
-      id: "commitment-primary",
-      thread_id: "thread-primary",
-      title: "Primary thread follow-up",
-      owner: actorId,
-      due_at: "2026-03-07T12:00:00.000Z",
-      status: "open",
-    },
-    {
-      id: "commitment-execution",
-      thread_id: "thread-execution",
-      title: "Execution commitment",
-      owner: actorId,
-      due_at: "2026-03-06T12:00:00.000Z",
-      status: "open",
     },
   ];
   const inboxItems = [
@@ -383,14 +373,25 @@ test("board UI supports create/edit and card mutation flows", async ({
 
     const payload = JSON.parse(request.postData() ?? "{}");
     boardCreatePayloads.push(payload);
+    const threadId = String(payload.board.thread_id ?? "").trim();
+    const docRefs = Array.isArray(payload.board.document_refs)
+      ? payload.board.document_refs.map((r) => String(r ?? "").trim())
+      : [];
     board = {
       id: "board-created",
       title: payload.board.title,
       status: payload.board.status,
       labels: payload.board.labels ?? [],
       owners: payload.board.owners ?? [actorId],
-      primary_thread_id: payload.board.primary_thread_id,
-      primary_document_id: payload.board.primary_document_id ?? null,
+      thread_id: threadId,
+      refs: [
+        ...new Set([
+          ...(threadId ? [`thread:${threadId}`, `topic:${threadId}`] : []),
+          ...docRefs,
+          ...(payload.board.pinned_refs ?? []),
+        ]),
+      ].sort(),
+      document_refs: docRefs,
       column_schema: columns,
       pinned_refs: payload.board.pinned_refs ?? [],
       created_at: "2026-03-05T00:00:00.000Z",
@@ -411,14 +412,7 @@ test("board UI supports create/edit and card mutation flows", async ({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(
-        buildWorkspace(
-          board,
-          cards,
-          threads,
-          documents,
-          commitments,
-          inboxItems,
-        ),
+        buildWorkspace(board, cards, threads, documents, inboxItems),
       ),
     });
   });
@@ -650,8 +644,8 @@ test("board UI supports create/edit and card mutation flows", async ({
       board: {
         title: "Launch Control",
         status: "paused",
-        primary_thread_id: "thread-primary",
-        primary_document_id: "doc-runbook",
+        thread_id: "thread-primary",
+        document_refs: ["document:doc-runbook"],
       },
     },
   ]);
@@ -674,7 +668,7 @@ test("board UI supports create/edit and card mutation flows", async ({
       patch: {
         title: "Launch Control v2",
         status: "closed",
-        primary_document_id: "doc-playbook",
+        document_refs: ["document:doc-playbook"],
         labels: [],
         owners: [actorId],
         pinned_refs: [],
@@ -830,7 +824,7 @@ test("board detail shows pending freshness and hides derived card counts until r
       priority: "p1",
       updated_at: "2026-03-04T00:00:00.000Z",
       updated_by: actorId,
-      open_commitments: ["commitment-primary"],
+      open_cards: ["card-primary"],
     },
     {
       id: "thread-execution",
@@ -840,7 +834,7 @@ test("board detail shows pending freshness and hides derived card counts until r
       priority: "p2",
       updated_at: "2026-03-04T01:00:00.000Z",
       updated_by: actorId,
-      open_commitments: ["commitment-execution"],
+      open_cards: ["card-execution"],
     },
   ];
   const documents = [
@@ -856,24 +850,19 @@ test("board detail shows pending freshness and hides derived card counts until r
       head_revision_number: 1,
     },
   ];
-  const commitments = [
-    {
-      id: "commitment-primary",
-      thread_id: "thread-primary",
-      title: "Primary thread follow-up",
-      owner: actorId,
-      due_at: "2026-03-07T12:00:00.000Z",
-      status: "open",
-    },
-  ];
   const board = {
     id: "board-pending",
     title: "Pending Board",
     status: "active",
     labels: [],
     owners: [actorId],
-    primary_thread_id: "thread-primary",
-    primary_document_id: "doc-runbook",
+    thread_id: "thread-primary",
+    refs: [
+      "document:doc-runbook",
+      "thread:thread-primary",
+      "topic:thread-primary",
+    ],
+    document_refs: ["document:doc-runbook"],
     column_schema: columns,
     pinned_refs: [],
     created_at: "2026-03-04T00:00:00.000Z",
@@ -931,7 +920,7 @@ test("board detail shows pending freshness and hides derived card counts until r
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(
-        buildWorkspace(board, cards, threads, documents, commitments, [], {
+        buildWorkspace(board, cards, threads, documents, [], {
           projectionStatus: "pending",
         }),
       ),
@@ -964,7 +953,7 @@ test("board edit conflict reloads latest state and allows retry", async ({
       priority: "p1",
       updated_at: "2026-03-04T00:00:00.000Z",
       updated_by: actorId,
-      open_commitments: [],
+      open_cards: [],
     },
   ];
   const documents = [
@@ -986,8 +975,13 @@ test("board edit conflict reloads latest state and allows retry", async ({
     status: "active",
     labels: [],
     owners: [actorId],
-    primary_thread_id: "thread-primary",
-    primary_document_id: "doc-runbook",
+    thread_id: "thread-primary",
+    refs: [
+      "document:doc-runbook",
+      "thread:thread-primary",
+      "topic:thread-primary",
+    ],
+    document_refs: ["document:doc-runbook"],
     column_schema: columns,
     pinned_refs: [],
     created_at: "2026-03-04T00:00:00.000Z",
@@ -1032,9 +1026,7 @@ test("board edit conflict reloads latest state and allows retry", async ({
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(
-        buildWorkspace(board, [], threads, documents, [], []),
-      ),
+      body: JSON.stringify(buildWorkspace(board, [], threads, documents, [])),
     });
   });
 
@@ -1111,7 +1103,7 @@ test("board edit conflict reloads latest state and allows retry", async ({
       patch: {
         title: "Conflict Board Edited",
         status: "active",
-        primary_document_id: "doc-runbook",
+        document_refs: ["document:doc-runbook"],
         labels: [],
         owners: [actorId],
         pinned_refs: [],
@@ -1123,7 +1115,7 @@ test("board edit conflict reloads latest state and allows retry", async ({
       patch: {
         title: "Recovered Board Title",
         status: "active",
-        primary_document_id: "doc-runbook",
+        document_refs: ["document:doc-runbook"],
         labels: [],
         owners: [actorId],
         pinned_refs: [],

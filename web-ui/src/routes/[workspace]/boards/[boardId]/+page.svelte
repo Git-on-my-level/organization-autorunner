@@ -21,9 +21,11 @@
   import { enrichInboxItem } from "$lib/inboxUtils";
   import {
     BOARD_STATUS_LABELS,
+    boardBackingThreadId,
     boardCardLinkedThreadId,
     boardCardStableId,
     boardColumnTitle,
+    firstBoardDocumentId,
     freshnessStatusLabel,
     freshnessStatusTone,
     groupBoardWorkspaceCards,
@@ -52,7 +54,7 @@
 
   let boardTitle = $state("");
   let boardStatus = $state("active");
-  let boardPrimaryDocumentId = $state("");
+  let boardDocumentId = $state("");
   let boardLabels = $state("");
   let boardOwners = $state([]);
   let boardPinnedRefs = $state("");
@@ -146,7 +148,7 @@
   function syncBoardDrafts(board) {
     boardTitle = board?.title ?? "";
     boardStatus = board?.status ?? "active";
-    boardPrimaryDocumentId = board?.primary_document_id ?? "";
+    boardDocumentId = firstBoardDocumentId(board);
     boardLabels = joinDelimitedValues(board?.labels ?? []);
     boardOwners = [...(board?.owners ?? [])];
     boardPinnedRefs = joinDelimitedValues(board?.pinned_refs ?? []);
@@ -316,10 +318,11 @@
       return;
     }
 
+    const docId = boardDocumentId.trim();
     const patch = {
       title,
       status: boardStatus,
-      primary_document_id: boardPrimaryDocumentId.trim() || null,
+      document_refs: docId ? [`document:${docId}`] : [],
       labels: parseDelimitedValues(boardLabels),
       owners: [...boardOwners],
       pinned_refs: parseDelimitedValues(boardPinnedRefs),
@@ -665,7 +668,10 @@
   </div>
 {:else if workspace}
   {@const board = workspace.board}
-  {@const primaryThread = workspace.primary_thread}
+  {@const backingThreadId = boardBackingThreadId(board)}
+  {@const backingThread =
+    workspace.backing_thread ??
+    (backingThreadId ? { id: backingThreadId, title: backingThreadId } : null)}
   {@const cardsByColumn = groupBoardWorkspaceCards(
     workspace.cards,
     board.column_schema,
@@ -832,15 +838,15 @@
     <div
       class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[var(--ui-text-muted)]"
     >
-      {#if primaryThread}
+      {#if backingThread}
         <span class="text-[var(--ui-text-subtle)]">Topic</span>
         <a
           class="text-indigo-400 transition-colors hover:text-indigo-300"
           href={workspaceHref(
-            `/topics/${encodeURIComponent(primaryThread.id)}`,
+            `/topics/${encodeURIComponent(backingThread.id)}`,
           )}
         >
-          {primaryThread.title || primaryThread.id}
+          {backingThread.title || backingThread.id}
         </a>
         <span class="text-[var(--ui-text-subtle)]">·</span>
       {/if}
@@ -931,11 +937,11 @@
           </label>
 
           <SearchableEntityPicker
-            bind:value={boardPrimaryDocumentId}
-            advancedLabel="Use a manual primary document ID"
-            helperText="Optional: foreground the canonical doc lineage most operators should inspect first."
-            label="Primary document"
-            manualLabel="Primary document ID"
+            bind:value={boardDocumentId}
+            advancedLabel="Use a manual document ID"
+            helperText="Optional: add or replace the board document ref surfaced in board refs."
+            label="Board document"
+            manualLabel="Document ID"
             manualPlaceholder="incident-response-playbook"
             placeholder="Search documents by title, ID, or thread"
             searchFn={searchDocumentOptions}
@@ -944,12 +950,12 @@
           <div
             class="rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[12px] text-[var(--ui-text-muted)]"
           >
-            Primary thread is fixed in v1.
+            Backing thread is fixed after board creation.
             <div class="mt-1 text-[var(--ui-text)]">
-              {primaryThread?.title || board.primary_thread_id}
+              {backingThread?.title || backingThreadId}
             </div>
             <div class="mt-1 text-[11px] text-[var(--ui-text-subtle)]">
-              {board.primary_thread_id}
+              {backingThreadId}
             </div>
           </div>
         </div>
@@ -1064,7 +1070,7 @@
           <SearchableEntityPicker
             bind:value={addCardThreadId}
             advancedLabel="Use a manual backing thread ID"
-            disabledIds={[board.primary_thread_id]}
+            disabledIds={[backingThreadId].filter(Boolean)}
             helperText="Optional: link this card to an existing thread."
             label="Backing thread"
             manualLabel="Backing thread ID"
