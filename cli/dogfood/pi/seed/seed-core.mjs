@@ -24,6 +24,7 @@ if (!coreBaseUrl) {
 
 const seed = getPilotRescueSeedData();
 const defaultActorId = seed.actors[0]?.id ?? "actor-product-lead";
+const topicIdMap = new Map();
 const threadIdMap = new Map();
 const snapshotIdMap = new Map();
 
@@ -44,7 +45,7 @@ async function main() {
   }
 
   await seedActors();
-  await seedThreads();
+  await seedTopics();
   await seedArtifacts();
   await seedDocuments();
   const eventStats = await seedEvents();
@@ -56,19 +57,19 @@ async function main() {
 }
 
 async function detectSeededState() {
-  const [actorsBody, threadsBody] = await Promise.all([
+  const [actorsBody, topicsBody] = await Promise.all([
     request("GET", "/actors"),
-    request("GET", "/threads"),
+    request("GET", "/topics"),
   ]);
 
   const actorIds = new Set((actorsBody?.actors ?? []).map((actor) => actor?.id));
-  const threadTitles = new Set(
-    (threadsBody?.threads ?? []).map((thread) => String(thread?.title ?? "")),
+  const topicTitles = new Set(
+    (topicsBody?.topics ?? []).map((topic) => String(topic?.title ?? "")),
   );
 
   return (
     actorIds.has("actor-product-lead") &&
-    threadTitles.has("Pilot Rescue Sprint: NorthWave Launch Readiness")
+    topicTitles.has("Pilot Rescue Sprint: NorthWave Launch Readiness")
   );
 }
 
@@ -78,32 +79,59 @@ async function seedActors() {
   }
 }
 
-async function seedThreads() {
-  for (const sourceThread of seed.threads) {
+function normalizeTopicTypeFromPilotThread(type) {
+  const t = String(type ?? "").trim();
+  switch (t) {
+    case "initiative":
+      return "initiative";
+    case "case":
+      return "incident";
+    case "process":
+      return "other";
+    default:
+      return "other";
+  }
+}
+
+async function seedTopics() {
+  const sourceThreads = Array.isArray(seed.threads) ? seed.threads : [];
+
+  for (const sourceThread of sourceThreads) {
     const actorId = pickActorId(sourceThread.updated_by);
-    const response = await request("POST", "/threads", {
+    const topicPayload = {
+      id: sourceThread.id,
+      type: normalizeTopicTypeFromPilotThread(sourceThread.type),
+      title: sourceThread.title,
+      status: sourceThread.status,
+      summary: String(
+        sourceThread.current_summary ?? sourceThread.title ?? "",
+      ).trim(),
+      owner_refs: sourceThread.updated_by
+        ? [`actor:${pickActorId(sourceThread.updated_by)}`]
+        : [`actor:${defaultActorId}`],
+      board_refs: [],
+      document_refs: [],
+      related_refs: normalizeArtifactRefs(sourceThread.key_artifacts ?? []),
+      provenance: sourceThread.provenance,
+    };
+
+    const response = await request("POST", "/topics", {
       actor_id: actorId,
-      thread: {
-        type: sourceThread.type,
-        title: sourceThread.title,
-        status: sourceThread.status,
-        priority: sourceThread.priority,
-        tags: sourceThread.tags,
-        key_artifacts: normalizeArtifactRefs(sourceThread.key_artifacts),
-        cadence: sourceThread.cadence,
-        current_summary: sourceThread.current_summary,
-        next_actions: sourceThread.next_actions,
-        next_check_in_at: sourceThread.next_check_in_at,
-        provenance: sourceThread.provenance,
-      },
+      topic: topicPayload,
     });
 
-    const newId = String(response?.thread?.id ?? "").trim();
-    if (!newId) {
-      throw new Error(`Thread create returned no id for ${sourceThread.title}`);
+    const created = response?.topic;
+    const newTopicId = String(created?.id ?? "").trim();
+    const backingThreadId = String(created?.thread_id ?? "").trim();
+    if (!newTopicId || !backingThreadId) {
+      throw new Error(
+        `Topic create returned incomplete data for ${sourceThread.title}`,
+      );
     }
-    threadIdMap.set(sourceThread.id, newId);
-    snapshotIdMap.set(sourceThread.id, newId);
+
+    topicIdMap.set(String(sourceThread.id ?? "").trim(), newTopicId);
+    threadIdMap.set(String(sourceThread.id ?? "").trim(), backingThreadId);
+    snapshotIdMap.set(String(sourceThread.id ?? "").trim(), backingThreadId);
   }
 }
 
@@ -217,6 +245,9 @@ function mapRef(ref) {
   if (prefix === "thread") {
     return `${prefix}:${mapThreadId(value)}`;
   }
+  if (prefix === "topic") {
+    return `${prefix}:${topicIdMap.get(value) ?? value}`;
+  }
   if (prefix === "snapshot") {
     return `${prefix}:${snapshotIdMap.get(value) ?? value}`;
   }
@@ -255,10 +286,14 @@ function normalizeEventPayload(type, payload) {
 
 function normalizeEventRefs(type, refs, mappedThreadId) {
   const nextRefs = Array.isArray(refs) ? [...refs] : [];
-  if (type === "snapshot_updated") {
-    const hasSnapshotRef = nextRefs.some((ref) => ref.startsWith("snapshot:"));
-    if (!hasSnapshotRef && mappedThreadId) {
-      nextRefs.push(`snapshot:${mappedThreadId}`);
+  if (
+    type === "snapshot_updated" ||
+    type === "thread_updated" ||
+    type === "thread_created"
+  ) {
+    const hasThreadRef = nextRefs.some((ref) => ref.startsWith("thread:"));
+    if (!hasThreadRef && mappedThreadId) {
+      nextRefs.push(`thread:${mappedThreadId}`);
     }
   }
   return nextRefs;

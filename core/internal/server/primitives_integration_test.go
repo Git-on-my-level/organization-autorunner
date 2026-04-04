@@ -1622,11 +1622,11 @@ func legacyThreadCreateResponse(t *testing.T, ctx legacyTestWorkspaceContext, bo
 		return legacyJSONResponse(http.StatusBadRequest, errorPayload("invalid_request", err.Error()))
 	}
 
-	legacyMarkThreadProjectionsDirty(ctx, firstNonEmptyString(result.Snapshot["thread_id"]))
+	legacyMarkTopicProjectionsDirty(ctx, firstNonEmptyString(result.Thread["thread_id"]))
 	if err := legacyStepProjectionMaintainer(ctx); err != nil {
 		return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "projection maintainer step failed"))
 	}
-	status, payload, err := persistIdempotencyReplay(context.Background(), ctx.primitiveStore, "threads.create", actorID, requestKey, replayRequest, http.StatusCreated, map[string]any{"thread": result.Snapshot})
+	status, payload, err := persistIdempotencyReplay(context.Background(), ctx.primitiveStore, "threads.create", actorID, requestKey, replayRequest, http.StatusCreated, map[string]any{"thread": result.Thread})
 	if err != nil {
 		if writeLegacyIdempotencyError(ctx, err) {
 			return legacyJSONResponse(http.StatusConflict, errorPayload("conflict", err.Error()))
@@ -1681,11 +1681,11 @@ func legacyThreadPatchResponse(t *testing.T, ctx legacyTestWorkspaceContext, thr
 		}
 	}
 
-	legacyMarkThreadProjectionsDirty(ctx, firstNonEmptyString(result.Snapshot["thread_id"]))
+	legacyMarkTopicProjectionsDirty(ctx, firstNonEmptyString(result.Thread["thread_id"]))
 	if err := legacyStepProjectionMaintainer(ctx); err != nil {
 		return legacyJSONResponse(http.StatusInternalServerError, errorPayload("internal_error", "projection maintainer step failed"))
 	}
-	return legacyJSONResponse(http.StatusOK, map[string]any{"thread": result.Snapshot})
+	return legacyJSONResponse(http.StatusOK, map[string]any{"thread": result.Thread})
 }
 
 func legacyResolveWriteActorID(ctx legacyTestWorkspaceContext, headers map[string]string, requestedActorID string) (string, *http.Response, bool) {
@@ -1823,7 +1823,7 @@ func legacyStepProjectionMaintainer(ctx legacyTestWorkspaceContext) error {
 	return ctx.maintainer.Step(context.Background(), time.Now().UTC())
 }
 
-func legacyMarkThreadProjectionsDirty(ctx legacyTestWorkspaceContext, threadIDs ...string) {
+func legacyMarkTopicProjectionsDirty(ctx legacyTestWorkspaceContext, threadIDs ...string) {
 	if ctx.primitiveStore == nil {
 		return
 	}
@@ -1831,7 +1831,7 @@ func legacyMarkThreadProjectionsDirty(ctx legacyTestWorkspaceContext, threadIDs 
 	if len(threadIDs) == 0 {
 		return
 	}
-	_ = ctx.primitiveStore.MarkThreadProjectionsDirty(context.Background(), threadIDs, time.Now().UTC())
+	_ = ctx.primitiveStore.MarkTopicProjectionsDirty(context.Background(), threadIDs, time.Now().UTC())
 	if ctx.maintainer != nil {
 		ctx.maintainer.Notify()
 	}

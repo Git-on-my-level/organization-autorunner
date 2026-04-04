@@ -346,6 +346,39 @@ export function buildThreadListSearchString(state = {}) {
 }
 
 /**
+ * Maps thread-list UI status values to canonical topic statuses for GET /topics.
+ */
+export function threadListStatusFilterToTopicApiStatus(threadStatus) {
+  const s = String(threadStatus ?? "").trim();
+  if (s === "paused") return "blocked";
+  if (s === "closed") return "resolved";
+  if (s === "active") return "active";
+  return "";
+}
+
+/**
+ * Query params supported by GET /topics (see core handleListTopics).
+ * Thread-only filters (priority, cadence, tag, stale) are applied client-side via
+ * {@link applyTopicListClientFilters}.
+ */
+export function buildTopicListApiQueryParamsFromThreadListState(
+  state = {},
+  { includeArchived = false } = {},
+) {
+  const query = {};
+  if (includeArchived) {
+    query.include_archived = "true";
+  }
+  if (!state.openOnly && state.status) {
+    const topicStatus = threadListStatusFilterToTopicApiStatus(state.status);
+    if (topicStatus) {
+      query.status = topicStatus;
+    }
+  }
+  return query;
+}
+
+/**
  * Builds the API query for listThreads. Omits status when openOnly (then filter
  * client-side for non-closed). Omits priority when highPriorityTier (then filter
  * for p0/p1).
@@ -362,13 +395,18 @@ export function buildThreadFilterQueryParamsFromThreadListState(state = {}) {
   return buildThreadFilterQueryParams(base);
 }
 
+function isTerminalListItemStatus(status) {
+  const s = String(status ?? "");
+  return s === "closed" || s === "resolved" || s === "archived";
+}
+
 /**
  * Applies open-only and high-priority-tier filters after the server response.
  */
 export function applyThreadListClientFilters(threads, state = {}) {
   let list = threads ?? [];
   if (state.openOnly) {
-    list = list.filter((t) => String(t?.status ?? "") !== "closed");
+    list = list.filter((t) => !isTerminalListItemStatus(t?.status));
   }
   if (state.highPriorityTier) {
     list = list.filter((t) => {
@@ -376,6 +414,38 @@ export function applyThreadListClientFilters(threads, state = {}) {
       return pr === "p0" || pr === "p1";
     });
   }
+  return list;
+}
+
+/**
+ * Client-side filters for the topic list when using GET /topics (server ignores
+ * priority, cadence, tags, and stale).
+ */
+export function applyTopicListClientFilters(items, state = {}) {
+  let list = applyThreadListClientFilters(items, state);
+
+  if (!state.highPriorityTier && state.priority) {
+    list = list.filter((t) => String(t?.priority ?? "") === state.priority);
+  }
+
+  if (state.cadence) {
+    list = list.filter((t) => cadenceMatchesFilter(t?.cadence, state.cadence));
+  }
+
+  const tags = parseTagFilterInput(state.tagInput ?? "");
+  if (tags.length > 0) {
+    list = list.filter((t) => {
+      const rowTags = Array.isArray(t?.tags) ? t.tags.map(String) : [];
+      return tags.every((tag) => rowTags.includes(tag));
+    });
+  }
+
+  if (state.staleness === "stale") {
+    list = list.filter((t) => computeStaleness(t).stale);
+  } else if (state.staleness === "fresh") {
+    list = list.filter((t) => !computeStaleness(t).stale);
+  }
+
   return list;
 }
 

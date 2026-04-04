@@ -98,7 +98,7 @@ func handleGetInbox(w http.ResponseWriter, r *http.Request, opts handlerOptions)
 	for _, thread := range threads {
 		threadIDs = append(threadIDs, anyString(thread["id"]))
 	}
-	states, err := loadThreadProjectionStates(r.Context(), opts, threadIDs)
+	states, err := loadTopicProjectionStates(r.Context(), opts, threadIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load inbox projection status")
 		return
@@ -118,7 +118,7 @@ func handleGetInbox(w http.ResponseWriter, r *http.Request, opts handlerOptions)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"items":                payloadItems,
 		"generated_at":         now.Format(time.RFC3339Nano),
-		"projection_freshness": aggregateThreadProjectionFreshness(states, threadIDs),
+		"projection_freshness": aggregateTopicProjectionFreshness(states, threadIDs),
 	})
 }
 
@@ -169,7 +169,7 @@ func handleGetInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 	for _, thread := range threads {
 		threadIDs = append(threadIDs, anyString(thread["id"]))
 	}
-	states, err := loadThreadProjectionStates(r.Context(), opts, threadIDs)
+	states, err := loadTopicProjectionStates(r.Context(), opts, threadIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load inbox projection status")
 		return
@@ -239,6 +239,7 @@ func handleAckInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 
 	var req struct {
 		ActorID     string `json:"actor_id"`
+		SubjectRef  string `json:"subject_ref"`
 		ThreadID    string `json:"thread_id"`
 		InboxItemID string `json:"inbox_item_id"`
 	}
@@ -251,9 +252,21 @@ func handleAckInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		return
 	}
 
-	req.ThreadID = strings.TrimSpace(req.ThreadID)
-	if req.ThreadID == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "thread_id is required")
+	subjectRef := strings.TrimSpace(req.SubjectRef)
+	legacyThreadID := strings.TrimSpace(req.ThreadID)
+	var correlationID string
+	switch {
+	case subjectRef != "":
+		_, value, err := schema.SplitTypedRef(subjectRef)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+		correlationID = value
+	case legacyThreadID != "":
+		correlationID = legacyThreadID
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_request", "subject_ref is required")
 		return
 	}
 
@@ -275,7 +288,7 @@ func handleAckInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 
 	event := map[string]any{
 		"type":      "inbox_item_acknowledged",
-		"thread_id": req.ThreadID,
+		"thread_id": correlationID,
 		"refs":      []string{"inbox:" + req.InboxItemID},
 		"summary":   "inbox item acknowledged",
 		"payload": map[string]any{
@@ -294,7 +307,7 @@ func handleAckInboxItem(w http.ResponseWriter, r *http.Request, opts handlerOpti
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to acknowledge inbox item")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{req.ThreadID}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{correlationID}, time.Now().UTC())
 
 	writeJSON(w, http.StatusCreated, map[string]any{"event": stored})
 }

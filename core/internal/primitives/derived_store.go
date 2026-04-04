@@ -30,7 +30,7 @@ type DerivedInboxItem struct {
 	SourceHash    string
 }
 
-type DerivedThreadProjection struct {
+type DerivedTopicProjection struct {
 	ThreadID               string
 	Stale                  bool
 	LastActivityAt         string
@@ -48,17 +48,17 @@ type DerivedThreadProjection struct {
 	SourceHash             string
 }
 
-type DerivedThreadProjectionDirtyEntry struct {
+type DerivedTopicProjectionDirtyEntry struct {
 	ThreadID string
 	DirtyAt  string
 }
 
-type DerivedThreadProjectionQueueStats struct {
+type DerivedTopicProjectionQueueStats struct {
 	PendingCount  int
 	OldestDirtyAt string
 }
 
-type ThreadProjectionRefreshStatus struct {
+type TopicProjectionRefreshStatus struct {
 	ThreadID               string
 	DesiredGeneration      int64
 	MaterializedGeneration int64
@@ -70,11 +70,11 @@ type ThreadProjectionRefreshStatus struct {
 	LastErrorMessage       string
 }
 
-func (s ThreadProjectionRefreshStatus) IsDirty() bool {
+func (s TopicProjectionRefreshStatus) IsDirty() bool {
 	return s.DesiredGeneration > s.MaterializedGeneration
 }
 
-func (s ThreadProjectionRefreshStatus) InProgress() bool {
+func (s TopicProjectionRefreshStatus) InProgress() bool {
 	return s.InProgressGeneration != nil
 }
 
@@ -271,7 +271,7 @@ func scanDerivedInboxItem(row scanDerivedInboxItemRower) (DerivedInboxItem, erro
 	return item, nil
 }
 
-func (s *Store) PutDerivedThreadProjection(ctx context.Context, projection DerivedThreadProjection) error {
+func (s *Store) PutDerivedTopicProjection(ctx context.Context, projection DerivedTopicProjection) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("primitives store database is not initialized")
 	}
@@ -287,7 +287,7 @@ func (s *Store) PutDerivedThreadProjection(ctx context.Context, projection Deriv
 
 	_, err = s.db.ExecContext(
 		ctx,
-		`INSERT INTO derived_thread_views(
+		`INSERT INTO derived_topic_views(
 			thread_id, stale, last_activity_at, latest_stale_exception_at,
 			inbox_count, pending_decision_count, recommendation_count, decision_request_count, decision_count,
 			artifact_count, open_card_count, document_count, generated_at, data_json, source_hash
@@ -329,7 +329,7 @@ func (s *Store) PutDerivedThreadProjection(ctx context.Context, projection Deriv
 	return nil
 }
 
-func (s *Store) MarkDerivedThreadProjectionDirty(ctx context.Context, threadID string, dirtyAt string) error {
+func (s *Store) MarkDerivedTopicProjectionDirty(ctx context.Context, threadID string, dirtyAt string) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("primitives store database is not initialized")
 	}
@@ -341,11 +341,11 @@ func (s *Store) MarkDerivedThreadProjectionDirty(ctx context.Context, threadID s
 
 	_, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO derived_thread_dirty_queue(thread_id, dirty_at)
+		`INSERT INTO derived_topic_dirty_queue(thread_id, dirty_at)
 		 VALUES (?, ?)
 		ON CONFLICT(thread_id) DO UPDATE SET
 			dirty_at = CASE
-				WHEN derived_thread_dirty_queue.dirty_at <= excluded.dirty_at THEN derived_thread_dirty_queue.dirty_at
+				WHEN derived_topic_dirty_queue.dirty_at <= excluded.dirty_at THEN derived_topic_dirty_queue.dirty_at
 				ELSE excluded.dirty_at
 			END`,
 		threadID,
@@ -357,7 +357,7 @@ func (s *Store) MarkDerivedThreadProjectionDirty(ctx context.Context, threadID s
 	return nil
 }
 
-func (s *Store) ClearDerivedThreadProjectionDirty(ctx context.Context, threadID string) error {
+func (s *Store) ClearDerivedTopicProjectionDirty(ctx context.Context, threadID string) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("primitives store database is not initialized")
 	}
@@ -365,18 +365,18 @@ func (s *Store) ClearDerivedThreadProjectionDirty(ctx context.Context, threadID 
 	if threadID == "" {
 		return nil
 	}
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM derived_thread_dirty_queue WHERE thread_id = ?`, threadID); err != nil {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM derived_topic_dirty_queue WHERE thread_id = ?`, threadID); err != nil {
 		return fmt.Errorf("delete derived thread dirty queue %s: %w", threadID, err)
 	}
 	return nil
 }
 
-func (s *Store) ListDerivedThreadProjectionDirtyEntries(ctx context.Context, limit int) ([]DerivedThreadProjectionDirtyEntry, error) {
+func (s *Store) ListDerivedTopicProjectionDirtyEntries(ctx context.Context, limit int) ([]DerivedTopicProjectionDirtyEntry, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 	if limit <= 0 {
-		return []DerivedThreadProjectionDirtyEntry{}, nil
+		return []DerivedTopicProjectionDirtyEntry{}, nil
 	}
 
 	rows, err := s.db.QueryContext(
@@ -384,15 +384,15 @@ func (s *Store) ListDerivedThreadProjectionDirtyEntries(ctx context.Context, lim
 		`SELECT thread_id, dirty_at
 		   FROM (
 				SELECT q.thread_id, q.dirty_at
-				  FROM derived_thread_dirty_queue q
+				  FROM derived_topic_dirty_queue q
 				UNION ALL
 				SELECT s.thread_id,
 				       COALESCE(NULLIF(TRIM(s.queued_at), ''), NULLIF(TRIM(s.started_at), ''), NULLIF(TRIM(s.last_error_at), ''), s.updated_at) AS dirty_at
-				  FROM thread_projection_refresh_status s
+				  FROM topic_projection_refresh_status s
 				 WHERE s.desired_generation > s.materialized_generation
 				   AND NOT EXISTS (
 						SELECT 1
-						  FROM derived_thread_dirty_queue q
+						  FROM derived_topic_dirty_queue q
 						 WHERE q.thread_id = s.thread_id
 				   )
 		   )
@@ -405,9 +405,9 @@ func (s *Store) ListDerivedThreadProjectionDirtyEntries(ctx context.Context, lim
 	}
 	defer rows.Close()
 
-	entries := make([]DerivedThreadProjectionDirtyEntry, 0, limit)
+	entries := make([]DerivedTopicProjectionDirtyEntry, 0, limit)
 	for rows.Next() {
-		var entry DerivedThreadProjectionDirtyEntry
+		var entry DerivedTopicProjectionDirtyEntry
 		if err := rows.Scan(&entry.ThreadID, &entry.DirtyAt); err != nil {
 			return nil, fmt.Errorf("scan derived thread dirty queue: %w", err)
 		}
@@ -419,13 +419,13 @@ func (s *Store) ListDerivedThreadProjectionDirtyEntries(ctx context.Context, lim
 	return entries, nil
 }
 
-func (s *Store) GetDerivedThreadProjectionQueueStats(ctx context.Context) (DerivedThreadProjectionQueueStats, error) {
+func (s *Store) GetDerivedTopicProjectionQueueStats(ctx context.Context) (DerivedTopicProjectionQueueStats, error) {
 	if s == nil || s.db == nil {
-		return DerivedThreadProjectionQueueStats{}, fmt.Errorf("primitives store database is not initialized")
+		return DerivedTopicProjectionQueueStats{}, fmt.Errorf("primitives store database is not initialized")
 	}
 
 	var (
-		stats         DerivedThreadProjectionQueueStats
+		stats         DerivedTopicProjectionQueueStats
 		oldestDirtyAt sql.NullString
 	)
 	if err := s.db.QueryRowContext(
@@ -433,56 +433,56 @@ func (s *Store) GetDerivedThreadProjectionQueueStats(ctx context.Context) (Deriv
 		`SELECT COUNT(*), MIN(dirty_at)
 		   FROM (
 				SELECT q.thread_id, q.dirty_at
-				  FROM derived_thread_dirty_queue q
+				  FROM derived_topic_dirty_queue q
 				UNION ALL
 				SELECT s.thread_id,
 				       COALESCE(NULLIF(TRIM(s.queued_at), ''), NULLIF(TRIM(s.started_at), ''), NULLIF(TRIM(s.last_error_at), ''), s.updated_at) AS dirty_at
-				  FROM thread_projection_refresh_status s
+				  FROM topic_projection_refresh_status s
 				 WHERE s.desired_generation > s.materialized_generation
 				   AND NOT EXISTS (
 						SELECT 1
-						  FROM derived_thread_dirty_queue q
+						  FROM derived_topic_dirty_queue q
 						 WHERE q.thread_id = s.thread_id
 				   )
 		   ) pending`,
 	).Scan(&stats.PendingCount, &oldestDirtyAt); err != nil {
-		return DerivedThreadProjectionQueueStats{}, fmt.Errorf("query derived thread dirty queue stats: %w", err)
+		return DerivedTopicProjectionQueueStats{}, fmt.Errorf("query derived thread dirty queue stats: %w", err)
 	}
 	stats.OldestDirtyAt = oldestDirtyAt.String
 	return stats, nil
 }
 
-func (s *Store) GetDerivedThreadProjection(ctx context.Context, threadID string) (DerivedThreadProjection, error) {
+func (s *Store) GetDerivedTopicProjection(ctx context.Context, threadID string) (DerivedTopicProjection, error) {
 	if s == nil || s.db == nil {
-		return DerivedThreadProjection{}, fmt.Errorf("primitives store database is not initialized")
+		return DerivedTopicProjection{}, fmt.Errorf("primitives store database is not initialized")
 	}
 	row := s.db.QueryRowContext(
 		ctx,
 		`SELECT thread_id, stale, last_activity_at, latest_stale_exception_at,
 		        inbox_count, pending_decision_count, recommendation_count, decision_request_count, decision_count,
 		        artifact_count, open_card_count, document_count, generated_at, data_json, source_hash
-		   FROM derived_thread_views
+		   FROM derived_topic_views
 		  WHERE thread_id = ?`,
 		strings.TrimSpace(threadID),
 	)
-	projection, err := scanDerivedThreadProjection(row)
+	projection, err := scanDerivedTopicProjection(row)
 	if err == sql.ErrNoRows {
-		return DerivedThreadProjection{}, ErrNotFound
+		return DerivedTopicProjection{}, ErrNotFound
 	}
 	if err != nil {
-		return DerivedThreadProjection{}, err
+		return DerivedTopicProjection{}, err
 	}
 	return projection, nil
 }
 
-func (s *Store) ListDerivedThreadProjections(ctx context.Context, threadIDs []string) (map[string]DerivedThreadProjection, error) {
+func (s *Store) ListDerivedTopicProjections(ctx context.Context, threadIDs []string) (map[string]DerivedTopicProjection, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 
 	threadIDs = uniqueNormalizedStrings(threadIDs)
 	if len(threadIDs) == 0 {
-		return map[string]DerivedThreadProjection{}, nil
+		return map[string]DerivedTopicProjection{}, nil
 	}
 
 	placeholders := make([]string, 0, len(threadIDs))
@@ -495,7 +495,7 @@ func (s *Store) ListDerivedThreadProjections(ctx context.Context, threadIDs []st
 	query := `SELECT thread_id, stale, last_activity_at, latest_stale_exception_at,
 		        inbox_count, pending_decision_count, recommendation_count, decision_request_count, decision_count,
 		        artifact_count, open_card_count, document_count, generated_at, data_json, source_hash
-		   FROM derived_thread_views
+		   FROM derived_topic_views
 		  WHERE thread_id IN (` + strings.Join(placeholders, ", ") + `)`
 
 	rows, err := s.db.QueryContext(ctx, query, args...)
@@ -504,9 +504,9 @@ func (s *Store) ListDerivedThreadProjections(ctx context.Context, threadIDs []st
 	}
 	defer rows.Close()
 
-	out := make(map[string]DerivedThreadProjection, len(threadIDs))
+	out := make(map[string]DerivedTopicProjection, len(threadIDs))
 	for rows.Next() {
-		projection, err := scanDerivedThreadProjection(rows)
+		projection, err := scanDerivedTopicProjection(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -518,9 +518,9 @@ func (s *Store) ListDerivedThreadProjections(ctx context.Context, threadIDs []st
 	return out, nil
 }
 
-func scanDerivedThreadProjection(row scanDerivedInboxItemRower) (DerivedThreadProjection, error) {
+func scanDerivedTopicProjection(row scanDerivedInboxItemRower) (DerivedTopicProjection, error) {
 	var (
-		projection             DerivedThreadProjection
+		projection             DerivedTopicProjection
 		stale                  int
 		lastActivityAt         sql.NullString
 		latestStaleExceptionAt sql.NullString
@@ -544,14 +544,14 @@ func scanDerivedThreadProjection(row scanDerivedInboxItemRower) (DerivedThreadPr
 		&dataJSON,
 		&sourceHash,
 	); err != nil {
-		return DerivedThreadProjection{}, err
+		return DerivedTopicProjection{}, err
 	}
 	projection.Stale = stale != 0
 	projection.LastActivityAt = lastActivityAt.String
 	projection.LatestStaleExceptionAt = latestStaleExceptionAt.String
 	projection.SourceHash = sourceHash.String
 	if err := json.Unmarshal([]byte(dataJSON), &projection.Data); err != nil {
-		return DerivedThreadProjection{}, fmt.Errorf("decode derived thread projection %s: %w", projection.ThreadID, err)
+		return DerivedTopicProjection{}, fmt.Errorf("decode derived thread projection %s: %w", projection.ThreadID, err)
 	}
 	return projection, nil
 }
@@ -606,7 +606,7 @@ func firstNonEmptyDerivedString(values ...string) string {
 	return ""
 }
 
-func (s *Store) MarkThreadProjectionsDirty(ctx context.Context, threadIDs []string, queuedAt time.Time) error {
+func (s *Store) MarkTopicProjectionsDirty(ctx context.Context, threadIDs []string, queuedAt time.Time) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("primitives store database is not initialized")
 	}
@@ -628,11 +628,11 @@ func (s *Store) MarkThreadProjectionsDirty(ctx context.Context, threadIDs []stri
 	for _, threadID := range threadIDs {
 		if _, err := tx.ExecContext(
 			ctx,
-			`INSERT INTO derived_thread_dirty_queue(thread_id, dirty_at)
+			`INSERT INTO derived_topic_dirty_queue(thread_id, dirty_at)
 			 VALUES (?, ?)
 			ON CONFLICT(thread_id) DO UPDATE SET
 				dirty_at = CASE
-					WHEN derived_thread_dirty_queue.dirty_at <= excluded.dirty_at THEN derived_thread_dirty_queue.dirty_at
+					WHEN derived_topic_dirty_queue.dirty_at <= excluded.dirty_at THEN derived_topic_dirty_queue.dirty_at
 					ELSE excluded.dirty_at
 				END`,
 			threadID,
@@ -642,14 +642,14 @@ func (s *Store) MarkThreadProjectionsDirty(ctx context.Context, threadIDs []stri
 		}
 		if _, err := tx.ExecContext(
 			ctx,
-			`INSERT INTO thread_projection_refresh_status(
+			`INSERT INTO topic_projection_refresh_status(
 				thread_id, desired_generation, materialized_generation, queued_at, updated_at
 			) VALUES (?, 1, 0, ?, ?)
 			ON CONFLICT(thread_id) DO UPDATE SET
-				desired_generation = thread_projection_refresh_status.desired_generation + 1,
+				desired_generation = topic_projection_refresh_status.desired_generation + 1,
 				queued_at = CASE
-					WHEN thread_projection_refresh_status.queued_at IS NULL OR thread_projection_refresh_status.queued_at > excluded.queued_at THEN excluded.queued_at
-					ELSE thread_projection_refresh_status.queued_at
+					WHEN topic_projection_refresh_status.queued_at IS NULL OR topic_projection_refresh_status.queued_at > excluded.queued_at THEN excluded.queued_at
+					ELSE topic_projection_refresh_status.queued_at
 				END,
 				updated_at = excluded.updated_at`,
 			threadID,
@@ -666,7 +666,7 @@ func (s *Store) MarkThreadProjectionsDirty(ctx context.Context, threadIDs []stri
 	return nil
 }
 
-func (s *Store) RequeueThreadProjectionRefresh(ctx context.Context, threadID string, queuedAt time.Time) error {
+func (s *Store) RequeueTopicProjectionRefresh(ctx context.Context, threadID string, queuedAt time.Time) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("primitives store database is not initialized")
 	}
@@ -687,11 +687,11 @@ func (s *Store) RequeueThreadProjectionRefresh(ctx context.Context, threadID str
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO derived_thread_dirty_queue(thread_id, dirty_at)
+		`INSERT INTO derived_topic_dirty_queue(thread_id, dirty_at)
 		 VALUES (?, ?)
 		ON CONFLICT(thread_id) DO UPDATE SET
 			dirty_at = CASE
-				WHEN derived_thread_dirty_queue.dirty_at <= excluded.dirty_at THEN derived_thread_dirty_queue.dirty_at
+				WHEN derived_topic_dirty_queue.dirty_at <= excluded.dirty_at THEN derived_topic_dirty_queue.dirty_at
 				ELSE excluded.dirty_at
 			END`,
 		threadID,
@@ -702,13 +702,13 @@ func (s *Store) RequeueThreadProjectionRefresh(ctx context.Context, threadID str
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO thread_projection_refresh_status(
+		`INSERT INTO topic_projection_refresh_status(
 			thread_id, desired_generation, materialized_generation, queued_at, updated_at
 		) VALUES (?, 1, 0, ?, ?)
 		ON CONFLICT(thread_id) DO UPDATE SET
 			queued_at = CASE
-				WHEN thread_projection_refresh_status.queued_at IS NULL OR thread_projection_refresh_status.queued_at > excluded.queued_at THEN excluded.queued_at
-				ELSE thread_projection_refresh_status.queued_at
+				WHEN topic_projection_refresh_status.queued_at IS NULL OR topic_projection_refresh_status.queued_at > excluded.queued_at THEN excluded.queued_at
+				ELSE topic_projection_refresh_status.queued_at
 			END,
 			updated_at = excluded.updated_at`,
 		threadID,
@@ -724,7 +724,7 @@ func (s *Store) RequeueThreadProjectionRefresh(ctx context.Context, threadID str
 	return nil
 }
 
-func (s *Store) MarkThreadProjectionRefreshStarted(ctx context.Context, threadID string, startedAt time.Time) (int64, error) {
+func (s *Store) MarkTopicProjectionRefreshStarted(ctx context.Context, threadID string, startedAt time.Time) (int64, error) {
 	if s == nil || s.db == nil {
 		return 0, fmt.Errorf("primitives store database is not initialized")
 	}
@@ -745,7 +745,7 @@ func (s *Store) MarkThreadProjectionRefreshStarted(ctx context.Context, threadID
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO thread_projection_refresh_status(
+		`INSERT INTO topic_projection_refresh_status(
 			thread_id, desired_generation, materialized_generation, updated_at
 		) VALUES (?, 0, 0, ?)
 		ON CONFLICT(thread_id) DO NOTHING`,
@@ -762,7 +762,7 @@ func (s *Store) MarkThreadProjectionRefreshStarted(ctx context.Context, threadID
 	if err := tx.QueryRowContext(
 		ctx,
 		`SELECT desired_generation, materialized_generation
-		   FROM thread_projection_refresh_status
+		   FROM topic_projection_refresh_status
 		  WHERE thread_id = ?`,
 		threadID,
 	).Scan(&desiredGeneration, &materializedGeneration); err != nil {
@@ -771,7 +771,7 @@ func (s *Store) MarkThreadProjectionRefreshStarted(ctx context.Context, threadID
 	if desiredGeneration <= materializedGeneration {
 		if _, err := tx.ExecContext(
 			ctx,
-			`UPDATE thread_projection_refresh_status
+			`UPDATE topic_projection_refresh_status
 			    SET in_progress_generation = NULL,
 			        updated_at = ?
 			  WHERE thread_id = ?`,
@@ -788,7 +788,7 @@ func (s *Store) MarkThreadProjectionRefreshStarted(ctx context.Context, threadID
 
 	if _, err := tx.ExecContext(
 		ctx,
-		`UPDATE thread_projection_refresh_status
+		`UPDATE topic_projection_refresh_status
 		    SET in_progress_generation = ?,
 		        started_at = ?,
 		        last_error = NULL,
@@ -808,14 +808,14 @@ func (s *Store) MarkThreadProjectionRefreshStarted(ctx context.Context, threadID
 	return desiredGeneration, nil
 }
 
-func (s *Store) GetThreadProjectionRefreshStatuses(ctx context.Context, threadIDs []string) (map[string]ThreadProjectionRefreshStatus, error) {
+func (s *Store) GetTopicProjectionRefreshStatuses(ctx context.Context, threadIDs []string) (map[string]TopicProjectionRefreshStatus, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("primitives store database is not initialized")
 	}
 
 	threadIDs = uniqueNormalizedStrings(threadIDs)
 	if len(threadIDs) == 0 {
-		return map[string]ThreadProjectionRefreshStatus{}, nil
+		return map[string]TopicProjectionRefreshStatus{}, nil
 	}
 
 	placeholders := make([]string, 0, len(threadIDs))
@@ -828,7 +828,7 @@ func (s *Store) GetThreadProjectionRefreshStatuses(ctx context.Context, threadID
 	rows, err := s.db.QueryContext(
 		ctx,
 		`SELECT thread_id, desired_generation, materialized_generation, in_progress_generation, queued_at, started_at, completed_at, last_error_at, last_error
-		   FROM thread_projection_refresh_status
+		   FROM topic_projection_refresh_status
 		  WHERE thread_id IN (`+strings.Join(placeholders, ", ")+`)`,
 		args...,
 	)
@@ -837,9 +837,9 @@ func (s *Store) GetThreadProjectionRefreshStatuses(ctx context.Context, threadID
 	}
 	defer rows.Close()
 
-	out := make(map[string]ThreadProjectionRefreshStatus, len(threadIDs))
+	out := make(map[string]TopicProjectionRefreshStatus, len(threadIDs))
 	for rows.Next() {
-		status, err := scanThreadProjectionRefreshStatus(rows)
+		status, err := scanTopicProjectionRefreshStatus(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -851,7 +851,7 @@ func (s *Store) GetThreadProjectionRefreshStatuses(ctx context.Context, threadID
 	return out, nil
 }
 
-func (s *Store) MarkThreadProjectionRefreshSucceeded(ctx context.Context, threadID string, completedGeneration int64, completedAt time.Time) error {
+func (s *Store) MarkTopicProjectionRefreshSucceeded(ctx context.Context, threadID string, completedGeneration int64, completedAt time.Time) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("primitives store database is not initialized")
 	}
@@ -864,24 +864,24 @@ func (s *Store) MarkThreadProjectionRefreshSucceeded(ctx context.Context, thread
 	completedAtText := completedAt.UTC().Format(time.RFC3339Nano)
 	if _, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO thread_projection_refresh_status(
+		`INSERT INTO topic_projection_refresh_status(
 			thread_id, desired_generation, materialized_generation, completed_at, updated_at
 		) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(thread_id) DO UPDATE SET
 			materialized_generation = CASE
-				WHEN thread_projection_refresh_status.materialized_generation < excluded.materialized_generation THEN excluded.materialized_generation
-				ELSE thread_projection_refresh_status.materialized_generation
+				WHEN topic_projection_refresh_status.materialized_generation < excluded.materialized_generation THEN excluded.materialized_generation
+				ELSE topic_projection_refresh_status.materialized_generation
 			END,
 			in_progress_generation = CASE
-				WHEN COALESCE(thread_projection_refresh_status.in_progress_generation, 0) <= excluded.materialized_generation THEN NULL
-				ELSE thread_projection_refresh_status.in_progress_generation
+				WHEN COALESCE(topic_projection_refresh_status.in_progress_generation, 0) <= excluded.materialized_generation THEN NULL
+				ELSE topic_projection_refresh_status.in_progress_generation
 			END,
 			queued_at = CASE
-				WHEN thread_projection_refresh_status.desired_generation <= CASE
-					WHEN thread_projection_refresh_status.materialized_generation < excluded.materialized_generation THEN excluded.materialized_generation
-					ELSE thread_projection_refresh_status.materialized_generation
+				WHEN topic_projection_refresh_status.desired_generation <= CASE
+					WHEN topic_projection_refresh_status.materialized_generation < excluded.materialized_generation THEN excluded.materialized_generation
+					ELSE topic_projection_refresh_status.materialized_generation
 				END THEN NULL
-				ELSE thread_projection_refresh_status.queued_at
+				ELSE topic_projection_refresh_status.queued_at
 			END,
 			completed_at = excluded.completed_at,
 			last_error = NULL,
@@ -898,7 +898,7 @@ func (s *Store) MarkThreadProjectionRefreshSucceeded(ctx context.Context, thread
 	return nil
 }
 
-func (s *Store) MarkThreadProjectionRefreshFailed(ctx context.Context, threadID string, failedGeneration int64, failedAt time.Time, message string) error {
+func (s *Store) MarkTopicProjectionRefreshFailed(ctx context.Context, threadID string, failedGeneration int64, failedAt time.Time, message string) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("primitives store database is not initialized")
 	}
@@ -912,13 +912,13 @@ func (s *Store) MarkThreadProjectionRefreshFailed(ctx context.Context, threadID 
 	message = strings.TrimSpace(message)
 	if _, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO thread_projection_refresh_status(
+		`INSERT INTO topic_projection_refresh_status(
 			thread_id, desired_generation, materialized_generation, last_error_at, last_error, updated_at
 		) VALUES (?, 1, 0, ?, ?, ?)
 		ON CONFLICT(thread_id) DO UPDATE SET
 			in_progress_generation = CASE
-				WHEN ? > 0 AND COALESCE(thread_projection_refresh_status.in_progress_generation, 0) <= ? THEN NULL
-				ELSE thread_projection_refresh_status.in_progress_generation
+				WHEN ? > 0 AND COALESCE(topic_projection_refresh_status.in_progress_generation, 0) <= ? THEN NULL
+				ELSE topic_projection_refresh_status.in_progress_generation
 			END,
 			last_error_at = excluded.last_error_at,
 			last_error = excluded.last_error,
@@ -935,9 +935,9 @@ func (s *Store) MarkThreadProjectionRefreshFailed(ctx context.Context, threadID 
 	return nil
 }
 
-func scanThreadProjectionRefreshStatus(row scanDerivedInboxItemRower) (ThreadProjectionRefreshStatus, error) {
+func scanTopicProjectionRefreshStatus(row scanDerivedInboxItemRower) (TopicProjectionRefreshStatus, error) {
 	var (
-		status               ThreadProjectionRefreshStatus
+		status               TopicProjectionRefreshStatus
 		inProgressGeneration sql.NullInt64
 		queuedAt             sql.NullString
 		startedAt            sql.NullString
@@ -956,7 +956,7 @@ func scanThreadProjectionRefreshStatus(row scanDerivedInboxItemRower) (ThreadPro
 		&lastErrorAt,
 		&lastError,
 	); err != nil {
-		return ThreadProjectionRefreshStatus{}, err
+		return TopicProjectionRefreshStatus{}, err
 	}
 	if inProgressGeneration.Valid {
 		value := inProgressGeneration.Int64

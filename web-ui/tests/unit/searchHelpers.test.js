@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 import {
-  searchThreads,
+  searchTopics,
   searchDocuments,
   searchActors,
   searchBoards,
@@ -10,7 +10,7 @@ import {
 
 vi.mock("../../src/lib/coreClient.js", () => ({
   coreClient: {
-    listThreads: vi.fn(),
+    listTopics: vi.fn(),
     listDocuments: vi.fn(),
     listActors: vi.fn(),
     listBoards: vi.fn(),
@@ -30,38 +30,38 @@ describe("searchHelpers", () => {
     vi.useRealTimers();
   });
 
-  describe("searchThreads", () => {
-    it("calls coreClient.listThreads with query and limit", async () => {
-      const mockThreads = [
-        { id: "thread-1", title: "Test Thread" },
-        { id: "thread-2", title: "Another Thread" },
+  describe("searchTopics", () => {
+    it("calls coreClient.listTopics with query and limit", async () => {
+      const mockTopics = [
+        { id: "topic-1", title: "Test Topic" },
+        { id: "topic-2", title: "Another Topic" },
       ];
-      coreClient.listThreads.mockResolvedValue({ threads: mockThreads });
+      coreClient.listTopics.mockResolvedValue({ topics: mockTopics });
 
-      const result = await searchThreads("test", 10);
+      const result = await searchTopics("test", 10);
 
-      expect(coreClient.listThreads).toHaveBeenCalledWith({
+      expect(coreClient.listTopics).toHaveBeenCalledWith({
         q: "test",
         limit: 10,
       });
-      expect(result).toEqual(mockThreads);
+      expect(result).toEqual(mockTopics);
     });
 
     it("uses default limit of 20 when not specified", async () => {
-      coreClient.listThreads.mockResolvedValue({ threads: [] });
+      coreClient.listTopics.mockResolvedValue({ topics: [] });
 
-      await searchThreads("query");
+      await searchTopics("query");
 
-      expect(coreClient.listThreads).toHaveBeenCalledWith({
+      expect(coreClient.listTopics).toHaveBeenCalledWith({
         q: "query",
         limit: 20,
       });
     });
 
-    it("returns empty array when response has no threads", async () => {
-      coreClient.listThreads.mockResolvedValue({});
+    it("returns empty array when response has no topics", async () => {
+      coreClient.listTopics.mockResolvedValue({});
 
-      const result = await searchThreads("test");
+      const result = await searchTopics("test");
 
       expect(result).toEqual([]);
     });
@@ -225,23 +225,23 @@ describe("searchHelpers", () => {
 
   describe("debounce behavior validation", () => {
     it("demonstrates expected debounce pattern (300ms delay)", async () => {
-      const mockThreads = [{ id: "thread-1", title: "Test" }];
-      coreClient.listThreads.mockResolvedValue({ threads: mockThreads });
+      const mockTopics = [{ id: "topic-1", title: "Test" }];
+      coreClient.listTopics.mockResolvedValue({ topics: mockTopics });
 
-      const searchPromise = searchThreads("test");
+      const searchPromise = searchTopics("test");
 
       vi.advanceTimersByTime(300);
 
       const result = await searchPromise;
-      expect(result).toEqual(mockThreads);
+      expect(result).toEqual(mockTopics);
     });
 
     it("validates that search requests use pagination parameters", async () => {
-      coreClient.listThreads.mockResolvedValue({ threads: [] });
+      coreClient.listTopics.mockResolvedValue({ topics: [] });
 
-      await searchThreads("query", 10);
+      await searchTopics("query", 10);
 
-      const callArgs = coreClient.listThreads.mock.calls[0][0];
+      const callArgs = coreClient.listTopics.mock.calls[0][0];
       expect(callArgs).toHaveProperty("q");
       expect(callArgs).toHaveProperty("limit");
       expect(typeof callArgs.q).toBe("string");

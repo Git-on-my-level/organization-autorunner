@@ -246,8 +246,9 @@ Read workflow state:
 - Update a document immediately (no proposal): \`oar docs update --document-id northwave-pilot-rescue-brief --from-file doc-update-template.json\`
 
 Write workflow state:
-- Stage a thread patch proposal: \`oar threads patch --thread-id <thread-id> --from-file patch.json\`
-- Apply a thread patch proposal: \`oar threads apply --proposal-id <proposal-id>\`
+- Topics are the primary mutable coordination resource; \`oar threads patch\`, \`oar threads apply\`, and other thread mutation commands are not supported.
+- Update a topic in one step: \`oar topics patch --topic-id <topic-id> --from-file topic-patch.json\`
+- For card-level changes, use \`oar cards patch --card-id <card-id> --from-file card-patch.json\` (see \`oar help cards patch\`).
 - Validate an event before sending it: \`oar events validate --from-file event-template.json\`
 - Dry-run an event create without sending it: \`oar events create --from-file event-template.json --dry-run\`
 - Edit \`event-template.json\` in place, then create the event: \`oar events create --from-file event-template.json\`

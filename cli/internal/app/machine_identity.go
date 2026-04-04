@@ -25,14 +25,6 @@ var machineCommandIdentityByPath = map[string]machineCommandIdentity{
 		Command:   "threads review",
 		CommandID: "threads.review",
 	},
-	"threads propose-patch": {
-		Command:   "threads propose-patch",
-		CommandID: "threads.patch.propose",
-	},
-	"threads apply": {
-		Command:   "threads apply",
-		CommandID: "threads.patch.apply",
-	},
 	"threads recommendations": {
 		Command:   "threads recommendations",
 		CommandID: "threads.recommendations",

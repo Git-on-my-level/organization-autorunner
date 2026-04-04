@@ -321,7 +321,7 @@ describe("oarCoreClient error messaging", () => {
 
     await client.ackInboxItem({
       inbox_item_id: "inbox:decision_needed:thread-1:none:evt-1",
-      thread_id: "thread-1",
+      subject_ref: "thread:thread-1",
     });
 
     expect(seenRequests).toEqual([
@@ -333,7 +333,7 @@ describe("oarCoreClient error messaging", () => {
     ]);
     expect(JSON.parse(seenRequests[0].body)).toEqual({
       actor_id: "actor-1",
-      thread_id: "thread-1",
+      subject_ref: "thread:thread-1",
     });
   });
 

@@ -39,7 +39,7 @@ func TestWorkspaceListQueriesUseIndexedPlans(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	threadID, _ := threadResult.Snapshot["id"].(string)
+	threadID, _ := threadResult.Thread["id"].(string)
 
 	if _, err := store.CreateArtifact(ctx, "actor-1", map[string]any{
 		"id":   "artifact-plan-1",

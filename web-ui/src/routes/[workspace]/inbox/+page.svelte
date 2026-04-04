@@ -331,9 +331,9 @@
       ackInFlightById = { ...ackInFlightById, [item.id]: true };
       try {
         const ackPayload = { inbox_item_id: item.id };
-        const actionThreadId = inboxActionThreadId(item);
-        if (actionThreadId) {
-          ackPayload.thread_id = actionThreadId;
+        const subjectRef = getInboxSubjectRef(item);
+        if (subjectRef) {
+          ackPayload.subject_ref = subjectRef;
         }
         await coreClient.ackInboxItem(ackPayload);
       } catch (ackError) {

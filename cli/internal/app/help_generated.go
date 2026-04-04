@@ -29,9 +29,9 @@ type localHelperTopic struct {
 
 var runtimeGeneratedTopics = []runtimeHelpTopic{
 	{Path: "auth", Description: "Register, inspect, and manage auth state"},
-	{Path: "threads", Description: "Inspect thread resources and coordination views"},
 	{Path: "topics", Description: "Manage durable work subjects"},
 	{Path: "cards", Description: "Manage board-scoped cards"},
+	{Path: "threads", Description: "Inspect thread resources and coordination views"},
 	{Path: "artifacts", Description: "Manage artifact resources and content"},
 	{Path: "boards", Description: "Manage board resources and ordered cards"},
 	{Path: "docs", Description: "Manage long-lived docs and revisions"},

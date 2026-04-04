@@ -1,7 +1,7 @@
 <script>
   import { goto } from "$app/navigation";
   import {
-    searchThreads,
+    searchTopics,
     searchDocuments,
     searchBoards,
     searchArtifacts,
@@ -90,7 +90,7 @@
     const requestId = ++latestRequestId;
     try {
       const [threads, docs, boards, artifacts] = await Promise.allSettled([
-        searchThreads(q, 5),
+        searchTopics(q, 5),
         searchDocuments(q, 5),
         searchBoards(q, 5),
         searchArtifacts(q, 5),

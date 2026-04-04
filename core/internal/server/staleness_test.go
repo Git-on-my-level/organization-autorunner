@@ -193,7 +193,28 @@ func TestIsMeaningfulThreadActivityEvent(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "thread snapshot created is not follow up activity",
+			name: "thread_updated open_cards only is coordination noise",
+			event: map[string]any{
+				"type":      "thread_updated",
+				"thread_id": "thread-1",
+				"ts":        "2026-03-04T12:00:00Z",
+				"payload":   map[string]any{"changed_fields": []string{"open_cards"}},
+			},
+			want: false,
+		},
+		{
+			name: "thread_created is not follow up activity",
+			event: map[string]any{
+				"type":      "thread_created",
+				"thread_id": "thread-1",
+				"ts":        "2026-03-04T12:00:00Z",
+				"summary":   "thread created",
+				"payload":   map[string]any{"changed_fields": []string{"title", "status"}},
+			},
+			want: false,
+		},
+		{
+			name: "legacy thread snapshot created is not follow up activity",
 			event: map[string]any{
 				"type":      "snapshot_updated",
 				"thread_id": "thread-1",
@@ -202,6 +223,17 @@ func TestIsMeaningfulThreadActivityEvent(t *testing.T) {
 				"payload":   map[string]any{"changed_fields": []string{"title", "status"}},
 			},
 			want: false,
+		},
+		{
+			name: "thread_updated with substantive fields counts as activity",
+			event: map[string]any{
+				"type":      "thread_updated",
+				"thread_id": "thread-1",
+				"ts":        "2026-03-04T12:00:00Z",
+				"summary":   "thread updated",
+				"payload":   map[string]any{"changed_fields": []string{"title"}},
+			},
+			want: true,
 		},
 	}
 

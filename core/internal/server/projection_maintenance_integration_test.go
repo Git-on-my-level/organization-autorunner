@@ -105,7 +105,7 @@ type blockingProjectionStore struct {
 	once     sync.Once
 }
 
-func (s *blockingProjectionStore) PutDerivedThreadProjection(ctx context.Context, projection primitives.DerivedThreadProjection) error {
+func (s *blockingProjectionStore) PutDerivedTopicProjection(ctx context.Context, projection primitives.DerivedTopicProjection) error {
 	if strings.TrimSpace(projection.ThreadID) == s.threadID {
 		shouldBlock := false
 		s.once.Do(func() {
@@ -120,7 +120,7 @@ func (s *blockingProjectionStore) PutDerivedThreadProjection(ctx context.Context
 			}
 		}
 	}
-	return s.PrimitiveStore.PutDerivedThreadProjection(ctx, projection)
+	return s.PrimitiveStore.PutDerivedTopicProjection(ctx, projection)
 }
 
 func TestProjectionMaintainerEmitsStaleExceptionsAndRefreshesInbox(t *testing.T) {
@@ -352,7 +352,7 @@ func TestProjectionMaintainerManualModeRunExitsWithoutProcessingQueue(t *testing
 		}
 	}`, http.StatusCreated).Body.Close()
 
-	before, err := h.store.GetDerivedThreadProjectionQueueStats(context.Background())
+	before, err := h.store.GetDerivedTopicProjectionQueueStats(context.Background())
 	if err != nil {
 		t.Fatalf("load projection queue stats before manual run: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestProjectionMaintainerManualModeRunExitsWithoutProcessingQueue(t *testing
 		t.Fatal("expected manual-mode Run to exit immediately")
 	}
 
-	after, err := h.store.GetDerivedThreadProjectionQueueStats(context.Background())
+	after, err := h.store.GetDerivedTopicProjectionQueueStats(context.Background())
 	if err != nil {
 		t.Fatalf("load projection queue stats after manual run: %v", err)
 	}
@@ -542,7 +542,7 @@ func TestProjectionMaintainerKeepsProjectionPendingForConcurrentWrites(t *testin
 		}
 	}`, http.StatusCreated).Body.Close()
 
-	statuses, err := baseStore.GetThreadProjectionRefreshStatuses(context.Background(), []string{threadID})
+	statuses, err := baseStore.GetTopicProjectionRefreshStatuses(context.Background(), []string{threadID})
 	if err != nil {
 		t.Fatalf("load refresh statuses after first write: %v", err)
 	}
@@ -573,7 +573,7 @@ func TestProjectionMaintainerKeepsProjectionPendingForConcurrentWrites(t *testin
 		}
 	}`, http.StatusCreated).Body.Close()
 
-	statuses, err = baseStore.GetThreadProjectionRefreshStatuses(context.Background(), []string{threadID})
+	statuses, err = baseStore.GetTopicProjectionRefreshStatuses(context.Background(), []string{threadID})
 	if err != nil {
 		t.Fatalf("load refresh statuses during blocked refresh: %v", err)
 	}
@@ -592,7 +592,7 @@ func TestProjectionMaintainerKeepsProjectionPendingForConcurrentWrites(t *testin
 		t.Fatalf("blocked step: %v", err)
 	}
 
-	state, err := loadThreadProjectionState(context.Background(), handlerOptions{primitiveStore: baseStore}, threadID)
+	state, err := loadTopicProjectionState(context.Background(), handlerOptions{primitiveStore: baseStore}, threadID)
 	if err != nil {
 		t.Fatalf("load state after first refresh: %v", err)
 	}
@@ -600,7 +600,7 @@ func TestProjectionMaintainerKeepsProjectionPendingForConcurrentWrites(t *testin
 		t.Fatalf("expected projection to remain pending after concurrent write, got %#v", state.Freshness)
 	}
 
-	statuses, err = baseStore.GetThreadProjectionRefreshStatuses(context.Background(), []string{threadID})
+	statuses, err = baseStore.GetTopicProjectionRefreshStatuses(context.Background(), []string{threadID})
 	if err != nil {
 		t.Fatalf("load refresh statuses after first refresh: %v", err)
 	}
@@ -615,7 +615,7 @@ func TestProjectionMaintainerKeepsProjectionPendingForConcurrentWrites(t *testin
 		t.Fatalf("follow-up step: %v", err)
 	}
 
-	state, err = loadThreadProjectionState(context.Background(), handlerOptions{primitiveStore: baseStore}, threadID)
+	state, err = loadTopicProjectionState(context.Background(), handlerOptions{primitiveStore: baseStore}, threadID)
 	if err != nil {
 		t.Fatalf("load state after follow-up refresh: %v", err)
 	}
@@ -626,7 +626,7 @@ func TestProjectionMaintainerKeepsProjectionPendingForConcurrentWrites(t *testin
 		t.Fatalf("expected follow-up refresh to materialize both inbox items, got %#v", state.Projection)
 	}
 
-	statuses, err = baseStore.GetThreadProjectionRefreshStatuses(context.Background(), []string{threadID})
+	statuses, err = baseStore.GetTopicProjectionRefreshStatuses(context.Background(), []string{threadID})
 	if err != nil {
 		t.Fatalf("load refresh statuses after follow-up refresh: %v", err)
 	}
@@ -721,7 +721,7 @@ func TestProjectionMaintainerNotifyWakesRunLoopPromptly(t *testing.T) {
 
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		state, err := loadThreadProjectionState(context.Background(), handlerOptions{primitiveStore: store}, threadID)
+		state, err := loadTopicProjectionState(context.Background(), handlerOptions{primitiveStore: store}, threadID)
 		if err != nil {
 			t.Fatalf("load thread projection state: %v", err)
 		}
@@ -741,12 +741,12 @@ type projectionMaintenanceFailureStore struct {
 	failed  bool
 }
 
-func (s *projectionMaintenanceFailureStore) PutDerivedThreadProjection(ctx context.Context, projection primitives.DerivedThreadProjection) error {
+func (s *projectionMaintenanceFailureStore) PutDerivedTopicProjection(ctx context.Context, projection primitives.DerivedTopicProjection) error {
 	if !s.failed {
 		s.failed = true
 		return s.failErr
 	}
-	return s.PrimitiveStore.PutDerivedThreadProjection(ctx, projection)
+	return s.PrimitiveStore.PutDerivedTopicProjection(ctx, projection)
 }
 
 func TestOpsHealthEndpointReportsProjectionMaintenanceErrors(t *testing.T) {

@@ -56,20 +56,20 @@ type PrimitiveStore interface {
 	ListDerivedInboxItems(ctx context.Context, filter primitives.DerivedInboxListFilter) ([]primitives.DerivedInboxItem, error)
 	GetDerivedInboxItem(ctx context.Context, id string) (primitives.DerivedInboxItem, error)
 	ReplaceDerivedInboxItems(ctx context.Context, threadID string, items []primitives.DerivedInboxItem) error
-	GetDerivedThreadProjection(ctx context.Context, threadID string) (primitives.DerivedThreadProjection, error)
-	ListDerivedThreadProjections(ctx context.Context, threadIDs []string) (map[string]primitives.DerivedThreadProjection, error)
-	PutDerivedThreadProjection(ctx context.Context, projection primitives.DerivedThreadProjection) error
-	MarkDerivedThreadProjectionDirty(ctx context.Context, threadID string, dirtyAt string) error
-	ClearDerivedThreadProjectionDirty(ctx context.Context, threadID string) error
-	ListDerivedThreadProjectionDirtyEntries(ctx context.Context, limit int) ([]primitives.DerivedThreadProjectionDirtyEntry, error)
-	GetDerivedThreadProjectionQueueStats(ctx context.Context) (primitives.DerivedThreadProjectionQueueStats, error)
+	GetDerivedTopicProjection(ctx context.Context, threadID string) (primitives.DerivedTopicProjection, error)
+	ListDerivedTopicProjections(ctx context.Context, threadIDs []string) (map[string]primitives.DerivedTopicProjection, error)
+	PutDerivedTopicProjection(ctx context.Context, projection primitives.DerivedTopicProjection) error
+	MarkDerivedTopicProjectionDirty(ctx context.Context, threadID string, dirtyAt string) error
+	ClearDerivedTopicProjectionDirty(ctx context.Context, threadID string) error
+	ListDerivedTopicProjectionDirtyEntries(ctx context.Context, limit int) ([]primitives.DerivedTopicProjectionDirtyEntry, error)
+	GetDerivedTopicProjectionQueueStats(ctx context.Context) (primitives.DerivedTopicProjectionQueueStats, error)
 	ListDocuments(ctx context.Context, filter primitives.DocumentListFilter) ([]map[string]any, string, error)
-	MarkThreadProjectionsDirty(ctx context.Context, threadIDs []string, queuedAt time.Time) error
-	RequeueThreadProjectionRefresh(ctx context.Context, threadID string, queuedAt time.Time) error
-	GetThreadProjectionRefreshStatuses(ctx context.Context, threadIDs []string) (map[string]primitives.ThreadProjectionRefreshStatus, error)
-	MarkThreadProjectionRefreshStarted(ctx context.Context, threadID string, startedAt time.Time) (int64, error)
-	MarkThreadProjectionRefreshSucceeded(ctx context.Context, threadID string, completedGeneration int64, completedAt time.Time) error
-	MarkThreadProjectionRefreshFailed(ctx context.Context, threadID string, failedGeneration int64, failedAt time.Time, message string) error
+	MarkTopicProjectionsDirty(ctx context.Context, threadIDs []string, queuedAt time.Time) error
+	RequeueTopicProjectionRefresh(ctx context.Context, threadID string, queuedAt time.Time) error
+	GetTopicProjectionRefreshStatuses(ctx context.Context, threadIDs []string) (map[string]primitives.TopicProjectionRefreshStatus, error)
+	MarkTopicProjectionRefreshStarted(ctx context.Context, threadID string, startedAt time.Time) (int64, error)
+	MarkTopicProjectionRefreshSucceeded(ctx context.Context, threadID string, completedGeneration int64, completedAt time.Time) error
+	MarkTopicProjectionRefreshFailed(ctx context.Context, threadID string, failedGeneration int64, failedAt time.Time, message string) error
 	CreateDocument(ctx context.Context, actorID string, document map[string]any, content any, contentType string, refs []string) (map[string]any, map[string]any, error)
 	GetDocument(ctx context.Context, documentID string) (map[string]any, map[string]any, error)
 	UpdateDocument(ctx context.Context, actorID string, documentID string, documentPatch map[string]any, ifBaseRevision string, content any, contentType string, refs []string, revisionProvenance map[string]any) (map[string]any, map[string]any, error)

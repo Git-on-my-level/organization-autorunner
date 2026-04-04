@@ -52,7 +52,8 @@ export function buildThreadHealthSummary(threads = []) {
 
   for (const thread of threads) {
     const status = String(thread?.status ?? "");
-    const isOpen = status !== "closed";
+    const isOpen =
+      status !== "closed" && status !== "resolved" && status !== "archived";
 
     if (isOpen) {
       openCount += 1;

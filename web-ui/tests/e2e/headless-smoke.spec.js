@@ -66,7 +66,7 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
     });
   });
 
-  await page.route(/\/threads(\?.*)?$/, async (route) => {
+  await page.route(/\/topics(\?.*)?$/, async (route) => {
     const request = route.request();
     if (request.method() === "GET" && request.resourceType() === "document") {
       await route.continue();
@@ -78,7 +78,7 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          threads: [
+          topics: [
             {
               id: "thread-onboarding",
               title: "Customer Onboarding Workflow",
@@ -86,6 +86,7 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
               priority: "p1",
               cadence: "weekly",
               tags: ["ops", "customer"],
+              summary: "Onboarding policy review pending.",
               current_summary: "Onboarding policy review pending.",
               updated_at: "2026-03-03T11:00:00.000Z",
               stale: false,
@@ -244,8 +245,8 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
     page.getByText("Approve onboarding exception handling", { exact: true }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Threads", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Threads" })).toBeVisible();
+  await page.getByRole("link", { name: "Topics", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Topics" })).toBeVisible();
   const threadLink = page.getByRole("link", {
     name: /Customer Onboarding Workflow/,
   });

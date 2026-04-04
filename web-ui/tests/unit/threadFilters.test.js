@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyThreadListClientFilters,
+  applyTopicListClientFilters,
   buildThreadFilterQueryParamsFromThreadListState,
   buildThreadFilterQueryString,
   buildThreadFilterQueryParams,
   buildThreadListSearchString,
+  buildTopicListApiQueryParamsFromThreadListState,
   cadenceMatchesFilter,
   cadencePresetFromValue,
   cadenceToRequestValue,
@@ -13,6 +15,7 @@ import {
   formatCadenceLabel,
   parseThreadListSearchParams,
   readBackendStaleState,
+  threadListStatusFilterToTopicApiStatus,
   validateCadenceSelection,
   parseTagFilterInput,
 } from "../../src/lib/threadFilters.js";
@@ -205,6 +208,7 @@ describe("thread filter query builders", () => {
   it("filters threads client-side for open and high priority tier", () => {
     const threads = [
       { status: "closed", priority: "p0" },
+      { status: "resolved", priority: "p2" },
       { status: "active", priority: "p2" },
       { status: "active", priority: "p1" },
       { status: "paused", priority: "p0" },
@@ -232,5 +236,47 @@ describe("thread filter query builders", () => {
         next_check_in_at: new Date(Date.now() - 60_000).toISOString(),
       }).stale,
     ).toBe(true);
+  });
+
+  it("maps thread list status filters to topic API statuses", () => {
+    expect(threadListStatusFilterToTopicApiStatus("paused")).toBe("blocked");
+    expect(threadListStatusFilterToTopicApiStatus("closed")).toBe("resolved");
+    expect(threadListStatusFilterToTopicApiStatus("active")).toBe("active");
+    expect(threadListStatusFilterToTopicApiStatus("")).toBe("");
+  });
+
+  it("builds GET /topics query from thread list filter state", () => {
+    expect(
+      buildTopicListApiQueryParamsFromThreadListState(
+        {
+          openOnly: false,
+          status: "paused",
+          priority: "",
+          cadence: "",
+          staleness: "all",
+          tagInput: "",
+          highPriorityTier: false,
+        },
+        { includeArchived: true },
+      ),
+    ).toEqual({ include_archived: "true", status: "blocked" });
+  });
+
+  it("applies tag and staleness filters for topic lists client-side", () => {
+    const items = [
+      { id: "a", tags: ["ops"], stale: true, priority: "p2" },
+      { id: "b", tags: ["ops", "customer"], stale: false, priority: "p2" },
+    ];
+    expect(
+      applyTopicListClientFilters(items, {
+        openOnly: false,
+        highPriorityTier: false,
+        priority: "",
+        cadence: "",
+        staleness: "stale",
+        tagInput: "ops",
+        status: "",
+      }),
+    ).toEqual([items[0]]);
   });
 });

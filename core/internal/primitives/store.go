@@ -124,8 +124,8 @@ type preparedEvent struct {
 }
 
 type ThreadMutationResult struct {
-	Snapshot map[string]any
-	Event    map[string]any
+	Thread map[string]any
+	Event  map[string]any
 }
 
 func NewStore(db *sql.DB, blobBackend blob.Backend, blobRoot string, options ...Option) *Store {
@@ -1495,8 +1495,7 @@ func (s *Store) PurgeTombstonedArtifact(ctx context.Context, artifactID string) 
 	return nil
 }
 
-// applyThreadPatch updates a threads-table row with kind "thread". Event payloads keep
-// schema-stable snapshot_updated typing and snapshot: refs.
+// applyThreadPatch updates a threads-table row with kind "thread" and emits a thread_updated event.
 func (s *Store) applyThreadPatch(ctx context.Context, actorID string, id string, patch map[string]any, ifUpdatedAt *string) (ThreadMutationResult, error) {
 	if s == nil || s.db == nil {
 		return ThreadMutationResult{}, fmt.Errorf("primitives store database is not initialized")
@@ -1580,7 +1579,7 @@ func (s *Store) applyThreadPatch(ctx context.Context, actorID string, id string,
 	if err != nil {
 		return ThreadMutationResult{}, err
 	}
-	filterColumns := snapshotFilterColumnsForKind(rowKind, current)
+	filterColumns := threadFilterColumnsForKind(rowKind, current)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1621,9 +1620,9 @@ func (s *Store) applyThreadPatch(ctx context.Context, actorID string, id string,
 		"changed_fields": changedFields,
 	}
 	event := map[string]any{
-		"type":       "snapshot_updated",
-		"refs":       []string{"snapshot:" + rowID},
-		"summary":    "snapshot updated",
+		"type":       "thread_updated",
+		"refs":       []string{"thread:" + rowID},
+		"summary":    "thread updated",
 		"payload":    eventPayload,
 		"provenance": actorStatementProvenance(),
 	}
@@ -1634,11 +1633,11 @@ func (s *Store) applyThreadPatch(ctx context.Context, actorID string, id string,
 	preparedEvent, err := prepareEventForInsert(actorID, event)
 	if err != nil {
 		_ = tx.Rollback()
-		return ThreadMutationResult{}, fmt.Errorf("prepare snapshot_updated event: %w", err)
+		return ThreadMutationResult{}, fmt.Errorf("prepare thread_updated event: %w", err)
 	}
 	if err := insertPreparedEvent(ctx, tx, preparedEvent); err != nil {
 		_ = tx.Rollback()
-		return ThreadMutationResult{}, fmt.Errorf("emit snapshot_updated event: %w", err)
+		return ThreadMutationResult{}, fmt.Errorf("emit thread_updated event: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
@@ -1657,13 +1656,9 @@ func (s *Store) applyThreadPatch(ctx context.Context, actorID string, id string,
 	current["provenance"] = nextProvenance
 
 	return ThreadMutationResult{
-		Snapshot: current,
-		Event:    preparedEvent.Body,
+		Thread: current,
+		Event:  preparedEvent.Body,
 	}, nil
-}
-
-func (s *Store) PatchSnapshot(ctx context.Context, actorID string, id string, patch map[string]any, ifUpdatedAt *string) (ThreadMutationResult, error) {
-	return s.applyThreadPatch(ctx, actorID, id, patch, ifUpdatedAt)
 }
 
 func (s *Store) CreateThread(ctx context.Context, actorID string, thread map[string]any) (ThreadMutationResult, error) {
@@ -1697,7 +1692,7 @@ func (s *Store) CreateThread(ctx context.Context, actorID string, thread map[str
 	if err != nil {
 		return ThreadMutationResult{}, err
 	}
-	filterColumns := snapshotFilterColumnsForKind("thread", body)
+	filterColumns := threadFilterColumnsForKind("thread", body)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -1738,21 +1733,21 @@ func (s *Store) CreateThread(ctx context.Context, actorID string, thread map[str
 	sort.Strings(changedFields)
 
 	event := map[string]any{
-		"type":       "snapshot_updated",
+		"type":       "thread_created",
 		"thread_id":  threadID,
-		"refs":       []string{"snapshot:" + threadID},
-		"summary":    "thread snapshot created",
+		"refs":       []string{"thread:" + threadID},
+		"summary":    "thread created",
 		"payload":    map[string]any{"changed_fields": changedFields},
 		"provenance": actorStatementProvenance(),
 	}
 	preparedEvent, err := prepareEventForInsert(actorID, event)
 	if err != nil {
 		_ = tx.Rollback()
-		return ThreadMutationResult{}, fmt.Errorf("prepare thread create snapshot_updated event: %w", err)
+		return ThreadMutationResult{}, fmt.Errorf("prepare thread_created event: %w", err)
 	}
 	if err := insertPreparedEvent(ctx, tx, preparedEvent); err != nil {
 		_ = tx.Rollback()
-		return ThreadMutationResult{}, fmt.Errorf("emit thread create snapshot_updated event: %w", err)
+		return ThreadMutationResult{}, fmt.Errorf("emit thread_created event: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		_ = tx.Rollback()
@@ -1768,20 +1763,20 @@ func (s *Store) CreateThread(ctx context.Context, actorID string, thread map[str
 	out["provenance"] = provenance
 
 	return ThreadMutationResult{
-		Snapshot: out,
-		Event:    preparedEvent.Body,
+		Thread: out,
+		Event:  preparedEvent.Body,
 	}, nil
 }
 
 func (s *Store) GetThread(ctx context.Context, id string) (map[string]any, error) {
-	row, err := s.getSnapshotRow(ctx, id, "threads")
+	row, err := s.getThreadRow(ctx, id, "threads")
 	if err != nil {
 		return nil, err
 	}
 	if row.Kind != "thread" {
 		return nil, ErrNotFound
 	}
-	return row.ToSnapshotMap()
+	return row.ToThreadMap()
 }
 
 func (s *Store) PatchThread(ctx context.Context, actorID string, id string, patch map[string]any, ifUpdatedAt *string) (ThreadMutationResult, error) {
@@ -1807,11 +1802,11 @@ func (s *Store) ListThreads(ctx context.Context, filter ThreadListFilter) ([]map
 
 	threads := make([]map[string]any, 0)
 	for rows.Next() {
-		row, err := scanSnapshotRow(rows)
+		row, err := scanThreadRow(rows)
 		if err != nil {
 			return nil, "", err
 		}
-		threadMap, err := row.ToSnapshotMap()
+		threadMap, err := row.ToThreadMap()
 		if err != nil {
 			return nil, "", err
 		}
@@ -1847,7 +1842,7 @@ func (s *Store) ArchiveThread(ctx context.Context, actorID, threadID string) (ma
 	if threadID == "" {
 		return nil, fmt.Errorf("thread_id is required")
 	}
-	row, err := s.getSnapshotRow(ctx, threadID, "threads")
+	row, err := s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
@@ -1858,7 +1853,7 @@ func (s *Store) ArchiveThread(ctx context.Context, actorID, threadID string) (ma
 		return nil, ErrAlreadyTombstoned
 	}
 	if row.ArchivedAt.Valid && strings.TrimSpace(row.ArchivedAt.String) != "" {
-		return row.ToSnapshotMap()
+		return row.ToThreadMap()
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if _, err := s.db.ExecContext(ctx,
@@ -1867,11 +1862,11 @@ func (s *Store) ArchiveThread(ctx context.Context, actorID, threadID string) (ma
 	); err != nil {
 		return nil, fmt.Errorf("archive thread: %w", err)
 	}
-	row, err = s.getSnapshotRow(ctx, threadID, "threads")
+	row, err = s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
-	return row.ToSnapshotMap()
+	return row.ToThreadMap()
 }
 
 func (s *Store) UnarchiveThread(ctx context.Context, actorID, threadID string) (map[string]any, error) {
@@ -1886,7 +1881,7 @@ func (s *Store) UnarchiveThread(ctx context.Context, actorID, threadID string) (
 	if threadID == "" {
 		return nil, fmt.Errorf("thread_id is required")
 	}
-	row, err := s.getSnapshotRow(ctx, threadID, "threads")
+	row, err := s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
@@ -1902,11 +1897,11 @@ func (s *Store) UnarchiveThread(ctx context.Context, actorID, threadID string) (
 	); err != nil {
 		return nil, fmt.Errorf("unarchive thread: %w", err)
 	}
-	row, err = s.getSnapshotRow(ctx, threadID, "threads")
+	row, err = s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
-	return row.ToSnapshotMap()
+	return row.ToThreadMap()
 }
 
 func (s *Store) TombstoneThread(ctx context.Context, actorID, threadID, reason string) (map[string]any, error) {
@@ -1921,7 +1916,7 @@ func (s *Store) TombstoneThread(ctx context.Context, actorID, threadID, reason s
 	if threadID == "" {
 		return nil, fmt.Errorf("thread_id is required")
 	}
-	row, err := s.getSnapshotRow(ctx, threadID, "threads")
+	row, err := s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
@@ -1929,7 +1924,7 @@ func (s *Store) TombstoneThread(ctx context.Context, actorID, threadID, reason s
 		return nil, ErrNotFound
 	}
 	if row.TombstonedAt.Valid && strings.TrimSpace(row.TombstonedAt.String) != "" {
-		return row.ToSnapshotMap()
+		return row.ToThreadMap()
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if _, err := s.db.ExecContext(ctx,
@@ -1938,11 +1933,11 @@ func (s *Store) TombstoneThread(ctx context.Context, actorID, threadID, reason s
 	); err != nil {
 		return nil, fmt.Errorf("tombstone thread: %w", err)
 	}
-	row, err = s.getSnapshotRow(ctx, threadID, "threads")
+	row, err = s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
-	return row.ToSnapshotMap()
+	return row.ToThreadMap()
 }
 
 func (s *Store) RestoreThread(ctx context.Context, actorID, threadID string) (map[string]any, error) {
@@ -1957,7 +1952,7 @@ func (s *Store) RestoreThread(ctx context.Context, actorID, threadID string) (ma
 	if threadID == "" {
 		return nil, fmt.Errorf("thread_id is required")
 	}
-	row, err := s.getSnapshotRow(ctx, threadID, "threads")
+	row, err := s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
@@ -1973,11 +1968,11 @@ func (s *Store) RestoreThread(ctx context.Context, actorID, threadID string) (ma
 	); err != nil {
 		return nil, fmt.Errorf("restore thread: %w", err)
 	}
-	row, err = s.getSnapshotRow(ctx, threadID, "threads")
+	row, err = s.getThreadRow(ctx, threadID, "threads")
 	if err != nil {
 		return nil, err
 	}
-	return row.ToSnapshotMap()
+	return row.ToThreadMap()
 }
 
 func (s *Store) PurgeThread(ctx context.Context, threadID string) error {
@@ -2015,14 +2010,14 @@ func (s *Store) PurgeThread(ctx context.Context, threadID string) error {
 		return fmt.Errorf("select tombstoned thread: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM derived_thread_views WHERE thread_id = ?`, threadID); err != nil {
-		return fmt.Errorf("delete derived_thread_views: %w", err)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM derived_topic_views WHERE thread_id = ?`, threadID); err != nil {
+		return fmt.Errorf("delete derived_topic_views: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM derived_inbox_items WHERE thread_id = ?`, threadID); err != nil {
 		return fmt.Errorf("delete derived_inbox_items: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM derived_thread_dirty_queue WHERE thread_id = ?`, threadID); err != nil {
-		return fmt.Errorf("delete derived_thread_dirty_queue: %w", err)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM derived_topic_dirty_queue WHERE thread_id = ?`, threadID); err != nil {
+		return fmt.Errorf("delete derived_topic_dirty_queue: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM threads WHERE id = ?`, threadID); err != nil {
 		return fmt.Errorf("delete thread row: %w", err)
@@ -2477,7 +2472,7 @@ func (s *Store) ListEventsAfter(ctx context.Context, filter EventListFilter, cur
 	return events, nil
 }
 
-type snapshotRow struct {
+type threadRow struct {
 	ID              string
 	Kind            string
 	ThreadID        sql.NullString
@@ -2492,7 +2487,7 @@ type snapshotRow struct {
 	TombstoneReason sql.NullString
 }
 
-type snapshotFilterColumns struct {
+type threadFilterColumns struct {
 	Status        string
 	Priority      string
 	Owner         string
@@ -2502,39 +2497,39 @@ type snapshotFilterColumns struct {
 	TagsJSON      string
 }
 
-func (s *Store) getSnapshotRow(ctx context.Context, id string, tableName string) (snapshotRow, error) {
+func (s *Store) getThreadRow(ctx context.Context, id string, tableName string) (threadRow, error) {
 	if s == nil || s.db == nil {
-		return snapshotRow{}, fmt.Errorf("primitives store database is not initialized")
+		return threadRow{}, fmt.Errorf("primitives store database is not initialized")
 	}
 
-	return getSnapshotRowFromQueryRower(ctx, s.db, id, tableName)
+	return getThreadRowFromQueryRower(ctx, s.db, id, tableName)
 }
 
-func getSnapshotRowFromQueryRower(ctx context.Context, db queryRower, id string, tableName string) (snapshotRow, error) {
-	row := snapshotRow{}
+func getThreadRowFromQueryRower(ctx context.Context, db queryRower, id string, tableName string) (threadRow, error) {
+	row := threadRow{}
 	err := db.QueryRowContext(
 		ctx,
 		fmt.Sprintf(`SELECT id, kind, thread_id, updated_at, updated_by, body_json, provenance_json, archived_at, archived_by, tombstoned_at, tombstoned_by, tombstone_reason FROM %s WHERE id = ?`, tableName),
 		id,
 	).Scan(&row.ID, &row.Kind, &row.ThreadID, &row.UpdatedAt, &row.UpdatedBy, &row.BodyJSON, &row.ProvenanceJSON, &row.ArchivedAt, &row.ArchivedBy, &row.TombstonedAt, &row.TombstonedBy, &row.TombstoneReason)
 	if errors.Is(err, sql.ErrNoRows) {
-		return snapshotRow{}, ErrNotFound
+		return threadRow{}, ErrNotFound
 	}
 	if err != nil {
-		return snapshotRow{}, fmt.Errorf("query threads row: %w", err)
+		return threadRow{}, fmt.Errorf("query threads row: %w", err)
 	}
 	return row, nil
 }
 
-func scanSnapshotRow(scanner interface{ Scan(dest ...any) error }) (snapshotRow, error) {
-	row := snapshotRow{}
+func scanThreadRow(scanner interface{ Scan(dest ...any) error }) (threadRow, error) {
+	row := threadRow{}
 	if err := scanner.Scan(&row.ID, &row.Kind, &row.ThreadID, &row.UpdatedAt, &row.UpdatedBy, &row.BodyJSON, &row.ProvenanceJSON, &row.ArchivedAt, &row.ArchivedBy, &row.TombstonedAt, &row.TombstonedBy, &row.TombstoneReason); err != nil {
-		return snapshotRow{}, fmt.Errorf("scan threads row: %w", err)
+		return threadRow{}, fmt.Errorf("scan threads row: %w", err)
 	}
 	return row, nil
 }
 
-func (r snapshotRow) ToSnapshotMap() (map[string]any, error) {
+func (r threadRow) ToThreadMap() (map[string]any, error) {
 	body := map[string]any{}
 	if strings.TrimSpace(r.BodyJSON) != "" {
 		if err := json.Unmarshal([]byte(r.BodyJSON), &body); err != nil {
@@ -2657,8 +2652,8 @@ func firstThreadRefValue(refs []string) string {
 	return ""
 }
 
-func snapshotFilterColumnsForKind(kind string, body map[string]any) snapshotFilterColumns {
-	columns := snapshotFilterColumns{TagsJSON: "[]"}
+func threadFilterColumnsForKind(kind string, body map[string]any) threadFilterColumns {
+	columns := threadFilterColumns{TagsJSON: "[]"}
 	if body == nil {
 		return columns
 	}
@@ -2801,10 +2796,10 @@ func buildListThreadsQuery(filter ThreadListFilter) (string, []any) {
 		query = strings.Replace(
 			query,
 			"FROM threads",
-			"FROM threads LEFT JOIN derived_thread_views ON derived_thread_views.thread_id = threads.id",
+			"FROM threads LEFT JOIN derived_topic_views ON derived_topic_views.thread_id = threads.id",
 			1,
 		)
-		query += ` AND COALESCE(derived_thread_views.stale, 0) = ?`
+		query += ` AND COALESCE(derived_topic_views.stale, 0) = ?`
 		args = append(args, boolToInt(*filter.Stale))
 	}
 	query += ` ORDER BY threads.updated_at DESC, threads.id ASC`

@@ -170,7 +170,7 @@ timeline or thread workspace that backs the board.
 Draft/commit flow:
 
 ```bash
-cat payload.json | oar --agent agent-a draft create --command threads.create
+printf '%s\n' '{"topic":{"title":"Drafted incident","type":"incident","status":"active","summary":"Staged via draft","owner_refs":[],"board_refs":[],"document_refs":[],"related_refs":[],"provenance":{"sources":["actor_statement:example"]}}}' | oar --agent agent-a draft create --command topics.create
 oar --agent agent-a draft list
 oar --agent agent-a draft commit <draft-id>
 oar --agent agent-a draft discard <draft-id>

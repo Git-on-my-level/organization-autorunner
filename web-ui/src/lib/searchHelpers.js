@@ -1,12 +1,12 @@
 import { coreClient } from "./coreClient.js";
 import { filterTopLevelDocuments } from "./documentVisibility.js";
 
-export async function searchThreads(query, limit = 20) {
-  const response = await coreClient.listThreads({
+export async function searchTopics(query, limit = 20) {
+  const response = await coreClient.listTopics({
     q: query,
     limit,
   });
-  return response.threads || [];
+  return response.topics || [];
 }
 
 export async function searchDocuments(query, limit = 20) {

@@ -260,7 +260,7 @@ func createPrimitiveTestThread(t *testing.T, ctx context.Context, store *Store, 
 	if err != nil {
 		t.Fatalf("create thread %q: %v", title, err)
 	}
-	return result.Snapshot["id"].(string)
+	return result.Thread["id"].(string)
 }
 
 func assertRefEdges(t *testing.T, db *sql.DB, sourceType, sourceID string, expected []string) {

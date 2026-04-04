@@ -686,7 +686,7 @@ func createBoardTestThread(t *testing.T, ctx context.Context, store *primitives.
 		t.Fatalf("create board test thread %q: %v", title, err)
 	}
 
-	threadID, _ := result.Snapshot["id"].(string)
+	threadID, _ := result.Thread["id"].(string)
 	if threadID == "" {
 		t.Fatalf("expected thread id for %q", title)
 	}
@@ -714,7 +714,7 @@ func createBoardTestDocument(t *testing.T, ctx context.Context, store *primitive
 func putBoardTestProjection(t *testing.T, ctx context.Context, store *primitives.Store, threadID, lastActivityAt string, openCardCount, documentCount int) {
 	t.Helper()
 
-	if err := store.PutDerivedThreadProjection(ctx, primitives.DerivedThreadProjection{
+	if err := store.PutDerivedTopicProjection(ctx, primitives.DerivedTopicProjection{
 		ThreadID:       threadID,
 		LastActivityAt: lastActivityAt,
 		OpenCardCount:  openCardCount,

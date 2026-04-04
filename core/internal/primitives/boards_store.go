@@ -1944,7 +1944,7 @@ func (s *Store) computeBoardSummaries(ctx context.Context, boards []boardRow) (m
 			}
 		}
 	}
-	projections, err := s.ListDerivedThreadProjections(ctx, uniqueNormalizedStrings(allThreadIDs))
+	projections, err := s.ListDerivedTopicProjections(ctx, uniqueNormalizedStrings(allThreadIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -2475,14 +2475,14 @@ func touchBoardRow(ctx context.Context, tx *sql.Tx, board boardRow, actorID stri
 }
 
 func ensureThreadExists(ctx context.Context, rower queryRower, threadID string) error {
-	snapshot, err := getSnapshotRowFromQueryRower(ctx, rower, strings.TrimSpace(threadID), "threads")
+	threadRow, err := getThreadRowFromQueryRower(ctx, rower, strings.TrimSpace(threadID), "threads")
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return ErrNotFound
 		}
 		return err
 	}
-	if snapshot.Kind != "thread" {
+	if threadRow.Kind != "thread" {
 		return ErrNotFound
 	}
 	return nil
@@ -2748,14 +2748,14 @@ func resolveBoardPlacementAnchors(ctx context.Context, rower queryRower, boardID
 }
 
 func loadThreadTitleForBoardCard(ctx context.Context, rower queryRower, threadID string) (string, error) {
-	snapshot, err := getSnapshotRowFromQueryRower(ctx, rower, strings.TrimSpace(threadID), "threads")
+	threadRow, err := getThreadRowFromQueryRower(ctx, rower, strings.TrimSpace(threadID), "threads")
 	if err != nil {
 		return "", err
 	}
 	body := map[string]any{}
-	if strings.TrimSpace(snapshot.BodyJSON) != "" {
-		if err := json.Unmarshal([]byte(snapshot.BodyJSON), &body); err != nil {
-			return "", fmt.Errorf("decode board card thread snapshot: %w", err)
+	if strings.TrimSpace(threadRow.BodyJSON) != "" {
+		if err := json.Unmarshal([]byte(threadRow.BodyJSON), &body); err != nil {
+			return "", fmt.Errorf("decode board card thread body: %w", err)
 		}
 	}
 	title := strings.TrimSpace(anyStringValue(body["title"]))
@@ -2884,14 +2884,14 @@ func ensureBoardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, boardI
 	}
 	subjectRef := "board:" + boardID
 
-	row, err := getSnapshotRowFromQueryRower(ctx, tx, threadID, "threads")
+	row, err := getThreadRowFromQueryRower(ctx, tx, threadID, "threads")
 	if errors.Is(err, ErrNotFound) {
 		body := buildBoardBackingThreadBody(boardID, threadID, title)
 		bodyJSON, marshalErr := json.Marshal(body)
 		if marshalErr != nil {
 			return fmt.Errorf("marshal board backing thread: %w", marshalErr)
 		}
-		filterColumns := snapshotFilterColumnsForKind("thread", body)
+		filterColumns := threadFilterColumnsForKind("thread", body)
 		if _, execErr := tx.ExecContext(
 			ctx,
 			`INSERT INTO threads(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json, filter_status, filter_priority, filter_owner, filter_due_at, filter_cadence, filter_cadence_preset, filter_tags_json)
@@ -2921,30 +2921,30 @@ func ensureBoardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, boardI
 		return err
 	}
 
-	snapshot, err := row.ToSnapshotMap()
+	threadBody, err := row.ToThreadMap()
 	if err != nil {
 		return err
 	}
-	existingSubjectRef := threadSubjectRef(snapshot)
+	existingSubjectRef := threadSubjectRef(threadBody)
 	if existingSubjectRef != "" && existingSubjectRef != subjectRef {
 		return invalidBoardRequest(fmt.Sprintf("board.thread_id %q is already bound to %q", threadID, existingSubjectRef))
 	}
 
-	delete(snapshot, "id")
-	delete(snapshot, "updated_at")
-	delete(snapshot, "updated_by")
-	provenance := cloneProvenance(snapshot["provenance"])
-	delete(snapshot, "provenance")
+	delete(threadBody, "id")
+	delete(threadBody, "updated_at")
+	delete(threadBody, "updated_by")
+	provenance := cloneProvenance(threadBody["provenance"])
+	delete(threadBody, "provenance")
 	if len(provenance) == 0 {
 		provenance = map[string]any{"sources": []string{"inferred"}}
 	}
 
-	snapshot["subject_ref"] = subjectRef
+	threadBody["subject_ref"] = subjectRef
 	if title != "" {
-		snapshot["title"] = title
+		threadBody["title"] = title
 	}
 
-	bodyJSON, err := json.Marshal(snapshot)
+	bodyJSON, err := json.Marshal(threadBody)
 	if err != nil {
 		return fmt.Errorf("marshal board backing thread update: %w", err)
 	}
@@ -2952,7 +2952,7 @@ func ensureBoardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, boardI
 	if err != nil {
 		return fmt.Errorf("marshal board backing thread provenance: %w", err)
 	}
-	filterColumns := snapshotFilterColumnsForKind("thread", snapshot)
+	filterColumns := threadFilterColumnsForKind("thread", threadBody)
 	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE threads
@@ -2988,14 +2988,14 @@ func ensureCardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, cardID,
 	}
 	subjectRef := "card:" + cardID
 
-	row, err := getSnapshotRowFromQueryRower(ctx, tx, threadID, "threads")
+	row, err := getThreadRowFromQueryRower(ctx, tx, threadID, "threads")
 	if errors.Is(err, ErrNotFound) {
 		body := buildCardBackingThreadBody(cardID, threadID, title)
 		bodyJSON, marshalErr := json.Marshal(body)
 		if marshalErr != nil {
 			return fmt.Errorf("marshal card backing thread: %w", marshalErr)
 		}
-		filterColumns := snapshotFilterColumnsForKind("thread", body)
+		filterColumns := threadFilterColumnsForKind("thread", body)
 		if _, execErr := tx.ExecContext(
 			ctx,
 			`INSERT INTO threads(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json, filter_status, filter_priority, filter_owner, filter_due_at, filter_cadence, filter_cadence_preset, filter_tags_json)
@@ -3025,30 +3025,30 @@ func ensureCardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, cardID,
 		return err
 	}
 
-	snapshot, err := row.ToSnapshotMap()
+	threadBody, err := row.ToThreadMap()
 	if err != nil {
 		return err
 	}
-	existingSubjectRef := threadSubjectRef(snapshot)
+	existingSubjectRef := threadSubjectRef(threadBody)
 	if existingSubjectRef != "" && existingSubjectRef != subjectRef {
 		return invalidBoardRequest(fmt.Sprintf("card.thread_id %q is already bound to %q", threadID, existingSubjectRef))
 	}
 
-	delete(snapshot, "id")
-	delete(snapshot, "updated_at")
-	delete(snapshot, "updated_by")
-	provenance := cloneProvenance(snapshot["provenance"])
-	delete(snapshot, "provenance")
+	delete(threadBody, "id")
+	delete(threadBody, "updated_at")
+	delete(threadBody, "updated_by")
+	provenance := cloneProvenance(threadBody["provenance"])
+	delete(threadBody, "provenance")
 	if len(provenance) == 0 {
 		provenance = map[string]any{"sources": []string{"inferred"}}
 	}
 
-	snapshot["subject_ref"] = subjectRef
+	threadBody["subject_ref"] = subjectRef
 	if title != "" {
-		snapshot["title"] = title
+		threadBody["title"] = title
 	}
 
-	bodyJSON, err := json.Marshal(snapshot)
+	bodyJSON, err := json.Marshal(threadBody)
 	if err != nil {
 		return fmt.Errorf("marshal card backing thread update: %w", err)
 	}
@@ -3056,7 +3056,7 @@ func ensureCardBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, cardID,
 	if err != nil {
 		return fmt.Errorf("marshal card backing thread provenance: %w", err)
 	}
-	filterColumns := snapshotFilterColumnsForKind("thread", snapshot)
+	filterColumns := threadFilterColumnsForKind("thread", threadBody)
 	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE threads

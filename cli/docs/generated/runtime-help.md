@@ -21,9 +21,9 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `bridge` (manual): CLI-managed bridge bootstrap helpers for installing, templating, and checking `oar-agent-bridge`.
 - `import` (manual): Prescriptive import guide for building low-duplication, discoverable OAR graphs from external material.
 - `auth` (group): Register, inspect, and manage auth state
-- `threads` (group): Inspect thread resources and coordination views
 - `topics` (group): Manage durable work subjects
 - `cards` (group): Manage board-scoped cards
+- `threads` (group): Inspect thread resources and coordination views
 - `artifacts` (group): Manage artifact resources and content
 - `boards` (group): Manage board resources and ordered cards
 - `docs` (group): Manage long-lived docs and revisions
@@ -767,7 +767,7 @@ Use `oar provenance walk` when you need to answer questions like:
 
 - Why does this object exist?
 - What evidence or earlier object led to it?
-- What thread, artifact, event, or snapshot is this derived from?
+- What thread, artifact, event, or topic is this derived from?
 
 Mental model
 
@@ -783,19 +783,19 @@ Typed ref roots:
   event:<id>
   thread:<id>
   artifact:<id>
-  snapshot:<id>
+  topic:<id>
 
 Heuristics
 
 - Start from `event:<id>` when explaining one update or mutation.
-- Start from `thread:<id>` when explaining a work item's evidence and history.
+- Start from `thread:<id>` when explaining backing-thread evidence and history.
 - Start from `artifact:<id>` when tracing a file or attachment back to its source.
-- Start from `snapshot:<id>` when investigating derived or captured state.
+- Start from `topic:<id>` when explaining operator-facing topic state and linked refs.
 - Prefer shallow depths like 1-3 before broader traversals.
 
 Examples:
   oar --json provenance walk --from event:event_123 --depth 2
-  oar --json provenance walk --from snapshot:snapshot_123 --depth 1
+  oar --json provenance walk --from topic:topic_123 --depth 1
   oar provenance walk --from event:event_123 --depth 3 --include-event-chain
 ```
 
@@ -1091,35 +1091,6 @@ Core commands:
   auth audit          Inspect audit records for auth activity.
 ```
 
-## `threads`
-
-Inspect thread resources and coordination views
-
-```text
-Generated Help: threads
-
-Commands:
-  threads context          Get backing thread coordination context
-  threads inspect          Inspect backing thread
-  threads list             List backing threads
-  threads timeline         Get backing thread timeline
-  threads workspace        Get backing thread workspace view
-
-Canonical coordination read path:
-  threads recommendations   Compose a recommendation-focused review of a thread.
-  threads workspace           Compose one holistic thread workspace from context + inbox + related-thread review.
-  threads inspect             Compose one thread coordination view from context + inbox in one command.
-  threads timeline           Inspect the backing thread timeline.
-  Tip: start with `oar threads workspace` for the canonical coordination view, use `--status/--tag/--type initiative` to discover one thread, and use `oar threads get` (contract: `threads.inspect`) for a minimal `{thread}` read, or `oar threads inspect` for the composed coordination view. Add `--full-id` for copy/paste ids.
-
-Global flags:
-  Global flags can appear before or after the command path.
-  Examples: oar --json threads ... ; oar threads ... --json
-  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
-
-Tip: `oar help <command path>` for full command-level generated details.
-```
-
 ## `topics`
 
 Manage durable work subjects
@@ -1162,6 +1133,35 @@ Commands:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json cards ... ; oar cards ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+
+Tip: `oar help <command path>` for full command-level generated details.
+```
+
+## `threads`
+
+Inspect thread resources and coordination views
+
+```text
+Generated Help: threads
+
+Commands:
+  threads context          Get backing thread coordination context
+  threads inspect          Inspect backing thread
+  threads list             List backing threads
+  threads timeline         Get backing thread timeline
+  threads workspace        Get backing thread workspace view
+
+Canonical coordination read path:
+  threads recommendations   Compose a recommendation-focused review of a thread.
+  threads workspace           Compose one holistic thread workspace from context + inbox + related-thread review.
+  threads inspect             Compose one thread coordination view from context + inbox in one command.
+  threads timeline           Inspect the backing thread timeline.
+  Tip: start with `oar threads workspace` for the canonical coordination view, use `--status/--tag/--type initiative` to discover one thread, and use `oar threads get` (contract: `threads.inspect`) for a minimal `{thread}` read, or `oar threads inspect` for the composed coordination view. Add `--full-id` for copy/paste ids.
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json threads ... ; oar threads ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 
 Tip: `oar help <command path>` for full command-level generated details.
@@ -2371,7 +2371,7 @@ Generated Help: inbox acknowledge
 Inputs:
   Required:
   - path `inbox_id`
-  - body `thread_id` (string)
+  - body `subject_ref` (string)
   Optional:
   - body `actor_id` (string)
   - body `inbox_item_id` (string)

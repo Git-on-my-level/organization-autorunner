@@ -170,7 +170,7 @@ func handleCreateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to create document")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
 
 	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "docs.create", actorID, req.RequestKey, req, http.StatusCreated, map[string]any{
 		"document": document,
@@ -423,7 +423,7 @@ func handleUpdateDocument(w http.ResponseWriter, r *http.Request, opts handlerOp
 	for threadID := range threadIDsToRefresh {
 		threadIDs = append(threadIDs, threadID)
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, threadIDs, refreshNow)
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, threadIDs, refreshNow)
 
 	writeJSON(w, successStatus, map[string]any{
 		"document": document,
@@ -560,7 +560,7 @@ func handleTombstoneDocument(w http.ResponseWriter, r *http.Request, opts handle
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to tombstone document")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"document": document,
@@ -607,7 +607,7 @@ func handleArchiveDocument(w http.ResponseWriter, r *http.Request, opts handlerO
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to archive document")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"document": document,
@@ -654,7 +654,7 @@ func handleUnarchiveDocument(w http.ResponseWriter, r *http.Request, opts handle
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to unarchive document")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"document": document,
@@ -702,7 +702,7 @@ func handleRestoreDocument(w http.ResponseWriter, r *http.Request, opts handlerO
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to restore document")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{anyString(document["thread_id"])}, time.Now().UTC())
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"document": document,

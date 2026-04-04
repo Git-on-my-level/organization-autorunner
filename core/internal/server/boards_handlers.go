@@ -1068,7 +1068,7 @@ func buildBoardWorkspacePayload(ctx context.Context, opts handlerOptions, boardI
 
 	threadIDs := collectBoardWorkspaceThreadIDs(backingThreadID, board, cards)
 	now := time.Now().UTC()
-	states, err := loadThreadProjectionStates(ctx, opts, threadIDs)
+	states, err := loadTopicProjectionStates(ctx, opts, threadIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1089,7 +1089,7 @@ func buildBoardWorkspacePayload(ctx context.Context, opts handlerOptions, boardI
 	}
 
 	boardSummary := buildBoardWorkspaceSummary(board, cards, states, documentsSection, now)
-	freshness := aggregateThreadProjectionFreshness(states, threadIDs)
+	freshness := aggregateTopicProjectionFreshness(states, threadIDs)
 	return map[string]any{
 		"board_id":                boardID,
 		"board":                   board,
@@ -1106,7 +1106,7 @@ func buildBoardWorkspacePayload(ctx context.Context, opts handlerOptions, boardI
 	}, nil
 }
 
-func buildBoardWorkspaceCardsSection(ctx context.Context, opts handlerOptions, board map[string]any, cards []map[string]any, states map[string]threadProjectionState) (map[string]any, []map[string]any, error) {
+func buildBoardWorkspaceCardsSection(ctx context.Context, opts handlerOptions, board map[string]any, cards []map[string]any, states map[string]topicProjectionState) (map[string]any, []map[string]any, error) {
 	items := make([]map[string]any, 0, len(cards))
 	warnings := make([]map[string]any, 0)
 	for _, card := range cards {
@@ -1203,7 +1203,7 @@ func buildBoardWorkspaceDocumentsSection(ctx context.Context, opts handlerOption
 	return map[string]any{"items": items, "count": len(items)}, nil
 }
 
-func buildBoardWorkspaceInboxSection(ctx context.Context, opts handlerOptions, threadIDs []string, now time.Time, states map[string]threadProjectionState) (map[string]any, error) {
+func buildBoardWorkspaceInboxSection(ctx context.Context, opts handlerOptions, threadIDs []string, now time.Time, states map[string]topicProjectionState) (map[string]any, error) {
 	items := make([]map[string]any, 0)
 	for _, threadID := range threadIDs {
 		threadItems, err := opts.primitiveStore.ListDerivedInboxItems(ctx, primitives.DerivedInboxListFilter{ThreadID: threadID})
@@ -1231,11 +1231,11 @@ func buildBoardWorkspaceInboxSection(ctx context.Context, opts handlerOptions, t
 		"items":                items,
 		"count":                len(items),
 		"generated_at":         now.Format(time.RFC3339Nano),
-		"projection_freshness": aggregateThreadProjectionFreshness(states, threadIDs),
+		"projection_freshness": aggregateTopicProjectionFreshness(states, threadIDs),
 	}, nil
 }
 
-func buildBoardWorkspaceSummary(board map[string]any, cards []map[string]any, states map[string]threadProjectionState, documentsSection map[string]any, now time.Time) map[string]any {
+func buildBoardWorkspaceSummary(board map[string]any, cards []map[string]any, states map[string]topicProjectionState, documentsSection map[string]any, now time.Time) map[string]any {
 	cardsByColumn := map[string]any{
 		"backlog":     0,
 		"ready":       0,
@@ -1531,7 +1531,7 @@ func emitBoardLifecycleEvent(ctx context.Context, opts handlerOptions, actorID s
 	if err != nil {
 		return err
 	}
-	enqueueThreadProjectionsBestEffort(ctx, opts, []string{anyString(stored["thread_id"])}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(ctx, opts, []string{anyString(stored["thread_id"])}, time.Now().UTC())
 	return nil
 }
 
@@ -1550,9 +1550,9 @@ func emitCardLifecycleEvent(ctx context.Context, opts handlerOptions, actorID st
 	threadIDs := []string{anyString(stored["thread_id"])}
 	payload, _ := stored["payload"].(map[string]any)
 	threadIDs = append(threadIDs, anyString(payload["parent_thread"]))
-	enqueueThreadProjectionsBestEffort(ctx, opts, threadIDs, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(ctx, opts, threadIDs, time.Now().UTC())
 	for _, threadID := range uniqueServerStrings(threadIDs) {
-		_ = refreshDerivedThreadProjection(ctx, opts, threadID, time.Now().UTC(), actorID)
+		_ = refreshDerivedTopicProjection(ctx, opts, threadID, time.Now().UTC(), actorID)
 	}
 	return nil
 }
@@ -2150,7 +2150,7 @@ func containsTypedRefPrefix(refs []string, prefix string) bool {
 	return false
 }
 
-func boardCardDerivedSummary(card map[string]any, threadID string, states map[string]threadProjectionState, now time.Time) any {
+func boardCardDerivedSummary(card map[string]any, threadID string, states map[string]topicProjectionState, now time.Time) any {
 	threadID = strings.TrimSpace(threadID)
 	if threadID == "" {
 		return nil
@@ -2173,7 +2173,7 @@ func boardCardDerivedSummary(card map[string]any, threadID string, states map[st
 	return summary
 }
 
-func boardCardDerivedFreshness(threadID string, states map[string]threadProjectionState) any {
+func boardCardDerivedFreshness(threadID string, states map[string]topicProjectionState) any {
 	threadID = strings.TrimSpace(threadID)
 	if threadID == "" {
 		return nil

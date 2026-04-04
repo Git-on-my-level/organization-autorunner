@@ -6,7 +6,7 @@
   import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { searchThreads as searchThreadRecords } from "$lib/searchHelpers";
+  import { searchTopics as searchTopicRecords } from "$lib/searchHelpers";
   import { workspacePath } from "$lib/workspacePaths";
   import {
     lookupActorDisplayName,
@@ -78,7 +78,7 @@
   }
 
   async function searchThreadOptions(query) {
-    const threads = await searchThreadRecords(query);
+    const threads = await searchTopicRecords(query);
     return threads.map(toThreadOption);
   }
 

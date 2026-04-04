@@ -4124,6 +4124,18 @@ func validateID(id string, label string) error {
 	return nil
 }
 
+func validateTypedRefShape(ref string) error {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return errnorm.Usage("invalid_request", "subject_ref is required")
+	}
+	idx := strings.Index(ref, ":")
+	if idx <= 0 || idx >= len(ref)-1 {
+		return errnorm.Usage("invalid_request", fmt.Sprintf("subject_ref %q must be a typed ref (prefix:id)", ref))
+	}
+	return nil
+}
+
 func (a *App) parseDerivedRebuildBodyInput(args []string, cfg config.Resolved) (any, error) {
 	fs := newSilentFlagSet("derived rebuild")
 	var fromFileFlag, actorIDFlag trackedString
@@ -4209,17 +4221,24 @@ func (a *App) parseAckBodyInput(ctx context.Context, args []string, cfg config.R
 	}
 
 	shouldResolveInboxItem := threadID == "" || looksLikeInboxAlias(inboxItemID)
+	var subjectRef string
 	if shouldResolveInboxItem {
-		resolvedInboxItemID, resolvedThreadID, err := a.resolveInboxItemIDAndThread(ctx, cfg, inboxItemID)
+		resolvedInboxItemID, resolvedSubjectRef, err := a.resolveInboxItemIDAndThread(ctx, cfg, inboxItemID)
 		if err != nil {
 			return nil, err
 		}
 		inboxItemID = resolvedInboxItemID
 		if threadID == "" {
-			threadID = resolvedThreadID
+			subjectRef = resolvedSubjectRef
 		}
 	}
-	if err := validateID(threadID, "thread id"); err != nil {
+	if threadID != "" {
+		if err := validateID(threadID, "thread id"); err != nil {
+			return nil, err
+		}
+		subjectRef = "thread:" + threadID
+	}
+	if err := validateTypedRefShape(subjectRef); err != nil {
 		return nil, err
 	}
 
@@ -4228,7 +4247,7 @@ func (a *App) parseAckBodyInput(ctx context.Context, args []string, cfg config.R
 		return nil, err
 	}
 	body := map[string]any{
-		"thread_id":     threadID,
+		"subject_ref":   subjectRef,
 		"inbox_item_id": inboxItemID,
 	}
 	if actorID != "" {
@@ -4251,14 +4270,21 @@ func (a *App) resolveInboxItemIDAndThread(ctx context.Context, cfg config.Resolv
 	if err != nil {
 		return "", "", err
 	}
+	subjectRef := strings.TrimSpace(anyString(match.Item["subject_ref"]))
 	threadID := strings.TrimSpace(match.ThreadID)
-	if threadID == "" {
+	if subjectRef == "" && threadID == "" {
 		return "", "", errnorm.Usage(
 			"invalid_request",
-			fmt.Sprintf("thread_id is required for inbox item %q (provide --thread-id or ensure it is present in `oar inbox list`)", match.ID),
+			fmt.Sprintf("subject_ref or thread_id is required for inbox item %q (provide --thread-id or ensure list output includes subject_ref/thread_id)", match.ID),
 		)
 	}
-	return match.ID, threadID, nil
+	if subjectRef == "" {
+		subjectRef = "thread:" + threadID
+	}
+	if err := validateTypedRefShape(subjectRef); err != nil {
+		return "", "", err
+	}
+	return match.ID, subjectRef, nil
 }
 
 type inboxListMatch struct {

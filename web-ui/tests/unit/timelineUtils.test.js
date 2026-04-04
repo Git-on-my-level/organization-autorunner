@@ -28,11 +28,11 @@ describe("timeline utils", () => {
     });
   });
 
-  it("extracts changed_fields for snapshot_updated and resolves refs", () => {
+  it("extracts changed_fields for thread_updated and resolves refs", () => {
     const view = toTimelineViewEvent(
       {
         id: "evt-y",
-        type: "snapshot_updated",
+        type: "thread_updated",
         refs: ["event:evt-z", "thread:thread-1", "document:doc-1"],
         payload: {
           changed_fields: ["status", "current_summary"],

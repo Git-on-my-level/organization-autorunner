@@ -1433,14 +1433,14 @@ func ensureDocumentBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, doc
 	}
 
 	subjectRef := "document:" + strings.TrimSpace(documentID)
-	row, err := getSnapshotRowFromQueryRower(ctx, tx, threadID, "threads")
+	row, err := getThreadRowFromQueryRower(ctx, tx, threadID, "threads")
 	if errors.Is(err, ErrNotFound) {
 		body := buildDocumentBackingThreadBody(documentID, threadID, title)
 		bodyJSON, marshalErr := json.Marshal(body)
 		if marshalErr != nil {
 			return "", fmt.Errorf("marshal document backing thread: %w", marshalErr)
 		}
-		filterColumns := snapshotFilterColumnsForKind("thread", body)
+		filterColumns := threadFilterColumnsForKind("thread", body)
 		if _, execErr := tx.ExecContext(
 			ctx,
 			`INSERT INTO threads(id, kind, thread_id, updated_at, updated_by, body_json, provenance_json, filter_status, filter_priority, filter_owner, filter_due_at, filter_cadence, filter_cadence_preset, filter_tags_json)
@@ -1473,30 +1473,30 @@ func ensureDocumentBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, doc
 		return "", err
 	}
 
-	snapshot, err := row.ToSnapshotMap()
+	threadBody, err := row.ToThreadMap()
 	if err != nil {
 		return "", err
 	}
-	existingSubjectRef := threadSubjectRef(snapshot)
+	existingSubjectRef := threadSubjectRef(threadBody)
 	if existingSubjectRef != "" && existingSubjectRef != subjectRef {
 		return "", invalidDocumentRequest(fmt.Sprintf("document.thread_id %q is already bound to %q", threadID, existingSubjectRef))
 	}
 
-	delete(snapshot, "id")
-	delete(snapshot, "updated_at")
-	delete(snapshot, "updated_by")
-	provenance := cloneProvenance(snapshot["provenance"])
-	delete(snapshot, "provenance")
+	delete(threadBody, "id")
+	delete(threadBody, "updated_at")
+	delete(threadBody, "updated_by")
+	provenance := cloneProvenance(threadBody["provenance"])
+	delete(threadBody, "provenance")
 	if len(provenance) == 0 {
 		provenance = map[string]any{"sources": []string{"inferred"}}
 	}
 
-	snapshot["subject_ref"] = subjectRef
-	if strings.TrimSpace(anyStringValue(snapshot["title"])) == "" || existingSubjectRef == subjectRef {
-		snapshot["title"] = documentBackingThreadTitle(documentID, title)
+	threadBody["subject_ref"] = subjectRef
+	if strings.TrimSpace(anyStringValue(threadBody["title"])) == "" || existingSubjectRef == subjectRef {
+		threadBody["title"] = documentBackingThreadTitle(documentID, title)
 	}
 
-	bodyJSON, err := json.Marshal(snapshot)
+	bodyJSON, err := json.Marshal(threadBody)
 	if err != nil {
 		return "", fmt.Errorf("marshal document backing thread update: %w", err)
 	}
@@ -1504,7 +1504,7 @@ func ensureDocumentBackingThreadTx(ctx context.Context, tx *sql.Tx, actorID, doc
 	if err != nil {
 		return "", fmt.Errorf("marshal document backing thread provenance: %w", err)
 	}
-	filterColumns := snapshotFilterColumnsForKind("thread", snapshot)
+	filterColumns := threadFilterColumnsForKind("thread", threadBody)
 	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE threads
@@ -1538,7 +1538,7 @@ func clearDocumentBackingThreadSubjectTx(ctx context.Context, tx *sql.Tx, actorI
 	if threadID == "" {
 		return nil
 	}
-	row, err := getSnapshotRowFromQueryRower(ctx, tx, threadID, "threads")
+	row, err := getThreadRowFromQueryRower(ctx, tx, threadID, "threads")
 	if errors.Is(err, ErrNotFound) {
 		return nil
 	}
@@ -1546,25 +1546,25 @@ func clearDocumentBackingThreadSubjectTx(ctx context.Context, tx *sql.Tx, actorI
 		return err
 	}
 
-	snapshot, err := row.ToSnapshotMap()
+	threadBody, err := row.ToThreadMap()
 	if err != nil {
 		return err
 	}
-	if threadSubjectRef(snapshot) != "document:"+strings.TrimSpace(documentID) {
+	if threadSubjectRef(threadBody) != "document:"+strings.TrimSpace(documentID) {
 		return nil
 	}
 
-	delete(snapshot, "id")
-	delete(snapshot, "updated_at")
-	delete(snapshot, "updated_by")
-	provenance := cloneProvenance(snapshot["provenance"])
-	delete(snapshot, "provenance")
-	delete(snapshot, "subject_ref")
+	delete(threadBody, "id")
+	delete(threadBody, "updated_at")
+	delete(threadBody, "updated_by")
+	provenance := cloneProvenance(threadBody["provenance"])
+	delete(threadBody, "provenance")
+	delete(threadBody, "subject_ref")
 	if len(provenance) == 0 {
 		provenance = map[string]any{"sources": []string{"inferred"}}
 	}
 
-	bodyJSON, err := json.Marshal(snapshot)
+	bodyJSON, err := json.Marshal(threadBody)
 	if err != nil {
 		return fmt.Errorf("marshal cleared document backing thread: %w", err)
 	}
@@ -1572,7 +1572,7 @@ func clearDocumentBackingThreadSubjectTx(ctx context.Context, tx *sql.Tx, actorI
 	if err != nil {
 		return fmt.Errorf("marshal cleared document backing thread provenance: %w", err)
 	}
-	filterColumns := snapshotFilterColumnsForKind("thread", snapshot)
+	filterColumns := threadFilterColumnsForKind("thread", threadBody)
 	if _, err := tx.ExecContext(
 		ctx,
 		`UPDATE threads
@@ -1622,12 +1622,12 @@ func documentBackingThreadTitle(documentID, title string) string {
 	return "Document"
 }
 
-func threadSubjectRef(snapshot map[string]any) string {
-	if snapshot == nil {
+func threadSubjectRef(threadBody map[string]any) string {
+	if threadBody == nil {
 		return ""
 	}
 	for _, key := range []string{"subject_ref", "topic_ref"} {
-		value := strings.TrimSpace(anyStringValue(snapshot[key]))
+		value := strings.TrimSpace(anyStringValue(threadBody[key]))
 		if value != "" {
 			return value
 		}

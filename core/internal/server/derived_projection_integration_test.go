@@ -14,7 +14,7 @@ import (
 	"organization-autorunner-core/internal/schema"
 )
 
-func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
+func TestRefreshDerivedTopicProjectionBasicFlow(t *testing.T) {
 	t.Parallel()
 
 	h := newPrimitivesTestServer(t)
@@ -58,8 +58,8 @@ func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
 		contract:         contract,
 		inboxRiskHorizon: defaultInboxRiskHorizon,
 	}
-	if err := refreshDerivedThreadProjection(context.Background(), opts, threadID, time.Now().UTC(), "actor-1"); err != nil {
-		t.Fatalf("refreshDerivedThreadProjection: %v", err)
+	if err := refreshDerivedTopicProjection(context.Background(), opts, threadID, time.Now().UTC(), "actor-1"); err != nil {
+		t.Fatalf("refreshDerivedTopicProjection: %v", err)
 	}
 
 	postJSONExpectStatus(t, h.baseURL+"/events", `{
@@ -112,7 +112,7 @@ func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
 		t.Fatalf("expected decision + work item inbox items, got %#v", items)
 	}
 
-	projection := mustLoadDerivedThreadProjection(t, h.workspace.DB(), threadID)
+	projection := mustLoadDerivedTopicProjection(t, h.workspace.DB(), threadID)
 	if projection.InboxCount != 2 || projection.DecisionRequestCount != 1 || workspaceIntValue(projection.Data["open_work_item_count"]) != 1 || projection.DocumentCount != 1 {
 		t.Fatalf("unexpected derived thread projection: %#v", projection)
 	}
@@ -121,7 +121,7 @@ func TestRefreshDerivedThreadProjectionBasicFlow(t *testing.T) {
 	}
 }
 
-func TestEnsureDerivedThreadProjectionRefreshesExpiredTimeSensitiveState(t *testing.T) {
+func TestEnsureDerivedTopicProjectionRefreshesExpiredTimeSensitiveState(t *testing.T) {
 	t.Parallel()
 
 	h := newPrimitivesTestServer(t)
@@ -167,11 +167,11 @@ func TestEnsureDerivedThreadProjectionRefreshesExpiredTimeSensitiveState(t *test
 		contract:         contract,
 		inboxRiskHorizon: defaultInboxRiskHorizon,
 	}
-	if err := refreshDerivedThreadProjection(context.Background(), opts, threadID, baseNow, "actor-1"); err != nil {
-		t.Fatalf("refreshDerivedThreadProjection: %v", err)
+	if err := refreshDerivedTopicProjection(context.Background(), opts, threadID, baseNow, "actor-1"); err != nil {
+		t.Fatalf("refreshDerivedTopicProjection: %v", err)
 	}
 
-	initialProjection := mustLoadDerivedThreadProjection(t, h.workspace.DB(), threadID)
+	initialProjection := mustLoadDerivedTopicProjection(t, h.workspace.DB(), threadID)
 	if initialProjection.Stale {
 		t.Fatalf("expected fresh projection to start non-stale, got %#v", initialProjection)
 	}
@@ -186,9 +186,9 @@ func TestEnsureDerivedThreadProjectionRefreshesExpiredTimeSensitiveState(t *test
 	if err := maintainer.RunFullRebuild(context.Background(), baseNow.Add(2*time.Minute), "actor-1"); err != nil {
 		t.Fatalf("RunFullRebuild: %v", err)
 	}
-	refreshedState, err := loadThreadProjectionState(context.Background(), opts, threadID)
+	refreshedState, err := loadTopicProjectionState(context.Background(), opts, threadID)
 	if err != nil {
-		t.Fatalf("loadThreadProjectionState: %v", err)
+		t.Fatalf("loadTopicProjectionState: %v", err)
 	}
 	if !refreshedState.Projection.Stale {
 		t.Fatalf("expected expired projection to refresh stale=true after next_check_in_at, got %#v", refreshedState.Projection)
@@ -256,7 +256,7 @@ func TestDocumentThreadRetargetRefreshesBothDerivedProjections(t *testing.T) {
 		t.Fatal("expected base revision id")
 	}
 
-	if projection := mustLoadDerivedThreadProjection(t, h.workspace.DB(), fromThreadID); projection.DocumentCount != 1 {
+	if projection := mustLoadDerivedTopicProjection(t, h.workspace.DB(), fromThreadID); projection.DocumentCount != 1 {
 		t.Fatalf("expected source projection document_count=1 after create, got %#v", projection)
 	}
 
@@ -270,10 +270,10 @@ func TestDocumentThreadRetargetRefreshesBothDerivedProjections(t *testing.T) {
 	}`, 200)
 	defer updateResp.Body.Close()
 
-	if projection := mustLoadDerivedThreadProjection(t, h.workspace.DB(), fromThreadID); projection.DocumentCount != 0 {
+	if projection := mustLoadDerivedTopicProjection(t, h.workspace.DB(), fromThreadID); projection.DocumentCount != 0 {
 		t.Fatalf("expected source projection document_count=0 after move, got %#v", projection)
 	}
-	if projection := mustLoadDerivedThreadProjection(t, h.workspace.DB(), toThreadID); projection.DocumentCount != 1 {
+	if projection := mustLoadDerivedTopicProjection(t, h.workspace.DB(), toThreadID); projection.DocumentCount != 1 {
 		t.Fatalf("expected target projection document_count=1 after move, got %#v", projection)
 	}
 }
@@ -287,11 +287,11 @@ func countDerivedInboxItemsForThread(t *testing.T, db *sql.DB, threadID string) 
 	return count
 }
 
-func mustLoadDerivedThreadProjection(t *testing.T, db *sql.DB, threadID string) primitives.DerivedThreadProjection {
+func mustLoadDerivedTopicProjection(t *testing.T, db *sql.DB, threadID string) primitives.DerivedTopicProjection {
 	t.Helper()
 
 	store := primitives.NewStore(db, nil, "")
-	projection, err := store.GetDerivedThreadProjection(context.Background(), threadID)
+	projection, err := store.GetDerivedTopicProjection(context.Background(), threadID)
 	if err != nil {
 		t.Fatalf("get derived thread projection: %v", err)
 	}

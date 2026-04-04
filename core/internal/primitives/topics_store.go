@@ -17,8 +17,8 @@ import (
 var ErrInvalidTopicRequest = errors.New("invalid topic request")
 
 type TopicPatchResult struct {
-	Snapshot map[string]any
-	Event    map[string]any
+	Topic map[string]any
+	Event map[string]any
 }
 
 type topicRow struct {
@@ -228,7 +228,7 @@ func (s *Store) CreateTopic(ctx context.Context, actorID string, topic map[strin
 	topicType := strings.TrimSpace(anyStringValue(topicBody["type"]))
 	topicStatus := strings.TrimSpace(anyStringValue(topicBody["status"]))
 	title := strings.TrimSpace(anyStringValue(topicBody["title"]))
-	threadColumns := snapshotFilterColumnsForKind("thread", threadBody)
+	threadColumns := threadFilterColumnsForKind("thread", threadBody)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -326,8 +326,8 @@ func (s *Store) CreateTopic(ctx context.Context, actorID string, topic map[strin
 	topicOut["provenance"] = topicProvenance
 
 	return TopicPatchResult{
-		Snapshot: topicOut,
-		Event:    preparedEvent.Body,
+		Topic: topicOut,
+		Event: preparedEvent.Body,
 	}, nil
 }
 
@@ -463,7 +463,7 @@ func (s *Store) PatchTopic(ctx context.Context, actorID string, topicID string, 
 	if err != nil {
 		return TopicPatchResult{}, fmt.Errorf("marshal patched topic backing thread provenance: %w", err)
 	}
-	threadColumns := snapshotFilterColumnsForKind("thread", nextThreadBody)
+	threadColumns := threadFilterColumnsForKind("thread", nextThreadBody)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -565,8 +565,8 @@ func (s *Store) PatchTopic(ctx context.Context, actorID string, topicID string, 
 	nextBody["provenance"] = nextProvenance
 
 	return TopicPatchResult{
-		Snapshot: nextBody,
-		Event:    preparedEvent.Body,
+		Topic: nextBody,
+		Event: preparedEvent.Body,
 	}, nil
 }
 
@@ -704,7 +704,7 @@ func (s *Store) applyTopicLifecycleWithReason(ctx context.Context, actorID, topi
 	if err != nil {
 		return nil, fmt.Errorf("marshal topic lifecycle thread body: %w", err)
 	}
-	threadColumns := snapshotFilterColumnsForKind("thread", threadBody)
+	threadColumns := threadFilterColumnsForKind("thread", threadBody)
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

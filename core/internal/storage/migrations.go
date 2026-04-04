@@ -424,7 +424,7 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_derived_inbox_items_category_trigger ON derived_inbox_items (category, trigger_at DESC, id);`,
 			`CREATE INDEX IF NOT EXISTS idx_derived_inbox_items_due_at ON derived_inbox_items (has_due_at, due_at, id);`,
 
-			`CREATE TABLE IF NOT EXISTS derived_thread_views (
+			`CREATE TABLE IF NOT EXISTS derived_topic_views (
 				thread_id TEXT PRIMARY KEY,
 				stale INTEGER NOT NULL DEFAULT 0,
 				last_activity_at TEXT,
@@ -441,15 +441,15 @@ var migrations = []migration{
 				data_json TEXT NOT NULL DEFAULT '{}',
 				source_hash TEXT
 			);`,
-			`CREATE INDEX IF NOT EXISTS idx_derived_thread_views_stale_generated_at ON derived_thread_views (stale, generated_at DESC, thread_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_derived_topic_views_stale_generated_at ON derived_topic_views (stale, generated_at DESC, thread_id);`,
 
-			`CREATE TABLE IF NOT EXISTS derived_thread_dirty_queue (
+			`CREATE TABLE IF NOT EXISTS derived_topic_dirty_queue (
 				thread_id TEXT PRIMARY KEY,
 				dirty_at TEXT NOT NULL
 			);`,
-			`CREATE INDEX IF NOT EXISTS idx_derived_thread_dirty_queue_dirty_at ON derived_thread_dirty_queue (dirty_at ASC, thread_id ASC);`,
+			`CREATE INDEX IF NOT EXISTS idx_derived_topic_dirty_queue_dirty_at ON derived_topic_dirty_queue (dirty_at ASC, thread_id ASC);`,
 
-			`CREATE TABLE IF NOT EXISTS thread_projection_refresh_status (
+			`CREATE TABLE IF NOT EXISTS topic_projection_refresh_status (
 				thread_id TEXT PRIMARY KEY,
 				desired_generation INTEGER NOT NULL DEFAULT 0,
 				materialized_generation INTEGER NOT NULL DEFAULT 0,
@@ -461,60 +461,9 @@ var migrations = []migration{
 				last_error TEXT,
 				updated_at TEXT NOT NULL
 			);`,
-			`CREATE INDEX IF NOT EXISTS idx_thread_projection_refresh_status_generations ON thread_projection_refresh_status (desired_generation, materialized_generation, in_progress_generation, queued_at, thread_id);`,
+			`CREATE INDEX IF NOT EXISTS idx_topic_projection_refresh_status_generations ON topic_projection_refresh_status (desired_generation, materialized_generation, in_progress_generation, queued_at, thread_id);`,
 		},
 	},
-	{
-		Version:    2,
-		Statements: []string{},
-		AfterApply: migrateTopicsThreadIDColumnIfNeeded,
-	},
-}
-
-// migrateTopicsThreadIDColumnIfNeeded upgrades older workspaces that used the legacy topics backing-thread
-// column name, renames it to thread_id, and reconciles indexes. Fresh installs already use thread_id from migration 1.
-func migrateTopicsThreadIDColumnIfNeeded(ctx context.Context, tx *sql.Tx) error {
-	rows, err := tx.QueryContext(ctx, `PRAGMA table_info(topics)`)
-	if err != nil {
-		return fmt.Errorf("pragma table_info(topics): %w", err)
-	}
-	defer rows.Close()
-
-	legacyTopicsThreadCol := "primary" + "_thread_id"
-	var hasLegacy, hasThreadID bool
-	for rows.Next() {
-		var cid int
-		var name, colType string
-		var notnull, pk int
-		var dflt any
-		if err := rows.Scan(&cid, &name, &colType, &notnull, &dflt, &pk); err != nil {
-			return fmt.Errorf("scan topics pragma row: %w", err)
-		}
-		switch name {
-		case legacyTopicsThreadCol:
-			hasLegacy = true
-		case "thread_id":
-			hasThreadID = true
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate topics pragma rows: %w", err)
-	}
-
-	if hasLegacy && !hasThreadID {
-		renameSQL := "ALTER TABLE topics RENAME COLUMN " + legacyTopicsThreadCol + " TO thread_id"
-		if _, err := tx.ExecContext(ctx, renameSQL); err != nil {
-			return fmt.Errorf("rename topics backing-thread column: %w", err)
-		}
-	}
-	legacyThreadIdx := "idx_topics_" + "primary" + "_thread_id"
-	if _, err := tx.ExecContext(ctx, "DROP INDEX IF EXISTS "+legacyThreadIdx); err != nil {
-		return fmt.Errorf("drop legacy topics thread index: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_topics_thread_id ON topics (thread_id)`); err != nil {
-		return fmt.Errorf("ensure idx_topics_thread_id: %w", err)
-	}
-	return nil
 }
 
 func applyMigrations(ctx context.Context, db *sql.DB) error {

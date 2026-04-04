@@ -21,6 +21,11 @@ const (
 	threadContextContentPreviewChars = 500
 )
 
+// Thread lifecycle POST routes (archive, unarchive, tombstone, restore, purge) remain on the public
+// HTTP API because the operator UI calls them directly for standalone thread list/detail and trash
+// flows. Topic/board/card/document lifecycle may also update backing threads internally via the store
+// without using these routes.
+
 func handleGetThread(w http.ResponseWriter, r *http.Request, opts handlerOptions, threadID string) {
 	if opts.primitiveStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
@@ -98,7 +103,7 @@ func handleListThreads(w http.ResponseWriter, r *http.Request, opts handlerOptio
 	for _, thread := range threads {
 		threadIDs = append(threadIDs, anyString(thread["id"]))
 	}
-	states, err := loadThreadProjectionStates(r.Context(), opts, threadIDs)
+	states, err := loadTopicProjectionStates(r.Context(), opts, threadIDs)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load thread projection status")
 		return
@@ -172,7 +177,7 @@ func handleArchiveThread(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to archive thread")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
 	writeJSON(w, http.StatusOK, map[string]any{"thread": thread})
 }
 
@@ -199,7 +204,7 @@ func handleUnarchiveThread(w http.ResponseWriter, r *http.Request, opts handlerO
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to unarchive thread")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
 	writeJSON(w, http.StatusOK, map[string]any{"thread": thread})
 }
 
@@ -227,7 +232,7 @@ func handleTombstoneThread(w http.ResponseWriter, r *http.Request, opts handlerO
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to tombstone thread")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
 	writeJSON(w, http.StatusOK, map[string]any{"thread": thread})
 }
 
@@ -254,7 +259,7 @@ func handleRestoreThread(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		writeError(w, http.StatusInternalServerError, "internal_error", "failed to restore thread")
 		return
 	}
-	enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
+	enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{threadID}, time.Now().UTC())
 	writeJSON(w, http.StatusOK, map[string]any{"thread": thread})
 }
 

@@ -435,8 +435,8 @@ Backing threads hold append-only timelines and anchor many packet subjects. They
 - Materialized derived projections used by the common read path:
   - `derived_inbox_items`: asynchronously maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
   - `agent_notification` is a derived per-target-agent view built from canonical `agent_wakeup_requested`, `agent_notification_read`, and `agent_notification_dismissed` events.
-  - `derived_thread_views`: asynchronously maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
-  - `thread_projection_refresh_status`: durable per-thread refresh state used to expose `current`, `pending`, `missing`, or `error` freshness metadata without mutating projections inside GET handlers.
+  - `derived_topic_views`: asynchronously maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
+  - `topic_projection_refresh_status`: durable per-thread refresh state used to expose `current`, `pending`, `missing`, or `error` freshness metadata without mutating projections inside GET handlers.
 - `POST /derived/rebuild` remains the deterministic repair path: it re-emits any missing canonical stale-topic exceptions from canonical state, then rebuilds both projection tables from current topics/events/cards/documents.
   - Standard GET responses never repair or recompute projections inline; they return the best currently materialized data plus freshness metadata.
 

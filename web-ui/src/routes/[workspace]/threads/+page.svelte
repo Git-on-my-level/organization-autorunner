@@ -10,8 +10,8 @@
     THREAD_PRIORITIES,
     THREAD_PRIORITY_LABELS,
     THREAD_STATUSES,
-    applyThreadListClientFilters,
-    buildThreadFilterQueryParamsFromThreadListState,
+    applyTopicListClientFilters,
+    buildTopicListApiQueryParamsFromThreadListState,
     buildThreadListSearchString,
     computeStaleness,
     formatCadenceLabel,
@@ -82,13 +82,12 @@
     error = "";
 
     try {
-      const query = buildThreadFilterQueryParamsFromThreadListState(state);
-      if (showArchived) {
-        query.include_archived = "true";
-      }
-      const response = await coreClient.listThreads(query);
-      let list = response.threads ?? [];
-      list = applyThreadListClientFilters(list, state);
+      const query = buildTopicListApiQueryParamsFromThreadListState(state, {
+        includeArchived: showArchived,
+      });
+      const response = await coreClient.listTopics(query);
+      let list = response.topics ?? [];
+      list = applyTopicListClientFilters(list, state);
       threads = list;
     } catch (loadError) {
       const reason =
@@ -281,6 +280,10 @@
       active: "text-emerald-400",
       paused: "text-amber-400",
       closed: "text-gray-400",
+      blocked: "text-amber-400",
+      resolved: "text-gray-400",
+      proposed: "text-[var(--ui-text-muted)]",
+      archived: "text-gray-400",
     };
     return styles[status] ?? "text-gray-400";
   }
@@ -706,7 +709,7 @@
               {/if}
             </div>
             <p class="truncate text-[12px] text-[var(--ui-text-muted)]">
-              {thread.current_summary}
+              {thread.current_summary ?? thread.summary ?? ""}
             </p>
           </div>
           <div class="flex shrink-0 items-center gap-1.5 text-[11px]">

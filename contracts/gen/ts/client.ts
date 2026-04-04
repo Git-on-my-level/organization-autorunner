@@ -1560,7 +1560,7 @@ export const commandRegistry: CommandSpec[] = [
     "body_schema": {
       "required": [
         {
-          "name": "thread_id",
+          "name": "subject_ref",
           "type": "string"
         }
       ],

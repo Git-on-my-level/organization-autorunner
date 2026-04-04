@@ -661,14 +661,6 @@ export function createOarCoreClient(options = {}) {
       });
       await consumeSSEStream(response, { onEvent, signal });
     },
-    // Snapshot refs (`snapshot:{thread_id}`) resolve to backing thread state; there is no GET /snapshots in 0.3.x.
-    getSnapshot: async (snapshotId) => {
-      const body = await invokeJSON("threads.inspect", () =>
-        generated.threadsInspect({ thread_id: String(snapshotId) }),
-      );
-      return { snapshot: body.thread ?? null };
-    },
-
     listTopics: (filters) =>
       invokeJSON("topics.list", () => generated.topicsList({ query: filters })),
     createTopic: (payload) =>

@@ -53,9 +53,9 @@ func TestWorkspaceInitializationAndRestart(t *testing.T) {
 		"cards",
 		"card_versions",
 		"derived_inbox_items",
-		"derived_thread_views",
-		"derived_thread_dirty_queue",
-		"thread_projection_refresh_status",
+		"derived_topic_views",
+		"derived_topic_dirty_queue",
+		"topic_projection_refresh_status",
 		"agents",
 		"agent_keys",
 		"auth_refresh_sessions",
@@ -107,8 +107,8 @@ func TestWorkspaceInitializationAndRestart(t *testing.T) {
 	if err := second.DB().QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&migrationCount); err != nil {
 		t.Fatalf("count schema migration rows: %v", err)
 	}
-	if migrationCount < 2 {
-		t.Fatalf("expected at least two schema_migrations rows (baseline + topic thread_id migration), got %d", migrationCount)
+	if migrationCount < 1 {
+		t.Fatalf("expected at least one schema_migrations row (v1 baseline), got %d", migrationCount)
 	}
 
 	if got := filepath.Dir(layout.DatabasePath); got != layout.RootDir {
@@ -164,7 +164,7 @@ func TestProjectionQueueStatsAndListingRecoverStrandedGenerationRows(t *testing.
 
 	if _, err := workspace.DB().ExecContext(
 		ctx,
-		`INSERT INTO thread_projection_refresh_status(
+		`INSERT INTO topic_projection_refresh_status(
 			thread_id,
 			desired_generation,
 			materialized_generation,
@@ -180,7 +180,7 @@ func TestProjectionQueueStatsAndListingRecoverStrandedGenerationRows(t *testing.
 		t.Fatalf("seed stranded projection status: %v", err)
 	}
 
-	entries, err := store.ListDerivedThreadProjectionDirtyEntries(ctx, 10)
+	entries, err := store.ListDerivedTopicProjectionDirtyEntries(ctx, 10)
 	if err != nil {
 		t.Fatalf("list dirty projection entries: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestProjectionQueueStatsAndListingRecoverStrandedGenerationRows(t *testing.
 		t.Fatalf("expected stranded dirty_at to come from status timestamps, got %#v", entries[0])
 	}
 
-	stats, err := store.GetDerivedThreadProjectionQueueStats(ctx)
+	stats, err := store.GetDerivedTopicProjectionQueueStats(ctx)
 	if err != nil {
 		t.Fatalf("load queue stats: %v", err)
 	}

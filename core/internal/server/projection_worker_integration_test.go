@@ -95,7 +95,7 @@ func TestThreadWorkspaceReadDoesNotMutateDerivedState(t *testing.T) {
 	}`, http.StatusCreated).Body.Close()
 
 	eventsBefore := countTableRows(t, h.workspace.DB(), "events")
-	projectionsBefore := countTableRows(t, h.workspace.DB(), "derived_thread_views")
+	projectionsBefore := countTableRows(t, h.workspace.DB(), "derived_topic_views")
 	inboxBefore := countTableRows(t, h.workspace.DB(), "derived_inbox_items")
 
 	resp, err := http.Get(h.baseURL + "/threads/" + threadID + "/workspace")
@@ -126,7 +126,7 @@ func TestThreadWorkspaceReadDoesNotMutateDerivedState(t *testing.T) {
 	if eventsAfter := countTableRows(t, h.workspace.DB(), "events"); eventsAfter != eventsBefore {
 		t.Fatalf("expected workspace read not to append events, got before=%d after=%d", eventsBefore, eventsAfter)
 	}
-	if projectionsAfter := countTableRows(t, h.workspace.DB(), "derived_thread_views"); projectionsAfter != projectionsBefore {
+	if projectionsAfter := countTableRows(t, h.workspace.DB(), "derived_topic_views"); projectionsAfter != projectionsBefore {
 		t.Fatalf("expected workspace read not to update derived thread views, got before=%d after=%d", projectionsBefore, projectionsAfter)
 	}
 	if inboxAfter := countTableRows(t, h.workspace.DB(), "derived_inbox_items"); inboxAfter != inboxBefore {
@@ -203,9 +203,9 @@ func TestProjectionMaintainerStepClearsPendingStatus(t *testing.T) {
 		}
 	}`, http.StatusCreated).Body.Close()
 
-	statuses, err := h.store.GetThreadProjectionRefreshStatuses(context.Background(), []string{threadID})
+	statuses, err := h.store.GetTopicProjectionRefreshStatuses(context.Background(), []string{threadID})
 	if err != nil {
-		t.Fatalf("GetThreadProjectionRefreshStatuses: %v", err)
+		t.Fatalf("GetTopicProjectionRefreshStatuses: %v", err)
 	}
 	if !statuses[threadID].IsDirty() {
 		t.Fatalf("expected thread %s to be marked dirty before worker runs, got %#v", threadID, statuses[threadID])
@@ -215,9 +215,9 @@ func TestProjectionMaintainerStepClearsPendingStatus(t *testing.T) {
 		t.Fatalf("Step: %v", err)
 	}
 
-	state, err := loadThreadProjectionState(context.Background(), handlerOptions{primitiveStore: h.store}, threadID)
+	state, err := loadTopicProjectionState(context.Background(), handlerOptions{primitiveStore: h.store}, threadID)
 	if err != nil {
-		t.Fatalf("loadThreadProjectionState: %v", err)
+		t.Fatalf("loadTopicProjectionState: %v", err)
 	}
 	if state.Status != "current" {
 		t.Fatalf("expected current projection status after worker run, got %#v", state.Freshness)
@@ -226,9 +226,9 @@ func TestProjectionMaintainerStepClearsPendingStatus(t *testing.T) {
 		t.Fatalf("expected materialized inbox_count=1 after worker run, got %#v", state.Projection)
 	}
 
-	statuses, err = h.store.GetThreadProjectionRefreshStatuses(context.Background(), []string{threadID})
+	statuses, err = h.store.GetTopicProjectionRefreshStatuses(context.Background(), []string{threadID})
 	if err != nil {
-		t.Fatalf("GetThreadProjectionRefreshStatuses after worker: %v", err)
+		t.Fatalf("GetTopicProjectionRefreshStatuses after worker: %v", err)
 	}
 	if statuses[threadID].IsDirty() || statuses[threadID].InProgress() || statuses[threadID].LastErrorMessage != "" {
 		t.Fatalf("expected clean refresh status after worker run, got %#v", statuses[threadID])

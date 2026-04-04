@@ -149,13 +149,18 @@ func isMeaningfulThreadActivityEvent(event map[string]any) bool {
 		return true
 	case "inbox_item_acknowledged", "exception_raised":
 		return false
-	case "snapshot_updated":
+	case "thread_created":
+		return false
+	case "thread_updated", "snapshot_updated":
 		payload, _ := event["payload"].(map[string]any)
 		changedFields, err := extractStringSlice(payload["changed_fields"])
 		if err == nil && len(changedFields) == 1 && strings.TrimSpace(changedFields[0]) == "open_cards" {
 			return false
 		}
-		return strings.TrimSpace(anyString(event["summary"])) != "thread snapshot created"
+		if eventType == "snapshot_updated" {
+			return strings.TrimSpace(anyString(event["summary"])) != "thread snapshot created"
+		}
+		return true
 	default:
 		return false
 	}

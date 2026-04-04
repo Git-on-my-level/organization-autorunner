@@ -52,7 +52,6 @@ var (
 		"meta":      {},
 		"receipts":  {},
 		"reviews":   {},
-		"snapshots": {},
 		"threads":   {},
 		"version":   {},
 	}

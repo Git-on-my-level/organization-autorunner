@@ -162,13 +162,13 @@ func handleCreateTopic(w http.ResponseWriter, r *http.Request, opts handlerOptio
 		return
 	}
 
-	primaryThreadID := topicPrimaryThreadID(result.Snapshot)
+	primaryThreadID := topicPrimaryThreadID(result.Topic)
 	if primaryThreadID != "" {
-		enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{primaryThreadID}, time.Now().UTC())
+		enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{primaryThreadID}, time.Now().UTC())
 	}
 
 	status, payload, err := persistIdempotencyReplay(r.Context(), opts.primitiveStore, "topics.create", actorID, req.RequestKey, req, http.StatusCreated, map[string]any{
-		"topic": result.Snapshot,
+		"topic": result.Topic,
 	})
 	if writeIdempotencyError(w, err) {
 		return
@@ -254,11 +254,11 @@ func handlePatchTopic(w http.ResponseWriter, r *http.Request, opts handlerOption
 		return
 	}
 
-	if primaryThreadID := topicPrimaryThreadID(result.Snapshot); primaryThreadID != "" {
-		enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{primaryThreadID}, time.Now().UTC())
+	if primaryThreadID := topicPrimaryThreadID(result.Topic); primaryThreadID != "" {
+		enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{primaryThreadID}, time.Now().UTC())
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"topic": result.Snapshot})
+	writeJSON(w, http.StatusOK, map[string]any{"topic": result.Topic})
 }
 
 func handleArchiveTopic(w http.ResponseWriter, r *http.Request, opts handlerOptions, topicID string) {
@@ -326,7 +326,7 @@ func handleTopicLifecycleWithReason(w http.ResponseWriter, r *http.Request, opts
 	}
 
 	if primaryThreadID := topicPrimaryThreadID(topic); primaryThreadID != "" {
-		enqueueThreadProjectionsBestEffort(r.Context(), opts, []string{primaryThreadID}, time.Now().UTC())
+		enqueueTopicProjectionsBestEffort(r.Context(), opts, []string{primaryThreadID}, time.Now().UTC())
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"topic": topic})
@@ -435,7 +435,7 @@ func buildTopicResourceBundle(ctx context.Context, opts handlerOptions, topic ma
 		return topicResourceBundle{}, err
 	}
 
-	projectionState, err := loadThreadProjectionState(ctx, opts, primaryThreadID)
+	projectionState, err := loadTopicProjectionState(ctx, opts, primaryThreadID)
 	if err != nil {
 		return topicResourceBundle{}, err
 	}

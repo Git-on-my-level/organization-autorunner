@@ -341,7 +341,7 @@ func TestProvenanceWalkScenario(t *testing.T) {
 			"title":          "Provenance Walk Harness " + runID,
 			"type":           "incident",
 			"status":         "active",
-			"summary":        "Validate event -> snapshot -> artifact traversal. Create event referencing snapshot.",
+			"summary":        "Validate event -> thread -> artifact traversal. Create event referencing thread.",
 			"owner_refs":     []any{},
 			"document_refs":  []any{},
 			"board_refs":     []any{},
@@ -355,8 +355,8 @@ func TestProvenanceWalkScenario(t *testing.T) {
 		"event": map[string]any{
 			"type":      "decision_needed",
 			"thread_id": threadID,
-			"refs":      []string{"snapshot:" + threadID},
-			"summary":   "Trace thread snapshot provenance for run " + runID,
+			"refs":      []string{"thread:" + threadID},
+			"summary":   "Trace thread provenance for run " + runID,
 			"payload": map[string]any{
 				"run_id": runID,
 			},
@@ -387,19 +387,19 @@ func TestProvenanceWalkScenario(t *testing.T) {
 	if !integrationContainsNodeRef(nodes, "event:"+eventID) {
 		t.Fatalf("expected event node in walk output, payload=%#v", walk.Payload)
 	}
-	if !integrationContainsNodeRef(nodes, "snapshot:"+threadID) {
-		t.Fatalf("expected snapshot node in walk output, payload=%#v", walk.Payload)
+	if !integrationContainsNodeRef(nodes, "thread:"+threadID) {
+		t.Fatalf("expected thread node in walk output, payload=%#v", walk.Payload)
 	}
 	if !integrationContainsNodeRef(nodes, "artifact:"+artifactID) {
 		t.Fatalf("expected artifact node in walk output, payload=%#v", walk.Payload)
 	}
 
 	edges, _ := data["edges"].([]any)
-	if !integrationHasEdge(edges, "event:"+eventID, "snapshot:"+threadID, "refs") {
-		t.Fatalf("expected event->snapshot edge, payload=%#v", walk.Payload)
+	if !integrationHasEdge(edges, "event:"+eventID, "thread:"+threadID, "refs") {
+		t.Fatalf("expected event->thread edge, payload=%#v", walk.Payload)
 	}
-	if !integrationHasEdge(edges, "snapshot:"+threadID, "artifact:"+artifactID, "provenance.sources") {
-		t.Fatalf("expected snapshot->artifact provenance edge, payload=%#v", walk.Payload)
+	if !integrationHasEdge(edges, "thread:"+threadID, "artifact:"+artifactID, "provenance.sources") {
+		t.Fatalf("expected thread->artifact provenance edge, payload=%#v", walk.Payload)
 	}
 }
 

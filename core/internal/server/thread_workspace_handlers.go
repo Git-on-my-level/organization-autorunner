@@ -130,7 +130,7 @@ func buildThreadWorkspacePayload(ctx context.Context, opts handlerOptions, threa
 	collaboration := buildThreadWorkspaceCollaborationSummary(contextBody)
 
 	now := time.Now().UTC()
-	projectionState, err := loadThreadProjectionState(ctx, opts, threadID)
+	projectionState, err := loadTopicProjectionState(ctx, opts, threadID)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func buildThreadWorkspacePayload(ctx context.Context, opts handlerOptions, threa
 	return workspaceBody, nil
 }
 
-func buildThreadWorkspaceInboxSection(ctx context.Context, opts handlerOptions, threadID string, now time.Time, projectionState threadProjectionState) (map[string]any, []map[string]any, error) {
+func buildThreadWorkspaceInboxSection(ctx context.Context, opts handlerOptions, threadID string, now time.Time, projectionState topicProjectionState) (map[string]any, []map[string]any, error) {
 	items, err := opts.primitiveStore.ListDerivedInboxItems(ctx, primitives.DerivedInboxListFilter{
 		ThreadID: threadID,
 	})

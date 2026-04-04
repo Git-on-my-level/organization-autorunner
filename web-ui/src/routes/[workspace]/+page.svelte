@@ -85,7 +85,7 @@
     const [inboxResult, threadResult, boardsResult, docsResult] =
       await Promise.allSettled([
         coreClient.listInboxItems({ view: "items" }),
-        coreClient.listThreads({}),
+        coreClient.listTopics({}),
         coreClient.listBoards({}),
         coreClient.listDocuments({}),
       ]);
@@ -93,8 +93,8 @@
     inboxState = toSectionState(inboxResult, "items", "Failed to load inbox");
     threadsState = toSectionState(
       threadResult,
-      "threads",
-      "Failed to load threads",
+      "topics",
+      "Failed to load topics",
     );
     boardsState = toSectionState(
       boardsResult,

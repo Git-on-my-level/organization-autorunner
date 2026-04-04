@@ -367,7 +367,7 @@ test("golden path integration runs against a real oar-core", async ({
     event: {
       type: "decision_needed",
       thread_id: threadId,
-      refs: [`thread:${threadId}`, `snapshot:${threadId}`],
+      refs: [`thread:${threadId}`],
       summary: `Decision needed ${runSuffix}`,
       payload: {
         source: "integration-e2e",
@@ -401,23 +401,14 @@ test("golden path integration runs against a real oar-core", async ({
     })
     .first();
   await expect(decisionEntry).toBeVisible();
-  const snapshotRef = decisionEntry.getByRole("link", {
-    name: `snapshot:${threadId}`,
+  const threadRef = decisionEntry.getByRole("link", {
+    name: `thread:${threadId}`,
   });
-  await expect(snapshotRef).toBeVisible();
-  await snapshotRef.click();
+  await expect(threadRef).toBeVisible();
+  await threadRef.click();
   await expect(
-    page.getByRole("heading", {
-      name: `Snapshot: ${threadId}`,
-      exact: true,
-    }),
+    page.getByRole("heading", { name: threadTitle, exact: true }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Raw Snapshot JSON" }),
-  ).toBeVisible();
-  const snapshotJsonPanel = page.locator("pre").first();
-  await expect(snapshotJsonPanel).toContainText(`"id": "${threadId}"`);
-  await expect(snapshotJsonPanel).toContainText(`"title": "${threadTitle}"`);
   await page.goBack();
 
   const workOrderEntry = page

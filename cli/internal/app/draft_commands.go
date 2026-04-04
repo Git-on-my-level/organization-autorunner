@@ -855,7 +855,7 @@ func validateDraftArtifactCreate(body map[string]any) []string {
 func validateDraftInboxAck(body map[string]any) []string {
 	out := make([]string, 0)
 	validateOptionalNonEmptyString(body, "actor_id", "actor_id", &out)
-	requiredStringField(body, "thread_id", "thread_id", true, &out)
+	requiredStringField(body, "subject_ref", "subject_ref", true, &out)
 	requiredStringField(body, "inbox_item_id", "inbox_item_id", true, &out)
 	return out
 }
@@ -939,11 +939,11 @@ func validatePacketForKind(kind string, artifact map[string]any, packet map[stri
 	fieldOrder := []string{}
 	switch kind {
 	case "work_order":
-		fieldOrder = []string{"work_order_id", "thread_id", "objective", "constraints", "context_refs", "acceptance_criteria", "definition_of_done"}
+		fieldOrder = []string{"work_order_id", "subject_ref", "objective", "constraints", "context_refs", "acceptance_criteria", "definition_of_done"}
 	case "receipt":
-		fieldOrder = []string{"receipt_id", "work_order_id", "thread_id", "outputs", "verification_evidence", "changes_summary", "known_gaps"}
+		fieldOrder = []string{"receipt_id", "subject_ref", "work_order_ref", "outputs", "verification_evidence", "changes_summary", "known_gaps"}
 	case "review":
-		fieldOrder = []string{"review_id", "work_order_id", "receipt_id", "outcome", "notes", "evidence_refs"}
+		fieldOrder = []string{"review_id", "subject_ref", "work_order_ref", "receipt_ref", "outcome", "notes", "evidence_refs"}
 	}
 	for _, name := range fieldOrder {
 		kindSpec := fields[name]

@@ -23,6 +23,8 @@ const EVENT_TYPE_LABELS = {
   intervention_needed: "Needs intervention",
   decision_made: "Decision made",
   snapshot_updated: "Details updated",
+  thread_updated: "Details updated",
+  thread_created: "Thread created",
   card_created: "Card created",
   card_updated: "Card updated",
   card_moved: "Card moved",
@@ -42,6 +44,8 @@ const EVENT_TYPE_DOT_CLASSES = {
   intervention_needed: "bg-cyan-400",
   decision_made: "bg-emerald-400",
   snapshot_updated: "bg-gray-400",
+  thread_updated: "bg-gray-400",
+  thread_created: "bg-gray-400",
   card_created: "bg-purple-400",
   card_updated: "bg-purple-400",
   card_moved: "bg-purple-400",
@@ -170,7 +174,7 @@ export function toTimelineViewEvent(event, options = {}) {
     typeLabel: EVENT_TYPE_LABELS[type] ?? "Unknown event type",
     rawType: type,
     changedFields:
-      type === "snapshot_updated" &&
+      (type === "snapshot_updated" || type === "thread_updated") &&
       Array.isArray(event?.payload?.changed_fields)
         ? event.payload.changed_fields.map((f) => SNAPSHOT_FIELD_LABELS[f] ?? f)
         : [],

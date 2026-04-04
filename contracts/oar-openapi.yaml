@@ -2215,9 +2215,13 @@ components:
 
     AcknowledgeInboxItemRequest:
       type: object
+      description: >
+        Acknowledges a derived inbox item. `subject_ref` is the typed subject anchor for the item
+        (same pattern as packet requests); it must match the inbox item's subject (for example
+        `thread:<id>` or `topic:<id>`).
       properties:
         actor_id: { type: string }
-        thread_id: { type: string }
+        subject_ref: { $ref: '#/components/schemas/TypedRef' }
         inbox_item_id:
           type: string
           description: Required when using legacy POST /inbox/ack; must match path inbox_id when using POST /inbox/{inbox_id}/acknowledge.
@@ -2225,7 +2229,7 @@ components:
         refs:
           type: array
           items: { $ref: '#/components/schemas/TypedRef' }
-      required: [thread_id]
+      required: [subject_ref]
 
     TopicResponse:
       type: object

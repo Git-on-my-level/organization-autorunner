@@ -15,7 +15,7 @@
   import { formatTimestamp } from "$lib/formatDate";
   import {
     searchDocuments as searchDocumentRecords,
-    searchThreads as searchThreadRecords,
+    searchTopics as searchTopicRecords,
   } from "$lib/searchHelpers";
   import { workspacePath } from "$lib/workspacePaths";
   import { enrichInboxItem } from "$lib/inboxUtils";
@@ -136,7 +136,7 @@
   }
 
   async function searchThreadOptions(query) {
-    const threads = await searchThreadRecords(query);
+    const threads = await searchTopicRecords(query);
     return threads.map(toThreadOption);
   }
 

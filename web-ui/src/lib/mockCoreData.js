@@ -337,7 +337,7 @@ const events = [
   {
     id: "evt-supply-003",
     ts: new Date(now - 14 * 60 * 60 * 1000).toISOString(),
-    type: "snapshot_updated",
+    type: "thread_updated",
     actor_id: "actor-ops-ai",
     thread_id: "thread-lemon-shortage",
     refs: ["thread:thread-lemon-shortage"],
@@ -404,7 +404,7 @@ const events = [
   {
     id: "evt-menu-003",
     ts: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    type: "snapshot_updated",
+    type: "thread_updated",
     actor_id: "actor-flavor-ai",
     thread_id: "thread-summer-menu",
     refs: ["thread:thread-summer-menu"],
@@ -847,7 +847,7 @@ const events = [
     ts: new Date(
       now - 7 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
     ).toISOString(),
-    type: "snapshot_updated",
+    type: "thread_updated",
     actor_id: "actor-ops-ai",
     thread_id: "thread-pricing-glitch",
     refs: ["thread:thread-pricing-glitch"],
@@ -880,7 +880,7 @@ const events = [
   {
     id: "evt-q2-002",
     ts: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    type: "snapshot_updated",
+    type: "thread_updated",
     actor_id: "actor-ops-ai",
     thread_id: "thread-q2-initiative",
     refs: ["thread:thread-q2-initiative"],
@@ -1969,11 +1969,19 @@ export function listMockInboxItems() {
     .map((item) => normalizeMockInboxItem(item));
 }
 
-export function ackMockInboxItem({ thread_id, inbox_item_id }) {
+export function ackMockInboxItem({ thread_id, subject_ref, inbox_item_id }) {
+  let correlation = String(thread_id ?? "").trim();
+  if (!correlation && subject_ref) {
+    const raw = String(subject_ref).trim();
+    const sep = raw.indexOf(":");
+    if (sep > 0 && sep < raw.length - 1) {
+      correlation = raw.slice(sep + 1).trim();
+    }
+  }
   const item = inboxItems.find(
     (item) =>
       item.id === inbox_item_id &&
-      (!thread_id || String(item.thread_id) === String(thread_id)),
+      (!correlation || String(item.thread_id) === String(correlation)),
   );
 
   if (!item) {

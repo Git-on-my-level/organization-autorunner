@@ -36,12 +36,12 @@ func (s *boardLifecycleFailureStore) AppendEvent(ctx context.Context, actorID st
 	return stored, err
 }
 
-func (s *boardLifecycleFailureStore) PutDerivedThreadProjection(ctx context.Context, projection primitives.DerivedThreadProjection) error {
+func (s *boardLifecycleFailureStore) PutDerivedTopicProjection(ctx context.Context, projection primitives.DerivedTopicProjection) error {
 	if s.failProjectionAfterEmit && s.boardEventAppended && !s.projectionFailed {
 		s.projectionFailed = true
 		return errors.New("derived projection refresh failed")
 	}
-	return s.PrimitiveStore.PutDerivedThreadProjection(ctx, projection)
+	return s.PrimitiveStore.PutDerivedTopicProjection(ctx, projection)
 }
 
 func newPrimitivesTestServerWithStore(t *testing.T, workspace *storage.Workspace, primitiveStore PrimitiveStore) primitivesTestHarness {
