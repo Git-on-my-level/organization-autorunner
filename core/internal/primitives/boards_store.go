@@ -2676,7 +2676,7 @@ type boardCardVersionRow struct {
 	Version              int
 	BoardID              string
 	ColumnKey            string
-	Rank                 int
+	Rank                 string
 	Title                string
 	Body                 string
 	ThreadID             sql.NullString
@@ -3457,10 +3457,10 @@ func validateCardResolution(raw string, allowEmpty bool) error {
 		return nil
 	}
 	switch value {
-	case "done", "canceled":
+	case "completed", "canceled":
 		return nil
 	default:
-		return fmt.Errorf("card.resolution must be one of: done, canceled")
+		return fmt.Errorf("card.resolution must be one of: completed, canceled")
 	}
 }
 
@@ -3504,9 +3504,9 @@ func resolveBoardCardMoveResolution(cardRow boardCardRow, columnKey string, inpu
 		}
 	}
 	switch nextResolution {
-	case "done":
+	case "completed":
 		if !containsTypedRefPrefix(resolutionRefs, "artifact") && !containsTypedRefPrefix(resolutionRefs, "event") {
-			return "", "", false, invalidBoardRequest("resolution_refs must include at least one artifact: or event: ref for resolution done")
+			return "", "", false, invalidBoardRequest("resolution_refs must include at least one artifact: or event: ref for resolution completed")
 		}
 	case "canceled":
 		if !containsTypedRefPrefix(resolutionRefs, "event") {
@@ -3526,7 +3526,7 @@ func normalizeCardResolution(raw *string, status string) string {
 	}
 	switch strings.TrimSpace(status) {
 	case "done":
-		return "done"
+		return "completed"
 	case "cancelled":
 		return "canceled"
 	default:
@@ -3537,7 +3537,7 @@ func normalizeCardResolution(raw *string, status string) string {
 func resolutionFromStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case "done":
-		return "done"
+		return "completed"
 	case "cancelled":
 		return "canceled"
 	default:

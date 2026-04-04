@@ -154,7 +154,13 @@ export function resolveRefLink(refValue, options = {}) {
   const linkResolver = LINK_RESOLVERS[prefix];
   if (linkResolver) {
     return createResolvedLink(raw, prefix, value, labels, {
-      href: linkResolver({ workspaceSlug, snapshotIsThread, threadId, value }),
+      href: linkResolver({
+        workspaceSlug,
+        snapshotIsThread,
+        threadId,
+        boardId,
+        value,
+      }),
       isExternal: prefix === "url",
       boardId,
     });

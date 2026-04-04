@@ -493,33 +493,6 @@ export function createOarCoreClient(options = {}) {
     return response;
   }
 
-  async function invokeMockJSON(path, payload = {}, { method = "POST" } = {}) {
-    if (resolvedBaseUrl) {
-      throw new Error(
-        `Mock-only card lifecycle route ${method} ${path} is unavailable when OAR_CORE_BASE_URL is set.`,
-      );
-    }
-
-    const response = await fetchFn(path, {
-      method,
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(withActorId(payload)),
-    });
-
-    if (!response.ok) {
-      throw buildRawRequestError(await parseRawErrorResponse(response), {
-        target,
-        method,
-        path,
-      });
-    }
-
-    return parseJsonBody(await response.text(), `${method} ${path}`);
-  }
-
   function requireActorId() {
     const actorId =
       typeof actorIdProvider === "function" ? actorIdProvider() : undefined;
@@ -698,20 +671,29 @@ export function createOarCoreClient(options = {}) {
         generated.cardsGet({ card_id: String(cardId) }),
       ),
     archiveCard: (cardId, payload) =>
-      invokeMockJSON(
-        `/cards/${encodeURIComponent(String(cardId))}/archive`,
-        payload,
-      ),
+      invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/archive`, {
+        method: "POST",
+        body: JSON.stringify(withActorId(payload)),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
     restoreCard: (cardId, payload) =>
-      invokeMockJSON(
-        `/cards/${encodeURIComponent(String(cardId))}/restore`,
-        payload,
-      ),
+      invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/restore`, {
+        method: "POST",
+        body: JSON.stringify(withActorId(payload)),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
     purgeCard: (cardId, payload) =>
-      invokeMockJSON(
-        `/cards/${encodeURIComponent(String(cardId))}/purge`,
-        payload,
-      ),
+      invokeDirectJSON(`/cards/${encodeURIComponent(String(cardId))}/purge`, {
+        method: "POST",
+        body: JSON.stringify(payload || {}),
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
 
     createCommitment: (payload) =>
       invokeJSON("commitments.create", () =>

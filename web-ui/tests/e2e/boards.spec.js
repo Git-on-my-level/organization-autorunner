@@ -787,7 +787,7 @@ test("board UI supports create/edit and card mutation flows", async ({
         actor_id: actorId,
         if_board_updated_at: "2026-03-05T04:00:00.000Z",
         column_key: "done",
-        resolution: "done",
+        resolution: "completed",
       },
     },
   ]);

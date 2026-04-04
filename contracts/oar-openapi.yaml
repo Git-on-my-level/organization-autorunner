@@ -1719,7 +1719,7 @@ components:
         after_card_ref: { $ref: '#/components/schemas/TypedRef' }
         resolution:
           type: string
-          enum: [done, canceled]
+          enum: [completed, canceled]
         resolution_refs:
           type: array
           items: { $ref: '#/components/schemas/TypedRef' }

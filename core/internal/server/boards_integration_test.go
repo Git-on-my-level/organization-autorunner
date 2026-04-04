@@ -1012,7 +1012,7 @@ func TestCardMoveResolutionTransitionsAndEvents(t *testing.T) {
 		"actor_id":"actor-1",
 		"if_board_updated_at":"`+asString(addPayload.Board["updated_at"])+`",
 		"column_key":"done",
-		"resolution":"done",
+		"resolution":"completed",
 		"resolution_refs":["event:card-completion-1"]
 	}`, http.StatusOK)
 	defer doneMoveResp.Body.Close()
@@ -1026,8 +1026,8 @@ func TestCardMoveResolutionTransitionsAndEvents(t *testing.T) {
 	if asString(doneMovePayload.Card["column_key"]) != "done" {
 		t.Fatalf("expected card to move into done, got %#v", doneMovePayload.Card["column_key"])
 	}
-	if asString(doneMovePayload.Card["resolution"]) != "done" {
-		t.Fatalf("expected card resolution done, got %#v", doneMovePayload.Card["resolution"])
+	if asString(doneMovePayload.Card["resolution"]) != "completed" {
+		t.Fatalf("expected card resolution completed, got %#v", doneMovePayload.Card["resolution"])
 	}
 	if !containsAny(doneMovePayload.Card["resolution_refs"].([]any), "event:card-completion-1") {
 		t.Fatalf("expected terminal evidence ref on moved card, got %#v", doneMovePayload.Card["resolution_refs"])

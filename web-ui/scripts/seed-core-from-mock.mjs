@@ -54,7 +54,6 @@ async function main() {
   await seedTopics();
   await seedDocuments();
   await seedBoards();
-  await seedCards();
   await seedPackets();
   await seedArtifacts();
   const eventStats = await seedEvents();
@@ -132,57 +131,6 @@ async function seedTopics() {
 
     topicIdMap.set(String(sourceTopic.id ?? "").trim(), newId);
     threadIdMap.set(String(sourceTopic.id ?? "").trim(), primaryThreadRef.replace(/^thread:/, ""));
-  }
-}
-
-async function seedCards() {
-  const sourceCards = Array.isArray(seed.cards) ? seed.cards : [];
-  const orderedCards = [...sourceCards].sort(compareBoardCardsForSeed);
-
-  for (const sourceCard of orderedCards) {
-    const sourceBoardId = String(sourceCard.board_id ?? "").trim();
-    const boardId = mapBoardId(sourceBoardId);
-    const threadId = normalizeMappedOptionalThreadId(
-      sourceCard.thread_id ?? sourceCard.parent_thread,
-    );
-    if (!boardId || !threadId) {
-      console.warn(
-        `Skipping card ${String(sourceCard.id ?? "<unknown>")}: missing board or backing thread mapping.`,
-      );
-      continue;
-    }
-
-    const payload = {
-      actor_id: pickActorId(sourceCard.created_by ?? sourceCard.updated_by),
-      card_id: sourceCard.id,
-      thread_id: threadId,
-      column_key: String(sourceCard.column_key ?? "backlog").trim() || "backlog",
-      title: String(sourceCard.title ?? "").trim() || String(sourceCard.summary ?? "").trim(),
-      body: String(sourceCard.summary ?? "").trim() || String(sourceCard.title ?? "").trim(),
-      ...(mapOptionalDocumentId(sourceCard.pinned_document_id)
-        ? { pinned_document_id: mapOptionalDocumentId(sourceCard.pinned_document_id) }
-        : {}),
-    };
-
-    if (sourceCard.assignee_refs?.length > 0) {
-      payload.assignee = String(sourceCard.assignee_refs[0]).replace(/^actor:/, "");
-    }
-    if (sourceCard.priority) {
-      payload.priority = String(sourceCard.priority);
-    }
-
-    const response = await request(
-      "POST",
-      `/boards/${encodeURIComponent(boardId)}/cards`,
-      payload,
-    );
-
-    const created = response?.card;
-    const newId = String(created?.id ?? "").trim();
-    if (!newId) {
-      throw new Error(`Card create returned no id for ${sourceCard.id}`);
-    }
-    cardIdMap.set(String(sourceCard.id ?? "").trim(), newId);
   }
 }
 
@@ -698,15 +646,6 @@ function mapTopicId(topicId) {
   }
 
   return topicIdMap.get(raw) ?? raw;
-}
-
-function mapBoardId(boardId) {
-  const raw = String(boardId ?? "").trim();
-  if (!raw) {
-    return raw;
-  }
-
-  return boardIdMap.get(raw) ?? raw;
 }
 
 function normalizeMappedOptionalThreadId(threadId) {

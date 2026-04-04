@@ -1983,10 +1983,10 @@ func validateCardResolution(resolution string, allowEmpty bool) error {
 		return nil
 	}
 	switch value {
-	case "done", "canceled":
+	case "completed", "canceled":
 		return nil
 	default:
-		return errors.New("resolution must be one of: done, canceled")
+		return errors.New("resolution must be one of: completed, canceled")
 	}
 }
 
@@ -1996,16 +1996,16 @@ func validateMoveCardResolutionRefs(resolution string, resolutionRefs []string) 
 		return errors.New("resolution_refs are required when resolution is set")
 	}
 	switch resolution {
-	case "done":
+	case "completed":
 		if !containsTypedRefPrefix(resolutionRefs, "artifact") && !containsTypedRefPrefix(resolutionRefs, "event") {
-			return errors.New("resolution_refs must include at least one artifact: or event: ref for resolution done")
+			return errors.New("resolution_refs must include at least one artifact: or event: ref for resolution completed")
 		}
 	case "canceled":
 		if !containsTypedRefPrefix(resolutionRefs, "event") {
 			return errors.New("resolution_refs must include at least one event: ref for resolution canceled")
 		}
 	default:
-		return errors.New("resolution must be one of: done, canceled")
+		return errors.New("resolution must be one of: completed, canceled")
 	}
 	return nil
 }

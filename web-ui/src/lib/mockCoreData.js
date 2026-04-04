@@ -4919,7 +4919,7 @@ export function moveMockBoardCard(boardId, cardId, payload) {
 
   if (Object.prototype.hasOwnProperty.call(payload, "resolution")) {
     const moveResolution = String(payload.resolution ?? "").trim();
-    if (moveResolution === "done") {
+    if (moveResolution === "completed") {
       card.resolution = "completed";
     } else if (moveResolution === "canceled") {
       card.resolution = "canceled";

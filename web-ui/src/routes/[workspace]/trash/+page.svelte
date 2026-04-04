@@ -120,9 +120,9 @@
         await Promise.all([
           coreClient.listArtifacts({ tombstoned_only: "true" }),
           coreClient.listDocuments({ tombstoned_only: "true" }),
-          coreClient.listTopics({}),
+          coreClient.listTopics({ tombstoned_only: "true" }),
           coreClient.listBoards({ tombstoned_only: "true" }),
-          coreClient.listCards({}),
+          coreClient.listCards({ tombstoned_only: "true" }),
         ]);
       artifacts = artifactResult.artifacts ?? [];
       documents = docResult.documents ?? [];
