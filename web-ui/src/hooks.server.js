@@ -39,8 +39,15 @@ function shouldBypassProxy(pathname, method) {
   );
 }
 
+function isDirectCoreAuthPath(pathname) {
+  return pathname.startsWith("/auth/");
+}
+
 function isDirectCoreProxyPath(method, pathname) {
-  return method.toUpperCase() === "GET" && pathname === "/meta/handshake";
+  return (
+    (method.toUpperCase() === "GET" && pathname === "/meta/handshake") ||
+    isDirectCoreAuthPath(pathname)
+  );
 }
 
 async function refreshAndRetry(

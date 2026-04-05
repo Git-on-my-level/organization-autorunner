@@ -192,6 +192,19 @@ func TestDraftCreateTreatsHelpAsFlagValue(t *testing.T) {
 	}
 }
 
+func TestValidateDraftBodySupportsInboxAcknowledge(t *testing.T) {
+	t.Parallel()
+
+	errors := validateDraftBody("inbox.acknowledge", map[string]any{
+		"actor_id":      "actor_1",
+		"subject_ref":   "thread:thread_1",
+		"inbox_item_id": "inbox:decision_needed:thread_1:none:event_1",
+	})
+	if len(errors) != 0 {
+		t.Fatalf("expected inbox.acknowledge draft validation to pass, got %#v", errors)
+	}
+}
+
 func anyStringValue(raw any) string {
 	text, _ := raw.(string)
 	return strings.TrimSpace(text)

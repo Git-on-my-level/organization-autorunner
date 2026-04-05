@@ -1602,6 +1602,41 @@ func TestNormalizeMutationBodyIDsPreservesUnsupportedTypedRefsVerbatim(t *testin
 	}
 }
 
+func TestNormalizeMutationBodyIDsResolvesInboxAcknowledgeSubjectRef(t *testing.T) {
+	t.Parallel()
+
+	app := &App{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/threads":
+			_, _ = w.Write([]byte(`{"threads":[{"id":"thread_1234567890"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	body := map[string]any{
+		"subject_ref": "thread:thread_12345",
+		"inbox_item_id": "inbox:decision_needed:thread_1234567890:none:event_1",
+	}
+
+	normalizedAny, err := app.normalizeMutationBodyIDs(
+		context.Background(),
+		config.Resolved{BaseURL: server.URL},
+		"inbox.acknowledge",
+		nil,
+		body,
+	)
+	if err != nil {
+		t.Fatalf("normalize inbox.acknowledge body: %v", err)
+	}
+	normalized, _ := normalizedAny.(map[string]any)
+	if got := anyStringValue(normalized["subject_ref"]); got != "thread:thread_1234567890" {
+		t.Fatalf("expected normalized subject_ref, got %#v", normalized)
+	}
+}
+
 func TestCommitmentsGetHumanOutputIsRemoved(t *testing.T) {
 	t.Parallel()
 

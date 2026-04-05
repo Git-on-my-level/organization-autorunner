@@ -474,7 +474,7 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 		"docs.revisions.create":      validateDraftDocsUpdate,
 		"events.create":              validateDraftEventCreate,
 		"artifacts.create":           validateDraftArtifactCreate,
-		"inbox.ack":                  validateDraftInboxAck,
+		"inbox.acknowledge":          validateDraftInboxAck,
 		"packets.work-orders.create": validateDraftWorkOrderCreate,
 		"packets.receipts.create":    validateDraftReceiptCreate,
 		"packets.reviews.create":     validateDraftReviewCreate,

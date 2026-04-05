@@ -74,7 +74,7 @@ func commandSupportsMutationIDResolution(commandID string) bool {
 		"docs.update",
 		"docs.revisions.create",
 		"events.create",
-		"inbox.ack",
+		"inbox.acknowledge",
 		"packets.receipts.create",
 		"packets.reviews.create",
 		"packets.work-orders.create":
