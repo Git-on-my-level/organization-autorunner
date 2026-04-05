@@ -604,7 +604,7 @@ func TestProjectionMaintainerNotifyWakesRunLoopPromptly(t *testing.T) {
 	defer cancel()
 	go maintainer.Run(ctx)
 
-	threadID := integrationSeedThreadWithStore(t, store, nil, "actor-1", map[string]any{
+	threadID := integrationSeedThreadWithStore(t, store, maintainer, "actor-1", map[string]any{
 		"title":           "Wakeup projection thread",
 		"type":            "incident",
 		"status":          "active",
