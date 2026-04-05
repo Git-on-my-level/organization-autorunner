@@ -41,11 +41,8 @@ export async function POST({ request, url }) {
     return json({ error: "actor_id is required." }, { status: 400 });
   }
 
-  if (!body?.board?.title || !body?.board?.primary_thread_id) {
-    return json(
-      { error: "board.title and board.primary_thread_id are required." },
-      { status: 400 },
-    );
+  if (!body?.board?.title) {
+    return json({ error: "board.title is required." }, { status: 400 });
   }
 
   const created = createMockBoard(body);

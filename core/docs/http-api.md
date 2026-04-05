@@ -50,9 +50,9 @@ The schema of objects is defined by `../contracts/oar-schema.yaml`.
 
 Each endpoint is classified with an `x-oar-surface` extension indicating its role:
 
-- **`canonical`**: CRUD/list/get endpoints over canonical resources (threads, commitments, artifacts, documents, boards, board cards, events, snapshots, packets). These are the durable substrate for automation.
+- **`canonical`**: CRUD/list/get endpoints over canonical resources (topics, cards, artifacts, documents, boards, board cards, events, packets), plus **read-only** thread list/inspect routes for backing-thread inspection. These are the durable substrate for automation.
 
-- **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `threads.context`, `threads.workspace`, `boards.workspace`, `inbox.list/get/stream/ack`. **Do not build durable automation directly on projection payload shapes.** Use canonical APIs or CLI commands for durable substrate.
+- **`projection`**: Operator convenience surfaces that aggregate multiple canonical resources into workspace-friendly bundles. Examples: `topics.workspace` (primary operator coordination read), `threads.context`, `threads.workspace` (backing-thread diagnostic bundle), `boards.workspace`, `inbox.list/get/stream/ack`. **Do not build durable automation directly on projection payload shapes.** Use canonical APIs or CLI commands for durable substrate.
 
 - **`utility`**: Infrastructure endpoints for liveness, readiness, version, meta discovery, auth bootstrap, maintenance, and workspace telemetry. Examples: `/health`, `/livez`, `/readyz`, `/ops/health`, `/ops/usage-summary`, `/ops/blob-usage/rebuild`, `/version`, `/meta/*`, `/auth/*`, `/actors`, `/derived/rebuild`.
 
@@ -168,79 +168,112 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
   - Auth: bearer token required
   - Response: `{ "ok": true }`
 
-### Threads (thread snapshots)
+### Topics
 
-- `POST /threads`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "thread": <thread_snapshot_fields_without_id> }`
-  - `thread.cadence`:
-    - MUST be either literal `reactive` or a 5-field cron expression.
-    - Legacy values `daily`, `weekly`, `monthly`, `custom` MAY be accepted for backward compatibility.
-  - Response: `{ "thread": <thread_snapshot> }`
+- `POST /topics`
+  - Body: `{ "actor_id": "...", "request_key"?: "...", "topic": <topic_fields_without_id> }`
+  - Response: `{ "topic": <topic> }`
 
-- `GET /threads`
-  - Query (optional): `status`, `priority`, `tag`, `cadence`, `stale` (boolean), `q`, `limit`, `cursor`
-  - `tag` MAY be repeated (for example `?tag=ops&tag=backend`). Repeated tags use AND semantics: returned threads MUST contain all provided tags.
-  - `cadence` MAY be repeated (for example `?cadence=daily&cadence=weekly`). Repeated cadence values use OR semantics: returned threads MAY match any provided cadence.
-  - `cadence` filter values are preset-oriented (`reactive`, `daily`, `weekly`, `monthly`, `custom`).
-  - Canonical preset cron expressions (for example `0 9 * * *`) are treated as their preset aliases.
-  - Non-preset cron expressions match by exact cadence string.
-  - When both `tag` and `cadence` filters are present, both filters apply.
-  - Response: `{ "threads": [<thread_snapshot>...], "next_cursor"?: "..." }`
+- `GET /topics`
+  - Query (optional): `type`, `status`, `q`, `limit`, `cursor`, `include_archived`, `archived_only`, `include_trashed`, `trashed_only`
+  - Response: `{ "topics": [<topic>...], "next_cursor"?: "..." }`
 
-- `GET /threads/{thread_id}`
-  - Response: `{ "thread": <thread_snapshot> }`
+- `GET /topics/{topic_id}`
+  - Response: `{ "topic": <topic> }`
 
-- `PATCH /threads/{thread_id}`
+- `PATCH /topics/{topic_id}`
   - Body: `{ "actor_id": "...", "patch": { <fields...> } , "if_updated_at"?: "..." }`
   - Semantics: patch/merge; list-valued fields replace wholesale when present.
-  - `patch.cadence` follows the same `reactive` or 5-field cron rule as create.
-  - `if_updated_at` (optional) MUST be an RFC3339 timestamp. If provided and it does not match the current snapshot `updated_at`, the request fails with `409 Conflict` and no patch or event side effects are applied.
+  - `if_updated_at` (optional) MUST be an RFC3339 timestamp. If provided and it does not match the current resource `updated_at`, the request fails with `409 Conflict` and no patch or event side effects are applied.
   - Conflict response shape: `{ "error": { "code": "conflict", "message": "...", "recoverable": true, "hint": "..." } }`
-  - Response: `{ "thread": <thread_snapshot> }`
+  - Response: `{ "topic": <topic> }`
 
-- `GET /threads/{thread_id}/timeline`
+- `GET /topics/{topic_id}/timeline`
   - Response:
-    - `{ "events": [<event>...], "snapshots": { "<snapshot_id>": <snapshot> }, "artifacts": { "<artifact_id>": <artifact_metadata> }, "documents": { "<document_id>": <document> }, "document_revisions": { "<revision_id>": <document_revision> } }`
+    - `{ "topic": <topic>, "events": [<event>...], "artifacts": [<artifact_metadata>...], "cards": [<card>...], "documents": [<document>...], "threads": [<thread>...] }`
     - `events` remain time-ordered.
-    - `snapshots` includes objects referenced by `snapshot:<id>` refs in returned events when they exist.
-    - `artifacts` includes metadata objects referenced by `artifact:<id>` refs in returned events when they exist.
-    - `documents` includes objects referenced by `document:<id>` refs in returned events when they exist.
-    - `document_revisions` includes objects referenced by `document_revision:<id>` refs in returned events when they exist.
-    - Missing referenced IDs are omitted from expansion maps (events still keep their original refs).
+    - `artifacts` includes metadata objects linked from the topic's backing thread timeline.
+    - `cards` includes board cards associated with the topic.
+    - `documents` includes topic-linked documents.
+    - `threads` includes the backing thread records that support timeline reconstruction.
 
-- `GET /threads/{thread_id}/context`
-  - Query (optional):
-    - `max_events` (non-negative integer, default `20`)
-    - `include_artifact_content` (`true|false`, default `false`)
+- `GET /topics/{topic_id}/workspace`
   - Response:
-    - `{ "thread": <thread_snapshot>, "recent_events": [<event>...], "key_artifacts": [ { "ref": "artifact:<id>", "artifact": <artifact_metadata>, "content_preview"?: "<string>" } ... ], "open_commitments": [<commitment_snapshot>...], "documents": [<document>...] }`
-    - `recent_events` contains at most `max_events` newest events for the thread.
-    - `key_artifacts` preserves `thread.key_artifacts` order and omits missing refs.
-    - `content_preview` is included only when `include_artifact_content=true`.
-    - `open_commitments` expands `thread.open_commitments` IDs into full commitment snapshots (missing IDs are omitted).
-    - `documents` returns thread-linked documents ordered by `updated_at` descending, each with a `head_revision` summary for current revision metadata.
+    - `{ "topic": <topic>, "cards": [<card>...], "boards": [<board>...], "documents": [<document>...], "threads": [<thread>...], "inbox": [<inbox_item>...], "projection_freshness": <projection_freshness>, "generated_at": "<rfc3339>" }`
+    - `cards` preserves topic-linked card order and omits missing refs.
+    - `documents` returns topic-linked documents ordered by `updated_at` descending.
+    - `threads` returns the backing thread records associated with the topic.
 
-### Commitments (commitment snapshots)
+- `POST /topics/{topic_id}/archive`
+- `POST /topics/{topic_id}/unarchive`
+- `POST /topics/{topic_id}/trash`
+- `POST /topics/{topic_id}/restore`
+  - Each mutation responds with `{ "topic": <topic> }`.
 
-- `POST /commitments`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "commitment": <commitment_snapshot_fields_without_id> }`
-  - Response: `{ "commitment": <commitment_snapshot> }`
+### Cards
 
-- `GET /commitments`
-  - Query (optional): `thread_id`, `owner`, `status`, `due_before`, `due_after`
-  - Response: `{ "commitments": [<commitment_snapshot>...] }`
+- `GET /cards`
+  - Response: `{ "cards": [<card>...] }`
 
-- `GET /commitments/{commitment_id}`
-  - Response: `{ "commitment": <commitment_snapshot> }`
+- `GET /cards/{card_id}`
+  - Response: `{ "card": <card> }`
 
-- `PATCH /commitments/{commitment_id}`
-  - Body: `{ "actor_id": "...", "patch": { <fields...> }, "refs"?: ["typed:ref"...], "if_updated_at"?: "..." }`
-  - Notes:
-    - Restricted transitions (e.g. `status -> done`) require `refs` per schema.
-    - `refs` are used to populate provenance for restricted fields.
-    - `if_updated_at` (optional) MUST be an RFC3339 timestamp. If provided and it does not match the current snapshot `updated_at`, the request fails with `409 Conflict` and no patch or event side effects are applied.
-    - Conflict response shape: `{ "error": { "code": "conflict", "message": "...", "recoverable": true, "hint": "..." } }`
-  - Response: `{ "commitment": <commitment_snapshot> }`
+- `PATCH /cards/{card_id}`
+  - Body: `{ "actor_id": "...", "patch": { <fields...> }, "if_updated_at"?: "..." }`
+  - `if_updated_at` (optional) MUST be an RFC3339 timestamp. If provided and it does not match the current resource `updated_at`, the request fails with `409 Conflict` and no patch or event side effects are applied.
+  - Conflict response shape: `{ "error": { "code": "conflict", "message": "...", "recoverable": true, "hint": "..." } }`
+  - Response: `{ "card": <card> }`
+
+- `GET /cards/{card_id}/timeline`
+  - Response: `{ "card": <card>, "events": [<event>...], "artifacts": [<artifact>...], "cards": [<card>...], "documents": [<document>...], "threads": [<thread>...] }` per `CardTimelineResponse` in OpenAPI.
+  - Resolves the card’s backing `thread_id` and returns the same event stream and ref-expanded resources as the backing thread timeline, scoped with the card record and related card/thread rows referenced on those events.
+
+- `POST /cards/{card_id}/archive`
+  - Response: `{ "card": <card> }`
+
+- `POST /cards/{card_id}/move`
+  - Body: `{ "actor_id": "...", "column_key": "...", "rank"?: "..." }`
+  - Response: `{ "card": <card> }`
+
+### Threads (read-only inspection)
+
+Backing threads hold append-only timelines and anchor many packet subjects. They are **not** the primary operator noun; topics and cards are. The contract exposes read-only thread routes for diagnostics and tooling inspection.
+
+- `GET /threads`
+  - Query (optional): `status`, `priority`, `tag`, `cadence`, `stale` (boolean)
+  - Response: `{ "threads": [<thread>...] }`
+
+- `GET /threads/{thread_id}`
+  - Response: `{ "thread": <thread> }`
+
+- `GET /threads/{thread_id}/timeline` (projection)
+  - Response: `{ "thread": <thread>, "events": [<event>...], ... }` per `ThreadTimelineResponse` in OpenAPI (includes linked artifact/topic/card/document expansions).
+
+- `GET /threads/{thread_id}/context` (projection)
+  - Response: compact thread coordination bundle per OpenAPI (`ThreadContextResponse`).
+
+- `GET /threads/{thread_id}/workspace` (projection)
+  - Response: `{ "thread": <thread>, "related_topics": [...], "cards": [...], "documents": [...], "board_memberships": [...], "inbox": [...], "projection_freshness": ... }` per OpenAPI.
+
+### Boards
+
+- `GET /boards/{board_id}/cards`
+  - Response: `{ "cards": [<card>...] }`
+
+- `POST /boards/{board_id}/cards`
+  - Body: `{ "actor_id": "...", "request_key"?: "...", "card": <card_fields_without_id> }`
+  - Response: `{ "card": <card> }`
+
+- `PATCH /boards/{board_id}/cards/{card_id}`
+  - Body: `{ "actor_id": "...", "patch": { <fields...> }, "if_updated_at"?: "..." }`
+  - Response: `{ "card": <card> }`
+
+- `POST /boards/{board_id}/cards/{card_id}/move`
+  - Body: `{ "actor_id": "...", "column_key": "...", "rank"?: "..." }`
+  - Response: `{ "card": <card> }`
+
+- `POST /boards/{board_id}/cards/{card_id}/remove`
+  - Response: `{ "card": <card> }`
 
 ### Artifacts
 
@@ -263,10 +296,14 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
 - `POST /docs`
   - Body: `{ "actor_id": "...", "request_key"?: "...", "document": { id?, thread_id?, title?, slug?, status?, labels?, supersedes? }, "refs"?: ["typed:ref"...], "content": <string|object|base64>, "content_type": "text|structured|binary" }`
   - Response: `{ "document": <document>, "revision": <document_revision_with_content> }`
-  - Side effect: appends `document_created` to `events` with thread/document/revision/artifact refs when the document is thread-linked.
+  - Notes:
+    - Every document has a backing `thread_id`. If the caller omits `document.thread_id`, core creates one and returns it on the stored document.
+    - Core sets the backing thread `subject_ref` to `document:<document_id>`.
+    - Non-lineage links belong in `refs`; revision lineage remains explicit via `prev_revision_id`.
+  - Side effect: appends `document_created` to `events` on the document backing thread with thread/document/revision/artifact refs.
 
 - `GET /docs`
-  - Query (optional): `thread_id=<thread_id>`, `include_tombstoned=true|false`, `q`, `limit`, `cursor`
+  - Query (optional): `thread_id=<thread_id>`, `include_trashed=true|false`, `q`, `limit`, `cursor`
   - Response: `{ "documents": [<document>...], "next_cursor"?: "..." }`
   - Notes:
     - `thread_id` scopes the list to documents whose current `document.thread_id` matches the thread.
@@ -278,7 +315,7 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
 - `PATCH /docs/{document_id}`
   - Body: `{ "actor_id": "...", "document"?: { title?, thread_id?, slug?, status?, labels?, supersedes? }, "if_base_revision": "<revision_id>", "refs"?: ["typed:ref"...], "content": <string|object|base64>, "content_type": "text|structured|binary" }`
   - Response: `{ "document": <document>, "revision": <document_revision_with_content> }`
-  - Side effect: appends `document_updated` to `events` with thread/document/revision/artifact refs when the document is thread-linked.
+  - Side effect: appends `document_revised` to `events` on the current backing thread with thread/document/revision/artifact refs.
 
 - `GET /docs/{document_id}/history`
   - Response: `{ "document_id": "<document_id>", "revisions": [<document_revision>...] }`
@@ -286,10 +323,10 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
 - `GET /docs/{document_id}/revisions/{revision_id}`
   - Response: `{ "document_id": "<document_id>", "revision": <document_revision_with_content> }`
 
-- `POST /docs/{document_id}/tombstone`
+- `POST /docs/{document_id}/trash`
   - Body: `{ "actor_id": "...", "reason": "..." }`
   - Response: `{ "document": <document>, "revision": <document_revision_with_content> }`
-  - Side effect: appends `document_tombstoned` to `events` with thread/document/current-revision/artifact refs when the document is thread-linked.
+  - Side effect: appends `document_trashed` to `events` on the current backing thread with thread/document/current-revision/artifact refs.
 
 ### Events
 
@@ -303,25 +340,26 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
   - SSE data envelope: `{ "event": <event> }`
   - Optional query: `thread_id`, repeated `type`, `types` (comma-separated), `last_event_id`
   - Resume supported via `Last-Event-ID` header or `last_event_id` query.
-  - Thread-linked document lifecycle operations emit `document_created`, `document_updated`, and `document_tombstoned` events with `document:*`, `document_revision:*`, and backing `artifact:*` refs.
+  - Thread-linked document lifecycle operations emit `document_created`, `document_revised`, and `document_trashed` events with `document:*`, `document_revision:*`, and backing `artifact:*` refs.
 
 - `GET /events/{event_id}`
   - Response: `{ "event": <event> }`
 
 ### Packet convenience endpoints
 
-- `POST /work_orders`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": <work_order_packet> }`
-  - `artifact.id` and `packet.work_order_id` MAY be omitted together; core issues the canonical artifact id and returns it in both artifact metadata and packet content.
-  - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
-
 - `POST /receipts`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": <receipt_packet> }`
+  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": { "receipt_id"?, "subject_ref": "card:<card_id>", ... } }`
   - `artifact.id` and `packet.receipt_id` MAY be omitted together; core issues the canonical artifact id and returns it in both artifact metadata and packet content.
+  - `packet.subject_ref` is required and MUST be `card:<card_id>`. Legacy `packet.thread_id` payloads are rejected.
+  - Core resolves `packet.subject_ref` to the correct backing thread internally before emitting `receipt_added`.
+  - Core normalizes packet artifact refs to include the packet artifact self-ref and `packet.subject_ref`.
   - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
 
 - `POST /reviews`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": <review_packet> }`
+  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": { "review_id"?, "subject_ref": "card:<card_id>", "receipt_ref"?, "receipt_id"?, ... } }`
+  - `packet.subject_ref` is required and MUST be `card:<card_id>`. Legacy `packet.thread_id` payloads are rejected.
+  - Core resolves `packet.subject_ref` to the correct backing thread internally before emitting `review_completed`.
+  - Core normalizes packet artifact refs to include the packet artifact self-ref, `packet.subject_ref`, and the linked receipt artifact ref.
   - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
 
 - Atomicity guarantee:
@@ -393,12 +431,12 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
 - Materialized derived projections used by the common read path:
   - `derived_inbox_items`: asynchronously maintained inbox items keyed by deterministic `inbox_item_id`, with per-thread rows used by `GET /inbox`, `GET /inbox/{id}`, and thread workspace inbox sections.
   - `agent_notification` is a derived per-target-agent view built from canonical `agent_wakeup_requested`, `agent_notification_read`, and `agent_notification_dismissed` events.
-  - `derived_thread_views`: asynchronously maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
-  - `thread_projection_refresh_status`: durable per-thread refresh state used to expose `current`, `pending`, `missing`, or `error` freshness metadata without mutating projections inside GET handlers.
-  - `POST /derived/rebuild` remains the deterministic repair path: it re-emits any missing canonical stale-thread exceptions from canonical state, then rebuilds both projection tables from current threads/events/commitments/documents.
+  - `derived_topic_views`: asynchronously maintained per-thread stale/workspace summaries used by thread list stale indicators and thread workspace summary surfaces.
+  - `topic_projection_refresh_status`: durable per-thread refresh state used to expose `current`, `pending`, `missing`, or `error` freshness metadata without mutating projections inside GET handlers.
+- `POST /derived/rebuild` remains the deterministic repair path: it re-emits any missing canonical stale-topic exceptions from canonical state, then rebuilds both projection tables from current topics/events/cards/documents.
   - Standard GET responses never repair or recompute projections inline; they return the best currently materialized data plus freshness metadata.
 
-- Meaningful thread activity for stale-thread clearing:
-  - The current activity set is explicit: `actor_statement`, `decision_needed`, `intervention_needed`, `decision_made`, `work_order_created`, `receipt_added`, `review_completed`, `document_created`, `document_updated`, `document_tombstoned`, `commitment_created`, `commitment_status_changed`, plus non-create `snapshot_updated` events from direct user-authored snapshot edits.
-  - Coordination noise does not count as activity: inbox acknowledgments, exception notifications, thread-creation bookkeeping, and derived `open_commitments` maintenance.
-  - `thread.open_commitments` remains present on thread reads for compatibility, but keeping that field synchronized no longer emits a user-visible timeline event or bumps the thread’s visible update clock.
+- Meaningful topic activity for stale-topic clearing:
+  - The current activity set is explicit: `actor_statement`, `topic_created`, `topic_updated`, `topic_status_changed`, `card_created`, `card_updated`, `card_moved`, `card_resolved`, `decision_needed`, `intervention_needed`, `decision_made`, `receipt_added`, `review_completed`, `document_created`, `document_revised`, `document_trashed`, `board_created`, `board_updated`, plus any non-create topic/card edits that materially change user-authored state.
+  - Coordination noise does not count as activity: inbox acknowledgments, exception notifications, topic-creation bookkeeping, and derived board/card membership maintenance.
+- Topic, board, and card backing-thread linkage is exposed through `thread_id` on the canonical resource shape; keeping those backing links synchronized no longer emits a user-visible timeline event or bumps the topic’s visible update clock.

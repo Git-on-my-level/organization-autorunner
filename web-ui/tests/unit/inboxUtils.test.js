@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   deriveInboxUrgency,
   enrichInboxItem,
+  getInboxSubjectRef,
   getInboxUrgencyLabel,
   groupInboxItems,
   summarizeInboxUrgency,
@@ -22,7 +23,7 @@ describe("inbox grouping", () => {
         },
         {
           id: "old-risk",
-          category: "commitment_risk",
+          category: "work_item_risk",
           title: "Aging risk",
           source_event_time: "2026-03-03T10:00:00.000Z",
         },
@@ -51,8 +52,9 @@ describe("inbox grouping", () => {
     expect(grouped.map((group) => group.category)).toEqual([
       "decision_needed",
       "intervention_needed",
-      "exception",
-      "commitment_risk",
+      "work_item_risk",
+      "stale_topic",
+      "document_attention",
     ]);
 
     expect(grouped[0].items.map((item) => item.id)).toEqual([
@@ -62,10 +64,11 @@ describe("inbox grouping", () => {
     expect(grouped[1].items.map((item) => item.id)).toEqual([
       "new-intervention",
     ]);
-    expect(grouped[2].items.map((item) => item.id)).toEqual([
+    expect(grouped[2].items.map((item) => item.id)).toEqual(["old-risk"]);
+    expect(grouped[3].items.map((item) => item.id)).toEqual([
       "fresh-exception",
     ]);
-    expect(grouped[3].items.map((item) => item.id)).toEqual(["old-risk"]);
+    expect(grouped[4].items).toEqual([]);
   });
 });
 
@@ -88,7 +91,7 @@ describe("inbox urgency derivation", () => {
     );
     const normal = deriveInboxUrgency(
       {
-        category: "commitment_risk",
+        category: "work_item_risk",
         source_event_time: "2026-03-07T11:30:00.000Z",
       },
       { now },
@@ -128,7 +131,7 @@ describe("inbox urgency derivation", () => {
       },
       {
         id: "3",
-        category: "commitment_risk",
+        category: "work_item_risk",
       },
     ];
 
@@ -152,6 +155,36 @@ describe("inbox urgency derivation", () => {
 });
 
 describe("inbox typed-ref rendering targets", () => {
+  it("preserves explicit subject refs and prefers specific ids before thread fallback", () => {
+    expect(
+      getInboxSubjectRef({
+        subject_ref: "topic:topic-123",
+        topic_id: "topic-999",
+        thread_id: "thread-999",
+      }),
+    ).toBe("topic:topic-123");
+
+    expect(
+      getInboxSubjectRef({
+        topic_id: "topic-123",
+        thread_id: "thread-123",
+      }),
+    ).toBe("topic:topic-123");
+
+    expect(
+      getInboxSubjectRef({
+        card_id: "card-123",
+        thread_id: "thread-123",
+      }),
+    ).toBe("card:card-123");
+
+    expect(
+      getInboxSubjectRef({
+        thread_id: "thread-123",
+      }),
+    ).toBe("thread:thread-123");
+  });
+
   it("resolves thread/event/url refs used by inbox cards", () => {
     expect(resolveRefLink("thread:thread-onboarding")).toMatchObject({
       href: "/threads/thread-onboarding",
@@ -161,7 +194,7 @@ describe("inbox typed-ref rendering targets", () => {
     expect(
       resolveRefLink("event:evt-1001", { threadId: "thread-onboarding" }),
     ).toMatchObject({
-      href: "/threads/thread-onboarding#event-evt-1001",
+      href: "/topics/thread-onboarding#event-evt-1001",
       isLink: true,
     });
 

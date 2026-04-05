@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+function assertTypedRef(refValue) {
+  const value = String(refValue ?? "").trim();
+  const separator = value.indexOf(":");
+  expect(separator).toBeGreaterThan(0);
+  expect(separator).toBeLessThan(value.length - 1);
+}
+
 describe("mockCoreData parity behaviors", () => {
   describe("inbox ack is non-destructive", () => {
     it("module exports ackMockInboxItem and listMockInboxItems functions", async () => {
@@ -9,8 +16,78 @@ describe("mockCoreData parity behaviors", () => {
     });
   });
 
+  describe("canonical seed data", () => {
+    it("exposes topic, board, card, and packet seed views", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const seed = mod.getMockSeedData();
+
+      expect(seed.topics[0]).toMatchObject({
+        id: "thread-lemon-shortage",
+        thread_id: "thread-lemon-shortage",
+        type: "incident",
+        status: "active",
+      });
+      expect(seed.boards[0]).toMatchObject({
+        id: "board-product-launch",
+        thread_id: "thread-q2-initiative",
+      });
+      expect(seed.cards[0]).toMatchObject({
+        board_id: "board-product-launch",
+        thread_id: "thread-summer-menu",
+        topic_ref: "topic:summer-menu",
+        resolution: null,
+      });
+      expect(seed.cards[0].thread_ref).toBeUndefined();
+      expect(
+        seed.packets.every((packet) => packet?.artifact && packet?.packet),
+      ).toBe(true);
+      expect(seed.packets.map((packet) => packet.kind)).toEqual([
+        "receipt",
+        "review",
+        "receipt",
+        "review",
+        "receipt",
+        "review",
+      ]);
+    });
+
+    it("normalizes topic related_refs into typed refs", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const seed = mod.getMockSeedData();
+
+      seed.topics.forEach((topic) => {
+        (topic.related_refs ?? []).forEach(assertTypedRef);
+      });
+      expect(
+        mod.getMockTopic("thread-lemon-shortage")?.related_refs ?? [],
+      ).toContain("artifact:artifact-supplier-sla");
+    });
+
+    it("keeps listed mock topic related_refs typed", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+
+      mod.listMockTopics().forEach((topic) => {
+        (topic.related_refs ?? []).forEach(assertTypedRef);
+      });
+    });
+
+    it("keeps decision events topic-scoped for migrated contracts", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const seed = mod.getMockSeedData();
+      const eventIds = new Set(["evt-price-003", "evt-price-008"]);
+
+      const migratedEvents = seed.events.filter((event) =>
+        eventIds.has(event.id),
+      );
+      expect(migratedEvents).toHaveLength(2);
+      migratedEvents.forEach((event) => {
+        expect(event.refs).toContain("topic:pricing-glitch");
+      });
+    });
+  });
+
   describe("documents list matches contract behavior", () => {
-    it("filters tombstoned docs by default and sorts by updated_at desc", async () => {
+    it("filters trashed docs by default and sorts by updated_at desc", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const docs = mod.listMockDocuments();
 
@@ -21,9 +98,9 @@ describe("mockCoreData parity behaviors", () => {
       ]);
     });
 
-    it("includes tombstoned docs when requested", async () => {
+    it("includes trashed docs when requested", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
-      const docs = mod.listMockDocuments({ include_tombstoned: true });
+      const docs = mod.listMockDocuments({ include_trashed: true });
 
       expect(docs.map((doc) => doc.id)).toEqual([
         "product-constitution",
@@ -46,16 +123,16 @@ describe("mockCoreData parity behaviors", () => {
     });
   });
 
-  describe("artifacts trash list (tombstoned_only)", () => {
-    it("returns only tombstoned artifacts when tombstoned_only is true", async () => {
+  describe("artifacts trash list (trashed_only)", () => {
+    it("returns only trashed artifacts when trashed_only is true", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
-      const trashed = mod.listMockArtifacts({ tombstoned_only: true });
+      const trashed = mod.listMockArtifacts({ trashed_only: true });
       const ids = trashed.map((a) => a.id).sort();
 
       expect(ids).toContain("artifact-dev-trash-onboarding-draft");
       expect(ids).toContain("artifact-dev-trash-ops-scratch");
-      expect(ids).toContain("artifact-tombstoned-doc");
-      expect(trashed.every((a) => a.tombstoned_at != null)).toBe(true);
+      expect(ids).toContain("artifact-trashed-doc");
+      expect(trashed.every((a) => a.trashed_at != null)).toBe(true);
     });
   });
 
@@ -75,7 +152,7 @@ describe("mockCoreData parity behaviors", () => {
           board_id: "board-product-launch",
           thread_id: "thread-summer-menu",
           column_key: "ready",
-          pinned_document_id: "onboarding-guide-v1",
+          document_ref: "document:onboarding-guide-v1",
         },
       });
     });
@@ -86,7 +163,7 @@ describe("mockCoreData parity behaviors", () => {
         actor_id: "actor-test",
         board: {
           title: "Invalid",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
           status: "archived",
         },
       });
@@ -104,7 +181,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-owner-default-test",
           title: "Owner Default",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
 
@@ -117,7 +194,7 @@ describe("mockCoreData parity behaviors", () => {
         actor_id: "actor-test",
         board: {
           title: "   ",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
 
@@ -133,6 +210,7 @@ describe("mockCoreData parity behaviors", () => {
         actor_id: "actor-test",
         if_board_updated_at: mod.getMockBoard("board-product-launch")
           ?.updated_at,
+        title: "Invalid column card",
         thread_id: "thread-pricing-glitch",
         column_key: "triage",
       });
@@ -150,8 +228,9 @@ describe("mockCoreData parity behaviors", () => {
         actor_id: "actor-test",
         if_board_updated_at: mod.getMockBoard("board-product-launch")
           ?.updated_at,
+        title: "Missing doc ref card",
         thread_id: "thread-pricing-glitch",
-        pinned_document_id: "doc-does-not-exist",
+        document_ref: "document:doc-does-not-exist",
       });
 
       expect(result).toMatchObject({
@@ -160,7 +239,7 @@ describe("mockCoreData parity behaviors", () => {
       });
     });
 
-    it("aggregates workspace documents and commitments across all board threads", async () => {
+    it("aggregates workspace documents and cards across all board threads", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const workspace = mod.getMockBoardWorkspace("board-summer-menu");
 
@@ -168,28 +247,26 @@ describe("mockCoreData parity behaviors", () => {
         "incident-response-playbook",
         "onboarding-guide-v1",
       ]);
-      expect(
-        workspace?.commitments?.items?.map((commitment) => commitment.id),
-      ).toEqual([
-        "commitment-pricing-patch",
-        "commitment-pricing-audit",
-        "commitment-menu-board",
-      ]);
+      const threadIds = new Set(
+        workspace?.cards?.items
+          ?.map((item) => item.membership?.thread_id)
+          .filter(Boolean) ?? [],
+      );
+      expect(threadIds.has("thread-onboarding")).toBe(true);
+      expect(threadIds.has("thread-pricing-glitch")).toBe(true);
       expect(workspace?.section_kinds).toMatchObject({
         board: "canonical",
-        primary_thread: "canonical",
-        primary_document: "canonical",
         cards: "convenience",
       });
     });
 
-    it("includes primary-thread activity in board summaries", async () => {
+    it("includes backing-thread activity in board summaries", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const boardListItem = mod
         .listMockBoards()
         .find((item) => item.board.id === "board-supply-crisis");
 
-      expect(boardListItem?.summary?.open_commitment_count).toBe(3);
+      expect(boardListItem?.summary?.open_card_count).toBe(3);
       expect(
         Date.parse(String(boardListItem?.summary?.latest_activity_at ?? "")),
       ).toBeGreaterThan(
@@ -205,7 +282,7 @@ describe("mockCoreData parity behaviors", () => {
       );
 
       expect(pricingCard?.derived?.summary).toMatchObject({
-        open_commitment_count: 0,
+        open_card_count: 0,
         decision_request_count: 1,
         decision_count: 1,
         recommendation_count: 0,
@@ -238,7 +315,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-rank-remove-test",
           title: "Rank remove",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;
@@ -273,6 +350,79 @@ describe("mockCoreData parity behaviors", () => {
       expect(after[0].rank).toBe("0001");
     });
 
+    it("archives cards without exposing them in active board views", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const { board } = mod.createMockBoard({
+        actor_id: "actor-test",
+        board: {
+          id: "board-card-archive-test",
+          title: "Archive test",
+          thread_id: "thread-summer-menu",
+        },
+      });
+      const boardId = board.id;
+      let currentBoard = mod.getMockBoard(boardId);
+      const { card } = mod.createMockBoardCard(boardId, {
+        actor_id: "actor-test",
+        if_board_updated_at: currentBoard?.updated_at,
+        title: "Archive me",
+        column_key: "ready",
+      });
+
+      const archiveResult = mod.archiveMockBoardCardByCardId(card.id, {
+        actor_id: "actor-test",
+      });
+      expect(archiveResult.card.archived_at).toBeTruthy();
+      expect(archiveResult.card.archived_by).toBe("actor-test");
+      expect(mod.listMockBoardCards(boardId)).toHaveLength(0);
+      expect(mod.getMockBoard(boardId)).toMatchObject({
+        id: boardId,
+      });
+      expect(mod.getMockBoardWorkspace(boardId)?.cards?.count).toBe(0);
+      expect(mod.getMockCard(card.id)).toMatchObject({
+        id: card.id,
+        archived_at: archiveResult.card.archived_at,
+      });
+    });
+
+    it("restores and purges archived cards through lifecycle helpers", async () => {
+      const mod = await import("../../src/lib/mockCoreData.js");
+      const { board } = mod.createMockBoard({
+        actor_id: "actor-test",
+        board: {
+          id: "board-card-restore-test",
+          title: "Restore test",
+          thread_id: "thread-summer-menu",
+        },
+      });
+      const boardId = board.id;
+      let currentBoard = mod.getMockBoard(boardId);
+      const { card } = mod.createMockBoardCard(boardId, {
+        actor_id: "actor-test",
+        if_board_updated_at: currentBoard?.updated_at,
+        title: "Restore me",
+        column_key: "backlog",
+      });
+
+      mod.archiveMockBoardCardByCardId(card.id, {
+        actor_id: "actor-test",
+      });
+      expect(mod.listMockBoardCards(boardId)).toHaveLength(0);
+
+      const restoreResult = mod.restoreMockBoardCardByCardId(card.id, {
+        actor_id: "actor-test",
+      });
+      expect(restoreResult.card.archived_at).toBeNull();
+      expect(mod.listMockBoardCards(boardId)).toHaveLength(1);
+
+      const purgeResult = mod.purgeMockBoardCardByCardId(card.id, {
+        actor_id: "actor-test",
+      });
+      expect(purgeResult.card.id).toBe(card.id);
+      expect(mod.getMockCard(card.id)).toBeNull();
+      expect(mod.listMockBoardCards(boardId)).toHaveLength(0);
+    });
+
     it("applies board card patch fields in mock like core", async () => {
       const mod = await import("../../src/lib/mockCoreData.js");
       const { board } = mod.createMockBoard({
@@ -280,7 +430,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-card-patch-test",
           title: "Patch test",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;
@@ -306,9 +456,11 @@ describe("mockCoreData parity behaviors", () => {
       expect(result.error).toBeUndefined();
       expect(result.card).toMatchObject({
         title: "Beta",
+        summary: "Beta",
         body: "next",
         status: "in_progress",
         assignee: "actor-test",
+        assignee_refs: ["actor:actor-test"],
         version: 2,
       });
     });
@@ -320,7 +472,7 @@ describe("mockCoreData parity behaviors", () => {
         board: {
           id: "board-global-card-patch",
           title: "Global patch board",
-          primary_thread_id: "thread-summer-menu",
+          thread_id: "thread-summer-menu",
         },
       });
       const boardId = board.id;
@@ -350,14 +502,15 @@ describe("mockCoreData parity behaviors", () => {
         patch: {
           title: "Task A renamed",
           status: "done",
-          pinned_document_id: "doc-global-card-pin",
+          document_ref: "document:doc-global-card-pin",
         },
       });
       expect(result.error).toBeUndefined();
       expect(result.card).toMatchObject({
         title: "Task A renamed",
+        summary: "Task A renamed",
         status: "done",
-        pinned_document_id: "doc-global-card-pin",
+        document_ref: "document:doc-global-card-pin",
         version: 2,
       });
     });

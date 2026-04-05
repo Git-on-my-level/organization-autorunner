@@ -5,7 +5,7 @@
   let {
     refValue = "",
     threadId = "",
-    snapshotIsThread = false,
+    boardId = "",
     humanize = false,
     showRaw = false,
     labelHints = {},
@@ -14,7 +14,7 @@
   let resolved = $derived(
     resolveRefLink(refValue, {
       threadId,
-      snapshotIsThread,
+      boardId,
       humanize,
       labelHints,
       workspaceSlug: $page.params.workspace,

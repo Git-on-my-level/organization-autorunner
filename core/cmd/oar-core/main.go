@@ -316,7 +316,7 @@ func main() {
 				return err
 			},
 			MarkThreadDirty: func(ctx context.Context, threadID string, queuedAt time.Time) error {
-				return primitiveStore.MarkThreadProjectionsDirty(ctx, []string{threadID}, queuedAt)
+				return primitiveStore.MarkTopicProjectionsDirty(ctx, []string{threadID}, queuedAt)
 			},
 		}, routerState)
 		sidecarHost = sidecar.NewHost(sidecar.Registration{

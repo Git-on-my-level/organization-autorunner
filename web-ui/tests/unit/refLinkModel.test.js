@@ -17,9 +17,9 @@ describe("RefLink model", () => {
       isLink: true,
     });
 
-    expect(resolveRefLink("snapshot:snap-1")).toMatchObject({
-      kind: "snapshot",
-      href: "/snapshots/snap-1",
+    expect(resolveRefLink("topic:topic-1")).toMatchObject({
+      kind: "topic",
+      href: "/topics/topic-1",
       isLink: true,
     });
 
@@ -27,7 +27,7 @@ describe("RefLink model", () => {
       resolveRefLink("event:evt-9", { threadId: "thread-1" }),
     ).toMatchObject({
       kind: "event",
-      href: "/threads/thread-1#event-evt-9",
+      href: "/topics/thread-1#event-evt-9",
       isLink: true,
     });
 
@@ -118,7 +118,20 @@ describe("RefLink model", () => {
       kind: "event",
       label: "Event",
       secondaryLabel: "event:evt-9",
-      href: "/threads/thread-1#event-evt-9",
+      href: "/topics/thread-1#event-evt-9",
+      isLink: true,
+    });
+
+    const topicRef = resolveRefLink("topic:topic-1", {
+      humanize: true,
+    });
+
+    expect(topicRef).toMatchObject({
+      kind: "topic",
+      label: "Topic",
+      primaryLabel: "Topic",
+      secondaryLabel: "topic:topic-1",
+      href: "/topics/topic-1",
       isLink: true,
     });
 

@@ -178,30 +178,51 @@ func TestIsMeaningfulThreadActivityEvent(t *testing.T) {
 				"type":      "exception_raised",
 				"thread_id": "thread-1",
 				"ts":        "2026-03-04T12:00:00Z",
-				"payload":   map[string]any{"subtype": "stale_thread"},
+				"payload":   map[string]any{"subtype": "stale_topic"},
 			},
 			want: false,
 		},
 		{
-			name: "derived open commitments update is coordination noise",
+			name: "thread_updated open_cards only is coordination noise",
 			event: map[string]any{
-				"type":      "snapshot_updated",
+				"type":      "thread_updated",
 				"thread_id": "thread-1",
 				"ts":        "2026-03-04T12:00:00Z",
-				"payload":   map[string]any{"changed_fields": []string{"open_commitments"}},
+				"payload":   map[string]any{"changed_fields": []string{"open_cards"}},
 			},
 			want: false,
 		},
 		{
-			name: "thread snapshot created is not follow up activity",
+			name: "thread_created is not follow up activity",
 			event: map[string]any{
-				"type":      "snapshot_updated",
+				"type":      "thread_created",
 				"thread_id": "thread-1",
 				"ts":        "2026-03-04T12:00:00Z",
-				"summary":   "thread snapshot created",
+				"summary":   "thread created",
 				"payload":   map[string]any{"changed_fields": []string{"title", "status"}},
 			},
 			want: false,
+		},
+		{
+			name: "legacy snapshot events are ignored",
+			event: map[string]any{
+				"type":      "snapshot_updated",
+				"thread_id": "thread-1",
+				"ts":        "2026-03-04T12:00:00Z",
+				"summary":   "legacy snapshot event",
+			},
+			want: false,
+		},
+		{
+			name: "thread_updated with substantive fields counts as activity",
+			event: map[string]any{
+				"type":      "thread_updated",
+				"thread_id": "thread-1",
+				"ts":        "2026-03-04T12:00:00Z",
+				"summary":   "thread updated",
+				"payload":   map[string]any{"changed_fields": []string{"title"}},
+			},
+			want: true,
 		},
 	}
 

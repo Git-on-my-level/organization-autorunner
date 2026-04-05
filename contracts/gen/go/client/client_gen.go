@@ -33,120 +33,6 @@ type CommandSpec struct {
 
 var CommandRegistry = []CommandSpec{
 	{
-		CommandID: "actors.list",
-		CLIPath:   "actors list",
-		Group:     "actors",
-		Method:    "GET",
-		Path:      "/actors",
-		InputMode: "none",
-		Stability: "stable",
-		Concepts:  []string{"identity"},
-		Adjacent:  []string{"actors.register"},
-		Examples: []Example{
-			{
-				Title:   "List actors",
-				Command: "oar actors list --json",
-			},
-			{
-				Title:   "Search actors by name",
-				Command: "oar actors list --q \"bot\" --json",
-			},
-			{
-				Title:   "Paginated actor list",
-				Command: "oar actors list --limit 50 --json",
-			},
-		},
-	},
-	{
-		CommandID: "actors.register",
-		CLIPath:   "actors register",
-		Group:     "actors",
-		Method:    "POST",
-		Path:      "/actors",
-		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"identity"},
-		Adjacent:  []string{"actors.list"},
-		Examples: []Example{
-			{
-				Title:   "Register actor",
-				Command: "oar actors register --id bot-1 --display-name \"Bot 1\" --created-at 2026-03-04T10:00:00Z --json",
-			},
-		},
-	},
-	{
-		CommandID: "agents.me.get",
-		CLIPath:   "agents me get",
-		Group:     "agents",
-		Method:    "GET",
-		Path:      "/agents/me",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"auth", "identity"},
-		Adjacent:  []string{"agents.me.keys.rotate", "agents.me.patch", "agents.me.revoke"},
-		Examples: []Example{
-			{
-				Title:   "Get current profile",
-				Command: "oar agents me get --json",
-			},
-		},
-	},
-	{
-		CommandID: "agents.me.keys.rotate",
-		CLIPath:   "agents me keys rotate",
-		Group:     "agents",
-		Method:    "POST",
-		Path:      "/agents/me/keys/rotate",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "key-management"},
-		Adjacent:  []string{"agents.me.get", "agents.me.patch", "agents.me.revoke"},
-		Examples: []Example{
-			{
-				Title:   "Rotate key",
-				Command: "oar agents me keys rotate --public-key <base64-ed25519-pubkey> --json",
-			},
-		},
-	},
-	{
-		CommandID: "agents.me.patch",
-		CLIPath:   "agents me patch",
-		Group:     "agents",
-		Method:    "PATCH",
-		Path:      "/agents/me",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "identity"},
-		Adjacent:  []string{"agents.me.get", "agents.me.keys.rotate", "agents.me.revoke"},
-		Examples: []Example{
-			{
-				Title:   "Rename current agent",
-				Command: "oar agents me patch --username renamed_agent --json",
-			},
-			{
-				Title:   "Update wake registration",
-				Command: "oar agents me patch --from-file wake-registration.json --json",
-			},
-		},
-	},
-	{
-		CommandID: "agents.me.revoke",
-		CLIPath:   "agents me revoke",
-		Group:     "agents",
-		Method:    "POST",
-		Path:      "/agents/me/revoke",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "revocation"},
-		Adjacent:  []string{"agents.me.get", "agents.me.keys.rotate", "agents.me.patch"},
-		Examples: []Example{
-			{
-				Title:   "Revoke self",
-				Command: "oar agents me revoke --json",
-			},
-		},
-	},
-	{
 		CommandID:  "artifacts.archive",
 		CLIPath:    "artifacts archive",
 		Group:      "artifacts",
@@ -155,32 +41,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"artifact_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"artifacts", "lifecycle"},
-		Adjacent:   []string{"artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Archive artifact",
-				Command: "oar artifacts archive --artifact-id artifact_123 --json",
-			},
-		},
-	},
-	{
-		CommandID:  "artifacts.content.get",
-		CLIPath:    "artifacts content get",
-		Group:      "artifacts",
-		Method:     "GET",
-		Path:       "/artifacts/{artifact_id}/content",
-		PathParams: []string{"artifact_id"},
-		InputMode:  "none",
-		Stability:  "stable",
-		Concepts:   []string{"artifacts", "content"},
-		Adjacent:   []string{"artifacts.archive", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Download content",
-				Command: "oar artifacts content get --artifact-id artifact_123 > artifact.bin",
-			},
-		},
+		Concepts:   []string{"artifacts", "write"},
+		Adjacent:   []string{"artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.trash", "artifacts.unarchive"},
 	},
 	{
 		CommandID: "artifacts.create",
@@ -188,16 +50,10 @@ var CommandRegistry = []CommandSpec{
 		Group:     "artifacts",
 		Method:    "POST",
 		Path:      "/artifacts",
-		InputMode: "file-and-body",
-		Stability: "stable",
-		Concepts:  []string{"artifacts", "evidence"},
-		Adjacent:  []string{"artifacts.archive", "artifacts.content.get", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Create structured artifact",
-				Command: "oar artifacts create --from-file artifact-create.json --json",
-			},
-		},
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"artifacts", "write"},
+		Adjacent:  []string{"artifacts.archive", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.trash", "artifacts.unarchive"},
 	},
 	{
 		CommandID:  "artifacts.get",
@@ -207,15 +63,9 @@ var CommandRegistry = []CommandSpec{
 		Path:       "/artifacts/{artifact_id}",
 		PathParams: []string{"artifact_id"},
 		InputMode:  "none",
-		Stability:  "stable",
+		Stability:  "beta",
 		Concepts:   []string{"artifacts"},
-		Adjacent:   []string{"artifacts.archive", "artifacts.content.get", "artifacts.create", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Get artifact",
-				Command: "oar artifacts get --artifact-id artifact_123 --json",
-			},
-		},
+		Adjacent:   []string{"artifacts.archive", "artifacts.create", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.trash", "artifacts.unarchive"},
 	},
 	{
 		CommandID: "artifacts.list",
@@ -224,15 +74,9 @@ var CommandRegistry = []CommandSpec{
 		Method:    "GET",
 		Path:      "/artifacts",
 		InputMode: "none",
-		Stability: "stable",
-		Concepts:  []string{"artifacts", "filtering"},
-		Adjacent:  []string{"artifacts.archive", "artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.purge", "artifacts.restore", "artifacts.tombstone", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "List work orders for a thread",
-				Command: "oar artifacts list --kind work_order --thread-id thread_123 --json",
-			},
-		},
+		Stability: "beta",
+		Concepts:  []string{"artifacts"},
+		Adjacent:  []string{"artifacts.archive", "artifacts.create", "artifacts.get", "artifacts.purge", "artifacts.restore", "artifacts.trash", "artifacts.unarchive"},
 	},
 	{
 		CommandID:  "artifacts.purge",
@@ -243,14 +87,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"artifact_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"artifacts", "lifecycle"},
-		Adjacent:   []string{"artifacts.archive", "artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.restore", "artifacts.tombstone", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Purge artifact",
-				Command: "oar artifacts purge --artifact-id artifact_123 --json",
-			},
-		},
+		Concepts:   []string{"artifacts", "write"},
+		Adjacent:   []string{"artifacts.archive", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.restore", "artifacts.trash", "artifacts.unarchive"},
 	},
 	{
 		CommandID:  "artifacts.restore",
@@ -261,32 +99,20 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"artifact_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"artifacts", "lifecycle"},
-		Adjacent:   []string{"artifacts.archive", "artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.tombstone", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Restore artifact",
-				Command: "oar artifacts restore --artifact-id artifact_123 --json",
-			},
-		},
+		Concepts:   []string{"artifacts", "write"},
+		Adjacent:   []string{"artifacts.archive", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.trash", "artifacts.unarchive"},
 	},
 	{
-		CommandID:  "artifacts.tombstone",
-		CLIPath:    "artifacts tombstone",
+		CommandID:  "artifacts.trash",
+		CLIPath:    "artifacts trash",
 		Group:      "artifacts",
 		Method:     "POST",
-		Path:       "/artifacts/{artifact_id}/tombstone",
+		Path:       "/artifacts/{artifact_id}/trash",
 		PathParams: []string{"artifact_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"artifacts", "lifecycle"},
-		Adjacent:   []string{"artifacts.archive", "artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Tombstone artifact",
-				Command: "oar artifacts tombstone --artifact-id artifact_123 --reason \"superseded by newer version\" --json",
-			},
-		},
+		Concepts:   []string{"artifacts", "write"},
+		Adjacent:   []string{"artifacts.archive", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.unarchive"},
 	},
 	{
 		CommandID:  "artifacts.unarchive",
@@ -297,225 +123,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"artifact_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"artifacts", "lifecycle"},
-		Adjacent:   []string{"artifacts.archive", "artifacts.content.get", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.tombstone"},
-		Examples: []Example{
-			{
-				Title:   "Unarchive artifact",
-				Command: "oar artifacts unarchive --artifact-id artifact_123 --json",
-			},
-		},
-	},
-	{
-		CommandID: "auth.agents.register",
-		CLIPath:   "auth register",
-		Group:     "auth",
-		Method:    "POST",
-		Path:      "/auth/agents/register",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "identity"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "Bootstrap first agent",
-				Command: "oar auth register --username agent.one --bootstrap-token <token> --json",
-			},
-			{
-				Title:   "Register invited agent",
-				Command: "oar auth register --username agent.two --invite-token <token> --json",
-			},
-		},
-	},
-	{
-		CommandID: "auth.audit.list",
-		CLIPath:   "auth audit list",
-		Group:     "auth",
-		Method:    "GET",
-		Path:      "/auth/audit",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"auth", "audit"},
-		Adjacent:  []string{"auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "List auth audit events",
-				Command: "oar auth audit list --json",
-			},
-		},
-	},
-	{
-		CommandID: "auth.bootstrap.status",
-		CLIPath:   "auth bootstrap status",
-		Group:     "auth",
-		Method:    "GET",
-		Path:      "/auth/bootstrap/status",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"auth", "onboarding"},
-		Adjacent:  []string{"auth.audit.list", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "Read bootstrap status",
-				Command: "oar auth bootstrap status --json",
-			},
-		},
-	},
-	{
-		CommandID: "auth.invites.create",
-		CLIPath:   "auth invites create",
-		Group:     "auth",
-		Method:    "POST",
-		Path:      "/auth/invites",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "onboarding"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "Create agent invite",
-				Command: "oar auth invites create --kind agent --json",
-			},
-		},
-	},
-	{
-		CommandID: "auth.invites.list",
-		CLIPath:   "auth invites list",
-		Group:     "auth",
-		Method:    "GET",
-		Path:      "/auth/invites",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"auth", "onboarding"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "List invites",
-				Command: "oar auth invites list --json",
-			},
-		},
-	},
-	{
-		CommandID:  "auth.invites.revoke",
-		CLIPath:    "auth invites revoke",
-		Group:      "auth",
-		Method:     "POST",
-		Path:       "/auth/invites/{invite_id}/revoke",
-		PathParams: []string{"invite_id"},
-		InputMode:  "none",
-		Stability:  "beta",
-		Concepts:   []string{"auth", "onboarding"},
-		Adjacent:   []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "Revoke invite",
-				Command: "oar auth invites revoke --invite-id invite_123 --json",
-			},
-		},
-	},
-	{
-		CommandID: "auth.passkey.login.options",
-		CLIPath:   "auth passkey login options",
-		Group:     "auth",
-		Method:    "POST",
-		Path:      "/auth/passkey/login/options",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-	},
-	{
-		CommandID: "auth.passkey.login.verify",
-		CLIPath:   "auth passkey login verify",
-		Group:     "auth",
-		Method:    "POST",
-		Path:      "/auth/passkey/login/verify",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-	},
-	{
-		CommandID: "auth.passkey.register.options",
-		CLIPath:   "auth passkey register options",
-		Group:     "auth",
-		Method:    "POST",
-		Path:      "/auth/passkey/register/options",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-	},
-	{
-		CommandID: "auth.passkey.register.verify",
-		CLIPath:   "auth passkey register verify",
-		Group:     "auth",
-		Method:    "POST",
-		Path:      "/auth/passkey/register/verify",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "passkey"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.principals.list", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-	},
-	{
-		CommandID: "auth.principals.list",
-		CLIPath:   "auth principals list",
-		Group:     "auth",
-		Method:    "GET",
-		Path:      "/auth/principals",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"auth", "identity"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.revoke", "auth.agents.register", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "List principals",
-				Command: "oar auth principals list --json",
-			},
-		},
-	},
-	{
-		CommandID:  "auth.principals.revoke",
-		CLIPath:    "auth principals revoke",
-		Group:      "auth",
-		Method:     "POST",
-		Path:       "/auth/principals/{agent_id}/revoke",
-		PathParams: []string{"agent_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"auth", "identity", "revocation"},
-		Adjacent:   []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.agents.register", "auth.token"},
-		Examples: []Example{
-			{
-				Title:   "Revoke a principal",
-				Command: "oar auth principals revoke --agent-id agent_123 --json",
-			},
-			{
-				Title:   "Break glass to revoke the last active human principal",
-				Command: "oar auth principals revoke --agent-id agent_123 --allow-human-lockout --human-lockout-reason \"incident recovery\" --json",
-			},
-		},
-	},
-	{
-		CommandID: "auth.token",
-		CLIPath:   "auth token",
-		Group:     "auth",
-		Method:    "POST",
-		Path:      "/auth/token",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"auth", "token-lifecycle"},
-		Adjacent:  []string{"auth.audit.list", "auth.bootstrap.status", "auth.invites.create", "auth.invites.list", "auth.invites.revoke", "auth.passkey.login.options", "auth.passkey.login.verify", "auth.passkey.register.options", "auth.passkey.register.verify", "auth.principals.list", "auth.principals.revoke", "auth.agents.register"},
-		Examples: []Example{
-			{
-				Title:   "Refresh token grant",
-				Command: "oar auth token --grant-type refresh_token --refresh-token <token> --json",
-			},
-			{
-				Title:   "Assertion grant",
-				Command: "oar auth token --grant-type assertion --agent-id <id> --key-id <id> --signed-at <rfc3339> --signature <base64> --json",
-			},
-		},
+		Concepts:   []string{"artifacts", "write"},
+		Adjacent:   []string{"artifacts.archive", "artifacts.create", "artifacts.get", "artifacts.list", "artifacts.purge", "artifacts.restore", "artifacts.trash"},
 	},
 	{
 		CommandID:  "boards.archive",
@@ -526,32 +135,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "lifecycle"},
-		Adjacent:   []string{"boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Archive board",
-				Command: "oar boards archive --board-id board_product_launch --json",
-			},
-		},
-	},
-	{
-		CommandID:  "boards.cards.archive",
-		CLIPath:    "boards cards archive",
-		Group:      "boards",
-		Method:     "POST",
-		Path:       "/cards/{card_id}/archive",
-		PathParams: []string{"card_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "history", "concurrency"},
-		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Archive card",
-				Command: "oar boards cards archive --card-id card_123 --json",
-			},
-		},
+		Concepts:   []string{"boards", "write"},
+		Adjacent:   []string{"boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.cards.create",
@@ -562,32 +147,20 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "ordering", "concurrency"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Create standalone board card",
-				Command: "oar boards cards create --board-id board_product_launch --title \"Buy groceries\" --column backlog --json",
-			},
-		},
+		Concepts:   []string{"boards", "cards", "write"},
+		Adjacent:   []string{"boards.archive", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.cards.get",
 		CLIPath:    "boards cards get",
 		Group:      "boards",
 		Method:     "GET",
-		Path:       "/boards/{board_id}/cards/{id}",
-		PathParams: []string{"board_id", "id"},
+		Path:       "/boards/{board_id}/cards/{card_id}",
+		PathParams: []string{"board_id", "card_id"},
 		InputMode:  "none",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "history"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Get board card",
-				Command: "oar boards cards get --board-id board_product_launch --card-id card_123 --json",
-			},
-		},
+		Concepts:   []string{"boards", "cards"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.cards.list",
@@ -598,50 +171,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "none",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "ordering"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "List board cards",
-				Command: "oar boards cards list --board-id board_product_launch --json",
-			},
-		},
-	},
-	{
-		CommandID:  "boards.cards.move",
-		CLIPath:    "boards cards move",
-		Group:      "boards",
-		Method:     "POST",
-		Path:       "/boards/{board_id}/cards/{id}/move",
-		PathParams: []string{"board_id", "id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "ordering", "concurrency"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Move card into review",
-				Command: "oar boards cards move --board-id board_product_launch --card-id card_123 --column review --json",
-			},
-		},
-	},
-	{
-		CommandID:  "boards.cards.update",
-		CLIPath:    "boards cards update",
-		Group:      "boards",
-		Method:     "PATCH",
-		Path:       "/cards/{card_id}",
-		PathParams: []string{"card_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "history", "concurrency"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Mark card done",
-				Command: "oar boards cards update --card-id card_123 --status done --if-board-updated-at 2026-03-08T00:00:00Z --json",
-			},
-		},
+		Concepts:   []string{"boards", "cards"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID: "boards.create",
@@ -651,14 +182,8 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/boards",
 		InputMode: "json-body",
 		Stability: "beta",
-		Concepts:  []string{"boards", "planning", "concurrency"},
-		Adjacent:  []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Create board",
-				Command: "oar boards create --from-file board-create.json --json",
-			},
-		},
+		Concepts:  []string{"boards", "write"},
+		Adjacent:  []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.get",
@@ -669,14 +194,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "none",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "planning"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Get board",
-				Command: "oar boards get --board-id board_product_launch --json",
-			},
-		},
+		Concepts:   []string{"boards"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID: "boards.list",
@@ -686,26 +205,20 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/boards",
 		InputMode: "none",
 		Stability: "beta",
-		Concepts:  []string{"boards", "planning", "summaries"},
-		Adjacent:  []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "List boards",
-				Command: "oar boards list --json",
-			},
-			{
-				Title:   "List active boards for an owner",
-				Command: "oar boards list --status active --owner actor_ceo --json",
-			},
-			{
-				Title:   "Search boards by label",
-				Command: "oar boards list --q \"launch\" --json",
-			},
-			{
-				Title:   "Paginated board list",
-				Command: "oar boards list --limit 30 --json",
-			},
-		},
+		Concepts:  []string{"boards"},
+		Adjacent:  []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
+	},
+	{
+		CommandID:  "boards.patch",
+		CLIPath:    "boards patch",
+		Group:      "boards",
+		Method:     "PATCH",
+		Path:       "/boards/{board_id}",
+		PathParams: []string{"board_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"boards", "write", "concurrency"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.purge",
@@ -716,14 +229,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "lifecycle"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Purge board",
-				Command: "oar boards purge --board-id board_product_launch --json",
-			},
-		},
+		Concepts:   []string{"boards", "write"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.restore", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.restore",
@@ -734,32 +241,20 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "lifecycle"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.tombstone", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Restore board",
-				Command: "oar boards restore --board-id board_product_launch --json",
-			},
-		},
+		Concepts:   []string{"boards", "write"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.trash", "boards.unarchive", "boards.workspace"},
 	},
 	{
-		CommandID:  "boards.tombstone",
-		CLIPath:    "boards tombstone",
+		CommandID:  "boards.trash",
+		CLIPath:    "boards trash",
 		Group:      "boards",
 		Method:     "POST",
-		Path:       "/boards/{board_id}/tombstone",
+		Path:       "/boards/{board_id}/trash",
 		PathParams: []string{"board_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "lifecycle"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.unarchive", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Tombstone board",
-				Command: "oar boards tombstone --board-id board_product_launch --reason \"initiative closed\" --json",
-			},
-		},
+		Concepts:   []string{"boards", "write"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.unarchive", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.unarchive",
@@ -770,32 +265,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "lifecycle"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.update", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Unarchive board",
-				Command: "oar boards unarchive --board-id board_product_launch --json",
-			},
-		},
-	},
-	{
-		CommandID:  "boards.update",
-		CLIPath:    "boards update",
-		Group:      "boards",
-		Method:     "PATCH",
-		Path:       "/boards/{board_id}",
-		PathParams: []string{"board_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "concurrency"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Update board metadata",
-				Command: "oar boards update --board-id board_product_launch --from-file board-update.json --json",
-			},
-		},
+		Concepts:   []string{"boards", "write"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.workspace"},
 	},
 	{
 		CommandID:  "boards.workspace",
@@ -806,100 +277,126 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"board_id"},
 		InputMode:  "none",
 		Stability:  "beta",
-		Concepts:   []string{"boards", "planning", "threads", "docs", "commitments", "inbox"},
-		Adjacent:   []string{"boards.archive", "boards.cards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.cards.move", "boards.cards.update", "boards.create", "boards.get", "boards.list", "boards.purge", "boards.restore", "boards.tombstone", "boards.unarchive", "boards.update"},
-		Examples: []Example{
-			{
-				Title:   "Board workspace",
-				Command: "oar boards workspace --board-id board_product_launch --json",
-			},
-		},
+		Concepts:   []string{"boards", "workspace"},
+		Adjacent:   []string{"boards.archive", "boards.cards.create", "boards.cards.get", "boards.cards.list", "boards.create", "boards.get", "boards.list", "boards.patch", "boards.purge", "boards.restore", "boards.trash", "boards.unarchive"},
 	},
 	{
-		CommandID: "commitments.create",
-		CLIPath:   "commitments create",
-		Group:     "commitments",
-		Method:    "POST",
-		Path:      "/commitments",
-		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"commitments"},
-		Adjacent:  []string{"commitments.get", "commitments.list", "commitments.patch"},
-		Examples: []Example{
-			{
-				Title:   "Create commitment",
-				Command: "oar commitments create --from-file commitment.json --json",
-			},
-		},
-	},
-	{
-		CommandID:  "commitments.get",
-		CLIPath:    "commitments get",
-		Group:      "commitments",
-		Method:     "GET",
-		Path:       "/commitments/{commitment_id}",
-		PathParams: []string{"commitment_id"},
-		InputMode:  "none",
-		Stability:  "stable",
-		Concepts:   []string{"commitments"},
-		Adjacent:   []string{"commitments.create", "commitments.list", "commitments.patch"},
-		Examples: []Example{
-			{
-				Title:   "Get commitment",
-				Command: "oar commitments get --commitment-id commitment_123 --json",
-			},
-		},
-	},
-	{
-		CommandID: "commitments.list",
-		CLIPath:   "commitments list",
-		Group:     "commitments",
-		Method:    "GET",
-		Path:      "/commitments",
-		InputMode: "none",
-		Stability: "stable",
-		Concepts:  []string{"commitments", "filtering"},
-		Adjacent:  []string{"commitments.create", "commitments.get", "commitments.patch"},
-		Examples: []Example{
-			{
-				Title:   "List open commitments for a thread",
-				Command: "oar commitments list --thread-id thread_123 --status open --json",
-			},
-		},
-	},
-	{
-		CommandID:  "commitments.patch",
-		CLIPath:    "commitments patch",
-		Group:      "commitments",
-		Method:     "PATCH",
-		Path:       "/commitments/{commitment_id}",
-		PathParams: []string{"commitment_id"},
+		CommandID:  "cards.archive",
+		CLIPath:    "cards archive",
+		Group:      "cards",
+		Method:     "POST",
+		Path:       "/cards/{card_id}/archive",
+		PathParams: []string{"card_id"},
 		InputMode:  "json-body",
-		Stability:  "stable",
-		Concepts:   []string{"commitments", "patch", "provenance"},
-		Adjacent:   []string{"commitments.create", "commitments.get", "commitments.list"},
-		Examples: []Example{
-			{
-				Title:   "Mark commitment done",
-				Command: "oar commitments patch --commitment-id commitment_123 --from-file commitment-patch.json --json",
-			},
-		},
+		Stability:  "beta",
+		Concepts:   []string{"cards", "write"},
+		Adjacent:   []string{"cards.create", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline", "cards.trash"},
 	},
 	{
-		CommandID: "derived.rebuild",
-		CLIPath:   "derived rebuild",
-		Group:     "derived",
+		CommandID: "cards.create",
+		CLIPath:   "cards create",
+		Group:     "cards",
 		Method:    "POST",
-		Path:      "/derived/rebuild",
+		Path:      "/cards",
 		InputMode: "json-body",
 		Stability: "beta",
-		Concepts:  []string{"derived-views", "maintenance"},
-		Examples: []Example{
-			{
-				Title:   "Rebuild derived",
-				Command: "oar derived rebuild --actor-id system --json",
-			},
-		},
+		Concepts:  []string{"cards", "boards", "write"},
+		Adjacent:  []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline", "cards.trash"},
+	},
+	{
+		CommandID:  "cards.get",
+		CLIPath:    "cards get",
+		Group:      "cards",
+		Method:     "GET",
+		Path:       "/cards/{card_id}",
+		PathParams: []string{"card_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"cards"},
+		Adjacent:   []string{"cards.archive", "cards.create", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline", "cards.trash"},
+	},
+	{
+		CommandID: "cards.list",
+		CLIPath:   "cards list",
+		Group:     "cards",
+		Method:    "GET",
+		Path:      "/cards",
+		InputMode: "none",
+		Stability: "beta",
+		Concepts:  []string{"cards"},
+		Adjacent:  []string{"cards.archive", "cards.create", "cards.get", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline", "cards.trash"},
+	},
+	{
+		CommandID:  "cards.move",
+		CLIPath:    "cards move",
+		Group:      "cards",
+		Method:     "POST",
+		Path:       "/cards/{card_id}/move",
+		PathParams: []string{"card_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"cards", "boards", "write"},
+		Adjacent:   []string{"cards.archive", "cards.create", "cards.get", "cards.list", "cards.patch", "cards.purge", "cards.restore", "cards.timeline", "cards.trash"},
+	},
+	{
+		CommandID:  "cards.patch",
+		CLIPath:    "cards patch",
+		Group:      "cards",
+		Method:     "PATCH",
+		Path:       "/cards/{card_id}",
+		PathParams: []string{"card_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"cards", "write", "concurrency"},
+		Adjacent:   []string{"cards.archive", "cards.create", "cards.get", "cards.list", "cards.move", "cards.purge", "cards.restore", "cards.timeline", "cards.trash"},
+	},
+	{
+		CommandID:  "cards.purge",
+		CLIPath:    "cards purge",
+		Group:      "cards",
+		Method:     "POST",
+		Path:       "/cards/{card_id}/purge",
+		PathParams: []string{"card_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"cards", "write"},
+		Adjacent:   []string{"cards.archive", "cards.create", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.restore", "cards.timeline", "cards.trash"},
+	},
+	{
+		CommandID:  "cards.restore",
+		CLIPath:    "cards restore",
+		Group:      "cards",
+		Method:     "POST",
+		Path:       "/cards/{card_id}/restore",
+		PathParams: []string{"card_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"cards", "write"},
+		Adjacent:   []string{"cards.archive", "cards.create", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.timeline", "cards.trash"},
+	},
+	{
+		CommandID:  "cards.timeline",
+		CLIPath:    "cards timeline",
+		Group:      "cards",
+		Method:     "GET",
+		Path:       "/cards/{card_id}/timeline",
+		PathParams: []string{"card_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"cards", "timeline"},
+		Adjacent:   []string{"cards.archive", "cards.create", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.trash"},
+	},
+	{
+		CommandID:  "cards.trash",
+		CLIPath:    "cards trash",
+		Group:      "cards",
+		Method:     "POST",
+		Path:       "/cards/{card_id}/trash",
+		PathParams: []string{"card_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"cards", "write"},
+		Adjacent:   []string{"cards.archive", "cards.create", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline"},
 	},
 	{
 		CommandID:  "docs.archive",
@@ -910,14 +407,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"document_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"docs", "lifecycle"},
-		Adjacent:   []string{"docs.create", "docs.get", "docs.history", "docs.list", "docs.purge", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Archive document",
-				Command: "oar docs archive --document-id product-constitution --json",
-			},
-		},
+		Concepts:   []string{"docs", "write"},
+		Adjacent:   []string{"docs.create", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.trash", "docs.unarchive"},
 	},
 	{
 		CommandID: "docs.create",
@@ -927,14 +418,8 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/docs",
 		InputMode: "json-body",
 		Stability: "beta",
-		Concepts:  []string{"docs", "revisions"},
-		Adjacent:  []string{"docs.archive", "docs.get", "docs.history", "docs.list", "docs.purge", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Create document",
-				Command: "oar docs create --from-file doc-create.json --json",
-			},
-		},
+		Concepts:  []string{"docs", "write"},
+		Adjacent:  []string{"docs.archive", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.trash", "docs.unarchive"},
 	},
 	{
 		CommandID:  "docs.get",
@@ -945,32 +430,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"document_id"},
 		InputMode:  "none",
 		Stability:  "beta",
-		Concepts:   []string{"docs", "revisions"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.history", "docs.list", "docs.purge", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Get document head",
-				Command: "oar docs get --document-id product-constitution --json",
-			},
-		},
-	},
-	{
-		CommandID:  "docs.history",
-		CLIPath:    "docs history",
-		Group:      "docs",
-		Method:     "GET",
-		Path:       "/docs/{document_id}/history",
-		PathParams: []string{"document_id"},
-		InputMode:  "none",
-		Stability:  "beta",
-		Concepts:   []string{"docs", "revisions", "lineage"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "List document history",
-				Command: "oar docs history --document-id product-constitution --json",
-			},
-		},
+		Concepts:   []string{"docs"},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.list", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.trash", "docs.unarchive"},
 	},
 	{
 		CommandID: "docs.list",
@@ -980,22 +441,8 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/docs",
 		InputMode: "none",
 		Stability: "beta",
-		Concepts:  []string{"docs", "revisions"},
-		Adjacent:  []string{"docs.archive", "docs.create", "docs.get", "docs.history", "docs.purge", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "List documents",
-				Command: "oar docs list --json",
-			},
-			{
-				Title:   "Search documents by title",
-				Command: "oar docs list --q \"constitution\" --json",
-			},
-			{
-				Title:   "Paginated document list",
-				Command: "oar docs list --limit 50 --json",
-			},
-		},
+		Concepts:  []string{"docs"},
+		Adjacent:  []string{"docs.archive", "docs.create", "docs.get", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.trash", "docs.unarchive"},
 	},
 	{
 		CommandID:  "docs.purge",
@@ -1006,14 +453,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"document_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"docs", "lifecycle"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.history", "docs.list", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Purge document",
-				Command: "oar docs purge --document-id product-constitution --json",
-			},
-		},
+		Concepts:   []string{"docs", "write"},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.trash", "docs.unarchive"},
 	},
 	{
 		CommandID:  "docs.restore",
@@ -1024,18 +465,24 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"document_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"docs", "lifecycle"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.history", "docs.list", "docs.purge", "docs.revision.get", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Restore document",
-				Command: "oar docs restore --document-id product-constitution --json",
-			},
-		},
+		Concepts:   []string{"docs", "write"},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.purge", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.trash", "docs.unarchive"},
 	},
 	{
-		CommandID:  "docs.revision.get",
-		CLIPath:    "docs revision get",
+		CommandID:  "docs.revisions.create",
+		CLIPath:    "docs revisions create",
+		Group:      "docs",
+		Method:     "POST",
+		Path:       "/docs/{document_id}/revisions",
+		PathParams: []string{"document_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"docs", "revisions", "write"},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revisions.get", "docs.revisions.list", "docs.trash", "docs.unarchive"},
+	},
+	{
+		CommandID:  "docs.revisions.get",
+		CLIPath:    "docs revisions get",
 		Group:      "docs",
 		Method:     "GET",
 		Path:       "/docs/{document_id}/revisions/{revision_id}",
@@ -1043,31 +490,31 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"docs", "revisions"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.history", "docs.list", "docs.purge", "docs.restore", "docs.tombstone", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Get revision",
-				Command: "oar docs revision get --document-id product-constitution --revision-id 019f... --json",
-			},
-		},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.list", "docs.trash", "docs.unarchive"},
 	},
 	{
-		CommandID:  "docs.tombstone",
-		CLIPath:    "docs tombstone",
+		CommandID:  "docs.revisions.list",
+		CLIPath:    "docs revisions list",
+		Group:      "docs",
+		Method:     "GET",
+		Path:       "/docs/{document_id}/revisions",
+		PathParams: []string{"document_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"docs", "revisions"},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.trash", "docs.unarchive"},
+	},
+	{
+		CommandID:  "docs.trash",
+		CLIPath:    "docs trash",
 		Group:      "docs",
 		Method:     "POST",
-		Path:       "/docs/{document_id}/tombstone",
+		Path:       "/docs/{document_id}/trash",
 		PathParams: []string{"document_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"docs", "lifecycle"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.history", "docs.list", "docs.purge", "docs.restore", "docs.revision.get", "docs.unarchive", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Tombstone document",
-				Command: "oar docs tombstone --document-id product-constitution --reason \"replaced by v2\" --json",
-			},
-		},
+		Concepts:   []string{"docs", "write"},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.unarchive"},
 	},
 	{
 		CommandID:  "docs.unarchive",
@@ -1078,32 +525,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"document_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"docs", "lifecycle"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.history", "docs.list", "docs.purge", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.update"},
-		Examples: []Example{
-			{
-				Title:   "Unarchive document",
-				Command: "oar docs unarchive --document-id product-constitution --json",
-			},
-		},
-	},
-	{
-		CommandID:  "docs.update",
-		CLIPath:    "docs update",
-		Group:      "docs",
-		Method:     "PATCH",
-		Path:       "/docs/{document_id}",
-		PathParams: []string{"document_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"docs", "revisions", "concurrency"},
-		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.history", "docs.list", "docs.purge", "docs.restore", "docs.revision.get", "docs.tombstone", "docs.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Update document",
-				Command: "oar docs update --document-id product-constitution --from-file doc-update.json --json",
-			},
-		},
+		Concepts:   []string{"docs", "write"},
+		Adjacent:   []string{"docs.archive", "docs.create", "docs.get", "docs.list", "docs.purge", "docs.restore", "docs.revisions.create", "docs.revisions.get", "docs.revisions.list", "docs.trash"},
 	},
 	{
 		CommandID:  "events.archive",
@@ -1114,14 +537,8 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"event_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"events", "lifecycle"},
-		Adjacent:   []string{"events.create", "events.get", "events.restore", "events.stream", "events.tombstone", "events.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Archive event",
-				Command: "oar events archive --event-id evt_123 --json",
-			},
-		},
+		Concepts:   []string{"events", "write"},
+		Adjacent:   []string{"events.create", "events.list", "events.restore", "events.trash", "events.unarchive"},
 	},
 	{
 		CommandID: "events.create",
@@ -1130,33 +547,20 @@ var CommandRegistry = []CommandSpec{
 		Method:    "POST",
 		Path:      "/events",
 		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"events", "append-only"},
-		Adjacent:  []string{"events.archive", "events.get", "events.restore", "events.stream", "events.tombstone", "events.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Append event",
-				Command: "oar events create --from-file event.json --json",
-			},
-		},
+		Stability: "beta",
+		Concepts:  []string{"events", "write"},
+		Adjacent:  []string{"events.archive", "events.list", "events.restore", "events.trash", "events.unarchive"},
 	},
 	{
-		CommandID:  "events.get",
-		CLIPath:    "events get",
-		Group:      "events",
-		Method:     "GET",
-		Path:       "/events/{event_id}",
-		PathParams: []string{"event_id"},
-		InputMode:  "none",
-		Stability:  "stable",
-		Concepts:   []string{"events"},
-		Adjacent:   []string{"events.archive", "events.create", "events.restore", "events.stream", "events.tombstone", "events.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Get event",
-				Command: "oar events get --event-id event_123 --json",
-			},
-		},
+		CommandID: "events.list",
+		CLIPath:   "events list",
+		Group:     "events",
+		Method:    "GET",
+		Path:      "/events",
+		InputMode: "none",
+		Stability: "beta",
+		Concepts:  []string{"events"},
+		Adjacent:  []string{"events.archive", "events.create", "events.restore", "events.trash", "events.unarchive"},
 	},
 	{
 		CommandID:  "events.restore",
@@ -1167,53 +571,20 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"event_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"events", "lifecycle"},
-		Adjacent:   []string{"events.archive", "events.create", "events.get", "events.stream", "events.tombstone", "events.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Restore event",
-				Command: "oar events restore --event-id evt_123 --json",
-			},
-		},
+		Concepts:   []string{"events", "write"},
+		Adjacent:   []string{"events.archive", "events.create", "events.list", "events.trash", "events.unarchive"},
 	},
 	{
-		CommandID: "events.stream",
-		CLIPath:   "events stream",
-		Group:     "events",
-		Method:    "GET",
-		Path:      "/events/stream",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"events", "streaming"},
-		Adjacent:  []string{"events.archive", "events.create", "events.get", "events.restore", "events.tombstone", "events.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Stream all events",
-				Command: "oar events stream --json",
-			},
-			{
-				Title:   "Resume by id",
-				Command: "oar events stream --last-event-id <event_id> --json",
-			},
-		},
-	},
-	{
-		CommandID:  "events.tombstone",
-		CLIPath:    "events tombstone",
+		CommandID:  "events.trash",
+		CLIPath:    "events trash",
 		Group:      "events",
 		Method:     "POST",
-		Path:       "/events/{event_id}/tombstone",
+		Path:       "/events/{event_id}/trash",
 		PathParams: []string{"event_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"events", "lifecycle"},
-		Adjacent:   []string{"events.archive", "events.create", "events.get", "events.restore", "events.stream", "events.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Tombstone event",
-				Command: "oar events tombstone --event-id evt_123 --reason \"spam\" --json",
-			},
-		},
+		Concepts:   []string{"events", "write"},
+		Adjacent:   []string{"events.archive", "events.create", "events.list", "events.restore", "events.unarchive"},
 	},
 	{
 		CommandID:  "events.unarchive",
@@ -1224,57 +595,20 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"event_id"},
 		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"events", "lifecycle"},
-		Adjacent:   []string{"events.archive", "events.create", "events.get", "events.restore", "events.stream", "events.tombstone"},
-		Examples: []Example{
-			{
-				Title:   "Unarchive event",
-				Command: "oar events unarchive --event-id evt_123 --json",
-			},
-		},
+		Concepts:   []string{"events", "write"},
+		Adjacent:   []string{"events.archive", "events.create", "events.list", "events.restore", "events.trash"},
 	},
 	{
-		CommandID: "inbox.ack",
-		CLIPath:   "inbox ack",
-		Group:     "inbox",
-		Method:    "POST",
-		Path:      "/inbox/ack",
-		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"inbox", "events"},
-		Adjacent:  []string{"inbox.get", "inbox.list", "inbox.stream"},
-		Examples: []Example{
-			{
-				Title:   "Ack inbox item",
-				Command: "oar inbox ack --thread-id thread_123 --inbox-item-id inbox:item-1 --json",
-			},
-			{
-				Title:   "Ack inbox item by id",
-				Command: "oar inbox ack inbox:decision_needed:thread_123:none:event_1 --json",
-			},
-		},
-	},
-	{
-		CommandID:  "inbox.get",
-		CLIPath:    "inbox get",
+		CommandID:  "inbox.acknowledge",
+		CLIPath:    "inbox acknowledge",
 		Group:      "inbox",
-		Method:     "GET",
-		Path:       "/inbox/{inbox_item_id}",
-		PathParams: []string{"inbox_item_id"},
-		InputMode:  "none",
-		Stability:  "stable",
-		Concepts:   []string{"inbox", "derived-views"},
-		Adjacent:   []string{"inbox.ack", "inbox.list", "inbox.stream"},
-		Examples: []Example{
-			{
-				Title:   "Get inbox item by canonical id",
-				Command: "oar inbox get --id inbox:decision_needed:thread_123:none:event_123 --json",
-			},
-			{
-				Title:   "Get inbox item by alias",
-				Command: "oar inbox get --id ibx_abcd1234ef56 --json",
-			},
-		},
+		Method:     "POST",
+		Path:       "/inbox/{inbox_id}/acknowledge",
+		PathParams: []string{"inbox_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"inbox", "write"},
+		Adjacent:   []string{"inbox.list"},
 	},
 	{
 		CommandID: "inbox.list",
@@ -1283,123 +617,9 @@ var CommandRegistry = []CommandSpec{
 		Method:    "GET",
 		Path:      "/inbox",
 		InputMode: "none",
-		Stability: "stable",
-		Concepts:  []string{"inbox", "derived-views"},
-		Adjacent:  []string{"inbox.ack", "inbox.get", "inbox.stream"},
-		Examples: []Example{
-			{
-				Title:   "List inbox",
-				Command: "oar inbox list --json",
-			},
-		},
-	},
-	{
-		CommandID: "inbox.stream",
-		CLIPath:   "inbox stream",
-		Group:     "inbox",
-		Method:    "GET",
-		Path:      "/inbox/stream",
-		InputMode: "none",
 		Stability: "beta",
-		Concepts:  []string{"inbox", "derived-views", "streaming"},
-		Adjacent:  []string{"inbox.ack", "inbox.get", "inbox.list"},
-		Examples: []Example{
-			{
-				Title:   "Stream inbox updates",
-				Command: "oar inbox stream --json",
-			},
-			{
-				Title:   "Resume inbox stream",
-				Command: "oar inbox stream --last-event-id <id> --json",
-			},
-		},
-	},
-	{
-		CommandID:  "meta.commands.get",
-		CLIPath:    "meta commands get",
-		Group:      "meta",
-		Method:     "GET",
-		Path:       "/meta/commands/{command_id}",
-		PathParams: []string{"command_id"},
-		InputMode:  "none",
-		Stability:  "beta",
-		Concepts:   []string{"meta", "introspection"},
-		Adjacent:   []string{"meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "Read command metadata",
-				Command: "oar meta commands get --command-id threads.list --json",
-			},
-		},
-	},
-	{
-		CommandID: "meta.commands.list",
-		CLIPath:   "meta commands list",
-		Group:     "meta",
-		Method:    "GET",
-		Path:      "/meta/commands",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"meta", "introspection"},
-		Adjacent:  []string{"meta.commands.get", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "List command metadata",
-				Command: "oar meta commands list --json",
-			},
-		},
-	},
-	{
-		CommandID:  "meta.concepts.get",
-		CLIPath:    "meta concepts get",
-		Group:      "meta",
-		Method:     "GET",
-		Path:       "/meta/concepts/{concept_name}",
-		PathParams: []string{"concept_name"},
-		InputMode:  "none",
-		Stability:  "beta",
-		Concepts:   []string{"meta", "concepts"},
-		Adjacent:   []string{"meta.commands.get", "meta.commands.list", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "Read one concept",
-				Command: "oar meta concepts get --concept-name compatibility --json",
-			},
-		},
-	},
-	{
-		CommandID: "meta.concepts.list",
-		CLIPath:   "meta concepts list",
-		Group:     "meta",
-		Method:    "GET",
-		Path:      "/meta/concepts",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"meta", "concepts"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "List concepts",
-				Command: "oar meta concepts list --json",
-			},
-		},
-	},
-	{
-		CommandID: "meta.handshake",
-		CLIPath:   "meta handshake",
-		Group:     "meta",
-		Method:    "GET",
-		Path:      "/meta/handshake",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"compatibility", "handshake"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "Read handshake metadata",
-				Command: "oar meta handshake --json",
-			},
-		},
+		Concepts:  []string{"inbox"},
+		Adjacent:  []string{"inbox.acknowledge"},
 	},
 	{
 		CommandID: "meta.health",
@@ -1409,48 +629,8 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/health",
 		InputMode: "none",
 		Stability: "stable",
-		Concepts:  []string{"health", "liveness"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.livez", "meta.ops.health", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "Liveness check",
-				Command: "oar meta health --json",
-			},
-		},
-	},
-	{
-		CommandID: "meta.livez",
-		CLIPath:   "meta livez",
-		Group:     "meta",
-		Method:    "GET",
-		Path:      "/livez",
-		InputMode: "none",
-		Stability: "stable",
-		Concepts:  []string{"health", "liveness"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.ops.health", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "Liveness alias",
-				Command: "oar api call --method GET --path /livez",
-			},
-		},
-	},
-	{
-		CommandID: "meta.ops.health",
-		CLIPath:   "meta ops health",
-		Group:     "meta",
-		Method:    "GET",
-		Path:      "/ops/health",
-		InputMode: "none",
-		Stability: "stable",
-		Concepts:  []string{"health", "readiness", "operations"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.readyz", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "Authenticated operator diagnostics",
-				Command: "oar api call --method GET --path /ops/health --header 'Authorization: Bearer <access-token>'",
-			},
-		},
+		Concepts:  []string{"health"},
+		Adjacent:  []string{"meta.readyz", "meta.version"},
 	},
 	{
 		CommandID: "meta.readyz",
@@ -1461,13 +641,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "stable",
 		Concepts:  []string{"health", "readiness"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.version"},
-		Examples: []Example{
-			{
-				Title:   "Readiness check",
-				Command: "oar api call --method GET --path /readyz",
-			},
-		},
+		Adjacent:  []string{"meta.health", "meta.version"},
 	},
 	{
 		CommandID: "meta.version",
@@ -1477,155 +651,40 @@ var CommandRegistry = []CommandSpec{
 		Path:      "/version",
 		InputMode: "none",
 		Stability: "stable",
-		Concepts:  []string{"compatibility", "schema"},
-		Adjacent:  []string{"meta.commands.get", "meta.commands.list", "meta.concepts.get", "meta.concepts.list", "meta.handshake", "meta.health", "meta.livez", "meta.ops.health", "meta.readyz"},
-		Examples: []Example{
-			{
-				Title:   "Read version",
-				Command: "oar meta version --json",
-			},
-		},
-	},
-	{
-		CommandID: "notifications.dismiss",
-		CLIPath:   "notifications dismiss",
-		Group:     "notifications",
-		Method:    "POST",
-		Path:      "/agent-notifications/dismiss",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"events"},
-		Adjacent:  []string{"notifications.list", "notifications.read"},
-		Examples: []Example{
-			{
-				Title:   "Dismiss one notification",
-				Command: "oar notifications dismiss --wakeup-id wake_123 --json",
-			},
-		},
-	},
-	{
-		CommandID: "notifications.list",
-		CLIPath:   "notifications list",
-		Group:     "notifications",
-		Method:    "GET",
-		Path:      "/agent-notifications",
-		InputMode: "none",
-		Stability: "beta",
-		Concepts:  []string{"events", "derived-views"},
-		Adjacent:  []string{"notifications.dismiss", "notifications.read"},
-		Examples: []Example{
-			{
-				Title:   "List unread notifications",
-				Command: "oar notifications list --status unread --json",
-			},
-			{
-				Title:   "List oldest unread first",
-				Command: "oar notifications list --status unread --order asc --json",
-			},
-		},
-	},
-	{
-		CommandID: "notifications.read",
-		CLIPath:   "notifications read",
-		Group:     "notifications",
-		Method:    "POST",
-		Path:      "/agent-notifications/read",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"events"},
-		Adjacent:  []string{"notifications.dismiss", "notifications.list"},
-		Examples: []Example{
-			{
-				Title:   "Mark one notification read",
-				Command: "oar notifications read --wakeup-id wake_123 --json",
-			},
-		},
+		Concepts:  []string{"compatibility"},
+		Adjacent:  []string{"meta.health", "meta.readyz"},
 	},
 	{
 		CommandID: "packets.receipts.create",
 		CLIPath:   "packets receipts create",
 		Group:     "packets",
 		Method:    "POST",
-		Path:      "/receipts",
+		Path:      "/packets/receipts",
 		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"packets", "receipts"},
-		Adjacent:  []string{"packets.reviews.create", "packets.work-orders.create"},
-		Examples: []Example{
-			{
-				Title:   "Create receipt",
-				Command: "oar packets receipts create --from-file receipt.json --json",
-			},
-		},
+		Stability: "beta",
+		Concepts:  []string{"packets", "evidence"},
+		Adjacent:  []string{"packets.reviews.create"},
 	},
 	{
 		CommandID: "packets.reviews.create",
 		CLIPath:   "packets reviews create",
 		Group:     "packets",
 		Method:    "POST",
-		Path:      "/reviews",
+		Path:      "/packets/reviews",
 		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"packets", "reviews"},
-		Adjacent:  []string{"packets.receipts.create", "packets.work-orders.create"},
-		Examples: []Example{
-			{
-				Title:   "Create review",
-				Command: "oar packets reviews create --from-file review.json --json",
-			},
-		},
+		Stability: "beta",
+		Concepts:  []string{"packets", "evidence"},
+		Adjacent:  []string{"packets.receipts.create"},
 	},
 	{
-		CommandID: "packets.work-orders.create",
-		CLIPath:   "packets work-orders create",
-		Group:     "packets",
-		Method:    "POST",
-		Path:      "/work_orders",
-		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"packets", "work-orders"},
-		Adjacent:  []string{"packets.receipts.create", "packets.reviews.create"},
-		Examples: []Example{
-			{
-				Title:   "Create work order",
-				Command: "oar packets work-orders create --from-file work-order.json --json",
-			},
-		},
-	},
-	{
-		CommandID:  "snapshots.get",
-		CLIPath:    "snapshots get",
-		Group:      "snapshots",
-		Method:     "GET",
-		Path:       "/snapshots/{snapshot_id}",
-		PathParams: []string{"snapshot_id"},
-		InputMode:  "none",
-		Stability:  "stable",
-		Concepts:   []string{"snapshots"},
-		Examples: []Example{
-			{
-				Title:   "Get snapshot",
-				Command: "oar snapshots get --snapshot-id snapshot_123 --json",
-			},
-		},
-	},
-	{
-		CommandID:  "threads.archive",
-		CLIPath:    "threads archive",
-		Group:      "threads",
-		Method:     "POST",
-		Path:       "/threads/{thread_id}/archive",
-		PathParams: []string{"thread_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"threads", "lifecycle"},
-		Adjacent:   []string{"threads.context", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Archive thread",
-				Command: "oar threads archive --thread-id thread_123 --json",
-			},
-		},
+		CommandID: "ref_edges.list",
+		CLIPath:   "ref-edges list",
+		Group:     "ref-edges",
+		Method:    "GET",
+		Path:      "/ref-edges",
+		InputMode: "query",
+		Stability: "beta",
+		Concepts:  []string{"refs", "inspection"},
 	},
 	{
 		CommandID:  "threads.context",
@@ -1636,53 +695,20 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"thread_id"},
 		InputMode:  "none",
 		Stability:  "beta",
-		Concepts:   []string{"threads", "events", "artifacts", "commitments", "docs"},
-		Adjacent:   []string{"threads.archive", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Context with defaults",
-				Command: "oar threads context --thread-id thread_123 --json",
-			},
-			{
-				Title:   "Context with artifact previews",
-				Command: "oar threads context --thread-id thread_123 --include-artifact-content --max-events 50 --json",
-			},
-		},
+		Concepts:   []string{"threads", "inspection"},
+		Adjacent:   []string{"threads.inspect", "threads.list", "threads.timeline", "threads.workspace"},
 	},
 	{
-		CommandID: "threads.create",
-		CLIPath:   "threads create",
-		Group:     "threads",
-		Method:    "POST",
-		Path:      "/threads",
-		InputMode: "json-body",
-		Stability: "stable",
-		Concepts:  []string{"threads", "snapshots"},
-		Adjacent:  []string{"threads.archive", "threads.context", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Create thread",
-				Command: "oar threads create --from-file thread.json --json",
-			},
-		},
-	},
-	{
-		CommandID:  "threads.get",
-		CLIPath:    "threads get",
+		CommandID:  "threads.inspect",
+		CLIPath:    "threads inspect",
 		Group:      "threads",
 		Method:     "GET",
 		Path:       "/threads/{thread_id}",
 		PathParams: []string{"thread_id"},
 		InputMode:  "none",
-		Stability:  "stable",
-		Concepts:   []string{"threads"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Read thread",
-				Command: "oar threads get --thread-id thread_123 --json",
-			},
-		},
+		Stability:  "beta",
+		Concepts:   []string{"threads", "inspection"},
+		Adjacent:   []string{"threads.context", "threads.list", "threads.timeline", "threads.workspace"},
 	},
 	{
 		CommandID: "threads.list",
@@ -1691,77 +717,9 @@ var CommandRegistry = []CommandSpec{
 		Method:    "GET",
 		Path:      "/threads",
 		InputMode: "none",
-		Stability: "stable",
-		Concepts:  []string{"threads", "filtering"},
-		Adjacent:  []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "List active p1 threads",
-				Command: "oar threads list --status active --priority p1 --json",
-			},
-			{
-				Title:   "Search threads by title",
-				Command: "oar threads list --q \"launch\" --json",
-			},
-			{
-				Title:   "Paginated thread list",
-				Command: "oar threads list --limit 20 --json",
-			},
-		},
-	},
-	{
-		CommandID:  "threads.patch",
-		CLIPath:    "threads patch",
-		Group:      "threads",
-		Method:     "PATCH",
-		Path:       "/threads/{thread_id}",
-		PathParams: []string{"thread_id"},
-		InputMode:  "json-body",
-		Stability:  "stable",
-		Concepts:   []string{"threads", "patch"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.list", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Patch thread",
-				Command: "oar threads patch --thread-id thread_123 --from-file patch.json --json",
-			},
-		},
-	},
-	{
-		CommandID:  "threads.purge",
-		CLIPath:    "threads purge",
-		Group:      "threads",
-		Method:     "POST",
-		Path:       "/threads/{thread_id}/purge",
-		PathParams: []string{"thread_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"threads", "lifecycle"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Purge thread",
-				Command: "oar threads purge --thread-id thread_123 --json",
-			},
-		},
-	},
-	{
-		CommandID:  "threads.restore",
-		CLIPath:    "threads restore",
-		Group:      "threads",
-		Method:     "POST",
-		Path:       "/threads/{thread_id}/restore",
-		PathParams: []string{"thread_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"threads", "lifecycle"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.timeline", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Restore thread",
-				Command: "oar threads restore --thread-id thread_123 --json",
-			},
-		},
+		Stability: "beta",
+		Concepts:  []string{"threads", "inspection"},
+		Adjacent:  []string{"threads.context", "threads.inspect", "threads.timeline", "threads.workspace"},
 	},
 	{
 		CommandID:  "threads.timeline",
@@ -1771,51 +729,9 @@ var CommandRegistry = []CommandSpec{
 		Path:       "/threads/{thread_id}/timeline",
 		PathParams: []string{"thread_id"},
 		InputMode:  "none",
-		Stability:  "stable",
-		Concepts:   []string{"threads", "events", "provenance"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.tombstone", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Timeline",
-				Command: "oar threads timeline --thread-id thread_123 --json",
-			},
-		},
-	},
-	{
-		CommandID:  "threads.tombstone",
-		CLIPath:    "threads tombstone",
-		Group:      "threads",
-		Method:     "POST",
-		Path:       "/threads/{thread_id}/tombstone",
-		PathParams: []string{"thread_id"},
-		InputMode:  "json-body",
 		Stability:  "beta",
-		Concepts:   []string{"threads", "lifecycle"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.unarchive", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Tombstone thread",
-				Command: "oar threads tombstone --thread-id thread_123 --reason \"merged into parent\" --json",
-			},
-		},
-	},
-	{
-		CommandID:  "threads.unarchive",
-		CLIPath:    "threads unarchive",
-		Group:      "threads",
-		Method:     "POST",
-		Path:       "/threads/{thread_id}/unarchive",
-		PathParams: []string{"thread_id"},
-		InputMode:  "json-body",
-		Stability:  "beta",
-		Concepts:   []string{"threads", "lifecycle"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.workspace"},
-		Examples: []Example{
-			{
-				Title:   "Unarchive thread",
-				Command: "oar threads unarchive --thread-id thread_123 --json",
-			},
-		},
+		Concepts:   []string{"threads", "timeline"},
+		Adjacent:   []string{"threads.context", "threads.inspect", "threads.list", "threads.workspace"},
 	},
 	{
 		CommandID:  "threads.workspace",
@@ -1826,18 +742,126 @@ var CommandRegistry = []CommandSpec{
 		PathParams: []string{"thread_id"},
 		InputMode:  "none",
 		Stability:  "beta",
-		Concepts:   []string{"threads", "events", "artifacts", "commitments", "docs", "boards", "inbox"},
-		Adjacent:   []string{"threads.archive", "threads.context", "threads.create", "threads.get", "threads.list", "threads.patch", "threads.purge", "threads.restore", "threads.timeline", "threads.tombstone", "threads.unarchive"},
-		Examples: []Example{
-			{
-				Title:   "Workspace with defaults",
-				Command: "oar threads workspace --thread-id thread_123 --json",
-			},
-			{
-				Title:   "Workspace with hydrated related review events",
-				Command: "oar threads workspace --thread-id thread_123 --include-related-event-content --include-artifact-content --json",
-			},
-		},
+		Concepts:   []string{"threads", "workspace"},
+		Adjacent:   []string{"threads.context", "threads.inspect", "threads.list", "threads.timeline"},
+	},
+	{
+		CommandID:  "topics.archive",
+		CLIPath:    "topics archive",
+		Group:      "topics",
+		Method:     "POST",
+		Path:       "/topics/{topic_id}/archive",
+		PathParams: []string{"topic_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"topics", "write"},
+		Adjacent:   []string{"topics.create", "topics.get", "topics.list", "topics.patch", "topics.restore", "topics.timeline", "topics.trash", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID: "topics.create",
+		CLIPath:   "topics create",
+		Group:     "topics",
+		Method:    "POST",
+		Path:      "/topics",
+		InputMode: "json-body",
+		Stability: "beta",
+		Concepts:  []string{"topics", "write"},
+		Adjacent:  []string{"topics.archive", "topics.get", "topics.list", "topics.patch", "topics.restore", "topics.timeline", "topics.trash", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID:  "topics.get",
+		CLIPath:    "topics get",
+		Group:      "topics",
+		Method:     "GET",
+		Path:       "/topics/{topic_id}",
+		PathParams: []string{"topic_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"topics"},
+		Adjacent:   []string{"topics.archive", "topics.create", "topics.list", "topics.patch", "topics.restore", "topics.timeline", "topics.trash", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID: "topics.list",
+		CLIPath:   "topics list",
+		Group:     "topics",
+		Method:    "GET",
+		Path:      "/topics",
+		InputMode: "none",
+		Stability: "beta",
+		Concepts:  []string{"topics"},
+		Adjacent:  []string{"topics.archive", "topics.create", "topics.get", "topics.patch", "topics.restore", "topics.timeline", "topics.trash", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID:  "topics.patch",
+		CLIPath:    "topics patch",
+		Group:      "topics",
+		Method:     "PATCH",
+		Path:       "/topics/{topic_id}",
+		PathParams: []string{"topic_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"topics", "write", "concurrency"},
+		Adjacent:   []string{"topics.archive", "topics.create", "topics.get", "topics.list", "topics.restore", "topics.timeline", "topics.trash", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID:  "topics.restore",
+		CLIPath:    "topics restore",
+		Group:      "topics",
+		Method:     "POST",
+		Path:       "/topics/{topic_id}/restore",
+		PathParams: []string{"topic_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"topics", "write"},
+		Adjacent:   []string{"topics.archive", "topics.create", "topics.get", "topics.list", "topics.patch", "topics.timeline", "topics.trash", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID:  "topics.timeline",
+		CLIPath:    "topics timeline",
+		Group:      "topics",
+		Method:     "GET",
+		Path:       "/topics/{topic_id}/timeline",
+		PathParams: []string{"topic_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"topics", "timeline"},
+		Adjacent:   []string{"topics.archive", "topics.create", "topics.get", "topics.list", "topics.patch", "topics.restore", "topics.trash", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID:  "topics.trash",
+		CLIPath:    "topics trash",
+		Group:      "topics",
+		Method:     "POST",
+		Path:       "/topics/{topic_id}/trash",
+		PathParams: []string{"topic_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"topics", "write"},
+		Adjacent:   []string{"topics.archive", "topics.create", "topics.get", "topics.list", "topics.patch", "topics.restore", "topics.timeline", "topics.unarchive", "topics.workspace"},
+	},
+	{
+		CommandID:  "topics.unarchive",
+		CLIPath:    "topics unarchive",
+		Group:      "topics",
+		Method:     "POST",
+		Path:       "/topics/{topic_id}/unarchive",
+		PathParams: []string{"topic_id"},
+		InputMode:  "json-body",
+		Stability:  "beta",
+		Concepts:   []string{"topics", "write"},
+		Adjacent:   []string{"topics.archive", "topics.create", "topics.get", "topics.list", "topics.patch", "topics.restore", "topics.timeline", "topics.trash", "topics.workspace"},
+	},
+	{
+		CommandID:  "topics.workspace",
+		CLIPath:    "topics workspace",
+		Group:      "topics",
+		Method:     "GET",
+		Path:       "/topics/{topic_id}/workspace",
+		PathParams: []string{"topic_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"topics", "workspace"},
+		Adjacent:   []string{"topics.archive", "topics.create", "topics.get", "topics.list", "topics.patch", "topics.restore", "topics.timeline", "topics.trash", "topics.unarchive"},
 	},
 }
 
@@ -1957,36 +981,8 @@ func renderPath(template string, pathParams map[string]string) (string, error) {
 	}
 }
 
-func (c *Client) ActorsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "actors.list", nil, opts)
-}
-
-func (c *Client) ActorsRegister(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "actors.register", nil, opts)
-}
-
-func (c *Client) AgentsMeGet(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "agents.me.get", nil, opts)
-}
-
-func (c *Client) AgentsMeKeysRotate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "agents.me.keys.rotate", nil, opts)
-}
-
-func (c *Client) AgentsMePatch(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "agents.me.patch", nil, opts)
-}
-
-func (c *Client) AgentsMeRevoke(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "agents.me.revoke", nil, opts)
-}
-
 func (c *Client) ArtifactsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "artifacts.archive", pathParams, opts)
-}
-
-func (c *Client) ArtifactsContentGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "artifacts.content.get", pathParams, opts)
 }
 
 func (c *Client) ArtifactsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
@@ -2009,72 +1005,16 @@ func (c *Client) ArtifactsRestore(ctx context.Context, pathParams map[string]str
 	return c.Invoke(ctx, "artifacts.restore", pathParams, opts)
 }
 
-func (c *Client) ArtifactsTombstone(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "artifacts.tombstone", pathParams, opts)
+func (c *Client) ArtifactsTrash(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "artifacts.trash", pathParams, opts)
 }
 
 func (c *Client) ArtifactsUnarchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "artifacts.unarchive", pathParams, opts)
 }
 
-func (c *Client) AuthAgentsRegister(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.agents.register", nil, opts)
-}
-
-func (c *Client) AuthAuditList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.audit.list", nil, opts)
-}
-
-func (c *Client) AuthBootstrapStatus(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.bootstrap.status", nil, opts)
-}
-
-func (c *Client) AuthInvitesCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.invites.create", nil, opts)
-}
-
-func (c *Client) AuthInvitesList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.invites.list", nil, opts)
-}
-
-func (c *Client) AuthInvitesRevoke(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.invites.revoke", pathParams, opts)
-}
-
-func (c *Client) AuthPasskeyLoginOptions(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.passkey.login.options", nil, opts)
-}
-
-func (c *Client) AuthPasskeyLoginVerify(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.passkey.login.verify", nil, opts)
-}
-
-func (c *Client) AuthPasskeyRegisterOptions(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.passkey.register.options", nil, opts)
-}
-
-func (c *Client) AuthPasskeyRegisterVerify(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.passkey.register.verify", nil, opts)
-}
-
-func (c *Client) AuthPrincipalsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.principals.list", nil, opts)
-}
-
-func (c *Client) AuthPrincipalsRevoke(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.principals.revoke", pathParams, opts)
-}
-
-func (c *Client) AuthToken(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "auth.token", nil, opts)
-}
-
 func (c *Client) BoardsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "boards.archive", pathParams, opts)
-}
-
-func (c *Client) BoardsCardsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "boards.cards.archive", pathParams, opts)
 }
 
 func (c *Client) BoardsCardsCreate(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
@@ -2089,14 +1029,6 @@ func (c *Client) BoardsCardsList(ctx context.Context, pathParams map[string]stri
 	return c.Invoke(ctx, "boards.cards.list", pathParams, opts)
 }
 
-func (c *Client) BoardsCardsMove(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "boards.cards.move", pathParams, opts)
-}
-
-func (c *Client) BoardsCardsUpdate(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "boards.cards.update", pathParams, opts)
-}
-
 func (c *Client) BoardsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "boards.create", nil, opts)
 }
@@ -2109,6 +1041,10 @@ func (c *Client) BoardsList(ctx context.Context, opts RequestOptions) (*http.Res
 	return c.Invoke(ctx, "boards.list", nil, opts)
 }
 
+func (c *Client) BoardsPatch(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "boards.patch", pathParams, opts)
+}
+
 func (c *Client) BoardsPurge(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "boards.purge", pathParams, opts)
 }
@@ -2117,40 +1053,56 @@ func (c *Client) BoardsRestore(ctx context.Context, pathParams map[string]string
 	return c.Invoke(ctx, "boards.restore", pathParams, opts)
 }
 
-func (c *Client) BoardsTombstone(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "boards.tombstone", pathParams, opts)
+func (c *Client) BoardsTrash(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "boards.trash", pathParams, opts)
 }
 
 func (c *Client) BoardsUnarchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "boards.unarchive", pathParams, opts)
 }
 
-func (c *Client) BoardsUpdate(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "boards.update", pathParams, opts)
-}
-
 func (c *Client) BoardsWorkspace(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "boards.workspace", pathParams, opts)
 }
 
-func (c *Client) CommitmentsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "commitments.create", nil, opts)
+func (c *Client) CardsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.archive", pathParams, opts)
 }
 
-func (c *Client) CommitmentsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "commitments.get", pathParams, opts)
+func (c *Client) CardsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.create", nil, opts)
 }
 
-func (c *Client) CommitmentsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "commitments.list", nil, opts)
+func (c *Client) CardsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.get", pathParams, opts)
 }
 
-func (c *Client) CommitmentsPatch(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "commitments.patch", pathParams, opts)
+func (c *Client) CardsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.list", nil, opts)
 }
 
-func (c *Client) DerivedRebuild(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "derived.rebuild", nil, opts)
+func (c *Client) CardsMove(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.move", pathParams, opts)
+}
+
+func (c *Client) CardsPatch(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.patch", pathParams, opts)
+}
+
+func (c *Client) CardsPurge(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.purge", pathParams, opts)
+}
+
+func (c *Client) CardsRestore(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.restore", pathParams, opts)
+}
+
+func (c *Client) CardsTimeline(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.timeline", pathParams, opts)
+}
+
+func (c *Client) CardsTrash(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.trash", pathParams, opts)
 }
 
 func (c *Client) DocsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
@@ -2165,10 +1117,6 @@ func (c *Client) DocsGet(ctx context.Context, pathParams map[string]string, opts
 	return c.Invoke(ctx, "docs.get", pathParams, opts)
 }
 
-func (c *Client) DocsHistory(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "docs.history", pathParams, opts)
-}
-
 func (c *Client) DocsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "docs.list", nil, opts)
 }
@@ -2181,20 +1129,24 @@ func (c *Client) DocsRestore(ctx context.Context, pathParams map[string]string, 
 	return c.Invoke(ctx, "docs.restore", pathParams, opts)
 }
 
-func (c *Client) DocsRevisionGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "docs.revision.get", pathParams, opts)
+func (c *Client) DocsRevisionsCreate(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.revisions.create", pathParams, opts)
 }
 
-func (c *Client) DocsTombstone(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "docs.tombstone", pathParams, opts)
+func (c *Client) DocsRevisionsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.revisions.get", pathParams, opts)
+}
+
+func (c *Client) DocsRevisionsList(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.revisions.list", pathParams, opts)
+}
+
+func (c *Client) DocsTrash(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "docs.trash", pathParams, opts)
 }
 
 func (c *Client) DocsUnarchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "docs.unarchive", pathParams, opts)
-}
-
-func (c *Client) DocsUpdate(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "docs.update", pathParams, opts)
 }
 
 func (c *Client) EventsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
@@ -2205,72 +1157,32 @@ func (c *Client) EventsCreate(ctx context.Context, opts RequestOptions) (*http.R
 	return c.Invoke(ctx, "events.create", nil, opts)
 }
 
-func (c *Client) EventsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "events.get", pathParams, opts)
+func (c *Client) EventsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "events.list", nil, opts)
 }
 
 func (c *Client) EventsRestore(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "events.restore", pathParams, opts)
 }
 
-func (c *Client) EventsStream(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "events.stream", nil, opts)
-}
-
-func (c *Client) EventsTombstone(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "events.tombstone", pathParams, opts)
+func (c *Client) EventsTrash(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "events.trash", pathParams, opts)
 }
 
 func (c *Client) EventsUnarchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "events.unarchive", pathParams, opts)
 }
 
-func (c *Client) InboxAck(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "inbox.ack", nil, opts)
-}
-
-func (c *Client) InboxGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "inbox.get", pathParams, opts)
+func (c *Client) InboxAcknowledge(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "inbox.acknowledge", pathParams, opts)
 }
 
 func (c *Client) InboxList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "inbox.list", nil, opts)
 }
 
-func (c *Client) InboxStream(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "inbox.stream", nil, opts)
-}
-
-func (c *Client) MetaCommandsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "meta.commands.get", pathParams, opts)
-}
-
-func (c *Client) MetaCommandsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "meta.commands.list", nil, opts)
-}
-
-func (c *Client) MetaConceptsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "meta.concepts.get", pathParams, opts)
-}
-
-func (c *Client) MetaConceptsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "meta.concepts.list", nil, opts)
-}
-
-func (c *Client) MetaHandshake(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "meta.handshake", nil, opts)
-}
-
 func (c *Client) MetaHealth(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "meta.health", nil, opts)
-}
-
-func (c *Client) MetaLivez(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "meta.livez", nil, opts)
-}
-
-func (c *Client) MetaOpsHealth(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "meta.ops.health", nil, opts)
 }
 
 func (c *Client) MetaReadyz(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
@@ -2281,18 +1193,6 @@ func (c *Client) MetaVersion(ctx context.Context, opts RequestOptions) (*http.Re
 	return c.Invoke(ctx, "meta.version", nil, opts)
 }
 
-func (c *Client) NotificationsDismiss(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "notifications.dismiss", nil, opts)
-}
-
-func (c *Client) NotificationsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "notifications.list", nil, opts)
-}
-
-func (c *Client) NotificationsRead(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "notifications.read", nil, opts)
-}
-
 func (c *Client) PacketsReceiptsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "packets.receipts.create", nil, opts)
 }
@@ -2301,58 +1201,66 @@ func (c *Client) PacketsReviewsCreate(ctx context.Context, opts RequestOptions) 
 	return c.Invoke(ctx, "packets.reviews.create", nil, opts)
 }
 
-func (c *Client) PacketsWorkOrdersCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "packets.work-orders.create", nil, opts)
-}
-
-func (c *Client) SnapshotsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "snapshots.get", pathParams, opts)
-}
-
-func (c *Client) ThreadsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.archive", pathParams, opts)
+func (c *Client) RefEdgesList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "ref_edges.list", nil, opts)
 }
 
 func (c *Client) ThreadsContext(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "threads.context", pathParams, opts)
 }
 
-func (c *Client) ThreadsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.create", nil, opts)
-}
-
-func (c *Client) ThreadsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.get", pathParams, opts)
+func (c *Client) ThreadsInspect(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "threads.inspect", pathParams, opts)
 }
 
 func (c *Client) ThreadsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "threads.list", nil, opts)
 }
 
-func (c *Client) ThreadsPatch(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.patch", pathParams, opts)
-}
-
-func (c *Client) ThreadsPurge(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.purge", pathParams, opts)
-}
-
-func (c *Client) ThreadsRestore(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.restore", pathParams, opts)
-}
-
 func (c *Client) ThreadsTimeline(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "threads.timeline", pathParams, opts)
 }
 
-func (c *Client) ThreadsTombstone(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.tombstone", pathParams, opts)
-}
-
-func (c *Client) ThreadsUnarchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "threads.unarchive", pathParams, opts)
-}
-
 func (c *Client) ThreadsWorkspace(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "threads.workspace", pathParams, opts)
+}
+
+func (c *Client) TopicsArchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.archive", pathParams, opts)
+}
+
+func (c *Client) TopicsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.create", nil, opts)
+}
+
+func (c *Client) TopicsGet(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.get", pathParams, opts)
+}
+
+func (c *Client) TopicsList(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.list", nil, opts)
+}
+
+func (c *Client) TopicsPatch(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.patch", pathParams, opts)
+}
+
+func (c *Client) TopicsRestore(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.restore", pathParams, opts)
+}
+
+func (c *Client) TopicsTimeline(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.timeline", pathParams, opts)
+}
+
+func (c *Client) TopicsTrash(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.trash", pathParams, opts)
+}
+
+func (c *Client) TopicsUnarchive(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.unarchive", pathParams, opts)
+}
+
+func (c *Client) TopicsWorkspace(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "topics.workspace", pathParams, opts)
 }

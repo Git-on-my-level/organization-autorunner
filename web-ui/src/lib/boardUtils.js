@@ -50,11 +50,29 @@ export function boardSummaryCounts(summary) {
   return counts;
 }
 
-/** Thread link target from membership (core mirrors parent_thread and thread_id when linked). */
+/** Board thread id for a board row (core `thread_id`, event timeline). */
+export function boardBackingThreadId(board) {
+  return String(board?.thread_id ?? "").trim();
+}
+
+/** First `document:` id from `document_refs` or `refs`. */
+export function firstBoardDocumentId(board) {
+  const fromList = (list) => {
+    for (const ref of list ?? []) {
+      const s = String(ref ?? "").trim();
+      if (s.startsWith("document:")) {
+        return s.slice("document:".length).trim();
+      }
+    }
+    return "";
+  };
+  const doc = fromList(board?.document_refs);
+  if (doc) return doc;
+  return fromList(board?.refs);
+}
+
 export function boardCardLinkedThreadId(membership) {
-  const a = String(membership?.thread_id ?? "").trim();
-  if (a) return a;
-  return String(membership?.parent_thread ?? "").trim();
+  return String(membership?.thread_id ?? "").trim();
 }
 
 /**
@@ -151,7 +169,12 @@ export function isFreshnessCurrent(freshness) {
 }
 
 export function cardStatusTagColor(status) {
-  switch (String(status ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_")) {
+  switch (
+    String(status ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, "_")
+  ) {
     case "todo":
       return "text-blue-400 bg-blue-500/10";
     case "in_progress":
@@ -173,7 +196,11 @@ export function cardStatusTagColor(status) {
 }
 
 export function cardPriorityTagColor(priority) {
-  switch (String(priority ?? "").trim().toLowerCase()) {
+  switch (
+    String(priority ?? "")
+      .trim()
+      .toLowerCase()
+  ) {
     case "critical":
     case "urgent":
       return "text-red-400 bg-red-500/10";

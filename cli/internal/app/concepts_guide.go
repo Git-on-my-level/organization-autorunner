@@ -21,11 +21,25 @@ type namedDescription struct {
 
 var conceptsGuidePrimitives = []conceptsPrimitive{
 	{
-		Name:        "threads",
-		UseWhen:     "You need a durable work object with ownership, status, cadence, summary, and follow-up over time.",
-		NotFor:      "Append-only facts or long-form narrative documents.",
+		Name:        "topics",
+		UseWhen:     "You need the durable work subject itself with ownership, summary, related refs, and provenance — including the primary operator coordination read.",
+		NotFor:      "Board-scoped task placement or low-level backing-thread-only diagnostics.",
 		Examples:    []string{"initiatives", "incidents", "cases", "deliverables"},
-		RelatedRead: []string{"oar threads list", "oar threads get", "oar threads review"},
+		RelatedRead: []string{"oar topics list", "oar topics get", "oar topics workspace"},
+	},
+	{
+		Name:        "threads",
+		UseWhen:     "You need read-only backing-thread diagnostics: timelines, raw thread records, or thread-scoped projection bundles for troubleshooting.",
+		NotFor:      "Primary operator triage when a topic exists — use topics workspace instead.",
+		Examples:    []string{"backing thread timeline", "diagnostic workspace projection", "compatibility inspection"},
+		RelatedRead: []string{"oar threads list", "oar threads inspect", "oar threads workspace"},
+	},
+	{
+		Name:        "cards",
+		UseWhen:     "You need board-scoped planning items with column, rank, assignee, and move/update operations.",
+		NotFor:      "The durable subject record or append-only event history.",
+		Examples:    []string{"board cards", "task cards", "workflow cards"},
+		RelatedRead: []string{"oar cards list", "oar cards get", "oar cards move"},
 	},
 	{
 		Name:        "events",
@@ -52,7 +66,7 @@ var conceptsGuidePrimitives = []conceptsPrimitive{
 		Name:        "inbox",
 		UseWhen:     "You need the derived queue of what currently needs attention from the active actor's perspective.",
 		NotFor:      "Durable automation contracts or historical truth.",
-		Examples:    []string{"pending decisions", "exceptions", "commitment risk"},
+		Examples:    []string{"pending decisions", "exceptions", "stalled work"},
 		RelatedRead: []string{"oar inbox list", "oar inbox get", "oar inbox ack"},
 	},
 	{
@@ -67,8 +81,9 @@ var conceptsGuidePrimitives = []conceptsPrimitive{
 var inboxCategoryReference = []namedDescription{
 	{Name: "decision_needed", Description: "A human must choose among multiple viable paths."},
 	{Name: "intervention_needed", Description: "The next step is clear, but a human must act because the agent cannot execute it."},
-	{Name: "exception", Description: "Investigate an exception, risk, or broken expectation on the thread."},
-	{Name: "commitment_risk", Description: "A commitment is at risk or overdue and needs follow-up."},
+	{Name: "work_item_risk", Description: "A card or work item is at risk or overdue and needs follow-up."},
+	{Name: "stale_topic", Description: "A topic appears stale; review cadence or recent activity."},
+	{Name: "document_attention", Description: "A document needs human review or follow-up."},
 }
 
 func inboxCategoryReferenceMap() map[string]string {
@@ -113,7 +128,9 @@ func conceptsGuideData() map[string]any {
 func conceptsSelectionRules() []string {
 	return []string{
 		"Use events for immutable facts.",
-		"Use threads for durable work state and coordination.",
+		"Use topics for durable work subjects and primary operator coordination (`topics workspace`).",
+		"Use cards for board-scoped planning and movement.",
+		"Use threads for read-only backing-thread diagnostics and timeline inspection — not as the default coordination surface.",
 		"Use docs for narrative knowledge that should be revised over time.",
 		"Use boards for cross-object workflow views, not source-of-truth content.",
 		"Use inbox for current attention signals from the active CLI identity's perspective.",

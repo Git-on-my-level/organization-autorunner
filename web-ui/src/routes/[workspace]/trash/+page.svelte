@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
 
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
+  import RefLink from "$lib/components/RefLink.svelte";
   import {
     authenticatedAgent,
     getAuthenticatedActorId,
@@ -18,7 +19,7 @@
   import { devActorMode } from "$lib/workspaceContext";
   import { kindColor, kindLabel } from "$lib/artifactKinds";
   import { formatTimestamp } from "$lib/formatDate";
-  import { getPriorityLabel } from "$lib/threadFilters";
+  import { getPriorityLabel } from "$lib/topicFilters";
 
   const DOC_STATUS_LABELS = { draft: "Draft", active: "Active" };
 
@@ -26,6 +27,7 @@
   let documents = $state([]);
   let threads = $state([]);
   let boards = $state([]);
+  let cards = $state([]);
 
   let activeTab = $state("artifacts");
   let loading = $state(true);
@@ -37,9 +39,10 @@
 
   let tabs = $derived([
     { id: "artifacts", label: "Artifacts", count: artifacts.length },
-    { id: "documents", label: "Documents", count: documents.length },
-    { id: "threads", label: "Threads", count: threads.length },
+    { id: "documents", label: "Docs", count: documents.length },
+    { id: "topics", label: "Topics", count: threads.length },
     { id: "boards", label: "Boards", count: boards.length },
+    { id: "cards", label: "Cards", count: cards.length },
   ]);
 
   let activeItems = $derived.by(() => {
@@ -48,10 +51,12 @@
         return artifacts;
       case "documents":
         return documents;
-      case "threads":
+      case "topics":
         return threads;
       case "boards":
         return boards;
+      case "cards":
+        return cards;
       default:
         return [];
     }
@@ -97,8 +102,12 @@
   function threadStatusColor(status) {
     const styles = {
       active: "text-emerald-400",
+      blocked: "text-amber-400",
+      resolved: "text-sky-400",
+      archived: "text-gray-400",
       paused: "text-amber-400",
       closed: "text-gray-400",
+      proposed: "text-[var(--ui-text-muted)]",
     };
     return styles[status] ?? "text-gray-400";
   }
@@ -107,23 +116,52 @@
     loading = true;
     error = "";
     try {
-      const [artifactResult, docResult, threadResult, boardResult] =
-        await Promise.all([
-          coreClient.listArtifacts({ tombstoned_only: "true" }),
-          coreClient.listDocuments({ tombstoned_only: "true" }),
-          coreClient.listThreads({ tombstoned_only: "true" }),
-          coreClient.listBoards({ tombstoned_only: "true" }),
-        ]);
+      const [
+        artifactResult,
+        docResult,
+        topicResult,
+        boardResult,
+        archivedCardResult,
+        trashedCardResult,
+      ] = await Promise.all([
+        coreClient.listArtifacts({ trashed_only: "true" }),
+        coreClient.listDocuments({ trashed_only: "true" }),
+        coreClient.listTopics({ trashed_only: "true" }),
+        coreClient.listBoards({ trashed_only: "true" }),
+        coreClient.listCards({ archived_only: "true" }),
+        coreClient.listCards({ trashed_only: "true" }),
+      ]);
       artifacts = artifactResult.artifacts ?? [];
       documents = docResult.documents ?? [];
-      threads = threadResult.threads ?? [];
+      threads = (topicResult.topics ?? []).filter(
+        (topic) =>
+          Boolean(topic?.archived_at) ||
+          Boolean(topic?.trashed_at) ||
+          String(topic?.status ?? "").trim() === "archived",
+      );
       boards = (boardResult.boards ?? []).map((item) => item.board);
+      const cardById = new Map();
+      for (const c of archivedCardResult.cards ?? []) {
+        const id = String(c?.id ?? "").trim();
+        if (id) cardById.set(id, c);
+      }
+      for (const c of trashedCardResult.cards ?? []) {
+        const id = String(c?.id ?? "").trim();
+        if (id) cardById.set(id, c);
+      }
+      cards = [...cardById.values()].filter(
+        (card) =>
+          Boolean(card?.archived_at) ||
+          Boolean(card?.trashed_at) ||
+          String(card?.status ?? "").trim() === "archived",
+      );
     } catch (e) {
       error = `Failed to load trash: ${e instanceof Error ? e.message : String(e)}`;
       artifacts = [];
       documents = [];
       threads = [];
       boards = [];
+      cards = [];
     } finally {
       loading = false;
     }
@@ -139,8 +177,12 @@
     return `${kindLabel(artifact?.kind)} artifact`;
   }
 
-  function tombstoneReason(entity) {
-    const r = String(entity?.tombstone_reason ?? "").trim();
+  function topicSummary(topic) {
+    return String(topic?.summary ?? topic?.current_summary ?? "").trim();
+  }
+
+  function trashReason(entity) {
+    const r = String(entity?.trash_reason ?? "").trim();
     return r || "—";
   }
 
@@ -172,11 +214,14 @@
         case "documents":
           await coreClient.restoreDocument(id, {});
           break;
-        case "threads":
-          await coreClient.restoreThread(id, {});
+        case "topics":
+          await coreClient.restoreTopic(id, {});
           break;
         case "boards":
           await coreClient.restoreBoard(id, {});
+          break;
+        case "cards":
+          await coreClient.restoreCard(id, {});
           break;
         default:
           return;
@@ -207,11 +252,11 @@
         case "documents":
           await coreClient.purgeDocument(id, body);
           break;
-        case "threads":
-          await coreClient.purgeThread(id, body);
-          break;
         case "boards":
           await coreClient.purgeBoard(id, body);
+          break;
+        case "cards":
+          await coreClient.purgeCard(id, body);
           break;
         default:
           return;
@@ -219,7 +264,7 @@
       purgeConfirmId = "";
       await loadTrash();
     } catch (e) {
-      error = `Purge failed: ${e instanceof Error ? e.message : String(e)}`;
+      error = `Permanent delete failed: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
       busyItemId = "";
     }
@@ -235,10 +280,12 @@
         return "artifact";
       case "documents":
         return "document";
-      case "threads":
-        return "thread";
+      case "topics":
+        return "topic";
       case "boards":
         return "board";
+      case "cards":
+        return "card";
       default:
         return "item";
     }
@@ -247,15 +294,17 @@
   function emptyCategoryMessage(tab) {
     switch (tab) {
       case "artifacts":
-        return "No tombstoned artifacts in this category";
+        return "No trashed artifacts in this category";
       case "documents":
-        return "No tombstoned documents in this category";
-      case "threads":
-        return "No tombstoned threads in this category";
+        return "No trashed docs in this category";
+      case "topics":
+        return "No trashed topics in this category";
       case "boards":
-        return "No tombstoned boards in this category";
+        return "No trashed boards in this category";
+      case "cards":
+        return "No archived or trashed cards in this category";
       default:
-        return "No tombstoned items in this category";
+        return "No trashed items in this category";
     }
   }
 
@@ -280,11 +329,11 @@
           case "documents":
             await coreClient.purgeDocument(id, body);
             break;
-          case "threads":
-            await coreClient.purgeThread(id, body);
-            break;
           case "boards":
             await coreClient.purgeBoard(id, body);
+            break;
+          case "cards":
+            await coreClient.purgeCard(id, body);
             break;
           default:
             break;
@@ -296,7 +345,7 @@
     purgeAllOpen = false;
     purgeAllBusy = false;
     if (failed > 0) {
-      error = `Purge completed with ${failed} failure${failed > 1 ? "s" : ""}`;
+      error = `Permanent delete completed with ${failed} failure${failed > 1 ? "s" : ""}`;
     }
     await loadTrash();
   }
@@ -307,10 +356,12 @@
         return "Permanently delete this artifact? This cannot be undone.";
       case "documents":
         return "Permanently delete this document? This cannot be undone.";
-      case "threads":
-        return "Permanently delete this thread? This cannot be undone.";
+      case "topics":
+        return "Permanently delete this topic? This cannot be undone.";
       case "boards":
         return "Permanently delete this board? This cannot be undone.";
+      case "cards":
+        return "Permanently delete this card? This cannot be undone.";
       default:
         return "Permanently delete this item? This cannot be undone.";
     }
@@ -321,13 +372,14 @@
   <div>
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">Trash</h1>
     <p class="mt-0.5 text-[12px] text-[var(--ui-text-muted)]">
-      Tombstoned items available for restore or permanent deletion. Restore
-      returns them to their normal lists; purge permanently removes them (human
-      principals only). Tombstoned events and messages are restored from within
-      their thread's timeline view.
+      Trashed items available for restore or permanent deletion. Restore returns
+      them to their normal lists; permanent delete removes supported resource
+      types (human principals only). Topics can be restored but not permanently
+      deleted from this surface yet. Trashed events and messages are restored
+      from within their timeline view.
     </p>
   </div>
-  {#if isHumanPrincipal && !loading && activeItems.length > 0}
+  {#if isHumanPrincipal && !loading && activeItems.length > 0 && activeTab !== "topics" && (activeTab !== "cards" || $devActorMode)}
     <div class="shrink-0">
       <button
         class="cursor-pointer rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[12px] font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -337,7 +389,7 @@
         }}
         type="button"
       >
-        Purge all ({activeItems.length})
+        Permanently delete all ({activeItems.length})
       </button>
     </div>
   {/if}
@@ -390,7 +442,7 @@
         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
       ></path>
     </svg>
-    Loading tombstoned items...
+    Loading trashed items...
   </div>
 {:else if activeItems.length === 0 && !error}
   <div class="mt-8 text-center">
@@ -435,14 +487,14 @@
                 {actorName(artifact.created_by)}
               </div>
               <div>
-                <span class="text-[var(--ui-text-subtle)]">Tombstoned</span>
-                {formatTimestamp(artifact.tombstoned_at) || "—"}
+                <span class="text-[var(--ui-text-subtle)]">Trashed</span>
+                {formatTimestamp(artifact.trashed_at) || "—"}
                 <span class="text-[var(--ui-text-subtle)]"> · </span>
-                {actorName(artifact.tombstoned_by)}
+                {actorName(artifact.trashed_by)}
               </div>
               <div class="sm:col-span-2 xl:col-span-1">
                 <span class="text-[var(--ui-text-subtle)]">Reason</span>
-                {tombstoneReason(artifact)}
+                {trashReason(artifact)}
               </div>
             </div>
           </div>
@@ -467,7 +519,7 @@
                     }}
                     type="button"
                   >
-                    Purge
+                    Permanently delete
                   </button>
                 {/if}
               {/if}
@@ -477,7 +529,7 @@
               <div
                 class="rounded-md border border-red-500/35 bg-red-500/5 p-2.5 text-[12px]"
                 role="region"
-                aria-label="Confirm purge"
+                aria-label="Confirm permanent delete"
               >
                 <p class="font-medium text-red-300">
                   {purgeConfirmLabel("artifacts")}
@@ -497,7 +549,7 @@
                     onclick={() => confirmPurgeEntity("artifacts", artifact.id)}
                     type="button"
                   >
-                    Confirm purge
+                    Confirm permanent delete
                   </button>
                 </div>
               </div>
@@ -543,14 +595,14 @@
                 {actorName(doc.created_by)}
               </div>
               <div>
-                <span class="text-[var(--ui-text-subtle)]">Tombstoned</span>
-                {formatTimestamp(doc.tombstoned_at) || "—"}
+                <span class="text-[var(--ui-text-subtle)]">Trashed</span>
+                {formatTimestamp(doc.trashed_at) || "—"}
                 <span class="text-[var(--ui-text-subtle)]"> · </span>
-                {actorName(doc.tombstoned_by)}
+                {actorName(doc.trashed_by)}
               </div>
               <div class="sm:col-span-2 xl:col-span-1">
                 <span class="text-[var(--ui-text-subtle)]">Reason</span>
-                {tombstoneReason(doc)}
+                {trashReason(doc)}
               </div>
             </div>
           </div>
@@ -574,7 +626,7 @@
                     }}
                     type="button"
                   >
-                    Purge
+                    Permanently delete
                   </button>
                 {/if}
               {/if}
@@ -583,7 +635,7 @@
               <div
                 class="rounded-md border border-red-500/35 bg-red-500/5 p-2.5 text-[12px]"
                 role="region"
-                aria-label="Confirm purge"
+                aria-label="Confirm permanent delete"
               >
                 <p class="font-medium text-red-300">
                   {purgeConfirmLabel("documents")}
@@ -602,7 +654,7 @@
                     onclick={() => confirmPurgeEntity("documents", doc.id)}
                     type="button"
                   >
-                    Confirm purge
+                    Confirm permanent delete
                   </button>
                 </div>
               </div>
@@ -614,7 +666,7 @@
   </div>
 {/if}
 
-{#if !loading && activeTab === "threads" && threads.length > 0}
+{#if !loading && activeTab === "topics" && threads.length > 0}
   <div
     class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
   >
@@ -644,6 +696,11 @@
                 >
               {/if}
             </div>
+            {#if topicSummary(thread)}
+              <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
+                {topicSummary(thread)}
+              </p>
+            {/if}
             <div
               class="mt-2 grid gap-x-4 gap-y-1 text-[11px] text-[var(--ui-text-muted)] sm:grid-cols-2 xl:grid-cols-3"
             >
@@ -656,14 +713,14 @@
                 {/if}
               </div>
               <div>
-                <span class="text-[var(--ui-text-subtle)]">Tombstoned</span>
-                {formatTimestamp(thread.tombstoned_at) || "—"}
+                <span class="text-[var(--ui-text-subtle)]">Trashed</span>
+                {formatTimestamp(thread.trashed_at) || "—"}
                 <span class="text-[var(--ui-text-subtle)]"> · </span>
-                {actorName(thread.tombstoned_by)}
+                {actorName(thread.trashed_by)}
               </div>
               <div class="sm:col-span-2 xl:col-span-1">
                 <span class="text-[var(--ui-text-subtle)]">Reason</span>
-                {tombstoneReason(thread)}
+                {trashReason(thread)}
               </div>
             </div>
           </div>
@@ -671,55 +728,13 @@
             <div class="flex flex-wrap justify-end gap-1.5">
               <button
                 class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border)] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={busyItemId === itemBusyKey("threads", thread.id)}
-                onclick={() => restoreEntity("threads", thread.id)}
+                disabled={busyItemId === itemBusyKey("topics", thread.id)}
+                onclick={() => restoreEntity("topics", thread.id)}
                 type="button"
               >
                 Restore
               </button>
-              {#if isHumanPrincipal}
-                {#if purgeConfirmId !== itemBusyKey("threads", thread.id)}
-                  <button
-                    class="cursor-pointer rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[12px] font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={Boolean(busyItemId)}
-                    onclick={() => {
-                      purgeConfirmId = itemBusyKey("threads", thread.id);
-                    }}
-                    type="button"
-                  >
-                    Purge
-                  </button>
-                {/if}
-              {/if}
             </div>
-            {#if isHumanPrincipal && purgeConfirmId === itemBusyKey("threads", thread.id)}
-              <div
-                class="rounded-md border border-red-500/35 bg-red-500/5 p-2.5 text-[12px]"
-                role="region"
-                aria-label="Confirm purge"
-              >
-                <p class="font-medium text-red-300">
-                  {purgeConfirmLabel("threads")}
-                </p>
-                <div class="mt-2 flex flex-wrap justify-end gap-1.5">
-                  <button
-                    class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
-                    onclick={cancelPurge}
-                    type="button"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    class="cursor-pointer rounded-md bg-red-600 px-2.5 py-1.5 text-[12px] font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={busyItemId === itemBusyKey("threads", thread.id)}
-                    onclick={() => confirmPurgeEntity("threads", thread.id)}
-                    type="button"
-                  >
-                    Confirm purge
-                  </button>
-                </div>
-              </div>
-            {/if}
           </div>
         </div>
       </div>
@@ -760,14 +775,14 @@
                 {actorName(board.created_by)}
               </div>
               <div>
-                <span class="text-[var(--ui-text-subtle)]">Tombstoned</span>
-                {formatTimestamp(board.tombstoned_at) || "—"}
+                <span class="text-[var(--ui-text-subtle)]">Trashed</span>
+                {formatTimestamp(board.trashed_at) || "—"}
                 <span class="text-[var(--ui-text-subtle)]"> · </span>
-                {actorName(board.tombstoned_by)}
+                {actorName(board.trashed_by)}
               </div>
               <div class="sm:col-span-2 xl:col-span-1">
                 <span class="text-[var(--ui-text-subtle)]">Reason</span>
-                {tombstoneReason(board)}
+                {trashReason(board)}
               </div>
             </div>
           </div>
@@ -791,7 +806,7 @@
                     }}
                     type="button"
                   >
-                    Purge
+                    Permanently delete
                   </button>
                 {/if}
               {/if}
@@ -800,7 +815,7 @@
               <div
                 class="rounded-md border border-red-500/35 bg-red-500/5 p-2.5 text-[12px]"
                 role="region"
-                aria-label="Confirm purge"
+                aria-label="Confirm permanent delete"
               >
                 <p class="font-medium text-red-300">
                   {purgeConfirmLabel("boards")}
@@ -819,12 +834,166 @@
                     onclick={() => confirmPurgeEntity("boards", board.id)}
                     type="button"
                   >
-                    Confirm purge
+                    Confirm permanent delete
                   </button>
                 </div>
               </div>
             {/if}
           </div>
+        </div>
+      </div>
+    {/each}
+  </div>
+{/if}
+
+{#if !loading && activeTab === "cards" && cards.length > 0}
+  <div
+    class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
+  >
+    {#each cards as card, i}
+      <div
+        class="px-4 py-3 {i > 0 ? 'border-t border-[var(--ui-border)]' : ''}"
+      >
+        <div
+          class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"
+        >
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-[13px] font-medium text-[var(--ui-text)]">
+                {String(card?.title ?? "").trim() || card.id}
+              </span>
+              {#if card.risk}
+                <span
+                  class="rounded bg-[var(--ui-panel)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ui-text-muted)]"
+                  >{String(card.risk).trim()}</span
+                >
+              {/if}
+              {#if card.resolution}
+                <span
+                  class="rounded bg-[var(--ui-panel)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ui-text-muted)]"
+                  >{String(card.resolution).trim()}</span
+                >
+              {/if}
+            </div>
+            {#if card.summary}
+              <p class="mt-1 text-[12px] text-[var(--ui-text-muted)]">
+                {card.summary}
+              </p>
+            {/if}
+            <div
+              class="mt-2 grid gap-x-4 gap-y-1 text-[11px] text-[var(--ui-text-muted)] sm:grid-cols-2 xl:grid-cols-3"
+            >
+              <div>
+                <span class="text-[var(--ui-text-subtle)]">Created</span>
+                {formatTimestamp(card.created_at) || "—"}
+                <span class="text-[var(--ui-text-subtle)]"> · </span>
+                {actorName(card.created_by)}
+              </div>
+              <div>
+                <span class="text-[var(--ui-text-subtle)]">Archived</span>
+                {formatTimestamp(card.archived_at) || "—"}
+                <span class="text-[var(--ui-text-subtle)]"> · </span>
+                {actorName(card.archived_by)}
+              </div>
+              <div class="sm:col-span-2 xl:col-span-1">
+                <span class="text-[var(--ui-text-subtle)]">Trashed</span>
+                {formatTimestamp(card.trashed_at) || "—"}
+                <span class="text-[var(--ui-text-subtle)]"> · </span>
+                {actorName(card.trashed_by)}
+              </div>
+              <div class="sm:col-span-2 xl:col-span-1">
+                <span class="text-[var(--ui-text-subtle)]">Reason</span>
+                {trashReason(card)}
+              </div>
+            </div>
+            <div class="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+              {#if card.board_ref}
+                <span
+                  class="rounded bg-[var(--ui-panel)] px-1.5 py-0.5 font-medium text-[var(--ui-text-muted)]"
+                >
+                  Board: {card.board_ref}
+                </span>
+              {/if}
+              {#if card.topic_ref}
+                <span
+                  class="rounded bg-[var(--ui-panel)] px-1.5 py-0.5 font-medium text-[var(--ui-text-muted)]"
+                >
+                  Topic: {card.topic_ref}
+                </span>
+              {/if}
+              {#if card.document_ref}
+                <span
+                  class="rounded bg-[var(--ui-panel)] px-1.5 py-0.5 font-medium text-[var(--ui-text-muted)]"
+                >
+                  Doc: {card.document_ref}
+                </span>
+              {/if}
+              {#if Array.isArray(card.related_refs)}
+                {#each card.related_refs as refValue}
+                  <RefLink {refValue} threadId={card.thread_id} />
+                {/each}
+              {/if}
+            </div>
+          </div>
+          {#if $devActorMode}
+            <div
+              class="flex shrink-0 flex-col items-stretch gap-2 lg:items-end"
+            >
+              <div class="flex flex-wrap justify-end gap-1.5">
+                <button
+                  class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={busyItemId === itemBusyKey("cards", card.id)}
+                  onclick={() => restoreEntity("cards", card.id)}
+                  type="button"
+                >
+                  Restore
+                </button>
+                {#if isHumanPrincipal}
+                  {#if purgeConfirmId !== itemBusyKey("cards", card.id)}
+                    <button
+                      class="cursor-pointer rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[12px] font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={Boolean(busyItemId)}
+                      onclick={() => {
+                        purgeConfirmId = itemBusyKey("cards", card.id);
+                      }}
+                      type="button"
+                    >
+                      Permanently delete
+                    </button>
+                  {/if}
+                {/if}
+              </div>
+
+              {#if isHumanPrincipal && purgeConfirmId === itemBusyKey("cards", card.id)}
+                <div
+                  class="rounded-md border border-red-500/35 bg-red-500/5 p-2.5 text-[12px]"
+                  role="region"
+                  aria-label="Confirm permanent delete"
+                >
+                  <p class="font-medium text-red-300">
+                    {purgeConfirmLabel("cards")}
+                  </p>
+                  <div class="mt-2 flex flex-wrap justify-end gap-1.5">
+                    <button
+                      class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text-muted)] hover:bg-[var(--ui-border-subtle)]"
+                      onclick={cancelPurge}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      class="cursor-pointer rounded-md bg-red-600 px-2.5 py-1.5 text-[12px] font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={busyItemId === itemBusyKey("cards", card.id)}
+                      onclick={() => confirmPurgeEntity("cards", card.id)}
+                      type="button"
+                    >
+                      Confirm permanent delete
+                    </button>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
         </div>
       </div>
     {/each}
@@ -837,7 +1006,7 @@
   message="Permanently delete all {activeItems.length} {entitySingular(
     activeTab,
   )}{activeItems.length === 1 ? '' : 's'} in this tab. This cannot be undone."
-  confirmLabel="Purge all"
+  confirmLabel="Permanently delete all"
   variant="danger"
   busy={purgeAllBusy}
   typedConfirmation="Empty trash"

@@ -7,6 +7,10 @@ const authSessionState = {
 
 const envState = vi.hoisted(() => ({}));
 
+const coreRouteCatalogMocks = vi.hoisted(() => ({
+  isProxyableCommand: vi.fn(() => true),
+}));
+
 const authSessionMocks = vi.hoisted(() => ({
   clearWorkspaceAuthSession: vi.fn(),
   getWorkspaceAuthSession: vi.fn(() => authSessionState.currentSession),
@@ -31,7 +35,7 @@ vi.mock("$env/dynamic/private", () => ({
 }));
 
 vi.mock("$lib/coreRouteCatalog", () => ({
-  isProxyableCommand: vi.fn(() => true),
+  isProxyableCommand: coreRouteCatalogMocks.isProxyableCommand,
 }));
 
 vi.mock("$lib/compat/workspaceCompat", () => ({
@@ -83,6 +87,7 @@ describe("hooks proxy retry", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authSessionState.currentSession = { accessToken: "expired-token" };
+    coreRouteCatalogMocks.isProxyableCommand.mockReturnValue(true);
     authSessionMocks.isRetryableWorkspaceRefreshFailure.mockImplementation(
       (error, options) =>
         error?.status === 401 &&
@@ -319,6 +324,38 @@ describe("hooks proxy retry", () => {
     expect(authSessionMocks.clearWorkspaceAuthSession).toHaveBeenCalledWith(
       expect.anything(),
       "ops",
+    );
+  });
+
+  it("proxies auth routes even when they are absent from the command catalog", async () => {
+    coreRouteCatalogMocks.isProxyableCommand.mockReturnValue(false);
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ invites: [] }), {
+        status: 200,
+        headers: {
+          "content-type": "application/json",
+        },
+      }),
+    );
+    globalThis.fetch = fetchMock;
+
+    const response = await handle({
+      event: {
+        url: new URL("https://oar.example.test/auth/invites"),
+        request: new Request("https://oar.example.test/auth/invites", {
+          method: "GET",
+          headers: {
+            accept: "application/json",
+          },
+        }),
+      },
+      resolve: vi.fn(),
+    });
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://core.example.test/auth/invites",
+      expect.anything(),
     );
   });
 

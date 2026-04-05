@@ -1,7 +1,7 @@
 import { json } from "@sveltejs/kit";
 
-import { createMockThread, listMockThreads } from "$lib/mockCoreData";
-import { assertMockModeEnabled, readMockJsonBody } from "$lib/server/mockGuard";
+import { listMockThreads } from "$lib/mockCoreData";
+import { assertMockModeEnabled } from "$lib/server/mockGuard";
 
 export function GET({ url }) {
   const guardResponse = assertMockModeEnabled(url.pathname);
@@ -21,37 +21,4 @@ export function GET({ url }) {
   return json({
     threads: listMockThreads(filters),
   });
-}
-
-export async function POST({ request, url }) {
-  const guardResponse = assertMockModeEnabled(url.pathname);
-  if (guardResponse) {
-    return guardResponse;
-  }
-
-  const parsed = await readMockJsonBody(request);
-  if (!parsed.ok) {
-    return parsed.response;
-  }
-  const body = parsed.body;
-
-  if (!body?.actor_id || !body?.thread?.title) {
-    return json(
-      { error: "actor_id and thread.title are required." },
-      { status: 400 },
-    );
-  }
-
-  if (body.thread?.open_commitments !== undefined) {
-    return json(
-      {
-        error:
-          "open_commitments cannot be set on thread create; manage commitments via commitments API.",
-      },
-      { status: 400 },
-    );
-  }
-
-  const created = createMockThread(body);
-  return json({ thread: created }, { status: 201 });
 }

@@ -30,8 +30,8 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
     },
     {
       id: "inbox-003",
-      category: "commitment_risk",
-      title: "Commitment at risk",
+      category: "work_item_risk",
+      title: "Work item risk",
       recommended_action: "Adjust due date.",
       thread_id: "thread-incident-42",
       refs: ["thread:thread-incident-42"],
@@ -102,7 +102,7 @@ test("inbox triage shows urgency summary and dismissing removes an item", async 
   const targetCard = page.getByTestId("inbox-card-inbox-001");
   await expect(targetCard).toBeVisible();
 
-  await targetCard.getByRole("button", { name: "Dismiss" }).click();
+  await targetCard.getByRole("button", { name: "Acknowledge" }).click();
   await expect(targetCard).toHaveCount(0);
 });
 
@@ -130,8 +130,8 @@ test("inbox urgency filters reduce visible cards", async ({ page }) => {
     },
     {
       id: "inbox-003",
-      category: "commitment_risk",
-      title: "Commitment at risk",
+      category: "work_item_risk",
+      title: "Work item risk",
       recommended_action: "Adjust due date.",
       thread_id: "thread-incident-42",
       refs: ["thread:thread-incident-42"],
@@ -283,7 +283,7 @@ test("recording a decision marks only the selected inbox item", async ({
   await expect(page.getByText(/Decision recorded/)).toHaveCount(0);
 });
 
-test("inbox thread context shows commitment owners by actor name", async ({
+test("inbox thread context shows subject link for decisions", async ({
   page,
 }) => {
   const actorId = "agent-ops-ai";
@@ -408,27 +408,6 @@ test("inbox thread context shows commitment owners by actor name", async ({
     });
   });
 
-  await page.route(
-    new RegExp(`/commitments\\?thread_id=${threadId}&status=active$`),
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          commitments: [
-            {
-              id: "commitment-001",
-              description: "Confirm legal signoff",
-              status: "active",
-              owner: ownerActorId,
-              due_by: "2026-03-06T12:00:00.000Z",
-            },
-          ],
-        }),
-      });
-    },
-  );
-
   await page.goto("/inbox");
   await expect.poll(() => inboxRequestCount).toBeGreaterThan(0);
   await expect.poll(() => principalRequestCount).toBe(2);
@@ -436,10 +415,6 @@ test("inbox thread context shows commitment owners by actor name", async ({
   const card = page.getByTestId("inbox-card-inbox-001");
   await card.getByRole("button", { name: "Decide" }).click();
 
-  await expect(
-    card.getByText("hermes-operator", { exact: false }),
-  ).toBeVisible();
-  await expect(
-    card.getByText(`Owner: ${ownerActorId}`, { exact: false }),
-  ).toHaveCount(0);
+  await expect(page.getByTestId("decision-panel-inbox-001")).toBeVisible();
+  await expect(page.getByRole("link", { name: /View subject/ })).toBeVisible();
 });
