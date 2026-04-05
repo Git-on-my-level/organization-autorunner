@@ -717,7 +717,8 @@ export const commandRegistry: CommandSpec[] = [
       "cards.move",
       "cards.patch",
       "cards.purge",
-      "cards.restore"
+      "cards.restore",
+      "cards.timeline"
     ],
     "go_method": "CardsArchive",
     "ts_method": "cardsArchive"
@@ -755,7 +756,8 @@ export const commandRegistry: CommandSpec[] = [
       "cards.move",
       "cards.patch",
       "cards.purge",
-      "cards.restore"
+      "cards.restore",
+      "cards.timeline"
     ],
     "go_method": "CardsGet",
     "ts_method": "cardsGet"
@@ -789,7 +791,8 @@ export const commandRegistry: CommandSpec[] = [
       "cards.move",
       "cards.patch",
       "cards.purge",
-      "cards.restore"
+      "cards.restore",
+      "cards.timeline"
     ],
     "go_method": "CardsList",
     "ts_method": "cardsList"
@@ -873,7 +876,8 @@ export const commandRegistry: CommandSpec[] = [
       "cards.list",
       "cards.patch",
       "cards.purge",
-      "cards.restore"
+      "cards.restore",
+      "cards.timeline"
     ],
     "go_method": "CardsMove",
     "ts_method": "cardsMove"
@@ -1005,7 +1009,8 @@ export const commandRegistry: CommandSpec[] = [
       "cards.list",
       "cards.move",
       "cards.purge",
-      "cards.restore"
+      "cards.restore",
+      "cards.timeline"
     ],
     "go_method": "CardsPatch",
     "ts_method": "cardsPatch"
@@ -1054,7 +1059,8 @@ export const commandRegistry: CommandSpec[] = [
       "cards.list",
       "cards.move",
       "cards.patch",
-      "cards.restore"
+      "cards.restore",
+      "cards.timeline"
     ],
     "go_method": "CardsPurge",
     "ts_method": "cardsPurge"
@@ -1107,10 +1113,51 @@ export const commandRegistry: CommandSpec[] = [
       "cards.list",
       "cards.move",
       "cards.patch",
-      "cards.purge"
+      "cards.purge",
+      "cards.timeline"
     ],
     "go_method": "CardsRestore",
     "ts_method": "cardsRestore"
+  },
+  {
+    "command_id": "cards.timeline",
+    "cli_path": "cards timeline",
+    "group": "cards",
+    "method": "GET",
+    "path": "/cards/{card_id}/timeline",
+    "operation_id": "getCardTimeline",
+    "summary": "Get card timeline",
+    "why": "Load chronological evidence and related resources for one card.",
+    "input_mode": "none",
+    "streaming": {
+      "mode": "none"
+    },
+    "output_envelope": "Returns `{ card, events, artifacts, cards, documents, threads }`.",
+    "error_codes": [
+      "auth_required",
+      "invalid_token",
+      "not_found"
+    ],
+    "concepts": [
+      "cards",
+      "timeline"
+    ],
+    "stability": "beta",
+    "surface": "projection",
+    "path_params": [
+      "card_id"
+    ],
+    "adjacent_commands": [
+      "cards.archive",
+      "cards.get",
+      "cards.list",
+      "cards.move",
+      "cards.patch",
+      "cards.purge",
+      "cards.restore"
+    ],
+    "go_method": "CardsTimeline",
+    "ts_method": "cardsTimeline"
   },
   {
     "command_id": "docs.create",
@@ -1487,8 +1534,7 @@ export const commandRegistry: CommandSpec[] = [
             "topic_restored",
             "topic_status_changed",
             "topic_tombstoned",
-            "topic_updated",
-            "work_order_created"
+            "topic_updated"
           ],
           "enum_policy": "open"
         }
@@ -1764,21 +1810,16 @@ export const commandRegistry: CommandSpec[] = [
         },
         {
           "name": "packet.subject_ref",
-          "type": "string"
+          "type": "typed_ref"
         },
         {
           "name": "packet.verification_evidence",
           "type": "list\u003cany\u003e"
-        },
-        {
-          "name": "packet.work_order_ref",
-          "type": "string"
         }
       ]
     },
     "adjacent_commands": [
-      "packets.reviews.create",
-      "packets.work-orders.create"
+      "packets.reviews.create"
     ],
     "go_method": "PacketsReceiptsCreate",
     "ts_method": "packetsReceiptsCreate"
@@ -1791,7 +1832,7 @@ export const commandRegistry: CommandSpec[] = [
     "path": "/packets/reviews",
     "operation_id": "createReviewPacket",
     "summary": "Create review packet",
-    "why": "Record a structured review over a work order and receipt using subject refs.",
+    "why": "Record a structured review over a receipt anchored to the same card as subject_ref.",
     "input_mode": "json-body",
     "streaming": {
       "mode": "none"
@@ -1838,84 +1879,15 @@ export const commandRegistry: CommandSpec[] = [
         },
         {
           "name": "packet.subject_ref",
-          "type": "string"
-        },
-        {
-          "name": "packet.work_order_ref",
-          "type": "string"
+          "type": "typed_ref"
         }
       ]
     },
     "adjacent_commands": [
-      "packets.receipts.create",
-      "packets.work-orders.create"
+      "packets.receipts.create"
     ],
     "go_method": "PacketsReviewsCreate",
     "ts_method": "packetsReviewsCreate"
-  },
-  {
-    "command_id": "packets.work-orders.create",
-    "cli_path": "packets work-orders create",
-    "group": "packets",
-    "method": "POST",
-    "path": "/packets/work-orders",
-    "operation_id": "createWorkOrderPacket",
-    "summary": "Create work-order packet",
-    "why": "Record a structured work-order artifact anchored by `subject_ref`.",
-    "input_mode": "json-body",
-    "streaming": {
-      "mode": "none"
-    },
-    "output_envelope": "Returns `{ artifact, packet_kind, packet }`.",
-    "error_codes": [
-      "auth_required",
-      "invalid_request",
-      "invalid_token"
-    ],
-    "concepts": [
-      "packets",
-      "evidence"
-    ],
-    "stability": "beta",
-    "surface": "canonical",
-    "body_schema": {
-      "required": [
-        {
-          "name": "packet.acceptance_criteria",
-          "type": "list\u003cstring\u003e"
-        },
-        {
-          "name": "packet.constraints",
-          "type": "list\u003cstring\u003e"
-        },
-        {
-          "name": "packet.context_refs",
-          "type": "list\u003cany\u003e"
-        },
-        {
-          "name": "packet.definition_of_done",
-          "type": "list\u003cstring\u003e"
-        },
-        {
-          "name": "packet.objective",
-          "type": "string"
-        },
-        {
-          "name": "packet.subject_ref",
-          "type": "string"
-        },
-        {
-          "name": "packet.work_order_id",
-          "type": "string"
-        }
-      ]
-    },
-    "adjacent_commands": [
-      "packets.receipts.create",
-      "packets.reviews.create"
-    ],
-    "go_method": "PacketsWorkOrdersCreate",
-    "ts_method": "packetsWorkOrdersCreate"
   },
   {
     "command_id": "threads.context",
@@ -2620,6 +2592,10 @@ export class OarClient {
     return this.invoke("cards.restore", pathParams, options);
   }
 
+  cardsTimeline(pathParams: Record<string, string>, options: RequestOptions = {}): Promise<InvokeResult> {
+    return this.invoke("cards.timeline", pathParams, options);
+  }
+
   docsCreate(options: RequestOptions = {}): Promise<InvokeResult> {
     return this.invoke("docs.create", {}, options);
   }
@@ -2678,10 +2654,6 @@ export class OarClient {
 
   packetsReviewsCreate(options: RequestOptions = {}): Promise<InvokeResult> {
     return this.invoke("packets.reviews.create", {}, options);
-  }
-
-  packetsWorkOrdersCreate(options: RequestOptions = {}): Promise<InvokeResult> {
-    return this.invoke("packets.work-orders.create", {}, options);
   }
 
   threadsContext(pathParams: Record<string, string>, options: RequestOptions = {}): Promise<InvokeResult> {

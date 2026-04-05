@@ -224,6 +224,10 @@ Projection endpoints return a `section_kinds` field to distinguish canonical vs 
   - Conflict response shape: `{ "error": { "code": "conflict", "message": "...", "recoverable": true, "hint": "..." } }`
   - Response: `{ "card": <card> }`
 
+- `GET /cards/{card_id}/timeline`
+  - Response: `{ "card": <card>, "events": [<event>...], "artifacts": [<artifact>...], "cards": [<card>...], "documents": [<document>...], "threads": [<thread>...] }` per `CardTimelineResponse` in OpenAPI.
+  - Resolves the card’s backing `thread_id` and returns the same event stream and ref-expanded resources as the backing thread timeline, scoped with the card record and related card/thread rows referenced on those events.
+
 - `POST /cards/{card_id}/archive`
   - Response: `{ "card": <card> }`
 
@@ -343,27 +347,19 @@ Backing threads hold append-only timelines and anchor many packet subjects. They
 
 ### Packet convenience endpoints
 
-- `POST /work_orders`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": { "work_order_id"?, "subject_ref": "typed:ref", ... } }`
-  - `artifact.id` and `packet.work_order_id` MAY be omitted together; core issues the canonical artifact id and returns it in both artifact metadata and packet content.
-  - `packet.subject_ref` is required. Legacy `packet.thread_id` payloads are rejected.
-  - Core resolves `packet.subject_ref` to the correct backing thread internally before emitting `work_order_created`.
-  - Core normalizes packet artifact refs to include the packet artifact self-ref plus `packet.subject_ref`.
-  - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
-
 - `POST /receipts`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": { "receipt_id"?, "subject_ref": "typed:ref", "work_order_ref"?, "work_order_id"?, ... } }`
+  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": { "receipt_id"?, "subject_ref": "card:<card_id>", ... } }`
   - `artifact.id` and `packet.receipt_id` MAY be omitted together; core issues the canonical artifact id and returns it in both artifact metadata and packet content.
-  - `packet.subject_ref` is required. Legacy `packet.thread_id` payloads are rejected.
+  - `packet.subject_ref` is required and MUST be `card:<card_id>`. Legacy `packet.thread_id` payloads are rejected.
   - Core resolves `packet.subject_ref` to the correct backing thread internally before emitting `receipt_added`.
-  - Core normalizes packet artifact refs to include the packet artifact self-ref, `packet.subject_ref`, and the linked work-order artifact ref.
+  - Core normalizes packet artifact refs to include the packet artifact self-ref and `packet.subject_ref`.
   - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
 
 - `POST /reviews`
-  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": { "review_id"?, "subject_ref": "typed:ref", "work_order_ref"?, "work_order_id"?, "receipt_ref"?, "receipt_id"?, ... } }`
-  - `packet.subject_ref` is required. Legacy `packet.thread_id` payloads are rejected.
+  - Body: `{ "actor_id": "...", "request_key"?: "...", "artifact": <artifact_metadata>, "packet": { "review_id"?, "subject_ref": "card:<card_id>", "receipt_ref"?, "receipt_id"?, ... } }`
+  - `packet.subject_ref` is required and MUST be `card:<card_id>`. Legacy `packet.thread_id` payloads are rejected.
   - Core resolves `packet.subject_ref` to the correct backing thread internally before emitting `review_completed`.
-  - Core normalizes packet artifact refs to include the packet artifact self-ref, `packet.subject_ref`, and the linked receipt/work-order artifact refs.
+  - Core normalizes packet artifact refs to include the packet artifact self-ref, `packet.subject_ref`, and the linked receipt artifact ref.
   - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
 
 - Atomicity guarantee:
@@ -441,6 +437,6 @@ Backing threads hold append-only timelines and anchor many packet subjects. They
   - Standard GET responses never repair or recompute projections inline; they return the best currently materialized data plus freshness metadata.
 
 - Meaningful topic activity for stale-topic clearing:
-  - The current activity set is explicit: `actor_statement`, `topic_created`, `topic_updated`, `topic_status_changed`, `card_created`, `card_updated`, `card_moved`, `card_resolved`, `decision_needed`, `intervention_needed`, `decision_made`, `work_order_created`, `receipt_added`, `review_completed`, `document_created`, `document_revised`, `document_tombstoned`, `board_created`, `board_updated`, plus any non-create topic/card edits that materially change user-authored state.
+  - The current activity set is explicit: `actor_statement`, `topic_created`, `topic_updated`, `topic_status_changed`, `card_created`, `card_updated`, `card_moved`, `card_resolved`, `decision_needed`, `intervention_needed`, `decision_made`, `receipt_added`, `review_completed`, `document_created`, `document_revised`, `document_tombstoned`, `board_created`, `board_updated`, plus any non-create topic/card edits that materially change user-authored state.
   - Coordination noise does not count as activity: inbox acknowledgments, exception notifications, topic-creation bookkeeping, and derived board/card membership maintenance.
 - Topic, board, and card backing-thread linkage is exposed through `thread_id` on the canonical resource shape; keeping those backing links synchronized no longer emits a user-visible timeline event or bumps the topic’s visible update clock.

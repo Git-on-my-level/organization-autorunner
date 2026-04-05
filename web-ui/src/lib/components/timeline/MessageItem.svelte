@@ -1,5 +1,5 @@
 <script>
-  import Self from "$lib/components/thread-detail/ThreadMessageItem.svelte";
+  import Self from "$lib/components/timeline/MessageItem.svelte";
   import MarkdownRenderer from "$lib/components/MarkdownRenderer.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import { formatTimestamp } from "$lib/formatDate";

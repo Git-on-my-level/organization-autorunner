@@ -42,10 +42,8 @@ describe("mockCoreData parity behaviors", () => {
         seed.packets.every((packet) => packet?.artifact && packet?.packet),
       ).toBe(true);
       expect(seed.packets.map((packet) => packet.kind)).toEqual([
-        "work_order",
         "receipt",
         "review",
-        "work_order",
         "receipt",
         "review",
         "receipt",
@@ -154,7 +152,7 @@ describe("mockCoreData parity behaviors", () => {
           board_id: "board-product-launch",
           thread_id: "thread-summer-menu",
           column_key: "ready",
-          pinned_document_id: "onboarding-guide-v1",
+          document_ref: "document:onboarding-guide-v1",
         },
       });
     });
@@ -230,7 +228,7 @@ describe("mockCoreData parity behaviors", () => {
         if_board_updated_at: mod.getMockBoard("board-product-launch")
           ?.updated_at,
         thread_id: "thread-pricing-glitch",
-        pinned_document_id: "doc-does-not-exist",
+        document_ref: "document:doc-does-not-exist",
       });
 
       expect(result).toMatchObject({
@@ -456,9 +454,11 @@ describe("mockCoreData parity behaviors", () => {
       expect(result.error).toBeUndefined();
       expect(result.card).toMatchObject({
         title: "Beta",
+        summary: "Beta",
         body: "next",
         status: "in_progress",
         assignee: "actor-test",
+        assignee_refs: ["actor:actor-test"],
         version: 2,
       });
     });
@@ -500,14 +500,15 @@ describe("mockCoreData parity behaviors", () => {
         patch: {
           title: "Task A renamed",
           status: "done",
-          pinned_document_id: "doc-global-card-pin",
+          document_ref: "document:doc-global-card-pin",
         },
       });
       expect(result.error).toBeUndefined();
       expect(result.card).toMatchObject({
         title: "Task A renamed",
+        summary: "Task A renamed",
         status: "done",
-        pinned_document_id: "doc-global-card-pin",
+        document_ref: "document:doc-global-card-pin",
         version: 2,
       });
     });

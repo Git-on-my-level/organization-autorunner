@@ -18,10 +18,6 @@ var commandShapeCompatibilityAliases = []commandShapeCompatibilityAlias{
 		to:   []string{"reviews", "create"},
 	},
 	{
-		from: []string{"packets", "work-orders", "create"},
-		to:   []string{"work-orders", "create"},
-	},
-	{
 		from:                []string{"artifacts", "content", "get"},
 		to:                  []string{"artifacts", "content"},
 		requireTrailingArgs: true,

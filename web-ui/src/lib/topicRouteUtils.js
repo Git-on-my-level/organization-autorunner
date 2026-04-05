@@ -1,5 +1,24 @@
 import { splitTypedRef } from "$lib/inboxUtils";
 
+/**
+ * Canonical backing-thread id for board card rows / create payloads.
+ * Prefers `thread_id`, then legacy `parent_thread` (string or { thread_id | id }).
+ */
+export function resolveBoardCardThreadIdField(row) {
+  const r = row && typeof row === "object" ? row : {};
+  const direct = String(r.thread_id ?? "").trim();
+  if (direct) return direct;
+  const pt = r.parent_thread;
+  if (typeof pt === "string") {
+    const s = String(pt).trim();
+    if (s) return s;
+  } else if (pt && typeof pt === "object") {
+    const id = String(pt.thread_id ?? pt.id ?? "").trim();
+    if (id) return id;
+  }
+  return "";
+}
+
 function encodeRouteSegment(value) {
   return encodeURIComponent(String(value ?? "").trim());
 }
@@ -63,6 +82,34 @@ export function topicRouteSegmentFromBackingThread(thread) {
  * Prefers canonical `topic_ref` / `topic:` related refs, then backing thread's topic ref,
  * then linked backing thread ids (API/thread fields).
  */
+/**
+ * Canonical `topic:<id>` ref for a board: prefer ordered `board.refs`, fall back to `primary_topic_ref`.
+ */
+export function boardPrimaryTopicRef(board) {
+  const b = board && typeof board === "object" ? board : {};
+  const refs = Array.isArray(b.refs) ? b.refs : [];
+  for (const raw of refs) {
+    const p = splitTypedRef(String(raw ?? "").trim());
+    if (p.prefix === "topic" && p.id) {
+      return `topic:${p.id}`;
+    }
+  }
+  return String(b.primary_topic_ref ?? "").trim();
+}
+
+/** Whether the board is associated with the given topic id (refs scan, then legacy primary ref). */
+export function boardOwnsTopicId(board, topicId) {
+  const tid = String(topicId ?? "").trim();
+  if (!tid) return false;
+  const refs = Array.isArray(board?.refs) ? board.refs : [];
+  for (const raw of refs) {
+    const p = splitTypedRef(String(raw ?? "").trim());
+    if (p.prefix === "topic" && p.id === tid) return true;
+  }
+  const legacy = splitTypedRef(String(board?.primary_topic_ref ?? "").trim());
+  return legacy.prefix === "topic" && legacy.id === tid;
+}
+
 export function topicRouteSegmentFromBoardCardRow(membership, backingThread) {
   const m = membership && typeof membership === "object" ? membership : {};
   const fromMembership = splitTypedRef(String(m.topic_ref ?? "").trim());
@@ -79,7 +126,7 @@ export function topicRouteSegmentFromBoardCardRow(membership, backingThread) {
   const fromBacking = topicRouteSegmentFromBackingThread(backingThread);
   if (fromBacking) return fromBacking;
 
-  return String(m.thread_id ?? m.parent_thread ?? "").trim();
+  return resolveBoardCardThreadIdField(m);
 }
 
 /**
@@ -91,8 +138,9 @@ export function topicRouteSegmentFromBoardWorkspace(workspace) {
   if (primary) return primary;
 
   const board = ws.board && typeof ws.board === "object" ? ws.board : {};
-  const fromRef = splitTypedRef(String(board.primary_topic_ref ?? "").trim());
-  if (fromRef.prefix === "topic" && fromRef.id) return fromRef.id;
+  const fromBoardRef = splitTypedRef(boardPrimaryTopicRef(board));
+  if (fromBoardRef.prefix === "topic" && fromBoardRef.id)
+    return fromBoardRef.id;
 
   const bt = ws.backing_thread;
   const fromThread = topicRouteSegmentFromBackingThread(bt);

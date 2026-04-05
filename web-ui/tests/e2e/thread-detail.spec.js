@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { threadWorkspaceToTopicWorkspace } from "../../src/lib/topicWorkspaceAdapter.js";
+import { buildMockTopicWorkspaceFromThreadWorkspace } from "../../src/lib/mockCoreData.js";
 
 test("thread detail separates messages from timeline and nests replies", async ({
   page,
@@ -273,7 +273,7 @@ test("thread detail separates messages from timeline and nests replies", async (
               board_id: "board-q2-launch",
               thread_id: "thread-onboarding",
               column_key: "backlog",
-              pinned_document_id: "doc-onboarding-runbook",
+              document_ref: "document:doc-onboarding-runbook",
             },
           },
         ],
@@ -289,7 +289,10 @@ test("thread detail separates messages from timeline and nests replies", async (
       const requestUrl = new URL(route.request().url());
       const isTopic = requestUrl.pathname.includes("/topics/");
       const payload = isTopic
-        ? threadWorkspaceToTopicWorkspace(threadWs, "thread-onboarding")
+        ? buildMockTopicWorkspaceFromThreadWorkspace(
+            threadWs,
+            "thread-onboarding",
+          )
         : threadWs;
       await route.fulfill({
         status: 200,
@@ -445,6 +448,8 @@ test("thread detail separates messages from timeline and nests replies", async (
   await page.getByRole("button", { name: "Post message" }).click();
 
   await expect.poll(() => postedEvents).toBe(1);
+  expect(recentEvents[0]?.thread_ref).toBe("thread:thread-onboarding");
+  expect(recentEvents[0]?.thread_id).toBe("thread-onboarding");
   await expect(
     page.getByText("Earlier timeline-only message", { exact: true }),
   ).toBeVisible();
@@ -594,6 +599,7 @@ test("thread detail handles snapshot update conflict and retries after reload", 
     threadSnapshot = {
       ...threadSnapshot,
       title: payload.patch?.title ?? threadSnapshot.title,
+      current_summary: payload.patch?.summary ?? threadSnapshot.current_summary,
       updated_at: "2026-03-04T03:00:00.000Z",
       updated_by: payload.actor_id,
     };
@@ -618,7 +624,10 @@ test("thread detail handles snapshot update conflict and retries after reload", 
         },
       };
       const payload = route.request().url().includes("/topics/")
-        ? threadWorkspaceToTopicWorkspace(threadWs, "thread-onboarding")
+        ? buildMockTopicWorkspaceFromThreadWorkspace(
+            threadWs,
+            "thread-onboarding",
+          )
         : threadWs;
       await route.fulfill({
         status: 200,
@@ -674,11 +683,15 @@ test("thread detail handles snapshot update conflict and retries after reload", 
 
   await page.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Title", { exact: true }).fill("Final merged title");
+  await page.getByLabel("Summary", { exact: true }).fill("Final summary body");
   await page.getByRole("button", { name: "Save" }).click();
 
   await expect(page.getByText("Changes saved.", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Final merged title" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Final summary body", { exact: true }),
   ).toBeVisible();
 
   expect(patchRequests).toHaveLength(2);
@@ -694,6 +707,7 @@ test("thread detail handles snapshot update conflict and retries after reload", 
     actor_id: actorId,
     patch: {
       title: "Final merged title",
+      summary: "Final summary body",
       provenance: { sources: ["actor_statement:ui"] },
     },
     if_updated_at: "2026-03-04T02:00:00.000Z",
@@ -714,15 +728,6 @@ test("thread detail updates workspace panels from another actor via event stream
       refs: ["thread:thread-onboarding"],
       summary: "Initial activity",
       payload: { text: "Initial activity" },
-    },
-  ];
-  let workOrders = [
-    {
-      id: "artifact-work-order-1",
-      kind: "work_order",
-      thread_id: "thread-onboarding",
-      summary: "Initial work order",
-      refs: ["thread:thread-onboarding"],
     },
   ];
   let threadSnapshot = {
@@ -813,7 +818,10 @@ test("thread detail updates workspace panels from another actor via event stream
         },
       };
       const payload = route.request().url().includes("/topics/")
-        ? threadWorkspaceToTopicWorkspace(threadWs, "thread-onboarding")
+        ? buildMockTopicWorkspaceFromThreadWorkspace(
+            threadWs,
+            "thread-onboarding",
+          )
         : threadWs;
       await route.fulfill({
         status: 200,
@@ -835,16 +843,6 @@ test("thread detail updates workspace panels from another actor via event stream
   );
 
   await page.route(/\/artifacts(\?.*)?$/, async (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get("kind") === "work_order") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ artifacts: workOrders }),
-      });
-      return;
-    }
-
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -905,16 +903,6 @@ test("thread detail updates workspace panels from another actor via event stream
     },
     ...contextOpenCards,
   ];
-  workOrders = [
-    ...workOrders,
-    {
-      id: "artifact-work-order-2",
-      kind: "work_order",
-      thread_id: "thread-onboarding",
-      summary: "Remote follow-up work order",
-      refs: ["thread:thread-onboarding"],
-    },
-  ];
   timeline = [
     {
       id: "evt-live-remote",
@@ -939,8 +927,10 @@ test("thread detail updates workspace panels from another actor via event stream
 
   await page.getByRole("tab", { name: "Work" }).click();
   await expect(
-    page.getByRole("combobox", { name: "Work order" }),
-  ).toContainText("Remote follow-up work order");
+    page.getByText("Create receipts and reviews from card detail pages.", {
+      exact: true,
+    }),
+  ).toBeVisible();
 
   await page.getByRole("tab", { name: "Timeline" }).click();
   await expect(

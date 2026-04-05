@@ -19,7 +19,6 @@ CARD_B_TOPIC_ID="topic-smoke-card-b"
 PRIMARY_DOC_ID="doc-smoke-primary"
 CARD_DOC_ID="doc-smoke-card"
 BOARD_ID="board-smoke"
-WORK_ORDER_ID="artifact-smoke-work-order"
 RECEIPT_ID="artifact-smoke-receipt"
 REVIEW_ID="artifact-smoke-review"
 
@@ -285,43 +284,20 @@ JSON
 )" >/dev/null
 
 echo "creating packets"
-post_json "/packets/work-orders" "$(cat <<JSON
-{
-  "actor_id": "${ACTOR_ID}",
-  "artifact": {
-    "id": "${WORK_ORDER_ID}",
-    "refs": ["topic:${MAIN_TOPIC_ID}", "thread:${MAIN_TOPIC_THREAD_ID}"],
-    "summary": "Smoke work order",
-    "provenance": {"sources": ["actor_statement:smoke"]}
-  },
-  "packet": {
-    "work_order_id": "${WORK_ORDER_ID}",
-    "subject_ref": "topic:${MAIN_TOPIC_ID}",
-    "objective": "Exercise end-to-end smoke flow",
-    "constraints": ["headless only"],
-    "context_refs": ["document:${PRIMARY_DOC_ID}"],
-    "acceptance_criteria": ["workflow finishes"],
-    "definition_of_done": ["receipt and review created"]
-  }
-}
-JSON
-)" >/dev/null
-
 post_json "/packets/receipts" "$(cat <<JSON
 {
   "actor_id": "${ACTOR_ID}",
   "artifact": {
     "id": "${RECEIPT_ID}",
-    "refs": ["topic:${MAIN_TOPIC_ID}", "artifact:${WORK_ORDER_ID}"],
+    "refs": ["card:card-smoke-a"],
     "summary": "Smoke receipt",
     "provenance": {"sources": ["actor_statement:smoke"]}
   },
   "packet": {
     "receipt_id": "${RECEIPT_ID}",
-    "subject_ref": "topic:${MAIN_TOPIC_ID}",
-    "work_order_ref": "artifact:${WORK_ORDER_ID}",
-    "outputs": ["card:card-smoke-a"],
-    "verification_evidence": ["artifact:${WORK_ORDER_ID}"],
+    "subject_ref": "card:card-smoke-a",
+    "outputs": ["document:${PRIMARY_DOC_ID}"],
+    "verification_evidence": ["document:${PRIMARY_DOC_ID}"],
     "changes_summary": "Smoke flow completed",
     "known_gaps": []
   }
@@ -334,14 +310,13 @@ post_json "/packets/reviews" "$(cat <<JSON
   "actor_id": "${ACTOR_ID}",
   "artifact": {
     "id": "${REVIEW_ID}",
-    "refs": ["topic:${MAIN_TOPIC_ID}", "artifact:${RECEIPT_ID}", "artifact:${WORK_ORDER_ID}"],
+    "refs": ["card:card-smoke-a", "artifact:${RECEIPT_ID}"],
     "summary": "Smoke review",
     "provenance": {"sources": ["actor_statement:smoke"]}
   },
   "packet": {
     "review_id": "${REVIEW_ID}",
-    "subject_ref": "topic:${MAIN_TOPIC_ID}",
-    "work_order_ref": "artifact:${WORK_ORDER_ID}",
+    "subject_ref": "card:card-smoke-a",
     "receipt_ref": "artifact:${RECEIPT_ID}",
     "outcome": "accept",
     "notes": "Smoke review accepted",
@@ -365,7 +340,6 @@ fi
 echo "smoke summary:"
 echo "  main_topic_id: ${MAIN_TOPIC_ID}"
 echo "  board_id: ${BOARD_ID}"
-echo "  work_order_id: ${WORK_ORDER_ID}"
 echo "  receipt_id: ${RECEIPT_ID}"
 echo "  review_id: ${REVIEW_ID}"
 echo "  board_card_count: ${BOARD_CARD_COUNT:-0}"

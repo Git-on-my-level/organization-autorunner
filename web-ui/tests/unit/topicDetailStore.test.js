@@ -6,7 +6,6 @@ const coreClientMocks = vi.hoisted(() => ({
   getTopicWorkspace: vi.fn(),
   listThreadTimeline: vi.fn(),
   listTopicTimeline: vi.fn(),
-  listArtifacts: vi.fn(),
 }));
 
 vi.mock("../../src/lib/coreClient.js", () => ({
@@ -15,11 +14,10 @@ vi.mock("../../src/lib/coreClient.js", () => ({
     getTopicWorkspace: coreClientMocks.getTopicWorkspace,
     listThreadTimeline: coreClientMocks.listThreadTimeline,
     listTopicTimeline: coreClientMocks.listTopicTimeline,
-    listArtifacts: coreClientMocks.listArtifacts,
   },
 }));
 
-import { threadDetailStore } from "../../src/lib/threadDetailStore.js";
+import { topicDetailStore } from "../../src/lib/topicDetailStore.js";
 
 function deferred() {
   let resolve;
@@ -31,14 +29,14 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-describe("threadDetailStore", () => {
+describe("topicDetailStore", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    threadDetailStore.reset();
+    topicDetailStore.reset();
   });
 
   afterEach(() => {
-    threadDetailStore.reset();
+    topicDetailStore.reset();
   });
 
   it("keeps existing workspace content mounted during background refresh", async () => {
@@ -51,29 +49,29 @@ describe("threadDetailStore", () => {
       },
     });
 
-    await threadDetailStore.loadWorkspace("thread-1");
+    await topicDetailStore.loadWorkspace("thread-1");
 
-    expect(get(threadDetailStore).timeline).toEqual([
+    expect(get(topicDetailStore).timeline).toEqual([
       { id: "event-seed", type: "actor_statement" },
     ]);
-    expect(get(threadDetailStore).timelineThreadId).toBe("thread-1");
+    expect(get(topicDetailStore).timelineThreadId).toBe("thread-1");
 
     coreClientMocks.listThreadTimeline.mockResolvedValueOnce({
       events: [{ id: "event-full", type: "message_posted" }],
     });
-    await threadDetailStore.loadTimeline("thread-1");
+    await topicDetailStore.loadTimeline("thread-1");
 
     const pendingRefresh = deferred();
     coreClientMocks.getThreadWorkspace.mockReturnValueOnce(
       pendingRefresh.promise,
     );
 
-    const refreshPromise = threadDetailStore.refreshThreadDetail("thread-1", {
+    const refreshPromise = topicDetailStore.refreshTopicDetail("thread-1", {
       workspace: true,
     });
 
-    expect(get(threadDetailStore).snapshotLoading).toBe(false);
-    expect(get(threadDetailStore).snapshot).toMatchObject({
+    expect(get(topicDetailStore).topicLoading).toBe(false);
+    expect(get(topicDetailStore).topic).toMatchObject({
       id: "thread-1",
       title: "Initial workspace",
     });
@@ -89,13 +87,13 @@ describe("threadDetailStore", () => {
 
     await refreshPromise;
 
-    expect(get(threadDetailStore)).toMatchObject({
-      snapshot: { id: "thread-1", title: "Refreshed workspace" },
+    expect(get(topicDetailStore)).toMatchObject({
+      topic: { id: "thread-1", title: "Refreshed workspace" },
       timelineThreadId: "thread-1",
       timeline: [{ id: "event-full", type: "message_posted" }],
       documents: [{ id: "doc-1", title: "Doc 1" }],
-      snapshotLoading: false,
-      snapshotError: "",
+      topicLoading: false,
+      topicError: "",
       documentsError: "",
     });
   });
@@ -105,15 +103,15 @@ describe("threadDetailStore", () => {
       events: [{ id: "event-1", type: "message_posted" }],
     });
 
-    await threadDetailStore.loadTimeline("thread-1");
+    await topicDetailStore.loadTimeline("thread-1");
 
     coreClientMocks.listThreadTimeline.mockRejectedValueOnce(
       new Error("network down"),
     );
 
-    await threadDetailStore.loadTimeline("thread-1");
+    await topicDetailStore.loadTimeline("thread-1");
 
-    expect(get(threadDetailStore)).toMatchObject({
+    expect(get(topicDetailStore)).toMatchObject({
       timelineThreadId: "thread-1",
       timeline: [{ id: "event-1", type: "message_posted" }],
       timelineError: "Failed to load timeline: network down",
@@ -143,11 +141,11 @@ describe("threadDetailStore", () => {
         events: [{ id: "event-new", type: "message_posted" }],
       });
 
-    await threadDetailStore.loadWorkspace("thread-1");
-    await threadDetailStore.loadTimeline("thread-1");
+    await topicDetailStore.loadWorkspace("thread-1");
+    await topicDetailStore.loadTimeline("thread-1");
 
-    const workspaceRefresh = threadDetailStore.loadWorkspace("thread-1");
-    await threadDetailStore.loadTimeline("thread-1");
+    const workspaceRefresh = topicDetailStore.loadWorkspace("thread-1");
+    await topicDetailStore.loadTimeline("thread-1");
 
     pendingWorkspace.resolve({
       thread: { id: "thread-1", title: "Refreshed workspace" },
@@ -160,8 +158,8 @@ describe("threadDetailStore", () => {
 
     await workspaceRefresh;
 
-    expect(get(threadDetailStore)).toMatchObject({
-      snapshot: { id: "thread-1", title: "Refreshed workspace" },
+    expect(get(topicDetailStore)).toMatchObject({
+      topic: { id: "thread-1", title: "Refreshed workspace" },
       timelineThreadId: "thread-1",
       timeline: [{ id: "event-new", type: "message_posted" }],
       documents: [{ id: "doc-1", title: "Doc 1" }],
@@ -177,15 +175,15 @@ describe("threadDetailStore", () => {
         events: [{ id: "event-new", type: "message_posted" }],
       });
 
-    const firstLoad = threadDetailStore.loadTimeline("thread-1");
-    const secondLoad = threadDetailStore.loadTimeline("thread-1");
+    const firstLoad = topicDetailStore.loadTimeline("thread-1");
+    const secondLoad = topicDetailStore.loadTimeline("thread-1");
 
     await secondLoad;
 
     firstRequest.reject(new Error("old request failed"));
     await expect(firstLoad).resolves.toBeUndefined();
 
-    expect(get(threadDetailStore)).toMatchObject({
+    expect(get(topicDetailStore)).toMatchObject({
       timelineThreadId: "thread-1",
       timeline: [{ id: "event-new", type: "message_posted" }],
       timelineError: "",
@@ -216,12 +214,12 @@ describe("threadDetailStore", () => {
       events: [{ id: "event-a-full", type: "message_posted" }],
     });
 
-    await threadDetailStore.loadWorkspace("thread-1");
-    await threadDetailStore.loadTimeline("thread-1");
-    await threadDetailStore.loadWorkspace("thread-2");
+    await topicDetailStore.loadWorkspace("thread-1");
+    await topicDetailStore.loadTimeline("thread-1");
+    await topicDetailStore.loadWorkspace("thread-2");
 
-    expect(get(threadDetailStore)).toMatchObject({
-      snapshot: { id: "thread-2", title: "Thread 2" },
+    expect(get(topicDetailStore)).toMatchObject({
+      topic: { id: "thread-2", title: "Thread 2" },
       timelineThreadId: "thread-2",
       timeline: [{ id: "event-b", type: "message_posted" }],
     });
@@ -234,10 +232,10 @@ describe("threadDetailStore", () => {
       })
       .mockRejectedValueOnce(new Error("network down"));
 
-    await threadDetailStore.loadTimeline("thread-1");
-    await threadDetailStore.loadTimeline("thread-2");
+    await topicDetailStore.loadTimeline("thread-1");
+    await topicDetailStore.loadTimeline("thread-2");
 
-    expect(get(threadDetailStore)).toMatchObject({
+    expect(get(topicDetailStore)).toMatchObject({
       timelineThreadId: "",
       timeline: [],
       timelineError: "Failed to load timeline: network down",
@@ -245,7 +243,7 @@ describe("threadDetailStore", () => {
     });
   });
 
-  it("topic detail uses topic workspace, timeline, and backing thread for work orders", async () => {
+  it("topic detail uses topic workspace, timeline, and backing thread for packets", async () => {
     const topicId = "topic-99";
     const threadRow = {
       id: "thread-backing-99",
@@ -283,26 +281,59 @@ describe("threadDetailStore", () => {
     coreClientMocks.listTopicTimeline.mockResolvedValueOnce({
       events: [{ id: "evt-t1", type: "message_posted" }],
     });
-    coreClientMocks.listArtifacts.mockResolvedValue({ artifacts: [] });
 
-    await threadDetailStore.fullRefresh(topicId, { asTopic: true });
-    await threadDetailStore.loadTimeline(topicId);
+    await topicDetailStore.fullRefresh(topicId, { asTopic: true });
+    await topicDetailStore.loadTimeline(topicId);
 
     expect(coreClientMocks.getTopicWorkspace).toHaveBeenCalledWith(topicId, {});
     expect(coreClientMocks.getThreadWorkspace).not.toHaveBeenCalled();
     expect(coreClientMocks.listTopicTimeline).toHaveBeenCalledWith(topicId);
     expect(coreClientMocks.listThreadTimeline).not.toHaveBeenCalled();
-    expect(coreClientMocks.listArtifacts).toHaveBeenCalledWith({
-      kind: "work_order",
-      thread_id: threadRow.id,
-    });
-    expect(get(threadDetailStore)).toMatchObject({
+    expect(get(topicDetailStore)).toMatchObject({
       detailAsTopic: true,
-      snapshot: threadRow,
+      topic: threadRow,
       documents: [{ id: "doc-1", title: "D1" }],
       timelineThreadId: topicId,
       timeline: [{ id: "evt-t1", type: "message_posted" }],
     });
+  });
+
+  it("treats boards linked via refs.topic as owned in topic workspace", async () => {
+    const topicId = "topic-refs-own";
+    coreClientMocks.getTopicWorkspace.mockResolvedValueOnce({
+      topic: {
+        id: topicId,
+        thread_id: "th-refs",
+        title: "Topic",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+      boards: [
+        {
+          id: "board-refs-only",
+          title: "Board via refs",
+          status: "active",
+          refs: [`topic:${topicId}`],
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      cards: [],
+      threads: [{ id: "th-refs", topic_ref: `topic:${topicId}` }],
+      documents: [],
+      inbox: [],
+      projection_freshness: {},
+      generated_at: "2026-01-01T00:00:00Z",
+    });
+
+    await topicDetailStore.fullRefresh(topicId, { asTopic: true });
+
+    expect(get(topicDetailStore).ownedBoards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "board-refs-only",
+          title: "Board via refs",
+        }),
+      ]),
+    );
   });
 
   it("coalesces queued refresh requests while a refresh is in flight", async () => {
@@ -329,25 +360,15 @@ describe("threadDetailStore", () => {
     coreClientMocks.listThreadTimeline.mockResolvedValue({
       events: [{ id: "event-2", type: "message_posted" }],
     });
-    coreClientMocks.listArtifacts.mockResolvedValue({
-      artifacts: [{ id: "artifact-2", kind: "work_order" }],
+
+    await topicDetailStore.loadWorkspace("thread-1");
+
+    const firstPromise = topicDetailStore.queueRefreshTopicDetail("thread-1", {
+      workspace: true,
     });
-
-    await threadDetailStore.loadWorkspace("thread-1");
-
-    const firstPromise = threadDetailStore.queueRefreshThreadDetail(
-      "thread-1",
-      {
-        workspace: true,
-      },
-    );
-    const secondPromise = threadDetailStore.queueRefreshThreadDetail(
-      "thread-1",
-      {
-        timeline: true,
-        workOrders: true,
-      },
-    );
+    const secondPromise = topicDetailStore.queueRefreshTopicDetail("thread-1", {
+      timeline: true,
+    });
 
     firstRefresh.resolve({
       thread: { id: "thread-1", title: "First refresh" },
@@ -362,12 +383,10 @@ describe("threadDetailStore", () => {
 
     expect(coreClientMocks.getThreadWorkspace).toHaveBeenCalledTimes(2);
     expect(coreClientMocks.listThreadTimeline).toHaveBeenCalledTimes(1);
-    expect(coreClientMocks.listArtifacts).toHaveBeenCalledTimes(1);
-    expect(get(threadDetailStore)).toMatchObject({
-      snapshot: { id: "thread-1", title: "First refresh" },
+    expect(get(topicDetailStore)).toMatchObject({
+      topic: { id: "thread-1", title: "First refresh" },
       timeline: [{ id: "event-2", type: "message_posted" }],
       documents: [],
-      workOrders: [{ id: "artifact-2", kind: "work_order" }],
     });
   });
 });

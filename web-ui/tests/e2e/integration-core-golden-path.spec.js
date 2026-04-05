@@ -99,14 +99,13 @@ test("golden path integration runs against a real oar-core", async ({
   const runSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const actorDisplayName = `Integration E2E ${runSuffix}`;
   const threadTitle = `Golden Path ${runSuffix}`;
-  const workOrderObjective = `Work objective ${runSuffix}`;
   const receiptSummary = `Receipt summary ${runSuffix}`;
   const reviewNotes = `Review notes ${runSuffix}`;
   const messageText = `Message ${runSuffix}`;
 
   let actorId = "";
   let threadId = "";
-  let workOrderId = "";
+  let topicId = "";
   let receiptId = "";
   let reviewId = "";
 
@@ -195,78 +194,75 @@ test("golden path integration runs against a real oar-core", async ({
   await page.getByRole("button", { name: "Create topic" }).click();
   const createTopicResponse = await createTopicResponsePromise;
   const createTopicBody = await createTopicResponse.json();
-  threadId = primaryThreadIdFromTopic(createTopicBody?.topic ?? {});
+  const createdTopic = createTopicBody?.topic ?? {};
+  threadId = primaryThreadIdFromTopic(createdTopic);
+  topicId = String(createdTopic.id ?? "").trim();
   expect(threadId).toBeTruthy();
+  expect(topicId).toBeTruthy();
+
+  const boardBody = await postCoreJson(request, coreBaseUrl, "/boards", {
+    actor_id: actorId,
+    board: {
+      title: `Golden board ${runSuffix}`,
+      status: "active",
+      primary_topic_ref: `topic:${topicId}`,
+      document_refs: [],
+      pinned_refs: [`topic:${topicId}`],
+      provenance: { sources: ["actor_statement:integration-e2e"] },
+    },
+  });
+  const boardId = String(boardBody?.board?.id ?? "").trim();
+  expect(boardId).toBeTruthy();
+
+  const cardLocalId = `card-golden-${runSuffix.replace(/[^a-z0-9]+/gi, "-").slice(0, 24)}`;
+  const cardBody = await postCoreJson(
+    request,
+    coreBaseUrl,
+    `/boards/${encodeURIComponent(boardId)}/cards`,
+    {
+      actor_id: actorId,
+      card: {
+        id: cardLocalId,
+        title: "Golden path card",
+        summary: "Integration anchor",
+        column_key: "backlog",
+        assignee_refs: [],
+        risk: "low",
+        resolution_refs: [],
+        related_refs: [],
+        provenance: { sources: ["actor_statement:integration-e2e"] },
+      },
+    },
+  );
+  const resolvedCardId = String(cardBody?.card?.id ?? cardLocalId).trim();
+
+  receiptId = `artifact-receipt-${runSuffix.replace(/[^a-z0-9]+/gi, "-").slice(0, 24)}`;
+  const receiptBody = await postCoreJson(
+    request,
+    coreBaseUrl,
+    "/packets/receipts",
+    {
+      actor_id: actorId,
+      artifact: {
+        id: receiptId,
+        kind: "receipt",
+        summary: receiptSummary.slice(0, 120),
+        refs: [`card:${resolvedCardId}`],
+      },
+      packet: {
+        receipt_id: receiptId,
+        subject_ref: `card:${resolvedCardId}`,
+        outputs: [`thread:${threadId}`],
+        verification_evidence: [`thread:${threadId}`],
+        changes_summary: receiptSummary,
+        known_gaps: [],
+      },
+    },
+  );
+  receiptId = String(receiptBody?.artifact?.id ?? receiptId).trim();
+  expect(receiptId).toMatch(/^artifact-receipt-/);
 
   await openThreadDetailFromNav(page, threadTitle);
-
-  await page.getByLabel("Work order objective").fill(workOrderObjective);
-  await page
-    .getByLabel("Constraints (comma/newline separated)")
-    .fill("No downtime");
-  await page.getByLabel("Add context ref").fill(`thread:${threadId}`);
-  await page.getByRole("button", { name: "Add ref to context" }).click();
-  await page
-    .getByLabel("Acceptance criteria (comma/newline separated)")
-    .fill("Integration flow passes");
-  await page
-    .getByLabel("Work order definition of done (comma/newline separated)")
-    .fill("Receipt and review submitted");
-
-  const createWorkOrderResponsePromise = page.waitForResponse((response) => {
-    return (
-      response.request().method() === "POST" &&
-      response.url().includes("/packets/work-orders")
-    );
-  });
-
-  await page.getByRole("button", { name: "Create work order" }).click();
-
-  const createWorkOrderResponse = await createWorkOrderResponsePromise;
-  const createWorkOrderBody = await createWorkOrderResponse.json();
-  workOrderId = String(createWorkOrderBody?.artifact?.id ?? "");
-  expect(workOrderId).toMatch(/^artifact-work-order-/);
-
-  // Verify persistence through UI proxied artifact list route (same-origin -> hooks proxy -> core).
-  const workOrderArtifactsBody = await getUiJson(
-    request,
-    `/artifacts?kind=work_order&thread_id=${encodeURIComponent(threadId)}`,
-  );
-  expect(hasArtifactId(workOrderArtifactsBody?.artifacts, workOrderId)).toBe(
-    true,
-  );
-
-  await expect(
-    page.getByText("Work order created.", { exact: true }),
-  ).toBeVisible();
-
-  await page.getByLabel("Work order id").selectOption(workOrderId);
-  await page
-    .getByLabel("Add receipt output ref")
-    .fill(`artifact:${workOrderId}`);
-  await page.getByRole("button", { name: "Add output ref" }).click();
-  await page
-    .getByLabel("Add receipt evidence ref")
-    .fill(`artifact:${workOrderId}`);
-  await page.getByRole("button", { name: "Add evidence ref" }).click();
-  await page.getByLabel("Receipt changes summary").fill(receiptSummary);
-  await page
-    .getByLabel("Receipt known gaps (comma/newline separated)")
-    .fill("none");
-
-  const createReceiptResponsePromise = page.waitForResponse((response) => {
-    return (
-      response.request().method() === "POST" &&
-      response.url().includes("/packets/receipts")
-    );
-  });
-
-  await page.getByRole("button", { name: "Submit receipt" }).click();
-
-  const createReceiptResponse = await createReceiptResponsePromise;
-  const createReceiptBody = await createReceiptResponse.json();
-  receiptId = String(createReceiptBody?.artifact?.id ?? "");
-  expect(receiptId).toMatch(/^artifact-receipt-/);
 
   const receiptArtifactsBody = await getUiJson(
     request,
@@ -286,10 +282,7 @@ test("golden path integration runs against a real oar-core", async ({
     ),
   ).toBe(true);
 
-  await expect(
-    page.getByText("Receipt submitted.", { exact: true }),
-  ).toBeVisible();
-  await page.getByRole("link", { name: receiptId, exact: true }).click();
+  await page.goto(`/artifacts/${receiptId}`);
 
   await expect(
     page.getByRole("heading", { name: receiptSummary }),
@@ -354,7 +347,12 @@ test("golden path integration runs against a real oar-core", async ({
   });
 
   await page.getByRole("button", { name: "Post message" }).click();
-  await postMessageResponsePromise;
+  const postMessageResponse = await postMessageResponsePromise;
+  const postMessagePayload = JSON.parse(
+    postMessageResponse.request().postData() ?? "{}",
+  );
+  expect(postMessagePayload?.event?.thread_id).toBe(threadId);
+  expect(postMessagePayload?.event?.thread_ref).toBe(`thread:${threadId}`);
 
   await expect(
     page.locator("article", { hasText: messageText }).first(),
@@ -409,23 +407,6 @@ test("golden path integration runs against a real oar-core", async ({
   ).toBeVisible();
   await page.goBack();
 
-  const workOrderEntry = page
-    .locator("article", {
-      hasText: `type: work_order_created`,
-    })
-    .filter({ hasText: `artifact:${workOrderId}` })
-    .first();
-  await expect(workOrderEntry).toBeVisible();
-  const workOrderRef = workOrderEntry.getByRole("link", {
-    name: `artifact:${workOrderId}`,
-  });
-  await expect(workOrderRef).toBeVisible();
-  await workOrderRef.click();
-  await expect(
-    page.getByRole("heading", { name: `Artifact Detail: ${workOrderId}` }),
-  ).toBeVisible();
-  await page.goBack();
-
   const receiptEntry = page
     .locator("article", {
       hasText: `type: receipt_added`,
@@ -439,7 +420,7 @@ test("golden path integration runs against a real oar-core", async ({
   await expect(receiptRef).toBeVisible();
   await receiptRef.click();
   await expect(
-    page.getByRole("heading", { name: `Artifact Detail: ${receiptId}` }),
+    page.getByRole("heading", { name: receiptSummary }),
   ).toBeVisible();
   await page.goBack();
 
@@ -456,7 +437,9 @@ test("golden path integration runs against a real oar-core", async ({
   await expect(reviewRef).toBeVisible();
   await reviewRef.click();
   await expect(
-    page.getByRole("heading", { name: `Artifact Detail: ${reviewId}` }),
+    page.getByRole("heading", {
+      name: `Review (accept) for ${receiptId}`,
+    }),
   ).toBeVisible();
   await page.goBack();
 

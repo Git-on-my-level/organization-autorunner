@@ -99,20 +99,20 @@ describe("eventRefRules", () => {
       expect(result.valid).toBe(true);
     });
 
-    it("requires repeated artifact refs for review_completed", () => {
+    it("requires card ref for review_completed", () => {
       const result = validateEventRefRule(
         "review_completed",
         ["artifact:review-1", "artifact:receipt-1"],
         { subject_ref: "card:card-1" },
       );
       expect(result.valid).toBe(false);
-      expect(result.error).toContain("at least 3 refs with prefix");
+      expect(result.error).toContain('"card:<id>" typed ref');
     });
 
     it("accepts review_completed with all required refs", () => {
       const result = validateEventRefRule(
         "review_completed",
-        ["artifact:review-1", "artifact:receipt-1", "artifact:work-order-1"],
+        ["artifact:review-1", "artifact:receipt-1", "card:card-1"],
         { subject_ref: "card:card-1" },
       );
       expect(result.valid).toBe(true);

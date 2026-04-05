@@ -964,6 +964,35 @@ paths:
         '409':
           $ref: '#/components/responses/ErrorResponse'
 
+  /cards/{card_id}/timeline:
+    get:
+      operationId: getCardTimeline
+      summary: Get card timeline
+      tags: [cards]
+      x-oar-surface: projection
+      x-oar-command-id: cards.timeline
+      x-oar-cli-path: cards timeline
+      x-oar-why: Load chronological evidence and related resources for one card.
+      x-oar-input-mode: none
+      x-oar-streaming: { mode: none }
+      x-oar-output-envelope: "Returns `{ card, events, artifacts, cards, documents, threads }`."
+      x-oar-error-codes: [auth_required, invalid_token, not_found]
+      x-oar-concepts: [cards, timeline]
+      x-oar-stability: beta
+      parameters:
+        - $ref: '#/components/parameters/CardID'
+      responses:
+        '200':
+          description: Card timeline payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CardTimelineResponse'
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+
   /cards/{card_id}/archive:
     post:
       operationId: archiveCard
@@ -1120,39 +1149,6 @@ paths:
         '409':
           $ref: '#/components/responses/ErrorResponse'
 
-  /packets/work-orders:
-    post:
-      operationId: createWorkOrderPacket
-      summary: Create work-order packet
-      tags: [packets]
-      x-oar-surface: canonical
-      x-oar-command-id: packets.work-orders.create
-      x-oar-cli-path: packets work-orders create
-      x-oar-why: Record a structured work-order artifact anchored by `subject_ref`.
-      x-oar-input-mode: json-body
-      x-oar-streaming: { mode: none }
-      x-oar-output-envelope: "Returns `{ artifact, packet_kind, packet }`."
-      x-oar-error-codes: [auth_required, invalid_request, invalid_token]
-      x-oar-concepts: [packets, evidence]
-      x-oar-stability: beta
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateWorkOrderRequest'
-      responses:
-        '201':
-          description: Work-order packet created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PacketArtifactResponse'
-        '400':
-          $ref: '#/components/responses/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/ErrorResponse'
-
   /packets/receipts:
     post:
       operationId: createReceiptPacket
@@ -1194,7 +1190,7 @@ paths:
       x-oar-surface: canonical
       x-oar-command-id: packets.reviews.create
       x-oar-cli-path: packets reviews create
-      x-oar-why: Record a structured review over a work order and receipt using subject refs.
+      x-oar-why: Record a structured review over a receipt anchored to the same card as subject_ref.
       x-oar-input-mode: json-body
       x-oar-streaming: { mode: none }
       x-oar-output-envelope: "Returns `{ artifact, packet_kind, packet }`."
@@ -2085,33 +2081,14 @@ components:
           format: date-time
       required: [column_key]
 
-    WorkOrderPacket:
-      type: object
-      properties:
-        work_order_id: { type: string }
-        subject_ref: { $ref: '#/components/schemas/TypedRef' }
-        objective: { type: string }
-        constraints:
-          type: array
-          items: { type: string }
-        context_refs:
-          type: array
-          items: { $ref: '#/components/schemas/TypedRef' }
-        acceptance_criteria:
-          type: array
-          items: { type: string }
-        definition_of_done:
-          type: array
-          items: { type: string }
-      required:
-        [work_order_id, subject_ref, objective, constraints, context_refs, acceptance_criteria, definition_of_done]
-
     ReceiptPacket:
       type: object
       properties:
         receipt_id: { type: string }
-        subject_ref: { $ref: '#/components/schemas/TypedRef' }
-        work_order_ref: { $ref: '#/components/schemas/TypedRef' }
+        subject_ref:
+          allOf:
+            - $ref: '#/components/schemas/TypedRef'
+          description: MUST be card:<card_id>.
         outputs:
           type: array
           items: { $ref: '#/components/schemas/TypedRef' }
@@ -2123,14 +2100,16 @@ components:
           type: array
           items: { type: string }
       required:
-        [receipt_id, subject_ref, work_order_ref, outputs, verification_evidence, changes_summary, known_gaps]
+        [receipt_id, subject_ref, outputs, verification_evidence, changes_summary, known_gaps]
 
     ReviewPacket:
       type: object
       properties:
         review_id: { type: string }
-        subject_ref: { $ref: '#/components/schemas/TypedRef' }
-        work_order_ref: { $ref: '#/components/schemas/TypedRef' }
+        subject_ref:
+          allOf:
+            - $ref: '#/components/schemas/TypedRef'
+          description: MUST be card:<card_id>.
         receipt_ref: { $ref: '#/components/schemas/TypedRef' }
         outcome:
           type: string
@@ -2139,7 +2118,7 @@ components:
         evidence_refs:
           type: array
           items: { $ref: '#/components/schemas/TypedRef' }
-      required: [review_id, subject_ref, work_order_ref, receipt_ref, outcome, notes, evidence_refs]
+      required: [review_id, subject_ref, receipt_ref, outcome, notes, evidence_refs]
 
     EventCreateInput:
       type: object
@@ -2232,12 +2211,6 @@ components:
         move: { $ref: '#/components/schemas/MoveCardInput' }
       required: [move]
 
-    CreateWorkOrderRequest:
-      type: object
-      properties:
-        packet: { $ref: '#/components/schemas/WorkOrderPacket' }
-      required: [packet]
-
     CreateReceiptRequest:
       type: object
       properties:
@@ -2308,6 +2281,27 @@ components:
           type: array
           items: { $ref: '#/components/schemas/Thread' }
       required: [topic, events, artifacts, cards, documents, threads]
+
+    CardTimelineResponse:
+      type: object
+      properties:
+        card: { $ref: '#/components/schemas/Card' }
+        events:
+          type: array
+          items: { $ref: '#/components/schemas/Event' }
+        artifacts:
+          type: array
+          items: { $ref: '#/components/schemas/Artifact' }
+        cards:
+          type: array
+          items: { $ref: '#/components/schemas/Card' }
+        documents:
+          type: array
+          items: { $ref: '#/components/schemas/Document' }
+        threads:
+          type: array
+          items: { $ref: '#/components/schemas/Thread' }
+      required: [card, events, artifacts, cards, documents, threads]
 
     TopicWorkspaceResponse:
       type: object
@@ -2514,7 +2508,6 @@ components:
 
     PacketPayload:
       oneOf:
-        - $ref: '#/components/schemas/WorkOrderPacket'
         - $ref: '#/components/schemas/ReceiptPacket'
         - $ref: '#/components/schemas/ReviewPacket'
 

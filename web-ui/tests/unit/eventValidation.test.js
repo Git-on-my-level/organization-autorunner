@@ -32,6 +32,20 @@ describe("event validation", () => {
     expect(error).toBe("");
   });
 
+  it("accepts message_posted with thread_ref alongside thread_id", () => {
+    const error = validateEventCreatePayload(
+      validBaseEvent({
+        type: "message_posted",
+        thread_id: "thread-1",
+        thread_ref: "thread:thread-1",
+        refs: ["thread:thread-1"],
+        payload: { text: "hello" },
+      }),
+    );
+
+    expect(error).toBe("");
+  });
+
   it("rejects card_moved payloads that miss required board refs", () => {
     const error = validateEventCreatePayload(
       validBaseEvent({
@@ -44,16 +58,16 @@ describe("event validation", () => {
     expect(error).toContain('event.refs must include a "board:<id>"');
   });
 
-  it("rejects review_completed payloads that miss required artifact refs", () => {
+  it("rejects review_completed payloads that miss required card ref", () => {
     const error = validateEventCreatePayload(
       validBaseEvent({
         type: "review_completed",
-        refs: ["artifact:work_order_1", "artifact:receipt_1"],
+        refs: ["artifact:plan_1", "artifact:receipt_1"],
         payload: { subject_ref: "card:card_1" },
       }),
     );
 
-    expect(error).toContain('at least 3 refs with prefix "artifact"');
+    expect(error).toContain('"card:<id>" typed ref');
   });
 
   it("enforces topic status transition payload refs", () => {

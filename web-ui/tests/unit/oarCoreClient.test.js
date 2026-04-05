@@ -261,7 +261,7 @@ describe("oarCoreClient error messaging", () => {
     ]);
   });
 
-  it("forwards work-order create bodies without client-side packet mutation", async () => {
+  it("forwards receipt create bodies without mutating packet", async () => {
     const seenBodies = [];
     const client = createOarCoreClient({
       baseUrl: "http://core.test",
@@ -270,8 +270,8 @@ describe("oarCoreClient error messaging", () => {
         seenBodies.push(init?.body ?? "");
         return new Response(
           JSON.stringify({
-            artifact: { id: "artifact-work-order-x" },
-            packet_kind: "work_order",
+            artifact: { id: "artifact-receipt-x" },
+            packet_kind: "receipt",
             packet: {},
           }),
           {
@@ -282,22 +282,23 @@ describe("oarCoreClient error messaging", () => {
       },
     });
 
-    await client.createWorkOrder({
+    await client.createReceipt({
       request_key: "rk-1",
-      artifact: { kind: "work_order" },
+      artifact: { kind: "receipt" },
       packet: {
-        subject_ref: "topic:thr-9",
-        objective: "do it",
-        constraints: ["c"],
-        context_refs: ["topic:thr-9"],
-        acceptance_criteria: ["a"],
-        definition_of_done: ["d"],
+        thread_id: "thr-9",
+        subject_ref: "card:c-1",
+        outputs: ["artifact:o1"],
+        verification_evidence: ["event:e1"],
+        changes_summary: "done",
+        known_gaps: [],
       },
     });
 
     expect(seenBodies.length).toBe(1);
     const body = JSON.parse(seenBodies[0]);
-    expect(body.packet.subject_ref).toBe("topic:thr-9");
+    expect(body.packet.subject_ref).toBe("card:c-1");
+    expect(body.packet.thread_id).toBe("thr-9");
   });
 
   it("posts inbox acknowledgements to the contract acknowledge path", async () => {

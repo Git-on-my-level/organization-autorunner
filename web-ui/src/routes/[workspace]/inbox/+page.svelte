@@ -256,9 +256,20 @@
       let subject = null;
       let related = {};
 
-      if (prefix === "topic" || prefix === "thread") {
-        const response = await coreClient.getTopic(id);
-        subject = response.topic ?? response.thread ?? null;
+      if (prefix === "topic") {
+        try {
+          const response = await coreClient.getTopic(id);
+          subject = response.topic ?? null;
+        } catch (err) {
+          if (err?.status !== 404) {
+            throw err;
+          }
+          const response = await coreClient.getThread(id);
+          subject = response.thread ?? null;
+        }
+      } else if (prefix === "thread") {
+        const response = await coreClient.getThread(id);
+        subject = response.thread ?? null;
       } else if (prefix === "board") {
         const response = await coreClient.getBoard(id);
         subject = response.board ?? null;
@@ -890,6 +901,7 @@
                           >
                             {subject?.title ??
                               subject?.summary ??
+                              subject?.current_summary ??
                               subject?.id ??
                               getInboxSubjectLabel(item)}
                           </h4>
@@ -913,12 +925,13 @@
                           {/if}
                         </div>
 
-                        {#if subject?.summary}
+                        {#if subject?.summary || subject?.current_summary}
                           <div
                             class="mb-2 text-[12px] text-[var(--ui-text)] leading-relaxed"
                           >
                             <MarkdownRenderer
-                              source={subject.summary}
+                              source={subject.summary ??
+                                subject.current_summary}
                               class="text-[12px]"
                             />
                           </div>

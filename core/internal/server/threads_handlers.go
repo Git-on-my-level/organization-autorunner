@@ -187,64 +187,58 @@ func containsStringValue(values []string, expected string) bool {
 	return false
 }
 
-func handleThreadTimeline(w http.ResponseWriter, r *http.Request, opts handlerOptions, threadID string) {
-	if opts.primitiveStore == nil {
-		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
-		return
+type threadTimelineExpansion struct {
+	Events            []map[string]any
+	Artifacts         map[string]map[string]any
+	Documents         map[string]map[string]any
+	DocumentRevisions map[string]map[string]any
+}
+
+func expandThreadTimeline(ctx context.Context, opts handlerOptions, threadID string) (threadTimelineExpansion, error) {
+	var out threadTimelineExpansion
+	if _, err := opts.primitiveStore.GetThread(ctx, threadID); err != nil {
+		return out, err
 	}
 
-	if _, err := opts.primitiveStore.GetThread(r.Context(), threadID); err != nil {
-		if errors.Is(err, primitives.ErrNotFound) {
-			writeError(w, http.StatusNotFound, "not_found", "thread not found")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load thread")
-		return
-	}
-
-	events, err := opts.primitiveStore.ListEventsByThread(r.Context(), threadID)
+	events, err := opts.primitiveStore.ListEventsByThread(ctx, threadID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load thread timeline")
-		return
+		return out, err
 	}
 
 	artifactIDs, documentIDs, documentRevisionIDs := collectTimelineReferencedObjectIDs(events)
 
 	artifacts := make(map[string]map[string]any, len(artifactIDs))
 	for _, artifactID := range artifactIDs {
-		artifact, err := opts.primitiveStore.GetArtifact(r.Context(), artifactID)
+		artifact, err := opts.primitiveStore.GetArtifact(ctx, artifactID)
 		if err != nil {
 			if errors.Is(err, primitives.ErrNotFound) {
 				continue
 			}
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load referenced artifacts")
-			return
+			return out, err
 		}
 		artifacts[artifactID] = artifact
 	}
 
 	documents := make(map[string]map[string]any, len(documentIDs))
 	for _, documentID := range documentIDs {
-		document, _, err := opts.primitiveStore.GetDocument(r.Context(), documentID)
+		document, _, err := opts.primitiveStore.GetDocument(ctx, documentID)
 		if err != nil {
 			if errors.Is(err, primitives.ErrNotFound) {
 				continue
 			}
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load referenced documents")
-			return
+			return out, err
 		}
 		documents[documentID] = document
 	}
 
 	documentRevisions := make(map[string]map[string]any, len(documentRevisionIDs))
 	for _, revisionID := range documentRevisionIDs {
-		revision, err := opts.primitiveStore.GetDocumentRevisionByID(r.Context(), revisionID)
+		revision, err := opts.primitiveStore.GetDocumentRevisionByID(ctx, revisionID)
 		if err != nil {
 			if errors.Is(err, primitives.ErrNotFound) {
 				continue
 			}
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load referenced document revisions")
-			return
+			return out, err
 		}
 		documentRevisions[revisionID] = revision
 
@@ -256,22 +250,44 @@ func handleThreadTimeline(w http.ResponseWriter, r *http.Request, opts handlerOp
 		if _, exists := documents[documentID]; exists {
 			continue
 		}
-		document, _, err := opts.primitiveStore.GetDocument(r.Context(), documentID)
+		document, _, err := opts.primitiveStore.GetDocument(ctx, documentID)
 		if err != nil {
 			if errors.Is(err, primitives.ErrNotFound) {
 				continue
 			}
-			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load referenced documents")
-			return
+			return out, err
 		}
 		documents[documentID] = document
 	}
 
+	out.Events = events
+	out.Artifacts = artifacts
+	out.Documents = documents
+	out.DocumentRevisions = documentRevisions
+	return out, nil
+}
+
+func handleThreadTimeline(w http.ResponseWriter, r *http.Request, opts handlerOptions, threadID string) {
+	if opts.primitiveStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
+		return
+	}
+
+	exp, err := expandThreadTimeline(r.Context(), opts, threadID)
+	if err != nil {
+		if errors.Is(err, primitives.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "thread not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load thread timeline")
+		return
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"events":             events,
-		"artifacts":          artifacts,
-		"documents":          documents,
-		"document_revisions": documentRevisions,
+		"events":             exp.Events,
+		"artifacts":          exp.Artifacts,
+		"documents":          exp.Documents,
+		"document_revisions": exp.DocumentRevisions,
 	})
 }
 
@@ -418,5 +434,21 @@ func mapKeysSorted(values map[string]struct{}) []string {
 		out = append(out, value)
 	}
 	sort.Strings(out)
+	return out
+}
+
+func mapsByIDToSortedSlice(byID map[string]map[string]any) []map[string]any {
+	if len(byID) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(byID))
+	for k := range byID {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]map[string]any, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, byID[k])
+	}
 	return out
 }

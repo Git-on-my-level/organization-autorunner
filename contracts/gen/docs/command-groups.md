@@ -29,7 +29,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `cards`
 
-- Commands: `7`
+- Commands: `8`
 - Command IDs:
   - `cards.archive` (`cards archive`)
   - `cards.get` (`cards get`)
@@ -38,6 +38,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `cards.patch` (`cards patch`)
   - `cards.purge` (`cards purge`)
   - `cards.restore` (`cards restore`)
+  - `cards.timeline` (`cards timeline`)
 
 ## `docs`
 
@@ -74,11 +75,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `packets`
 
-- Commands: `3`
+- Commands: `2`
 - Command IDs:
   - `packets.receipts.create` (`packets receipts create`)
   - `packets.reviews.create` (`packets reviews create`)
-  - `packets.work-orders.create` (`packets work-orders create`)
 
 ## `threads`
 

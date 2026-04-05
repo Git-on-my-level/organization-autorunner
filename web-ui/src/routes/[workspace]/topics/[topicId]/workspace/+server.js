@@ -1,8 +1,7 @@
 import { json } from "@sveltejs/kit";
 
-import { getMockThreadWorkspace } from "$lib/mockCoreData";
+import { getMockTopicWorkspace } from "$lib/mockCoreData";
 import { assertMockModeEnabled } from "$lib/server/mockGuard";
-import { threadWorkspaceToTopicWorkspace } from "$lib/topicWorkspaceAdapter";
 
 export function GET({ params, url }) {
   const guardResponse = assertMockModeEnabled(url.pathname);
@@ -13,7 +12,7 @@ export function GET({ params, url }) {
   const maxEventsRaw = url.searchParams.get("max_events");
   const maxEvents =
     maxEventsRaw == null ? undefined : Number.parseInt(maxEventsRaw, 10);
-  const workspace = getMockThreadWorkspace(params.topicId, {
+  const workspace = getMockTopicWorkspace(params.topicId, {
     max_events: Number.isFinite(maxEvents) ? maxEvents : undefined,
     include_artifact_content:
       url.searchParams.get("include_artifact_content") === "true",
@@ -23,5 +22,5 @@ export function GET({ params, url }) {
     return json({ error: "Topic not found." }, { status: 404 });
   }
 
-  return json(threadWorkspaceToTopicWorkspace(workspace, params.topicId));
+  return json(workspace);
 }

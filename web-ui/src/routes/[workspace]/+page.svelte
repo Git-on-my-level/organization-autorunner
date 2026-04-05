@@ -6,10 +6,10 @@
   import { filterTopLevelDocuments } from "$lib/documentVisibility";
   import {
     buildInboxCategorySummary,
-    buildThreadHealthSummary,
+    buildTopicHealthSummary,
     inboxSummarySentence,
-    selectRecentlyUpdatedThreads,
-    threadHealthSentence,
+    selectRecentlyUpdatedTopics,
+    topicHealthSentence,
   } from "$lib/dashboardSummary";
   import { formatTimestamp } from "$lib/formatDate";
   import {
@@ -20,7 +20,7 @@
     sortInboxItems,
   } from "$lib/inboxUtils";
   import { workspacePath } from "$lib/workspacePaths";
-  import { getPriorityLabel } from "$lib/threadFilters";
+  import { getPriorityLabel } from "$lib/topicFilters";
   import { BOARD_STATUS_LABELS } from "$lib/boardUtils";
 
   const emptySectionState = {
@@ -34,7 +34,7 @@
   let loading = $state(true);
   let refreshedAt = $state("");
   let inboxState = $state({ ...emptySectionState });
-  let threadsState = $state({ ...emptySectionState });
+  let topicsState = $state({ ...emptySectionState });
   let boardsState = $state({ ...emptySectionState });
   let docsState = $state({ ...emptySectionState });
   let workspaceSlug = $derived($page.params.workspace);
@@ -42,9 +42,9 @@
   let inboxSummary = $derived(buildInboxCategorySummary(inboxState.items));
   let topInboxItems = $derived(sortInboxItems(inboxState.items).slice(0, 5));
 
-  let threadHealth = $derived(buildThreadHealthSummary(threadsState.items));
-  let recentThreads = $derived(
-    selectRecentlyUpdatedThreads(threadsState.items, 5),
+  let topicHealth = $derived(buildTopicHealthSummary(topicsState.items));
+  let recentTopics = $derived(
+    selectRecentlyUpdatedTopics(topicsState.items, 5),
   );
 
   let recentBoards = $derived(
@@ -91,7 +91,7 @@
       ]);
 
     inboxState = toSectionState(inboxResult, "items", "Failed to load inbox");
-    threadsState = toSectionState(
+    topicsState = toSectionState(
       threadResult,
       "topics",
       "Failed to load topics",
@@ -174,7 +174,7 @@
     return qs ? `${base}?${qs}` : base;
   }
 
-  function threadsQueryHref(queryPairs) {
+  function topicsQueryHref(queryPairs) {
     const params = new URLSearchParams(queryPairs);
     const qs = params.toString();
     const base = workspaceHref("/topics");
@@ -337,13 +337,13 @@
           href={workspaceHref("/topics")}>View all</a
         >
       </div>
-      {#if threadsState.status === "ready"}
+      {#if topicsState.status === "ready"}
         <p class="text-[13px] text-gray-500 mt-1 mb-2">
-          {threadHealthSentence(threadHealth)}
+          {topicHealthSentence(topicHealth)}
         </p>
       {/if}
 
-      {#if loading && threadsState.status === "idle"}
+      {#if loading && topicsState.status === "idle"}
         <div
           class="flex items-center gap-2 py-6 text-[13px] text-[var(--ui-text-muted)]"
         >
@@ -364,11 +364,11 @@
           </svg>
           Loading...
         </div>
-      {:else if threadsState.status === "error"}
+      {:else if topicsState.status === "error"}
         <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
-          {threadsState.error}
+          {topicsState.error}
         </p>
-      {:else if threadsState.items.length === 0}
+      {:else if topicsState.items.length === 0}
         <p class="text-[13px] text-[var(--ui-text-muted)] py-3">
           No topics yet. They'll appear here as work begins.
         </p>
@@ -376,51 +376,51 @@
         <div class="flex gap-2 mb-3">
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={threadsQueryHref([["open", "1"]])}
+            href={topicsQueryHref([["open", "1"]])}
           >
             <p class="text-[11px] font-medium text-[var(--ui-text-muted)]">
               Open
             </p>
             <p class="text-lg font-semibold text-[var(--ui-text)]">
-              {threadHealth.openCount}
+              {topicHealth.openCount}
             </p>
           </a>
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={threadsQueryHref([["stale", "true"]])}
+            href={topicsQueryHref([["stale", "true"]])}
           >
             <p
-              class="text-[11px] font-medium {threadHealth.staleCount > 0
+              class="text-[11px] font-medium {topicHealth.staleCount > 0
                 ? 'text-amber-400'
                 : 'text-[var(--ui-text-muted)]'}"
             >
               Stale
             </p>
             <p
-              class="text-lg font-semibold {threadHealth.staleCount > 0
+              class="text-lg font-semibold {topicHealth.staleCount > 0
                 ? 'text-amber-400'
                 : 'text-[var(--ui-text)]'}"
             >
-              {threadHealth.staleCount}
+              {topicHealth.staleCount}
             </p>
           </a>
           <a
             class="flex-1 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-center transition-colors hover:bg-[var(--ui-border-subtle)]"
-            href={threadsQueryHref([["high_priority", "1"]])}
+            href={topicsQueryHref([["high_priority", "1"]])}
           >
             <p
-              class="text-[11px] font-medium {threadHealth.highPriorityCount > 0
+              class="text-[11px] font-medium {topicHealth.highPriorityCount > 0
                 ? 'text-red-400'
                 : 'text-[var(--ui-text-muted)]'}"
             >
               High priority
             </p>
             <p
-              class="text-lg font-semibold {threadHealth.highPriorityCount > 0
+              class="text-lg font-semibold {topicHealth.highPriorityCount > 0
                 ? 'text-red-400'
                 : 'text-[var(--ui-text)]'}"
             >
-              {threadHealth.highPriorityCount}
+              {topicHealth.highPriorityCount}
             </p>
           </a>
           <a
@@ -431,7 +431,7 @@
               Total
             </p>
             <p class="text-lg font-semibold text-[var(--ui-text)]">
-              {threadHealth.totalCount}
+              {topicHealth.totalCount}
             </p>
           </a>
         </div>
@@ -439,27 +439,27 @@
         <div
           class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
         >
-          {#each recentThreads as thread, i}
+          {#each recentTopics as topic, i}
             <a
               class="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-[var(--ui-border-subtle)] {i >
               0
                 ? 'border-t border-[var(--ui-border)]'
                 : ''}"
-              href={workspaceHref(`/topics/${thread.id}`)}
+              href={workspaceHref(`/topics/${topic.id}`)}
             >
               <div class="min-w-0 flex-1">
                 <p
                   class="truncate text-[13px] font-medium text-[var(--ui-text)]"
                 >
-                  {thread.title}
+                  {topic.title}
                 </p>
                 <p class="text-[11px] text-[var(--ui-text-muted)]">
-                  Updated {formatTimestamp(thread.updated_at)}
+                  Updated {formatTimestamp(topic.updated_at)}
                 </p>
               </div>
               <span
-                class="text-[11px] font-medium {priorityBadge(thread.priority)}"
-                >{getPriorityLabel(thread.priority)}</span
+                class="text-[11px] font-medium {priorityBadge(topic.priority)}"
+                >{getPriorityLabel(topic.priority)}</span
               >
             </a>
           {/each}

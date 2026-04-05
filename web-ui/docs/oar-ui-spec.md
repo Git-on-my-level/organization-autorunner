@@ -64,7 +64,7 @@ oar-ui does **not**:
 ### 1.7 Reference conventions
 
 - oar-ui MUST follow the reference conventions defined in `/contracts/oar-schema.yaml` → `reference_conventions` when creating events.
-- oar-ui relies on these conventions for deterministic navigation: e.g., a `receipt_added` event's `refs` will always contain `artifact:<receipt_id>` and `artifact:<work_order_id>`, enabling the UI to link directly to both.
+- oar-ui relies on these conventions for deterministic navigation: e.g., a `receipt_added` event's `refs` will include `artifact:<receipt_id>` and the receipt's `card:<card_id>` subject anchor where applicable, enabling the UI to link to evidence and the card scope.
 
 ---
 
@@ -80,7 +80,7 @@ A topic detail view presents two complementary layers:
 
 **Workspace (current state):** The operator-facing topic record plus related cards, boards, documents, and inbox context from projection endpoints where applicable — title, status, priority, schedule (`cadence`), summary, next actions, and linked evidence. This is the "what's true right now" view. Editable in place only where the schema allows it (topics and cards via their canonical patch APIs).
 
-**Timeline (audit trail):** A time-ordered, append-only sequence of all events on the topic's backing thread. Each timeline entry shows type, timestamp, actor, summary, and refs (rendered as navigable typed-ref links). The timeline includes messages, work order creation, receipt submission, reviews, decisions, exceptions, acknowledgments, and topic/card lifecycle updates.
+**Timeline (audit trail):** A time-ordered, append-only sequence of all events on the topic's backing thread. Each timeline entry shows type, timestamp, actor, summary, and refs (rendered as navigable typed-ref links). The timeline includes messages, receipt submission, reviews, decisions, exceptions, acknowledgments, and topic/card lifecycle updates.
 
 Mutable topic and card fields are interpretive and versioned through events. The timeline is durable and append-only. The UI MUST make this distinction clear.
 
@@ -89,7 +89,7 @@ Mutable topic and card fields are interpretive and versioned through events. The
 - Ordering MUST be time-based and stable.
 - Different event types SHOULD be visually distinguishable (icons, colors, or labels).
 - Typed refs in event entries SHOULD render as navigable links (artifact refs open artifact detail, `topic:` / `card:` refs open topic or card detail, URL refs open externally).
-- Artifact-typed events (work orders, receipts, reviews) SHOULD be expandable inline or navigable to the artifact detail. The UI uses event `refs` (per reference conventions) to locate the linked artifacts.
+- Artifact-typed events (receipts, reviews) SHOULD be expandable inline or navigable to the artifact detail. The UI uses event `refs` (per reference conventions) to locate the linked artifacts.
 - `topic_updated`, `topic_status_changed`, `card_updated`, and related lifecycle events SHOULD display `changed_fields` (or equivalent change details) from the event payload when available.
 - Unknown event types MUST render without breaking the timeline.
 
@@ -147,17 +147,13 @@ The primary working surface. Combines the workspace-style current-state view and
 - Linking artifacts to the topic/thread context (adds typed refs to `key_artifacts` where the schema allows).
 - Posting messages (creates `message_posted` events on the backing thread).
 
-### 3.4 Work order composer
+### 3.4 Thread Work tab (coordination)
 
-A form for creating a work order artifact within a thread context.
-
-**Fields:** objective, constraints, context refs (link existing artifacts as `artifact:<id>` or paste external URLs as `url:<url>`), acceptance criteria, definition of done.
+The thread/topic detail **Work** tab has been removed. Operators create receipts and reviews from **card detail modals on boards**, where flows remain grounded in `card:<card_id>` subjects (see receipt and review packet contracts) and typed refs per reference conventions.
 
 **Actions:**
 
-- Save (creates work order artifact + `work_order_created` event via oar-core, with typed refs per reference conventions).
-
-The composer SHOULD pre-populate `thread_id` and suggest relevant context refs from the thread's existing artifacts.
+- Open a card from a board, use the card detail modal to author receipts and reviews against that card.
 
 ### 3.5 Receipt viewer
 
@@ -167,7 +163,7 @@ A view for inspecting receipt artifacts.
 
 **Receipt intake:** The UI MUST support at least manual creation of a receipt artifact (fill in fields, attach evidence as typed refs, save). Agents will typically submit receipts via the CLI or generated clients, but humans need a UI path too.
 
-**Review action:** From a receipt, the user can initiate a review — select outcome (accept / revise / escalate), write notes, attach evidence as typed refs. This creates a review artifact + `review_completed` event (with typed refs per reference conventions). If the outcome is `revise`, the UI SHOULD prompt creation of a follow-up work order.
+**Review action:** From a receipt, the user can initiate a review — select outcome (accept / revise / escalate), write notes, attach evidence as typed refs. This creates a review artifact + `review_completed` event (with typed refs per reference conventions). If the outcome is `revise`, the UI SHOULD steer the operator back to the topic/card context for follow-up work.
 
 ### 3.6 Boards and docs as canonical operator surfaces
 
@@ -270,7 +266,6 @@ oar-ui v0 is complete when it can:
 - Display the inbox grouped by category with navigation to relevant topics, boards, cards, or threads, and support acknowledgment that persists across inbox rebuilds.
 - List and filter topics.
 - Show topic and board detail with editable current state (patch/merge, respecting core-maintained fields) and full timeline with navigable typed-ref links.
-- Create work orders within a topic context with typed refs.
 - View receipts and their evidence links as navigable typed refs.
 - Perform a lightweight review (outcome + notes + typed evidence refs).
 - Post messages on a thread or topic-backed timeline.

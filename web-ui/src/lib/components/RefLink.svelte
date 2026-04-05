@@ -6,7 +6,6 @@
     refValue = "",
     threadId = "",
     boardId = "",
-    snapshotIsThread = false,
     humanize = false,
     showRaw = false,
     labelHints = {},
@@ -16,7 +15,6 @@
     resolveRefLink(refValue, {
       threadId,
       boardId,
-      snapshotIsThread,
       humanize,
       labelHints,
       workspaceSlug: $page.params.workspace,

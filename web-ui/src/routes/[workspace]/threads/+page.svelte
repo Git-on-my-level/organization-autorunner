@@ -5,26 +5,26 @@
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
   import {
-    THREAD_SCHEDULE_PRESETS,
-    THREAD_SCHEDULE_PRESET_LABELS,
-    THREAD_PRIORITIES,
-    THREAD_PRIORITY_LABELS,
-    THREAD_STATUSES,
+    TOPIC_SCHEDULE_PRESETS,
+    TOPIC_SCHEDULE_PRESET_LABELS,
+    TOPIC_PRIORITIES,
+    TOPIC_PRIORITY_LABELS,
+    TOPIC_STATUSES,
     applyTopicListClientFilters,
-    buildTopicListApiQueryParamsFromThreadListState,
-    buildThreadListSearchString,
+    buildTopicListApiQueryParams,
+    buildTopicListSearchString,
     computeStaleness,
     formatCadenceLabel,
     getPriorityLabel,
-    parseThreadListSearchParams,
+    parseTopicListSearchParams,
     parseTagFilterInput,
     validateCadenceSelection,
-  } from "$lib/threadFilters";
+  } from "$lib/topicFilters";
   import { workspacePath } from "$lib/workspacePaths";
-  import { describeCron } from "$lib/threadPatch";
+  import { describeCron } from "$lib/topicPatch";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
 
-  /** Virtual filter: non-closed threads (matches dashboard "Open"); distinct from status=active|paused. */
+  /** Virtual filter: non-closed topics (matches dashboard "Open"); distinct from status=active|paused. */
   const STATUS_OPEN_NOT_CLOSED = "__open__";
   /** Virtual filter: P0 and P1 (matches dashboard "High priority"); distinct from single priority. */
   const PRIORITY_HIGH_TIER = "__high_tier__";
@@ -42,9 +42,9 @@
   let filters = $state({ ...defaultFilters });
   let loading = $state(false);
   let error = $state("");
-  let threads = $state([]);
+  let topics = $state([]);
   let createOpen = $state(false);
-  let creatingThread = $state(false);
+  let creatingTopic = $state(false);
   let createError = $state("");
   let filtersOpen = $state(false);
   let showArchived = $state(false);
@@ -53,7 +53,7 @@
   let trashBusyId = $state("");
   let workspaceSlug = $derived($page.params.workspace);
 
-  let threadDraft = $state({
+  let topicDraft = $state({
     title: "",
     summary: "",
     status: "active",
@@ -69,42 +69,42 @@
 
   $effect(() => {
     showArchived;
-    const parsed = parseThreadListSearchParams($page.url.searchParams);
+    const parsed = parseTopicListSearchParams($page.url.searchParams);
     filters = { ...defaultFilters, ...parsed };
     if ([...$page.url.searchParams.keys()].length > 0) {
       filtersOpen = true;
     }
-    void loadThreadsFromState(parsed);
+    void loadTopicsFromState(parsed);
   });
 
-  async function loadThreadsFromState(state) {
+  async function loadTopicsFromState(state) {
     loading = true;
     error = "";
 
     try {
-      const query = buildTopicListApiQueryParamsFromThreadListState(state, {
+      const query = buildTopicListApiQueryParams(state, {
         includeArchived: showArchived,
       });
       const response = await coreClient.listTopics(query);
       let list = response.topics ?? [];
       list = applyTopicListClientFilters(list, state);
-      threads = list;
+      topics = list;
     } catch (loadError) {
       const reason =
         loadError instanceof Error ? loadError.message : String(loadError);
       error = `Failed to load topics: ${reason}`;
-      threads = [];
+      topics = [];
     } finally {
       loading = false;
     }
   }
 
-  async function loadThreads() {
-    await loadThreadsFromState(filters);
+  async function loadTopics() {
+    await loadTopicsFromState(filters);
   }
 
   async function applyFilters() {
-    const qs = buildThreadListSearchString(filters);
+    const qs = buildTopicListSearchString(filters);
     const path = workspaceHref("/topics");
     await goto(`${path}${qs ? `?${qs}` : ""}`, {
       replaceState: true,
@@ -121,8 +121,8 @@
     });
   }
 
-  function resetThreadDraft() {
-    threadDraft = {
+  function resetTopicDraft() {
+    topicDraft = {
       title: "",
       summary: "",
       status: "active",
@@ -133,7 +133,7 @@
     };
   }
 
-  /** Map list UI thread status to canonical topic.status for POST /topics. */
+  /** Map list UI status to canonical topic.status for POST /topics. */
   function threadStatusToTopicStatus(status) {
     switch (String(status ?? "").trim()) {
       case "paused":
@@ -146,12 +146,12 @@
   }
 
   function buildCreateTopicPayloadFromDraft() {
-    const summary = threadDraft.summary.trim() || "No summary provided.";
+    const summary = topicDraft.summary.trim() || "No summary provided.";
     return {
       topic: {
         type: "other",
-        status: threadStatusToTopicStatus(threadDraft.status),
-        title: threadDraft.title.trim(),
+        status: threadStatusToTopicStatus(topicDraft.status),
+        title: topicDraft.title.trim(),
         summary,
         owner_refs: [],
         document_refs: [],
@@ -164,29 +164,29 @@
     };
   }
 
-  async function createThread() {
-    if (!threadDraft.title.trim()) {
+  async function createTopic() {
+    if (!topicDraft.title.trim()) {
       createError = "Topic title is required.";
       return;
     }
     const cadenceError = validateCadenceSelection({
-      preset: threadDraft.cadencePreset,
-      customCron: threadDraft.cadenceCron,
+      preset: topicDraft.cadencePreset,
+      customCron: topicDraft.cadenceCron,
     });
     if (cadenceError) {
       createError = cadenceError;
       return;
     }
 
-    creatingThread = true;
+    creatingTopic = true;
     createError = "";
 
     try {
       await coreClient.createTopic(buildCreateTopicPayloadFromDraft());
 
       createOpen = false;
-      resetThreadDraft();
-      await loadThreads();
+      resetTopicDraft();
+      await loadTopics();
     } catch (submitError) {
       const reason =
         submitError instanceof Error
@@ -194,7 +194,7 @@
           : String(submitError);
       createError = `Failed to create topic: ${reason}`;
     } finally {
-      creatingThread = false;
+      creatingTopic = false;
     }
   }
 
@@ -246,11 +246,11 @@
     if (filters.highPriorityTier) {
       parts.push("High (P0 & P1)");
     } else if (filters.priority) {
-      parts.push(THREAD_PRIORITY_LABELS[filters.priority] ?? filters.priority);
+      parts.push(TOPIC_PRIORITY_LABELS[filters.priority] ?? filters.priority);
     }
     if (filters.cadence) {
       parts.push(
-        THREAD_SCHEDULE_PRESET_LABELS[filters.cadence] ?? filters.cadence,
+        TOPIC_SCHEDULE_PRESET_LABELS[filters.cadence] ?? filters.cadence,
       );
     }
     if (filters.staleness === "stale") {
@@ -288,8 +288,8 @@
     return styles[status] ?? "text-gray-400";
   }
 
-  function isThreadArchived(thread) {
-    const at = thread?.archived_at;
+  function isTopicArchived(topic) {
+    const at = topic?.archived_at;
     return typeof at === "string" ? at.trim() !== "" : Boolean(at);
   }
 
@@ -300,7 +300,7 @@
     error = "";
     try {
       await coreClient.archiveTopic(id, {});
-      await loadThreads();
+      await loadTopics();
     } catch (e) {
       error = `Archive failed: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
@@ -315,7 +315,7 @@
     error = "";
     try {
       await coreClient.unarchiveTopic(id, {});
-      await loadThreads();
+      await loadTopics();
     } catch (e) {
       error = `Unarchive failed: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
@@ -331,7 +331,7 @@
     try {
       await coreClient.tombstoneTopic(id, {});
       confirmModal = { open: false, action: "", entityId: "" };
-      await loadThreads();
+      await loadTopics();
     } catch (e) {
       error = `Trash failed: ${e instanceof Error ? e.message : String(e)}`;
     } finally {
@@ -427,7 +427,7 @@
 {#if hasActiveFilters}
   <div
     class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[var(--ui-text-muted)]"
-    data-testid="threads-active-filters-summary"
+    data-testid="topics-active-filters-summary"
   >
     <span class="font-medium text-[var(--ui-text)]">Active filters</span>
     <span class="text-[var(--ui-text-subtle)]">·</span>
@@ -463,7 +463,7 @@
         >
           <option value="">All</option>
           <option value={STATUS_OPEN_NOT_CLOSED}>Open (not closed)</option>
-          {#each THREAD_STATUSES as status}<option value={status}
+          {#each TOPIC_STATUSES as status}<option value={status}
               >{status[0].toUpperCase() + status.slice(1)}</option
             >{/each}
         </select>
@@ -478,8 +478,8 @@
         >
           <option value="">All</option>
           <option value={PRIORITY_HIGH_TIER}>High (P0 &amp; P1)</option>
-          {#each THREAD_PRIORITIES as priority}<option value={priority}
-              >{THREAD_PRIORITY_LABELS[priority]}</option
+          {#each TOPIC_PRIORITIES as priority}<option value={priority}
+              >{TOPIC_PRIORITY_LABELS[priority]}</option
             >{/each}
         </select>
       </label>
@@ -490,8 +490,8 @@
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-1.5 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
           <option value="">All</option>
-          {#each THREAD_SCHEDULE_PRESETS as cadence}<option value={cadence}
-              >{THREAD_SCHEDULE_PRESET_LABELS[cadence]}</option
+          {#each TOPIC_SCHEDULE_PRESETS as cadence}<option value={cadence}
+              >{TOPIC_SCHEDULE_PRESET_LABELS[cadence]}</option
             >{/each}
         </select>
       </label>
@@ -536,7 +536,7 @@
     class="mb-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] p-4"
     onsubmit={(event) => {
       event.preventDefault();
-      createThread();
+      createTopic();
     }}
   >
     {#if createError}
@@ -550,7 +550,7 @@
       <label class="text-[12px] sm:col-span-2">
         <span class="font-medium text-[var(--ui-text-muted)]">Title</span>
         <input
-          bind:value={threadDraft.title}
+          bind:value={topicDraft.title}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="Topic title..."
           required
@@ -560,10 +560,10 @@
       <label class="text-[12px]">
         <span class="font-medium text-[var(--ui-text-muted)]">Status</span>
         <select
-          bind:value={threadDraft.status}
+          bind:value={topicDraft.status}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
-          {#each THREAD_STATUSES as status}<option value={status}
+          {#each TOPIC_STATUSES as status}<option value={status}
               >{status[0].toUpperCase() + status.slice(1)}</option
             >{/each}
         </select>
@@ -571,39 +571,39 @@
       <label class="text-[12px]">
         <span class="font-medium text-[var(--ui-text-muted)]">Priority</span>
         <select
-          bind:value={threadDraft.priority}
+          bind:value={topicDraft.priority}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
-          {#each THREAD_PRIORITIES as priority}<option value={priority}
-              >{THREAD_PRIORITY_LABELS[priority]}</option
+          {#each TOPIC_PRIORITIES as priority}<option value={priority}
+              >{TOPIC_PRIORITY_LABELS[priority]}</option
             >{/each}
         </select>
       </label>
       <label class="text-[12px]">
         <span class="font-medium text-[var(--ui-text-muted)]">Schedule</span>
         <select
-          bind:value={threadDraft.cadencePreset}
+          bind:value={topicDraft.cadencePreset}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2.5 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
         >
-          {#each THREAD_SCHEDULE_PRESETS as cadence}<option value={cadence}
-              >{THREAD_SCHEDULE_PRESET_LABELS[cadence]}</option
+          {#each TOPIC_SCHEDULE_PRESETS as cadence}<option value={cadence}
+              >{TOPIC_SCHEDULE_PRESET_LABELS[cadence]}</option
             >{/each}
         </select>
       </label>
-      {#if threadDraft.cadencePreset === "custom"}
+      {#if topicDraft.cadencePreset === "custom"}
         <label class="text-[12px]">
           <span class="font-medium text-[var(--ui-text-muted)]"
             >Cron expression</span
           >
           <input
-            bind:value={threadDraft.cadenceCron}
+            bind:value={topicDraft.cadenceCron}
             class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
             placeholder="0 9 * * *"
             type="text"
           />
-          {#if describeCron(threadDraft.cadenceCron)}
+          {#if describeCron(topicDraft.cadenceCron)}
             <span class="mt-1 block text-[11px] text-[var(--ui-text-muted)]">
-              {describeCron(threadDraft.cadenceCron)}
+              {describeCron(topicDraft.cadenceCron)}
             </span>
           {/if}
         </label>
@@ -611,7 +611,7 @@
       <label class="text-[12px]">
         <span class="font-medium text-[var(--ui-text-muted)]">Tags</span>
         <input
-          bind:value={threadDraft.tagsInput}
+          bind:value={topicDraft.tagsInput}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="ops, customer"
           type="text"
@@ -620,7 +620,7 @@
       <label class="text-[12px] sm:col-span-2">
         <span class="font-medium text-[var(--ui-text-muted)]">Summary</span>
         <textarea
-          bind:value={threadDraft.summary}
+          bind:value={topicDraft.summary}
           class="mt-1 w-full rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-3 py-2 text-[13px] transition-colors focus:bg-[var(--ui-panel)]"
           placeholder="Brief description..."
           rows="2"
@@ -630,10 +630,10 @@
     <div class="mt-3 flex justify-end">
       <button
         class="cursor-pointer rounded-md bg-[var(--ui-panel)] px-4 py-2 text-[12px] font-medium text-[var(--ui-text)] hover:bg-[var(--ui-border)] disabled:opacity-50"
-        disabled={creatingThread}
+        disabled={creatingTopic}
         type="submit"
       >
-        {creatingThread ? "Creating..." : "Create topic"}
+        {creatingTopic ? "Creating..." : "Create topic"}
       </button>
     </div>
   </form>
@@ -660,7 +660,7 @@
     </svg>
     Loading topics...
   </div>
-{:else if threads.length === 0}
+{:else if topics.length === 0}
   <div class="mt-8 text-center">
     <p class="text-[13px] text-[var(--ui-text-muted)]">
       No topics match the current filters.
@@ -679,7 +679,7 @@
   <div
     class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
   >
-    {#each threads as topic, i}
+    {#each topics as topic, i}
       {@const staleness = computeStaleness(topic)}
       <div
         class="flex items-stretch {i > 0
@@ -701,7 +701,7 @@
               <p class="truncate text-[13px] font-medium text-[var(--ui-text)]">
                 {topic.title}
               </p>
-              {#if isThreadArchived(topic)}
+              {#if isTopicArchived(topic)}
                 <span
                   class="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-400"
                   >Archived</span
@@ -743,7 +743,7 @@
         <div
           class="flex shrink-0 items-center gap-1 border-l border-[var(--ui-border)] px-2"
         >
-          {#if isThreadArchived(topic)}
+          {#if isTopicArchived(topic)}
             <button
               class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] px-2 py-1 text-[11px] font-medium text-[var(--ui-text-muted)] transition-colors hover:bg-[var(--ui-border-subtle)] disabled:cursor-not-allowed disabled:opacity-50"
               disabled={Boolean(archiveBusyId) || Boolean(trashBusyId)}

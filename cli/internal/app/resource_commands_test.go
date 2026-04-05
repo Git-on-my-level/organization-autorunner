@@ -1508,7 +1508,7 @@ func TestEventsCreateReviewCompletedInvalidRefsFailsLocally(t *testing.T) {
 	defer server.Close()
 
 	home := t.TempDir()
-	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{"event":{"type":"review_completed","thread_id":"thread_1","summary":"review done","refs":["artifact:work_order_1","artifact:receipt_1","thread:thread_1"],"provenance":{"sources":["artifact:source_1"]}}}`), []string{
+	raw := runCLIForTest(t, home, map[string]string{}, strings.NewReader(`{"event":{"type":"review_completed","summary":"review done","refs":["artifact:review_1","artifact:receipt_1"],"provenance":{"sources":["artifact:source_1"]},"payload":{"subject_ref":"card:card_1"}}}`), []string{
 		"--json",
 		"--base-url", server.URL,
 		"events", "create",
@@ -1519,8 +1519,8 @@ func TestEventsCreateReviewCompletedInvalidRefsFailsLocally(t *testing.T) {
 		t.Fatalf("unexpected error payload: %#v", payload)
 	}
 	message := anyStringValue(errObj["message"])
-	if !strings.Contains(message, `event.type "review_completed"`) || !strings.Contains(message, "artifact:") || !strings.Contains(message, "oar events explain review_completed") {
-		t.Fatalf("expected actionable artifact refs guidance, got message=%q payload=%#v", message, payload)
+	if !strings.Contains(message, "review_completed") || !strings.Contains(message, "card:") {
+		t.Fatalf("expected actionable refs guidance, got message=%q payload=%#v", message, payload)
 	}
 
 	mu.Lock()
@@ -1769,6 +1769,59 @@ func TestCommitmentsListIsRemoved(t *testing.T) {
 	errObj, _ := payload["error"].(map[string]any)
 	if errObj == nil || anyStringValue(errObj["code"]) != "unknown_command" {
 		t.Fatalf("expected removed commitments list command to fail, payload=%#v", payload)
+	}
+}
+
+func TestCardsTimelineDispatchesToAPI(t *testing.T) {
+	t.Parallel()
+
+	const cardID = "card_timeline_test_123456"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/cards/"+cardID+"/timeline" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"card":{"id":"` + cardID + `","title":"Example","thread_id":"thread_1"},
+			"events":[{"id":"event_1","type":"card_updated","occurred_at":"2026-04-05T00:00:00Z"}],
+			"artifacts":[],
+			"cards":[],
+			"documents":[],
+			"threads":[]
+		}`))
+	}))
+	defer server.Close()
+
+	home := t.TempDir()
+	raw := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--json", "--base-url", server.URL,
+		"cards", "timeline", "--card-id", cardID,
+	})
+	payload := assertEnvelopeOK(t, raw)
+	if got := anyStringValue(payload["command"]); got != "cards timeline" {
+		t.Fatalf("expected command cards timeline, got %q payload=%#v", got, payload)
+	}
+	if got := anyStringValue(payload["command_id"]); got != "cards.timeline" {
+		t.Fatalf("expected command_id cards.timeline, got %q payload=%#v", got, payload)
+	}
+	data, _ := payload["data"].(map[string]any)
+	card, _ := data["card"].(map[string]any)
+	if got := anyStringValue(card["id"]); got != cardID {
+		t.Fatalf("expected card id in envelope data, got %#v", payload)
+	}
+	events, _ := data["events"].([]any)
+	if len(events) != 1 {
+		t.Fatalf("expected one event in timeline data, got %#v", data)
+	}
+
+	human := runCLIForTest(t, home, map[string]string{}, nil, []string{
+		"--base-url", server.URL,
+		"cards", "timeline", "--card-id", cardID,
+	})
+	if !strings.Contains(human, cardID) || !strings.Contains(human, "events: 1") {
+		t.Fatalf("expected card id and event count in human output, got:\n%s", human)
 	}
 }
 
@@ -4104,7 +4157,7 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 					{"id":"event_ctx_1","thread_id":"thread_123","type":"actor_statement","summary":"normalize frame shape"},
 					{"id":"event_ctx_2","thread_id":"thread_123","type":"decision_needed","summary":"confirm canonical command labels"}
 				],
-				"key_artifacts":[{"id":"artifact_ctx_1","kind":"work_order"}],
+				"key_artifacts":[{"id":"artifact_ctx_1","kind":"receipt"}],
 				"open_cards":[{"id":"card_ctx_1","status":"open"}],
 					"documents":[
 						{"id":"doc_ctx_1","title":"Runbook","status":"active","updated_at":"2026-03-07T00:02:00Z","head_revision":{"revision_id":"rev_ctx_1","revision_number":3,"content_type":"text","artifact_id":"artifact_doc_ctx_1","created_at":"2026-03-07T00:02:00Z"}}
@@ -4120,7 +4173,7 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 							{"id":"event_ctx_1","thread_id":"thread_123","type":"actor_statement","summary":"normalize frame shape"},
 							{"id":"event_ctx_2","thread_id":"thread_123","type":"decision_needed","summary":"confirm canonical command labels"}
 						],
-						"key_artifacts":[{"id":"artifact_ctx_1","kind":"work_order"}],
+						"key_artifacts":[{"id":"artifact_ctx_1","kind":"receipt"}],
 						"open_cards":[{"id":"card_ctx_1","status":"open"}],
 						"documents":[
 							{"id":"doc_ctx_1","title":"Runbook","status":"active","updated_at":"2026-03-07T00:02:00Z","head_revision":{"revision_id":"rev_ctx_1","revision_number":3,"content_type":"text","artifact_id":"artifact_doc_ctx_1","created_at":"2026-03-07T00:02:00Z"}}
@@ -4134,7 +4187,7 @@ func TestMachineFacingTargetedCommandGoldens(t *testing.T) {
 							{"id":"event_ctx_2","thread_id":"thread_123","type":"decision_needed","summary":"confirm canonical command labels"}
 						],
 						"decisions":[],
-						"key_artifacts":[{"id":"artifact_ctx_1","kind":"work_order"}],
+						"key_artifacts":[{"id":"artifact_ctx_1","kind":"receipt"}],
 						"open_cards":[{"id":"card_ctx_1","status":"open"}],
 						"recommendation_count":1,
 						"decision_request_count":1,

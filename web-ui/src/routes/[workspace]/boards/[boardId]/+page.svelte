@@ -1,9 +1,10 @@
 <script>
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
+  import BoardCard from "$lib/components/BoardCard.svelte";
+  import CardDetailModal from "$lib/components/CardDetailModal.svelte";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
   import GuidedTypedRefsInput from "$lib/components/GuidedTypedRefsInput.svelte";
-  import RefLink from "$lib/components/RefLink.svelte";
   import SearchableEntityPicker from "$lib/components/SearchableEntityPicker.svelte";
   import SearchableMultiEntityPicker from "$lib/components/SearchableMultiEntityPicker.svelte";
   import {
@@ -19,21 +20,16 @@
   } from "$lib/searchHelpers";
   import { workspacePath } from "$lib/workspacePaths";
   import { enrichInboxItem } from "$lib/inboxUtils";
-  import {
-    topicRouteSegmentFromBoardCardRow,
-    topicRouteSegmentFromBoardWorkspace,
-  } from "$lib/topicRouteUtils";
+  import { topicRouteSegmentFromBoardWorkspace } from "$lib/topicRouteUtils";
   import {
     BOARD_STATUS_LABELS,
     boardBackingThreadId,
-    boardCardLinkedThreadId,
     boardCardStableId,
     boardColumnTitle,
     firstBoardDocumentId,
     freshnessStatusLabel,
     freshnessStatusTone,
     groupBoardWorkspaceCards,
-    isFreshnessCurrent,
     joinDelimitedValues,
     parseDelimitedValues,
   } from "$lib/boardUtils";
@@ -49,12 +45,11 @@
   let showAddCardForm = $state(false);
   let updatingBoard = $state(false);
   let addingCard = $state(false);
-  let expandedCardId = $state("");
-  let mutatingCardId = $state("");
   let backlogOpen = $state(false);
   let doneOpen = $state(false);
   let confirmModal = $state({ open: false, action: "" });
   let boardLifecycleBusy = $state(false);
+  let detailModalCard = $state(null);
 
   let boardTitle = $state("");
   let boardStatus = $state("active");
@@ -75,19 +70,6 @@
   let addCardAssignees = $state([]);
   let addCardDueAt = $state("");
   let addCardDefinitionOfDone = $state("");
-
-  let manageMoveColumnKey = $state("backlog");
-  let manageTitle = $state("");
-  let manageSummary = $state("");
-  let manageThreadId = $state("");
-  let manageDocumentId = $state("");
-  let manageRisk = $state("medium");
-  let manageResolution = $state("");
-  let manageResolutionRefs = $state("");
-  let manageRelatedRefs = $state("");
-  let manageAssignees = $state([]);
-  let manageDueAt = $state("");
-  let manageDefinitionOfDone = $state("");
 
   let workspaceSlug = $derived($page.params.workspace);
   let boardId = $derived($page.params.boardId);
@@ -158,45 +140,12 @@
     boardPinnedRefs = joinDelimitedValues(board?.pinned_refs ?? []);
   }
 
-  function normalizeResolutionForEdit(raw) {
-    const r = String(raw ?? "").trim();
-    if (!r || r === "unresolved") return "";
-    if (r === "completed") return "done";
-    if (r === "cancelled") return "canceled";
-    return r;
+  function openCardDetailModal(cardItem) {
+    detailModalCard = cardItem;
   }
 
-  /** Prefer a linked scope thread from related_refs when it differs from backing thread_id. */
-  function operatorThreadIdFromCard(card) {
-    const backing = String(card.thread_id ?? "").trim();
-    const refs = Array.isArray(card.related_refs) ? card.related_refs : [];
-    for (const r of refs) {
-      const s = String(r ?? "").trim();
-      if (!s.startsWith("thread:")) continue;
-      const id = s.slice("thread:".length).trim();
-      if (id && id !== backing) return id;
-    }
-    return backing || String(card.parent_thread ?? "").trim();
-  }
-
-  function syncCardDrafts(cardItem) {
-    const card = cardItem?.membership ?? {};
-    manageTitle = card.title ?? "";
-    manageSummary = card.summary ?? "";
-    manageThreadId = operatorThreadIdFromCard(card);
-    manageDocumentId = String(
-      card.document_ref ?? card.pinned_document_id ?? "",
-    )
-      .replace(/^document:/, "")
-      .trim();
-    manageRisk = card.risk ?? "medium";
-    manageResolution = normalizeResolutionForEdit(card.resolution);
-    manageResolutionRefs = joinDelimitedValues(card.resolution_refs ?? []);
-    manageRelatedRefs = joinDelimitedValues(card.related_refs ?? []);
-    manageAssignees = [...(card.assignee_refs ?? [])];
-    manageDueAt = card.due_at ?? "";
-    manageDefinitionOfDone = joinDelimitedValues(card.definition_of_done ?? []);
-    manageMoveColumnKey = card.column_key ?? "backlog";
+  function closeCardDetailModal() {
+    detailModalCard = null;
   }
 
   function cardResolutionLabel(resolution) {
@@ -211,21 +160,6 @@
         return "Superseded";
       default:
         return "Open";
-    }
-  }
-
-  function cardResolutionTone(resolution) {
-    switch (String(resolution ?? "").trim()) {
-      case "done":
-      case "completed":
-        return "text-emerald-300 bg-emerald-500/10";
-      case "canceled":
-      case "cancelled":
-        return "text-slate-300 bg-slate-500/10";
-      case "superseded":
-        return "text-amber-300 bg-amber-500/10";
-      default:
-        return "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
     }
   }
 
@@ -251,35 +185,6 @@
     addCardDefinitionOfDone = "";
     mutationError = "";
     showAddCardForm = !showAddCardForm;
-  }
-
-  function openCardManager(cardItem) {
-    const cardKey = boardCardStableId(cardItem.membership);
-    if (expandedCardId === cardKey) {
-      expandedCardId = "";
-      return;
-    }
-
-    expandedCardId = cardKey;
-    syncCardDrafts(cardItem);
-    mutationError = "";
-  }
-
-  function threadStatusDotClass(status) {
-    switch (status) {
-      case "done":
-        return "bg-emerald-400";
-      case "canceled":
-        return "bg-gray-500";
-      case "paused":
-        return "bg-amber-400";
-      case "stale":
-        return "bg-orange-400";
-      case "very-stale":
-        return "bg-red-400";
-      default:
-        return "bg-blue-400";
-    }
   }
 
   async function loadWorkspace() {
@@ -325,7 +230,6 @@
 
       if (options.closeBoardEdit) showBoardEditForm = false;
       if (options.closeAddCard) showAddCardForm = false;
-      if (options.closeCardManager) expandedCardId = "";
 
       mutationNotice = successMessage;
     } catch (e) {
@@ -420,7 +324,6 @@
     if (!workspace?.board) return;
 
     const cardId = boardCardStableId(cardItem.membership);
-    mutatingCardId = cardId;
     const nextPayload = {
       if_board_updated_at: workspace.board.updated_at,
       ...payload,
@@ -430,98 +333,39 @@
       !nextPayload.resolution
     ) {
       nextPayload.resolution = "done";
-      const refs = String(manageResolutionRefs ?? "")
-        .split(/\r?\n|,/)
-        .map((item) => item.trim())
-        .filter(Boolean);
-      if (refs.length > 0) {
-        nextPayload.resolution_refs = refs;
-      }
     }
     await runBoardMutation(
       () => coreClient.moveBoardCard(boardId, cardId, nextPayload),
       successMessage,
     );
-    mutatingCardId = "";
   }
 
-  async function reorderCard(cardItem, cards, index, direction) {
-    if (direction === "up" && index > 0) {
-      await moveCard(
-        cardItem,
-        {
-          column_key: cardItem.membership.column_key,
-          before_card_ref: `card:${boardCardStableId(cards[index - 1].membership)}`,
-        },
-        "Card reordered.",
-      );
-    }
-
-    if (direction === "down" && index < cards.length - 1) {
-      await moveCard(
-        cardItem,
-        {
-          column_key: cardItem.membership.column_key,
-          after_card_ref: `card:${boardCardStableId(cards[index + 1].membership)}`,
-        },
-        "Card reordered.",
-      );
-    }
-  }
-
-  async function saveCardDetails(cardItem) {
+  async function saveCardDetails(cardItem, patch) {
     if (!workspace?.board) return;
 
     const cardId = boardCardStableId(cardItem.membership);
-    mutatingCardId = cardId;
     await runBoardMutation(
       () =>
         coreClient.updateBoardCard(boardId, cardId, {
           if_board_updated_at: workspace.board.updated_at,
-          patch: {
-            title: manageTitle.trim(),
-            summary: manageSummary.trim() || manageTitle.trim(),
-            thread_id: manageThreadId.trim() || null,
-            document_ref: manageDocumentId.trim()
-              ? `document:${manageDocumentId.trim()}`
-              : null,
-            assignee_refs: [...manageAssignees],
-            risk: manageRisk,
-            resolution: manageResolution.trim() || null,
-            resolution_refs: String(manageResolutionRefs ?? "")
-              .split(/\r?\n|,/)
-              .map((item) => item.trim())
-              .filter(Boolean),
-            related_refs: String(manageRelatedRefs ?? "")
-              .split(/\r?\n|,/)
-              .map((item) => item.trim())
-              .filter(Boolean),
-            due_at: manageDueAt.trim() || null,
-            definition_of_done: String(manageDefinitionOfDone ?? "")
-              .split(/\r?\n|,/)
-              .map((item) => item.trim())
-              .filter(Boolean),
-          },
+          patch,
         }),
       "Card details updated.",
     );
-    mutatingCardId = "";
   }
 
   async function removeCard(cardItem) {
     if (!workspace?.board) return;
 
     const cardId = boardCardStableId(cardItem.membership);
-    mutatingCardId = cardId;
     await runBoardMutation(
       () =>
         coreClient.removeBoardCard(boardId, cardId, {
           if_board_updated_at: workspace.board.updated_at,
         }),
       "Card removed.",
-      { closeCardManager: true },
     );
-    mutatingCardId = "";
+    closeCardDetailModal();
   }
 
   function statusColor(status) {
@@ -529,62 +373,6 @@
     if (status === "paused") return "text-amber-300 bg-amber-500/10";
     if (status === "closed") return "text-slate-300 bg-slate-500/10";
     return "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
-  }
-
-  function getThreadStatus(thread) {
-    if (!thread) return "unknown";
-    if (thread.status === "done") return "done";
-    if (thread.status === "canceled") return "canceled";
-    if (thread.status === "paused") return "paused";
-    if (thread.staleness === "stale") return "stale";
-    if (thread.staleness === "very-stale") return "very-stale";
-    return "active";
-  }
-
-  /** Visual status for the card row: thread staleness when linked, else artifact status. */
-  function boardCardRowStatus(membership, thread) {
-    const resolution = String(membership?.resolution ?? "").trim();
-    if (resolution === "done" || resolution === "completed") return "done";
-    if (resolution === "canceled" || resolution === "cancelled")
-      return "canceled";
-    if (resolution === "superseded") return "paused";
-    if (thread) return getThreadStatus(thread);
-    if (String(membership?.column_key ?? "").trim() === "done") return "done";
-    const s = String(membership?.status ?? "").trim();
-    if (s === "done") return "done";
-    if (s === "cancelled") return "canceled";
-    return "active";
-  }
-
-  function boardCardHeaderTitle(membership, thread) {
-    const cardTitle = String(membership?.title ?? "").trim();
-    if (cardTitle) return cardTitle;
-    const threadTitle = String(thread?.title ?? "").trim();
-    if (threadTitle) return threadTitle;
-    return boardCardStableId(membership);
-  }
-
-  function threadStatusColor(status) {
-    switch (status) {
-      case "done":
-        return "text-emerald-400";
-      case "canceled":
-        return "text-[var(--ui-text-muted)]";
-      case "paused":
-        return "text-amber-400";
-      case "stale":
-        return "text-orange-400";
-      case "very-stale":
-        return "text-red-400";
-      default:
-        return "text-[var(--ui-text)]";
-    }
-  }
-
-  function staleBadgeClass(stale) {
-    return stale
-      ? "text-red-300 bg-red-500/10"
-      : "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
   }
 
   function boardProjectionMessage(freshness) {
@@ -611,6 +399,18 @@
   $effect(() => {
     boardId;
     confirmModal = { open: false, action: "" };
+  });
+
+  $effect(() => {
+    const cardParam = $page.url.searchParams.get("card");
+    if (!cardParam || !workspace?.cards?.items) return;
+    const allCards = workspace.cards.items;
+    const match = allCards.find(
+      (c) => boardCardStableId(c.membership) === cardParam,
+    );
+    if (match && detailModalCard === null) {
+      detailModalCard = match;
+    }
   });
 
   async function handleArchiveBoard() {
@@ -1233,444 +1033,13 @@
     </section>
   {/if}
 
-  {#snippet renderCard(cardItem, index, cards)}
-    {@const membership = cardItem.membership}
-    {@const backing = cardItem.backing}
-    {@const derived = cardItem.derived}
-    {@const thread = backing?.thread}
-    {@const linkedThreadId = boardCardLinkedThreadId(membership)}
-    {@const topicSegment = topicRouteSegmentFromBoardCardRow(
-      membership,
-      thread,
-    )}
-    {@const showThreadNav = Boolean(topicSegment)}
-    {@const cardRowId = boardCardStableId(membership)}
-    {@const rowStatus = boardCardRowStatus(membership, thread)}
-    {@const headerTitle = boardCardHeaderTitle(membership, thread)}
-    {@const cardFreshness = derived?.freshness}
-    {@const derivedCurrent = isFreshnessCurrent(cardFreshness)}
-    {@const summary = derived?.summary}
-    {@const cardResolution = String(membership?.resolution ?? "").trim()}
-    {@const cardSummary = String(membership?.summary ?? "").trim()}
-    {@const cardDueAt = String(membership?.due_at ?? "").trim()}
-    {@const threadLinkRef =
-      linkedThreadId.trim() !== "" ? `thread:${linkedThreadId}` : ""}
-    {@const topicRef = String(membership?.topic_ref ?? "").trim()}
-    {@const documentRef = String(membership?.document_ref ?? "").trim()}
-    {@const assigneeRefs = Array.isArray(membership?.assignee_refs)
-      ? membership.assignee_refs
-      : []}
-    {@const resolutionRefs = Array.isArray(membership?.resolution_refs)
-      ? membership.resolution_refs
-      : []}
-    {@const relatedRefs = Array.isArray(membership?.related_refs)
-      ? membership.related_refs
-      : []}
-    {@const doD = Array.isArray(membership?.definition_of_done)
-      ? membership.definition_of_done
-      : []}
-    <div
-      id={`card-${cardRowId}`}
-      class="group rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] transition-colors hover:border-[var(--ui-border-strong)]"
-    >
-      <div class="px-2.5 py-2">
-        <div class="flex items-start gap-2">
-          <span
-            aria-hidden="true"
-            class="mt-[5px] h-2 w-2 shrink-0 rounded-full {threadStatusDotClass(
-              rowStatus,
-            )}"
-          ></span>
-          <div class="min-w-0 flex-1">
-            {#if showThreadNav}
-              <a
-                class="block truncate text-[13px] font-medium leading-snug transition-colors hover:text-indigo-300 {threadStatusColor(
-                  rowStatus,
-                )}"
-                href={workspaceHref(
-                  `/topics/${encodeURIComponent(topicSegment)}`,
-                )}
-              >
-                {headerTitle}
-              </a>
-            {:else}
-              <span
-                class="block truncate text-[13px] font-medium leading-snug {threadStatusColor(
-                  rowStatus,
-                )}"
-              >
-                {headerTitle}
-              </span>
-            {/if}
-            <div class="mt-1 flex flex-wrap items-center gap-1">
-              <span
-                class="rounded px-1 py-0.5 text-[11px] font-medium {cardResolutionTone(
-                  cardResolution,
-                )}"
-              >
-                {cardResolutionLabel(cardResolution)}
-              </span>
-              {#if cardDueAt}
-                <span
-                  class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
-                >
-                  Due {formatTimestamp(cardDueAt) || "—"}
-                </span>
-              {/if}
-              {#if cardSummary}
-                <span class="truncate text-[11px] text-[var(--ui-text-muted)]">
-                  {cardSummary}
-                </span>
-              {/if}
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-1 flex flex-wrap items-center gap-1 pl-4">
-          {#if String(membership?.column_key ?? "").trim()}
-            <span
-              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--ui-text-muted)]"
-            >
-              {String(membership.column_key).trim().replaceAll("_", " ")}
-            </span>
-          {:else if String(membership?.status ?? "").trim()}
-            <span
-              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--ui-text-muted)]"
-            >
-              {String(membership.status).trim()}
-            </span>
-          {/if}
-          {#if String(membership?.risk ?? "").trim()}
-            <span
-              class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[10px] font-medium text-[var(--ui-text-muted)]"
-            >
-              {String(membership.risk).trim()}
-            </span>
-          {/if}
-          {#if cardFreshness}
-            <span
-              class="rounded px-1 py-0.5 text-[11px] {freshnessStatusTone(
-                cardFreshness.status,
-              )}"
-            >
-              {freshnessStatusLabel(cardFreshness.status)}
-            </span>
-          {/if}
-          {#if derivedCurrent}
-            {#if (summary?.related_topic_count ?? 0) > 0}
-              <span
-                class="rounded bg-[var(--ui-border)] px-1 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
-              >
-                {summary.related_topic_count} related {summary.related_topic_count ===
-                1
-                  ? "topic"
-                  : "topics"}
-              </span>
-            {/if}
-            {#if (summary?.document_count ?? 0) > 0}
-              <span
-                class="rounded bg-indigo-500/10 px-1 py-0.5 text-[11px] text-indigo-300"
-              >
-                {summary.document_count} doc {summary.document_count === 1
-                  ? "ref"
-                  : "refs"}
-              </span>
-            {/if}
-            {#if (summary?.inbox_count ?? 0) > 0}
-              <span
-                class="rounded bg-amber-500/10 px-1 py-0.5 text-[11px] text-amber-400"
-              >
-                {summary.inbox_count} inbox
-              </span>
-            {/if}
-            <span
-              class="rounded px-1 py-0.5 text-[11px] {staleBadgeClass(
-                Boolean(summary?.stale),
-              )}"
-            >
-              {summary?.stale ? "Topic stale" : "Fresh check-in"}
-            </span>
-          {/if}
-        </div>
-
-        <div
-          class="mt-1.5 flex flex-wrap gap-1 pl-4 text-[11px] text-[var(--ui-text-muted)]"
-        >
-          {#if threadLinkRef}
-            <RefLink
-              refValue={threadLinkRef}
-              threadId={linkedThreadId}
-              {boardId}
-              showRaw
-            />
-          {/if}
-          {#if topicRef}
-            <RefLink
-              refValue={topicRef}
-              threadId={linkedThreadId}
-              {boardId}
-              showRaw
-            />
-          {/if}
-          {#if documentRef}
-            <RefLink refValue={documentRef} {boardId} showRaw />
-          {/if}
-        </div>
-
-        {#if assigneeRefs.length > 0}
-          <div
-            class="mt-1.5 flex flex-wrap gap-1 pl-4 text-[11px] text-[var(--ui-text-subtle)]"
-          >
-            {#each assigneeRefs as assigneeRef}
-              <span class="rounded bg-[var(--ui-border)] px-1.5 py-0.5">
-                {actorName(String(assigneeRef).replace(/^actor:/, ""))}
-              </span>
-            {/each}
-          </div>
-        {/if}
-
-        {#if resolutionRefs.length > 0}
-          <div class="mt-1.5 pl-4 text-[11px] text-[var(--ui-text-muted)]">
-            <div class="text-[var(--ui-text-subtle)]">Resolution evidence</div>
-            <div class="mt-1 flex flex-wrap gap-1">
-              {#each resolutionRefs as refValue}
-                <RefLink {refValue} {boardId} showRaw />
-              {/each}
-            </div>
-          </div>
-        {/if}
-
-        {#if relatedRefs.length > 0}
-          <div class="mt-1.5 pl-4 text-[11px] text-[var(--ui-text-muted)]">
-            <div class="text-[var(--ui-text-subtle)]">Related refs</div>
-            <div class="mt-1 flex flex-wrap gap-1">
-              {#each relatedRefs as refValue}
-                <RefLink {refValue} {boardId} showRaw />
-              {/each}
-            </div>
-          </div>
-        {/if}
-
-        {#if doD.length > 0}
-          <div class="mt-1.5 pl-4 text-[11px] text-[var(--ui-text-muted)]">
-            <div class="text-[var(--ui-text-subtle)]">Definition of done</div>
-            <ul class="mt-1 list-disc space-y-0.5 pl-4">
-              {#each doD as item}
-                <li>{item}</li>
-              {/each}
-            </ul>
-          </div>
-        {/if}
-
-        <div class="mt-2 flex justify-end">
-          <button
-            aria-label={`Manage ${headerTitle}`}
-            class="rounded px-1.5 py-1.5 text-[11px] text-[var(--ui-text-subtle)] transition-colors hover:bg-[var(--ui-border)] hover:text-[var(--ui-text-muted)]"
-            onclick={() => openCardManager(cardItem)}
-            type="button"
-          >
-            {expandedCardId === cardRowId ? "Close" : "Actions"}
-          </button>
-        </div>
-      </div>
-
-      {#if expandedCardId === cardRowId}
-        <div
-          class="border-t border-[var(--ui-border)] bg-[var(--ui-panel-muted)]"
-        >
-          <div class="grid gap-3 px-2.5 py-2 md:grid-cols-2">
-            <label class="text-[11px] text-[var(--ui-text-muted)]">
-              Card title
-              <input
-                bind:value={manageTitle}
-                class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-                type="text"
-              />
-            </label>
-            <label class="text-[11px] text-[var(--ui-text-muted)]">
-              Risk
-              <select
-                bind:value={manageRisk}
-                class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </select>
-            </label>
-
-            <label
-              class="text-[11px] text-[var(--ui-text-muted)] md:col-span-2"
-            >
-              Summary
-              <textarea
-                bind:value={manageSummary}
-                class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-                rows="3"
-              ></textarea>
-            </label>
-
-            <label class="text-[11px] text-[var(--ui-text-muted)]">
-              Resolution
-              <select
-                bind:value={manageResolution}
-                class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-              >
-                <option value="">Open</option>
-                <option value="done">Done</option>
-                <option value="canceled">Canceled</option>
-              </select>
-            </label>
-
-            <label class="text-[11px] text-[var(--ui-text-muted)]">
-              Due date
-              <input
-                bind:value={manageDueAt}
-                class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-                type="datetime-local"
-              />
-            </label>
-
-            <SearchableEntityPicker
-              bind:value={manageDocumentId}
-              advancedLabel="Use a manual document ID"
-              helperText="Optional canonical document ref for this card."
-              label="Document"
-              manualLabel="Document ID"
-              manualPlaceholder="incident-response-playbook"
-              placeholder="Search documents by title, ID, or thread"
-              searchFn={searchDocumentOptions}
-            />
-
-            <SearchableMultiEntityPicker
-              bind:values={manageAssignees}
-              advancedLabel="Add a manual assignee ID"
-              helperText="Assignee refs stay visible on the card detail panel."
-              items={actorOptions}
-              label="Assignees"
-              manualLabel="Assignee ID"
-              manualPlaceholder="actor-ops-ai"
-              placeholder="Search actors by name, ID, or tags"
-            />
-
-            <label
-              class="text-[11px] text-[var(--ui-text-muted)] md:col-span-2"
-            >
-              Definition of done
-              <textarea
-                bind:value={manageDefinitionOfDone}
-                class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-                rows="3"
-              ></textarea>
-            </label>
-
-            <div class="md:col-span-2">
-              <p class="text-[11px] text-[var(--ui-text-muted)]">
-                Related refs
-              </p>
-              <GuidedTypedRefsInput
-                bind:value={manageRelatedRefs}
-                {boardId}
-                addInputLabel="Add related ref"
-                addInputPlaceholder="topic:thread-summer-menu"
-                addButtonLabel="Add ref"
-                emptyText="No related refs yet."
-                helperText="Use typed refs to connect the card to topics, documents, artifacts, or boards."
-                textareaAriaLabel="Card related refs"
-              />
-            </div>
-
-            <div class="md:col-span-2">
-              <p class="text-[11px] text-[var(--ui-text-muted)]">
-                Resolution evidence
-              </p>
-              <GuidedTypedRefsInput
-                bind:value={manageResolutionRefs}
-                {boardId}
-                addInputLabel="Add resolution ref"
-                addInputPlaceholder="artifact:receipt-123"
-                addButtonLabel="Add ref"
-                emptyText="No resolution evidence yet."
-                helperText="Use typed refs that evidence the closeout state."
-                textareaAriaLabel="Card resolution refs"
-              />
-            </div>
-          </div>
-
-          <div class="space-y-2 px-2.5 py-2">
-            <div class="flex items-end gap-1.5">
-              <label
-                class="min-w-0 flex-1 text-[11px] text-[var(--ui-text-muted)]"
-              >
-                Move to column
-                <select
-                  bind:value={manageMoveColumnKey}
-                  class="mt-0.5 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2 py-1 text-[12px] text-[var(--ui-text)]"
-                >
-                  {#each board.column_schema as moveColumn}
-                    <option value={moveColumn.key}>
-                      {moveColumn.title ||
-                        boardColumnTitle(moveColumn.key, board.column_schema)}
-                    </option>
-                  {/each}
-                </select>
-              </label>
-              <button
-                class="rounded bg-indigo-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-40"
-                disabled={mutatingCardId === cardRowId}
-                onclick={() =>
-                  moveCard(
-                    cardItem,
-                    { column_key: manageMoveColumnKey },
-                    "Card moved.",
-                  )}
-                type="button"
-              >
-                Move
-              </button>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2">
-              <button
-                class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={mutatingCardId === cardRowId}
-                onclick={() => saveCardDetails(cardItem)}
-                type="button"
-              >
-                Save card details
-              </button>
-              <button
-                class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={index === 0 || mutatingCardId === cardRowId}
-                onclick={() => reorderCard(cardItem, cards, index, "up")}
-                type="button"
-              >
-                Move up
-              </button>
-              <button
-                class="rounded border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[11px] text-[var(--ui-text-muted)] transition-colors hover:text-[var(--ui-text)] disabled:opacity-40"
-                disabled={index === cards.length - 1 ||
-                  mutatingCardId === cardRowId}
-                onclick={() => reorderCard(cardItem, cards, index, "down")}
-                type="button"
-              >
-                Move down
-              </button>
-              <div class="flex-1"></div>
-              <button
-                class="rounded border border-red-500/20 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-400 transition-colors hover:bg-red-500/15 disabled:opacity-40"
-                disabled={mutatingCardId === cardRowId}
-                onclick={() => removeCard(cardItem)}
-                type="button"
-              >
-                Remove card
-              </button>
-            </div>
-          </div>
-        </div>
-      {/if}
-    </div>
+  {#snippet renderCard(cardItem)}
+    <BoardCard
+      {cardItem}
+      {boardId}
+      {workspaceSlug}
+      onclick={() => openCardDetailModal(cardItem)}
+    />
   {/snippet}
 
   <section class="mb-3">
@@ -1718,8 +1087,8 @@
           {#if backlogCards.length === 0}
             <p class="text-[11px] text-[var(--ui-text-subtle)]">No cards</p>
           {:else}
-            {#each backlogCards as cardItem, index}
-              {@render renderCard(cardItem, index, backlogCards)}
+            {#each backlogCards as cardItem}
+              {@render renderCard(cardItem)}
             {/each}
           {/if}
         </div>
@@ -1756,8 +1125,8 @@
                 No cards
               </div>
             {:else}
-              {#each cards as cardItem, index}
-                {@render renderCard(cardItem, index, cards)}
+              {#each cards as cardItem}
+                {@render renderCard(cardItem)}
               {/each}
             {/if}
           </div>
@@ -1797,8 +1166,8 @@
           {#if doneCards.length === 0}
             <p class="text-[11px] text-[var(--ui-text-subtle)]">No cards</p>
           {:else}
-            {#each doneCards as cardItem, index}
-              {@render renderCard(cardItem, index, doneCards)}
+            {#each doneCards as cardItem}
+              {@render renderCard(cardItem)}
             {/each}
           {/if}
         </div>
@@ -1951,6 +1320,19 @@
     </section>
   {/if}
 {/if}
+
+<CardDetailModal
+  open={detailModalCard !== null}
+  cardItem={detailModalCard}
+  {boardId}
+  board={workspace?.board ?? null}
+  {workspaceSlug}
+  {actorName}
+  onclose={closeCardDetailModal}
+  onmovecard={moveCard}
+  onsavecard={saveCardDetails}
+  onremovecard={removeCard}
+/>
 
 <ConfirmModal
   open={confirmModal.open}

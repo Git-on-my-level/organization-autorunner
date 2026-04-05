@@ -1,13 +1,11 @@
 import { coreClient } from "./coreClient";
-import { computeStaleness } from "./threadFilters";
+import { splitTypedRef } from "./inboxUtils.js";
+import {
+  boardOwnsTopicId,
+  resolveBoardCardThreadIdField,
+} from "./topicRouteUtils.js";
+import { computeStaleness } from "./topicFilters";
 import { get, writable } from "svelte/store";
-
-function parseTypedRefId(ref, prefix) {
-  const s = String(ref ?? "").trim();
-  const p = `${prefix}:`;
-  if (s.startsWith(p)) return s.slice(p.length).trim();
-  return "";
-}
 
 function primaryThreadFromTopicWorkspace(workspace) {
   const topic = workspace?.topic;
@@ -28,12 +26,7 @@ function deriveBoardPanelsFromTopicWorkspace(workspace, topicId) {
   const topicIdStr = String(topicId ?? "").trim();
 
   const ownedBoards = boards
-    .filter((b) => {
-      const fromRef = parseTypedRefId(b?.primary_topic_ref, "topic");
-      if (topicIdStr && fromRef === topicIdStr) return true;
-      const raw = String(b?.primary_topic_ref ?? "").trim();
-      return topicIdStr && raw === `topic:${topicIdStr}`;
-    })
+    .filter((b) => boardOwnsTopicId(b, topicIdStr))
     .map((b) => ({
       id: b.id,
       title: b.title,
@@ -46,11 +39,12 @@ function deriveBoardPanelsFromTopicWorkspace(workspace, topicId) {
   const boardById = new Map(boards.map((b) => [String(b.id), b]));
   const boardMemberships = [];
   for (const card of cards) {
-    const cid = String(card?.thread_id ?? "").trim();
+    const cid = resolveBoardCardThreadIdField(card);
     if (!primaryThreadId || cid !== primaryThreadId) continue;
+    const fromBoardRef = splitTypedRef(String(card?.board_ref ?? "").trim());
     const boardId =
       String(card?.board_id ?? "").trim() ||
-      parseTypedRefId(card?.board_ref, "board");
+      (fromBoardRef.prefix === "board" ? fromBoardRef.id : "");
     if (!boardId) continue;
     const board = boardById.get(boardId) ?? { id: boardId, title: boardId };
     boardMemberships.push({ board, card });
@@ -62,9 +56,9 @@ function deriveBoardPanelsFromTopicWorkspace(workspace, topicId) {
 function initialState() {
   return {
     workspace: null,
-    snapshot: null,
-    snapshotLoading: false,
-    snapshotError: "",
+    topic: null,
+    topicLoading: false,
+    topicError: "",
     documents: [],
     documentsLoading: false,
     documentsError: "",
@@ -74,19 +68,17 @@ function initialState() {
     timeline: [],
     timelineLoading: false,
     timelineError: "",
-    workOrders: [],
-    workOrdersLoading: false,
     /** When true, workspace/timeline loads use topic-scoped APIs for the route id. */
     detailAsTopic: false,
   };
 }
 
-function createThreadDetailStore() {
+function createTopicDetailStore() {
   const store = writable(initialState());
   const { subscribe, update, set } = store;
   const patchState = (patch) => update((state) => ({ ...state, ...patch }));
   let queuedRefreshFlags = null;
-  let queuedRefreshThreadId = "";
+  let queuedRefreshRouteId = "";
   let queuedRefreshPromise = null;
   let timelineRequestSeq = 0;
   /** Controls thread vs topic API for workspace/timeline refresh coalescing. */
@@ -97,10 +89,9 @@ function createThreadDetailStore() {
     const right = next ?? {};
     return {
       workspace: Boolean(left.workspace || right.workspace),
-      snapshot: Boolean(left.snapshot || right.snapshot),
+      topic: Boolean(left.topic || right.topic),
       documents: Boolean(left.documents || right.documents),
       timeline: Boolean(left.timeline || right.timeline),
-      workOrders: Boolean(left.workOrders || right.workOrders),
     };
   }
 
@@ -119,19 +110,19 @@ function createThreadDetailStore() {
     const currentState = get(store);
     const hasWorkspaceData =
       currentState.workspace !== null ||
-      currentState.snapshot !== null ||
+      currentState.topic !== null ||
       currentState.documents.length > 0 ||
       currentState.timeline.length > 0;
 
     patchState({
-      snapshotLoading: hasWorkspaceData ? currentState.snapshotLoading : true,
-      snapshotError: hasWorkspaceData ? currentState.snapshotError : "",
+      topicLoading: hasWorkspaceData ? currentState.topicLoading : true,
+      topicError: hasWorkspaceData ? currentState.topicError : "",
       documentsLoading: hasWorkspaceData ? currentState.documentsLoading : true,
       documentsError: hasWorkspaceData ? currentState.documentsError : "",
     });
     try {
       let workspace;
-      let snapshot;
+      let topic;
       let documents = [];
       let boardMemberships = [];
       let ownedBoards = [];
@@ -139,7 +130,7 @@ function createThreadDetailStore() {
       if (asTopic) {
         workspace = await coreClient.getTopicWorkspace(threadId, {});
         const primaryThread = primaryThreadFromTopicWorkspace(workspace);
-        snapshot = primaryThread;
+        topic = primaryThread;
         documents = Array.isArray(workspace?.documents)
           ? workspace.documents
           : [];
@@ -163,7 +154,7 @@ function createThreadDetailStore() {
           workspace && typeof workspace.owned_boards === "object"
             ? workspace.owned_boards
             : {};
-        snapshot = workspace?.thread ?? null;
+        topic = workspace?.thread ?? null;
         documents = Array.isArray(context.documents) ? context.documents : [];
         boardMemberships = Array.isArray(boardMembershipsData.items)
           ? boardMembershipsData.items
@@ -202,8 +193,8 @@ function createThreadDetailStore() {
 
       patchState({
         workspace,
-        snapshot,
-        snapshotError: "",
+        topic,
+        topicError: "",
         documents,
         documentsError: "",
         boardMemberships,
@@ -220,8 +211,8 @@ function createThreadDetailStore() {
       } else {
         patchState({
           workspace: null,
-          snapshotError: `Failed to load workspace: ${message}`,
-          snapshot: null,
+          topicError: `Failed to load workspace: ${message}`,
+          topic: null,
           documentsError: `Failed to load workspace: ${message}`,
           documents: [],
           boardMemberships: [],
@@ -233,7 +224,7 @@ function createThreadDetailStore() {
       return null;
     } finally {
       patchState({
-        snapshotLoading: false,
+        topicLoading: false,
         documentsLoading: false,
       });
     }
@@ -280,56 +271,32 @@ function createThreadDetailStore() {
     }
   }
 
-  async function loadWorkOrders(backingThreadId) {
-    const threadId = timelineScopeIdForRoute(backingThreadId);
-    patchState({ workOrdersLoading: true, workOrdersError: "" });
-    try {
-      const response = await coreClient.listArtifacts({
-        kind: "work_order",
-        thread_id: threadId,
-      });
-      patchState({ workOrders: response.artifacts ?? [] });
-    } catch (error) {
-      patchState({
-        workOrdersError: `Failed to load work orders: ${error instanceof Error ? error.message : String(error)}`,
-        workOrders: [],
-      });
-    } finally {
-      patchState({ workOrdersLoading: false });
-    }
-  }
-
-  async function refreshThreadDetail(routeId, flags = {}) {
+  async function refreshTopicDetail(routeId, flags = {}) {
     const {
       workspace: refreshWorkspace = false,
-      snapshot: refreshSnapshot = false,
+      topic: refreshTopic = false,
       documents: refreshDocuments = false,
       timeline: refreshTimeline = false,
-      workOrders: refreshWorkOrders = false,
     } = flags;
 
     const promises = [];
-    if (refreshWorkspace || refreshSnapshot || refreshDocuments) {
+    if (refreshWorkspace || refreshTopic || refreshDocuments) {
       promises.push(loadWorkspace(routeId));
     }
     if (refreshTimeline) promises.push(loadTimeline(routeId));
-    if (refreshWorkOrders) {
-      const sid = get(store).snapshot?.id ?? routeId;
-      promises.push(loadWorkOrders(sid));
-    }
     await Promise.all(promises);
   }
 
-  async function queueRefreshThreadDetail(routeId, flags = {}) {
+  async function queueRefreshTopicDetail(routeId, flags = {}) {
     const id = timelineScopeIdForRoute(routeId);
     if (!id) return;
 
-    if (queuedRefreshThreadId && queuedRefreshThreadId !== id) {
+    if (queuedRefreshRouteId && queuedRefreshRouteId !== id) {
       queuedRefreshFlags = null;
       queuedRefreshPromise = null;
     }
 
-    queuedRefreshThreadId = id;
+    queuedRefreshRouteId = id;
     queuedRefreshFlags = mergeRefreshFlags(queuedRefreshFlags, flags);
 
     if (queuedRefreshPromise) {
@@ -340,11 +307,11 @@ function createThreadDetailStore() {
       while (queuedRefreshFlags) {
         const nextFlags = queuedRefreshFlags;
         queuedRefreshFlags = null;
-        await refreshThreadDetail(queuedRefreshThreadId, nextFlags);
+        await refreshTopicDetail(queuedRefreshRouteId, nextFlags);
       }
     })().finally(() => {
       queuedRefreshPromise = null;
-      queuedRefreshThreadId = "";
+      queuedRefreshRouteId = "";
     });
 
     return queuedRefreshPromise;
@@ -357,12 +324,10 @@ function createThreadDetailStore() {
     }
     const id = timelineScopeIdForRoute(routeId);
     await loadWorkspace(id);
-    const backingThreadId = get(store).snapshot?.id ?? id;
-    await loadWorkOrders(backingThreadId);
   }
 
-  function setSnapshot(value) {
-    patchState({ snapshot: value });
+  function setTopic(value) {
+    patchState({ topic: value });
   }
 
   function setDocuments(value) {
@@ -376,12 +341,8 @@ function createThreadDetailStore() {
     });
   }
 
-  function setWorkOrders(value) {
-    patchState({ workOrders: value });
-  }
-
-  function getStaleness(snapshot) {
-    const value = snapshot ?? get(store).snapshot;
+  function getStaleness(topic) {
+    const value = topic ?? get(store).topic;
     if (!value) return null;
     return computeStaleness(value);
   }
@@ -389,7 +350,7 @@ function createThreadDetailStore() {
   function reset() {
     detailAsTopic = false;
     queuedRefreshFlags = null;
-    queuedRefreshThreadId = "";
+    queuedRefreshRouteId = "";
     queuedRefreshPromise = null;
     timelineRequestSeq = 0;
     set(initialState());
@@ -399,17 +360,15 @@ function createThreadDetailStore() {
     subscribe,
     loadWorkspace,
     loadTimeline,
-    loadWorkOrders,
-    refreshThreadDetail,
-    queueRefreshThreadDetail,
+    refreshTopicDetail,
+    queueRefreshTopicDetail,
     fullRefresh,
-    setSnapshot,
+    setTopic,
     setDocuments,
     setTimeline,
-    setWorkOrders,
     getStaleness,
     reset,
   };
 }
 
-export const threadDetailStore = createThreadDetailStore();
+export const topicDetailStore = createTopicDetailStore();

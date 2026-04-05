@@ -1,6 +1,6 @@
 import { normalizeStringList, stringListsEqual } from "./listUtils.js";
 
-const LIST_FIELDS = new Set(["tags", "next_actions", "key_artifacts"]);
+const LIST_FIELDS = new Set(["tags"]);
 const EDITABLE_FIELDS = [
   "title",
   "type",
@@ -10,8 +10,6 @@ const EDITABLE_FIELDS = [
   "next_check_in_at",
   "tags",
   "current_summary",
-  "next_actions",
-  "key_artifacts",
 ];
 
 function normalizeScalar(key, value) {
@@ -22,12 +20,12 @@ function normalizeScalar(key, value) {
   return value ?? "";
 }
 
-export function buildThreadPatch(originalSnapshot = {}, draftSnapshot = {}) {
+export function buildTopicPatch(original = {}, draft = {}) {
   const patch = {};
 
   for (const field of EDITABLE_FIELDS) {
-    const originalValue = originalSnapshot[field];
-    const draftValue = draftSnapshot[field];
+    const originalValue = original[field];
+    const draftValue = draft[field];
 
     if (LIST_FIELDS.has(field)) {
       const normalizedOriginal = normalizeStringList(originalValue);

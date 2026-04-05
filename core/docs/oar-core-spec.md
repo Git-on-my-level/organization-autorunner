@@ -8,7 +8,7 @@ OAR is a manager and executive operating system, not a generic work-management t
 
 oar-core:
 - Maintains durable organizational state (events, topics, artifacts, documents, boards, cards).
-- Stores and validates structured coordination artifacts (work orders, receipts, reviews).
+- Stores and validates structured coordination artifacts (receipts and reviews).
 - Enforces evidence-first grounding rules on restricted state transitions.
 - Computes derived views (inbox, staleness) from canonical data.
 - Exposes a programmatic API and contract surface that CLI/generated clients can use.
@@ -78,7 +78,7 @@ A durable record that something happened or that an actor claims something happe
 
 **Fields:** per `oar-schema.yaml` → `primitives.event`
 
-**v0 event types:** `topic_created`, `topic_updated`, `topic_status_changed`, `message_posted`, `work_order_created`, `receipt_added`, `review_completed`, `decision_needed`, `intervention_needed`, `decision_made`, `document_created`, `document_revised`, `document_tombstoned`, `board_created`, `board_updated`, `card_created`, `card_updated`, `card_moved`, `card_resolved`, `exception_raised`, `inbox_item_acknowledged`
+**v0 event types:** `topic_created`, `topic_updated`, `topic_status_changed`, `message_posted`, `receipt_added`, `review_completed`, `decision_needed`, `intervention_needed`, `decision_made`, `document_created`, `document_revised`, `document_tombstoned`, `board_created`, `board_updated`, `card_created`, `card_updated`, `card_moved`, `card_resolved`, `exception_raised`, `inbox_item_acknowledged`
 
 ### 3.2 Mutable resources (topic/card/board/document)
 Topics, cards, boards, and documents are mutable current-state records.
@@ -98,7 +98,7 @@ An immutable blob representing a specific version of content at a point in time.
 **Behavior:**
 - Artifacts MUST be immutable. New versions are new artifacts.
 - Artifact metadata lives in SQLite. Content lives behind the blob backend and is resolved canonically by `content_hash`.
-- Artifact content is **generally opaque** to oar-core — it stores and retrieves but does not interpret. **Exception:** packet kinds (`work_order`, `receipt`, `review`) are schema-validated structured content. oar-core MUST validate their required fields, constraints, and ID consistency on write (see §5).
+- Artifact content is **generally opaque** to oar-core — it stores and retrieves but does not interpret. **Exception:** packet kinds (`receipt`, `review`) are schema-validated structured content. oar-core MUST validate their required fields, constraints, and ID consistency on write (see §5).
 - All values in `refs` MUST use typed reference strings.
 
 **Fields:** per `oar-schema.yaml` → `primitives.artifact`
@@ -130,40 +130,32 @@ A first-class board work item anchored to a board and optionally linked to a top
 
 ## 5. Artifact packet conventions (v0)
 
-Work orders, receipts, and reviews are stored as artifacts with structured content. They are the primary coordination surface — any actor can create or consume them.
+Receipts and reviews are stored as artifacts with structured content. They anchor evidence to a first-class card subject.
 
 ### 5.1 Packet validation rules
-- Packet content ID fields (`work_order_id`, `receipt_id`, `review_id`) MUST equal the enclosing artifact's `id`. oar-core MUST reject mismatches.
+- Packet content ID fields (`receipt_id`, `review_id`) MUST equal the enclosing artifact's `id`. oar-core MUST reject mismatches.
 - All required fields per the packet schema MUST be present. oar-core MUST reject packets missing required fields.
-- All packet artifacts MUST include `subject_ref` in `packet` and a matching `artifact:<packet_id>` ref; additional typed refs MUST satisfy the packet-kind conventions in `oar-schema.yaml` (for example the subject lineage and any work-order / receipt linkage refs).
-- All typed ref fields in packets (e.g., `context_refs`, `outputs`, `verification_evidence`, `evidence_refs`) MUST use typed reference strings.
+- Receipt and review packets MUST use `subject_ref` of the form `card:<card_id>`; oar-core resolves that to the card’s backing thread for event placement.
+- All packet artifacts MUST include `subject_ref` in `packet` and a matching `artifact:<packet_id>` ref; additional typed refs MUST satisfy the packet-kind conventions in `oar-schema.yaml` (including the `card:<card_id>` ref and receipt linkage on reviews).
+- All typed ref fields in packets (e.g., `outputs`, `verification_evidence`, `evidence_refs`) MUST use typed reference strings.
 
-### 5.2 Work order
-A coordination artifact: "here's what needs doing and how to verify it's done." Any actor may create a work order. Any actor may pick one up.
-
-**Fields:** per `oar-schema.yaml` → `packets.work_order`
-
-Work orders MUST be self-contained: an actor picking up a work order should be able to start working without additional context beyond what is referenced.
-
-Creating a work order MUST emit a `work_order_created` event. Per reference conventions, the event `refs` MUST include `artifact:<work_order_artifact_id>`.
-
-### 5.3 Receipt
+### 5.2 Receipt
 Structured evidence that work was done.
 
 **Fields:** per `oar-schema.yaml` → `packets.receipt`
 
 **Validation:** Receipts that are primarily prose with no evidence links MUST be rejected. The `outputs` and `verification_evidence` fields MUST each contain at least one typed reference.
 
-Creating a receipt MUST emit a `receipt_added` event. Per reference conventions, the event `refs` MUST include `artifact:<receipt_artifact_id>` and `artifact:<work_order_artifact_id>`.
+Creating a receipt MUST emit a `receipt_added` event. Per reference conventions, the event `refs` MUST include `artifact:<receipt_artifact_id>` and `card:<card_id>` (matching `subject_ref`).
 
-### 5.4 Review
-A lightweight assessment of a receipt against its work order.
+### 5.3 Review
+A lightweight assessment of a receipt.
 
 **Fields:** per `oar-schema.yaml` → `packets.review`
 
-Creating a review MUST emit a `review_completed` event. Per reference conventions, the event `refs` MUST include `artifact:<review_artifact_id>`, `artifact:<receipt_artifact_id>`, and `artifact:<work_order_artifact_id>`. If the outcome is `revise`, the reviewer SHOULD create a follow-up work order.
+Creating a review MUST emit a `review_completed` event. Per reference conventions, the event `refs` MUST include `artifact:<review_artifact_id>`, `artifact:<receipt_artifact_id>`, and `card:<card_id>` (matching `subject_ref`).
 
-### 5.5 Documents (first-class lifecycle)
+### 5.4 Documents (first-class lifecycle)
 
 Documents are a first-class canonical domain with their own API and storage. A document is a long-lived lineage, not just stored text: it has a mutable head pointer for the current version and an ordered immutable revision chain for institutional memory. Documents are distinct from the generic artifact model: artifacts are immutable blobs linked only by refs, while documents provide a canonical lineage interface over those immutable revision artifacts.
 
@@ -177,7 +169,7 @@ Documents are a first-class canonical domain with their own API and storage. A d
 
 **Relationship to artifacts:** Document revisions use artifacts internally for content storage. The docs API is the canonical interface for document lineages; clients should not treat documents as `GET /artifacts?kind=doc`. Documents complement canonical threads/events/artifacts rather than replacing them.
 
-### 5.6 Boards (canonical organizing layers)
+### 5.5 Boards (canonical organizing layers)
 
 Boards are first-class canonical coordination resources. A board is not just UI sugar over threads: it is a durable organizational map over work with canonical board metadata plus canonical card membership over topics/backing threads, and optional canonical links to document lineages.
 
@@ -225,6 +217,7 @@ authenticated principal that resolves to one.
 - Get topic timeline (events + referenced artifacts/cards/documents/threads, ordered by time)
 - Get topic workspace
 - Get card by ID
+- Get card timeline (events + referenced artifacts/cards/documents/threads for the card’s backing thread)
 - List cards (filters: board, topic, resolution, column)
 - Get artifact by ID (metadata + content hash)
 - List artifacts (filters: kind, topic/thread/time range)
@@ -245,7 +238,6 @@ authenticated principal that resolves to one.
 - Append event (for messages, decisions, exceptions, acknowledgments) → validates required refs per reference conventions
 
 ### 7.3 Convenience operations
-- Create work order (validates packet + refs, creates artifact + emits `work_order_created` with required typed refs)
 - Submit receipt (validates evidence + packet + refs, creates artifact + emits `receipt_added` with required typed refs)
 - Submit review (validates packet + refs, creates artifact + emits `review_completed` with required typed refs)
 - Record decision (`decision_needed` or `decision_made` event + optional artifact)

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   inboxTopicRouteSegment,
+  resolveBoardCardThreadIdField,
   topicDetailPathFromRef,
   topicDetailPathFromSubject,
   topicRouteSegmentFromBackingThread,
@@ -10,6 +11,39 @@ import {
 } from "../../src/lib/topicRouteUtils.js";
 
 describe("topicRouteUtils", () => {
+  describe("resolveBoardCardThreadIdField", () => {
+    it("prefers thread_id over parent_thread", () => {
+      expect(
+        resolveBoardCardThreadIdField({
+          thread_id: "a",
+          parent_thread: "b",
+        }),
+      ).toBe("a");
+    });
+
+    it("falls back to parent_thread string", () => {
+      expect(resolveBoardCardThreadIdField({ parent_thread: "thread-z" })).toBe(
+        "thread-z",
+      );
+    });
+
+    it("falls back to parent_thread.thread_id", () => {
+      expect(
+        resolveBoardCardThreadIdField({
+          parent_thread: { thread_id: "thread-nested" },
+        }),
+      ).toBe("thread-nested");
+    });
+
+    it("falls back to parent_thread.id", () => {
+      expect(
+        resolveBoardCardThreadIdField({
+          parent_thread: { id: "thread-by-id" },
+        }),
+      ).toBe("thread-by-id");
+    });
+  });
+
   describe("topicRouteSegmentFromBackingThread", () => {
     it("prefers topic_ref topic: id over thread id", () => {
       expect(
@@ -99,6 +133,15 @@ describe("topicRouteUtils", () => {
         topicRouteSegmentFromBoardCardRow({ thread_id: "thread-z" }, null),
       ).toBe("thread-z");
     });
+
+    it("falls back to legacy parent_thread when thread_id absent", () => {
+      expect(
+        topicRouteSegmentFromBoardCardRow(
+          { parent_thread: "thread-legacy" },
+          null,
+        ),
+      ).toBe("thread-legacy");
+    });
   });
 
   describe("topicRouteSegmentFromBoardWorkspace", () => {
@@ -111,12 +154,25 @@ describe("topicRouteUtils", () => {
       ).toBe("pt-1");
     });
 
-    it("reads board.primary_topic_ref", () => {
+    it("prefers topic: in board.refs over primary_topic_ref", () => {
+      expect(
+        topicRouteSegmentFromBoardWorkspace({
+          board: {
+            thread_id: "th-1",
+            primary_topic_ref: "topic:legacy",
+            refs: ["board:b1", "topic:from-refs"],
+          },
+        }),
+      ).toBe("from-refs");
+    });
+
+    it("reads board.primary_topic_ref when refs omit topic", () => {
       expect(
         topicRouteSegmentFromBoardWorkspace({
           board: {
             thread_id: "th-1",
             primary_topic_ref: "topic:from-ref",
+            refs: ["document:doc-1"],
           },
         }),
       ).toBe("from-ref");

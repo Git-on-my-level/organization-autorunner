@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"organization-autorunner-core/internal/primitives"
+	"organization-autorunner-core/internal/schema"
 )
 
 func handleListCards(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
@@ -28,6 +29,101 @@ func handleListCards(w http.ResponseWriter, r *http.Request, opts handlerOptions
 
 func handleGetCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, cardID string) {
 	handleGetBoardCard(w, r, opts, "", cardID)
+}
+
+func handleGetCardTimeline(w http.ResponseWriter, r *http.Request, opts handlerOptions, cardID string) {
+	if opts.primitiveStore == nil {
+		writeError(w, http.StatusServiceUnavailable, "primitives_unavailable", "primitives store is not configured")
+		return
+	}
+
+	card, err := opts.primitiveStore.GetBoardCard(r.Context(), "", cardID)
+	if err != nil {
+		if errors.Is(err, primitives.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "card not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load card")
+		return
+	}
+
+	threadID := strings.TrimSpace(anyString(card["thread_id"]))
+	if threadID == "" {
+		writeError(w, http.StatusInternalServerError, "internal_error", "card missing thread id")
+		return
+	}
+
+	exp, err := expandThreadTimeline(r.Context(), opts, threadID)
+	if err != nil {
+		if errors.Is(err, primitives.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found", "thread not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error", "failed to load card timeline")
+		return
+	}
+
+	cardIDs := map[string]struct{}{strings.TrimSpace(cardID): {}}
+	threadIDs := map[string]struct{}{threadID: {}}
+	for _, event := range exp.Events {
+		refs, err := extractStringSlice(event["refs"])
+		if err != nil {
+			continue
+		}
+		for _, ref := range refs {
+			prefix, id, err := schema.SplitTypedRef(ref)
+			if err != nil {
+				continue
+			}
+			switch prefix {
+			case "card":
+				if strings.TrimSpace(id) != "" {
+					cardIDs[strings.TrimSpace(id)] = struct{}{}
+				}
+			case "thread":
+				if strings.TrimSpace(id) != "" {
+					threadIDs[strings.TrimSpace(id)] = struct{}{}
+				}
+			}
+		}
+	}
+
+	cards := make([]map[string]any, 0, len(cardIDs))
+	for id := range cardIDs {
+		loaded, err := opts.primitiveStore.GetBoardCard(r.Context(), "", id)
+		if err != nil {
+			if errors.Is(err, primitives.ErrNotFound) {
+				continue
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load related cards")
+			return
+		}
+		cards = append(cards, publicCardView(loaded))
+	}
+	cards = dedupeAndSortResourceMaps(cards)
+
+	threads := make([]map[string]any, 0, len(threadIDs))
+	for id := range threadIDs {
+		thread, err := opts.primitiveStore.GetThread(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, primitives.ErrNotFound) {
+				continue
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", "failed to load related threads")
+			return
+		}
+		threads = append(threads, thread)
+	}
+	threads = dedupeAndSortResourceMaps(threads)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"card":      publicCardView(card),
+		"events":    exp.Events,
+		"artifacts": mapsByIDToSortedSlice(exp.Artifacts),
+		"cards":     cards,
+		"documents": mapsByIDToSortedSlice(exp.Documents),
+		"threads":   threads,
+	})
 }
 
 func handlePatchCard(w http.ResponseWriter, r *http.Request, opts handlerOptions, cardID string) {

@@ -140,13 +140,19 @@ function buildWorkspace(
         backing: {
           thread_id: card.thread_id,
           thread: threads.find((thread) => thread.id === card.thread_id),
-          pinned_document_ref: card.pinned_document_id
-            ? `document:${card.pinned_document_id}`
-            : null,
+          pinned_document_ref: (() => {
+            const docId = String(card.document_ref ?? "")
+              .replace(/^document:/, "")
+              .trim();
+            return docId ? `document:${docId}` : null;
+          })(),
           pinned_document:
-            documents.find(
-              (document) => document.id === card.pinned_document_id,
-            ) ?? null,
+            documents.find((document) => {
+              const docId = String(card.document_ref ?? "")
+                .replace(/^document:/, "")
+                .trim();
+              return document.id === docId;
+            }) ?? null,
         },
         derived: {
           summary: {
@@ -451,13 +457,16 @@ test("board UI supports create/edit and card mutation flows", async ({
     const targetColumnCards = cards.filter(
       (card) => card.column_key === payload.column_key,
     );
+    const docFromPayload = String(payload.document_ref ?? "")
+      .replace(/^document:/, "")
+      .trim();
     const newCard = {
       id: threadId,
       board_id: "board-created",
       thread_id: threadId,
       column_key: payload.column_key,
       rank: String(targetColumnCards.length + 1).padStart(4, "0"),
-      pinned_document_id: payload.pinned_document_id ?? null,
+      document_ref: docFromPayload ? `document:${docFromPayload}` : null,
       created_at: now,
       created_by: actorId,
       updated_at: now,
@@ -573,7 +582,10 @@ test("board UI supports create/edit and card mutation flows", async ({
     const payload = JSON.parse(route.request().postData() ?? "{}");
     updateCardPayloads.push(payload);
     const card = cards.find((item) => item.thread_id === "thread-execution");
-    card.pinned_document_id = payload.patch.pinned_document_id;
+    const docId = String(payload.patch?.document_ref ?? "")
+      .replace(/^document:/, "")
+      .trim();
+    card.document_ref = docId ? `document:${docId}` : null;
     card.updated_at = nextTimestamp();
     card.updated_by = actorId;
     board = {
@@ -700,7 +712,9 @@ test("board UI supports create/edit and card mutation flows", async ({
   await page.getByLabel("Target column").selectOption("ready");
   await page.getByRole("button", { name: "Add card", exact: true }).click();
   await expect(page.getByRole("link", { name: "Review Prep" })).toBeVisible();
-  await expect(page.getByText("Topic stale", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("#card-thread-review").locator(".text-orange-400"),
+  ).toBeVisible();
   await expect(page.getByText("Need sign-off on review prep")).toBeVisible();
 
   await page.getByRole("button", { name: "Manage Review Prep" }).click();
@@ -878,7 +892,7 @@ test("board detail shows pending freshness and hides derived card counts until r
       thread_id: "thread-execution",
       column_key: "ready",
       rank: "0001",
-      pinned_document_id: null,
+      document_ref: null,
       created_at: "2026-03-04T00:00:00.000Z",
       created_by: actorId,
       updated_at: "2026-03-04T00:00:00.000Z",

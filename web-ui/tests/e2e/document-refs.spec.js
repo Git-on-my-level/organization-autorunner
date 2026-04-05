@@ -1,14 +1,14 @@
 import { expect, test } from "@playwright/test";
 
-import { threadWorkspaceToTopicWorkspace } from "../../src/lib/topicWorkspaceAdapter.js";
+import { buildMockTopicWorkspaceFromThreadWorkspace } from "../../src/lib/mockCoreData.js";
 
-test("document typed refs navigate from overview chips, timeline refs, and work-order context", async ({
+test("document typed refs navigate from overview chips, timeline refs, and receipt outputs", async ({
   page,
 }) => {
   const actorId = "actor-document-refs-e2e";
   const documentId = "product-constitution";
   const threadId = "thread-onboarding";
-  const workOrderId = "artifact-work-order-doc-refs";
+  const receiptId = "artifact-receipt-doc-refs";
 
   const documentRecord = {
     id: documentId,
@@ -55,30 +55,28 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
       "# Product Constitution v3\n\nRatified constitution with the final escalation policy.",
   };
 
-  const workOrderArtifact = {
-    id: workOrderId,
-    kind: "work_order",
+  const receiptArtifact = {
+    id: receiptId,
+    kind: "receipt",
     thread_id: threadId,
     summary: "Review constitution refs",
-    refs: [`thread:${threadId}`],
+    refs: [`thread:${threadId}`, "card:card-doc-refs"],
     content_type: "application/json",
     created_at: "2026-03-09T09:00:00Z",
     created_by: actorId,
     provenance: { sources: ["actor_statement:ui"] },
   };
 
-  const workOrderPacket = {
-    work_order_id: workOrderId,
-    thread_id: threadId,
-    objective: "Review constitution refs",
-    constraints: ["Keep schema stable"],
-    context_refs: [
-      `thread:${threadId}`,
+  const receiptPacket = {
+    receipt_id: receiptId,
+    subject_ref: "card:card-doc-refs",
+    outputs: [
       `document:${documentId}`,
       `document_revision:${previousRevision.revision_id}`,
     ],
-    acceptance_criteria: ["Document refs open the docs UI"],
-    definition_of_done: ["Verified links in the browser"],
+    verification_evidence: [`thread:${threadId}`],
+    changes_summary: "Constitution refs verified for onboarding.",
+    known_gaps: [],
   };
 
   await page.addInitScript((selectedActorId) => {
@@ -184,7 +182,7 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
         },
       };
       const payload = route.request().url().includes("/topics/")
-        ? threadWorkspaceToTopicWorkspace(threadWs, threadId)
+        ? buildMockTopicWorkspaceFromThreadWorkspace(threadWs, threadId)
         : threadWs;
       await route.fulfill({
         status: 200,
@@ -239,11 +237,11 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
       return;
     }
 
-    if (url.searchParams.get("kind") === "work_order") {
+    if (url.searchParams.get("kind") === "receipt") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ artifacts: [workOrderArtifact] }),
+        body: JSON.stringify({ artifacts: [receiptArtifact] }),
       });
       return;
     }
@@ -255,30 +253,27 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
     });
   });
 
-  await page.route(
-    /\/artifacts\/artifact-work-order-doc-refs$/,
-    async (route) => {
-      const request = route.request();
-      if (request.method() === "GET" && request.resourceType() === "document") {
-        await route.continue();
-        return;
-      }
+  await page.route(/\/artifacts\/artifact-receipt-doc-refs$/, async (route) => {
+    const request = route.request();
+    if (request.method() === "GET" && request.resourceType() === "document") {
+      await route.continue();
+      return;
+    }
 
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ artifact: workOrderArtifact }),
-      });
-    },
-  );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ artifact: receiptArtifact }),
+    });
+  });
 
   await page.route(
-    /\/artifacts\/artifact-work-order-doc-refs\/content$/,
+    /\/artifacts\/artifact-receipt-doc-refs\/content$/,
     async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(workOrderPacket),
+        body: JSON.stringify(receiptPacket),
       });
     },
   );
@@ -374,11 +369,11 @@ test("document typed refs navigate from overview chips, timeline refs, and work-
     }),
   ).toBeVisible();
 
-  await page.goto(`/artifacts/${workOrderId}`);
+  await page.goto(`/artifacts/${receiptId}`);
   await expect(
     page.getByRole("heading", { name: "Review constitution refs" }),
   ).toBeVisible();
-  await expect(page.getByText("Context", { exact: true })).toBeVisible();
+  await expect(page.getByText("Outputs", { exact: true })).toBeVisible();
   await page
     .locator("a")
     .filter({ hasText: "Document product-constitution" })

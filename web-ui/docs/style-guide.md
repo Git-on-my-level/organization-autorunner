@@ -157,7 +157,7 @@ For semantic badges, use the opacity-based backgrounds:
 
 ```svelte
 <span class="rounded px-1.5 py-0.5 text-[11px] font-semibold text-blue-400 bg-blue-500/10">
-  Work Order
+  Receipt
 </span>
 ```
 

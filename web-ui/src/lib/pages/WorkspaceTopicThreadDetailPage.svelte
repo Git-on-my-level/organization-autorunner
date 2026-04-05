@@ -1,22 +1,22 @@
 <script>
+  import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
-  import { onMount, onDestroy } from "svelte";
-  import { get } from "svelte/store";
+  import { get, derived } from "svelte/store";
   import { page } from "$app/stores";
 
   import { coreClient } from "$lib/coreClient";
-  import { threadDetailStore } from "$lib/threadDetailStore";
+  import { topicDetailStore } from "$lib/topicDetailStore";
+  import { setTimelineContext } from "$lib/timelineContext";
   import { readEnumSearchParam, withUpdatedSearchParams } from "$lib/urlState";
 
-  import ThreadDetailHeader from "$lib/components/thread-detail/ThreadDetailHeader.svelte";
-  import ThreadOverviewTab from "$lib/components/thread-detail/ThreadOverviewTab.svelte";
-  import ThreadBoardsPanel from "$lib/components/thread-detail/ThreadBoardsPanel.svelte";
-  import ThreadDocumentsPanel from "$lib/components/thread-detail/ThreadDocumentsPanel.svelte";
-  import ThreadMessagesTab from "$lib/components/thread-detail/ThreadMessagesTab.svelte";
-  import ThreadWorkTab from "$lib/components/thread-detail/ThreadWorkTab.svelte";
-  import ThreadTimelineTab from "$lib/components/thread-detail/ThreadTimelineTab.svelte";
+  import TopicDetailHeader from "$lib/components/topic-detail/TopicDetailHeader.svelte";
+  import TopicOverviewTab from "$lib/components/topic-detail/TopicOverviewTab.svelte";
+  import TopicBoardsPanel from "$lib/components/topic-detail/TopicBoardsPanel.svelte";
+  import TopicDocumentsPanel from "$lib/components/topic-detail/TopicDocumentsPanel.svelte";
+  import MessagesTab from "$lib/components/timeline/MessagesTab.svelte";
+  import TimelineTab from "$lib/components/timeline/TimelineTab.svelte";
 
-  const THREAD_DETAIL_TABS = ["overview", "work", "messages", "timeline"];
+  const TOPIC_DETAIL_TABS = ["overview", "messages", "timeline"];
 
   let { data } = $props();
   /** Canonical id for the URL (topic id on /topics/…, else backing thread id on /threads/…). */
@@ -27,31 +27,36 @@
     data?.detailScope === "topic" || Boolean($page.params.topicId),
   );
 
-  let snapshot = $derived($threadDetailStore.snapshot);
+  const timelineSlice = derived(topicDetailStore, ($s) => ({
+    timeline: $s.timeline,
+    timelineLoading: $s.timelineLoading,
+    timelineError: $s.timelineError,
+  }));
 
-  /** Typed ref used as packet.subject_ref for work orders, receipts, and related writes. */
-  let packetSubjectRef = $derived(
-    detailAsTopic
-      ? `topic:${String(threadId ?? "").trim()}`
-      : (() => {
-          const ref = String(snapshot?.topic_ref ?? "").trim();
-          if (/^topic:.+/.test(ref)) return ref;
-          const tid = String(threadId ?? "").trim();
-          return tid ? `thread:${tid}` : "";
-        })(),
+  const timelineWorkspaceSlug = derived(page, ($p) =>
+    String($p.params.workspace ?? ""),
   );
-  let snapshotLoading = $derived($threadDetailStore.snapshotLoading);
-  let snapshotError = $derived($threadDetailStore.snapshotError);
+
+  setTimelineContext({
+    store: timelineSlice,
+    workspaceSlug: timelineWorkspaceSlug,
+    refreshTimeline: async () => {
+      const p = get(page);
+      const id = String(p.params.topicId || p.params.threadId || "").trim();
+      if (!id) return;
+      await topicDetailStore.queueRefreshTopicDetail(id, { timeline: true });
+    },
+  });
+
+  let topic = $derived($topicDetailStore.topic);
+
+  let topicLoading = $derived($topicDetailStore.topicLoading);
+  let topicError = $derived($topicDetailStore.topicError);
 
   let requestedTab = $derived(
-    readEnumSearchParam($page.url.searchParams, "tab", THREAD_DETAIL_TABS, ""),
+    readEnumSearchParam($page.url.searchParams, "tab", TOPIC_DETAIL_TABS, ""),
   );
-  let activeTab = $derived(
-    requestedTab ||
-      ($page.url.searchParams.get("compose") === "work-order"
-        ? "work"
-        : "overview"),
-  );
+  let activeTab = $derived(requestedTab || "overview");
 
   let conflictWarning = $state("");
   let editNotice = $state("");
@@ -70,8 +75,8 @@
     "other",
   ]);
 
-  function topicIdFromSnapshot(snapshot) {
-    const ref = String(snapshot?.topic_ref ?? "").trim();
+  function topicIdFromTopic(topicRow) {
+    const ref = String(topicRow?.topic_ref ?? "").trim();
     const match = /^topic:(.+)$/.exec(ref);
     return match ? match[1].trim() : "";
   }
@@ -82,37 +87,22 @@
     return "other";
   }
 
-  function threadStatusToTopicPatchStatus(status) {
-    switch (String(status ?? "").trim()) {
-      case "paused":
-        return "blocked";
-      case "closed":
-        return "resolved";
-      default:
-        return "active";
-    }
-  }
-
-  /** Maps thread-shaped overview edits to TopicPatchInput fields. */
-  function threadPatchToTopicPatch(threadPatch) {
+  /** Maps overview edits to canonical TopicPatchInput fields. */
+  function topicEditPatchToTopicPatch(topicEditPatch) {
     const out = {};
-    if (threadPatch.title !== undefined) out.title = threadPatch.title;
-    if (threadPatch.current_summary !== undefined) {
-      out.summary = threadPatch.current_summary;
+    if (topicEditPatch.title !== undefined) out.title = topicEditPatch.title;
+    if (topicEditPatch.current_summary !== undefined) {
+      out.summary = topicEditPatch.current_summary;
     }
-    if (threadPatch.type !== undefined) {
-      out.type = threadTypeToTopicType(threadPatch.type);
+    if (topicEditPatch.type !== undefined) {
+      out.type = threadTypeToTopicType(topicEditPatch.type);
     }
-    if (threadPatch.status !== undefined) {
-      out.status = threadStatusToTopicPatchStatus(threadPatch.status);
+    if (topicEditPatch.status !== undefined) {
+      const s = String(topicEditPatch.status ?? "").trim();
+      if (s) out.status = s;
     }
     return out;
   }
-
-  const liveCoordination = {
-    reconcileTimer: null,
-    stopThreadStream: () => {},
-  };
 
   function getLatestKnownEventId(events) {
     let latestEventId = "";
@@ -142,49 +132,70 @@
     return latestEventId;
   }
 
-  onMount(async () => {
-    const routeId =
-      data?.topicId || get(page).params.topicId || get(page).params.threadId;
+  /** Live SSE + periodic reconcile: re-run when the topic/thread route identity changes (client navigations). */
+  $effect(() => {
+    if (!browser) return;
+
+    const routeId = String(
+      data?.topicId || $page.params.topicId || $page.params.threadId || "",
+    ).trim();
     const asTopic =
-      data?.detailScope === "topic" || Boolean(get(page).params.topicId);
-    await threadDetailStore.fullRefresh(routeId, { asTopic });
-    if (get(threadDetailStore).detailAsTopic) {
-      await threadDetailStore.loadTimeline(routeId);
+      data?.detailScope === "topic" || Boolean($page.params.topicId);
+
+    if (!routeId) {
+      return;
     }
-    const state = get(threadDetailStore);
-    const streamThreadId = String(state.snapshot?.id ?? "").trim() || routeId;
-    const latestKnownEventId = getLatestKnownEventId(state.timeline);
-    liveCoordination.stopThreadStream = startThreadEventStream(
-      streamThreadId,
-      latestKnownEventId,
-    );
-    liveCoordination.reconcileTimer = setInterval(
-      () =>
-        threadDetailStore.queueRefreshThreadDetail(threadId, {
-          workspace: true,
-          timeline: true,
-          workOrders: true,
-        }),
-      RECONCILE_INTERVAL_MS,
-    );
+
+    const coordination = { stopStream: () => {}, reconcileTimer: null };
+    let cancelled = false;
+
+    void (async () => {
+      await topicDetailStore.fullRefresh(routeId, { asTopic });
+      if (cancelled) return;
+
+      if (get(topicDetailStore).detailAsTopic) {
+        await topicDetailStore.loadTimeline(routeId);
+      }
+      if (cancelled) return;
+
+      const state = get(topicDetailStore);
+      const streamThreadId = String(state.topic?.id ?? "").trim() || routeId;
+      const latestKnownEventId = getLatestKnownEventId(state.timeline);
+      coordination.stopStream = startThreadEventStream(
+        streamThreadId,
+        routeId,
+        latestKnownEventId,
+      );
+      coordination.reconcileTimer = setInterval(
+        () =>
+          topicDetailStore.queueRefreshTopicDetail(routeId, {
+            workspace: true,
+            timeline: true,
+          }),
+        RECONCILE_INTERVAL_MS,
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      coordination.stopStream();
+      if (coordination.reconcileTimer) {
+        clearInterval(coordination.reconcileTimer);
+      }
+    };
   });
 
-  onDestroy(() => {
-    liveCoordination.stopThreadStream();
-    clearInterval(liveCoordination.reconcileTimer);
-  });
-
-  async function handleSaveThread(threadId, patch, ifUpdatedAt) {
+  async function handleSaveTopic(threadId, patch, ifUpdatedAt) {
     conflictWarning = "";
     editNotice = "";
-    const snapshot = get(threadDetailStore).snapshot;
-    const topicId = topicIdFromSnapshot(snapshot);
+    const topicRow = get(topicDetailStore).topic;
+    const topicId = topicIdFromTopic(topicRow);
     if (!topicId) {
       throw new Error(
         "Missing topic reference on this topic row; cannot save edits.",
       );
     }
-    const topicPatch = threadPatchToTopicPatch(patch);
+    const topicPatch = topicEditPatchToTopicPatch(patch);
     if (Object.keys(topicPatch).length === 0) {
       editNotice = "No topic-level fields changed.";
       return;
@@ -197,20 +208,18 @@
         },
         if_updated_at: ifUpdatedAt,
       });
-      await threadDetailStore.queueRefreshThreadDetail(threadId, {
+      await topicDetailStore.queueRefreshTopicDetail(threadId, {
         workspace: true,
         timeline: true,
-        workOrders: true,
       });
       editNotice = "Changes saved.";
     } catch (error) {
       if (error?.status === 409) {
         conflictWarning =
           "Topic was updated elsewhere. Reloaded — reapply your changes.";
-        await threadDetailStore.queueRefreshThreadDetail(threadId, {
+        await topicDetailStore.queueRefreshTopicDetail(threadId, {
           workspace: true,
           timeline: true,
-          workOrders: true,
         });
       } else {
         throw error;
@@ -218,44 +227,19 @@
     }
   }
 
-  async function handleWorkOrderSubmit(threadId, artifact, packet, requestKey) {
-    const response = await coreClient.createWorkOrder({
-      request_key: requestKey,
-      artifact,
-      packet,
-    });
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
-      workspace: true,
-      timeline: true,
-      workOrders: true,
-    });
-    return response;
-  }
-
-  async function handleReceiptSubmit(threadId, artifact, packet, requestKey) {
-    const response = await coreClient.createReceipt({
-      request_key: requestKey,
-      artifact,
-      packet,
-    });
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
-      workspace: true,
-      timeline: true,
-      workOrders: true,
-    });
-    return response;
-  }
-
   async function handleMessagePost(threadId, event) {
     await coreClient.createEvent({ event });
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
+    await topicDetailStore.queueRefreshTopicDetail(threadId, {
       workspace: true,
       timeline: true,
-      workOrders: true,
     });
   }
 
-  function startThreadEventStream(threadId, initialLastEventId = "") {
+  function startThreadEventStream(
+    streamThreadId,
+    refreshRouteId,
+    initialLastEventId = "",
+  ) {
     let stopped = false;
     let reconnectTimer;
     let controller = null;
@@ -264,12 +248,12 @@
     const connect = async () => {
       if (stopped) return;
       if (!lastEventId) {
-        lastEventId = getLatestKnownEventId(get(threadDetailStore).timeline);
+        lastEventId = getLatestKnownEventId(get(topicDetailStore).timeline);
       }
       controller = new AbortController();
       try {
         await coreClient.streamThreadEvents({
-          threadId,
+          threadId: streamThreadId,
           lastEventId,
           signal: controller.signal,
           onEvent: async (message) => {
@@ -279,10 +263,9 @@
             if (message?.event !== "event") {
               return;
             }
-            await threadDetailStore.queueRefreshThreadDetail(threadId, {
+            await topicDetailStore.queueRefreshTopicDetail(refreshRouteId, {
               workspace: true,
               timeline: true,
-              workOrders: true,
             });
           },
         });
@@ -308,7 +291,7 @@
 
   $effect(() => {
     if ((activeTab === "messages" || activeTab === "timeline") && threadId) {
-      void threadDetailStore.loadTimeline(threadId, {
+      void topicDetailStore.loadTimeline(threadId, {
         asTopic: detailAsTopic,
       });
     }
@@ -322,15 +305,15 @@
   }
 </script>
 
-<ThreadDetailHeader {threadId} {detailAsTopic} />
+<TopicDetailHeader {threadId} {detailAsTopic} />
 
-{#if snapshotLoading}
+{#if topicLoading}
   <p class="text-[13px] text-[var(--ui-text-muted)]">Loading...</p>
-{:else if snapshotError}
+{:else if topicError}
   <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
-    {snapshotError}
+    {topicError}
   </p>
-{:else if !snapshot}
+{:else if !topic}
   <p class="text-[13px] text-[var(--ui-text-muted)]">
     {detailAsTopic ? "Topic not found." : "Backing thread not found."}
   </p>
@@ -340,7 +323,7 @@
     aria-label="Topic sections"
     role="tablist"
   >
-    {#each [["overview", "Overview"], ["work", "Work"], ["messages", "Messages"], ["timeline", "Timeline"]] as [tabId, tabLabel]}
+    {#each [["overview", "Overview"], ["messages", "Messages"], ["timeline", "Timeline"]] as [tabId, tabLabel]}
       <button
         class={`relative cursor-pointer px-3 py-2 text-[13px] font-medium transition-colors ${activeTab === tabId ? "text-[var(--ui-text)]" : "text-[var(--ui-text-muted)] hover:text-[var(--ui-text)]"}`}
         onclick={() => void setActiveTab(tabId)}
@@ -361,31 +344,20 @@
 
   {#if activeTab === "overview"}
     <div role="tabpanel" tabindex="0">
-      <ThreadOverviewTab
+      <TopicOverviewTab
         {threadId}
-        onSave={handleSaveThread}
+        onSave={handleSaveTopic}
         {conflictWarning}
         {editNotice}
       />
-      <ThreadBoardsPanel {threadId} />
-      <ThreadDocumentsPanel {threadId} />
-    </div>
-  {/if}
-
-  {#if activeTab === "work"}
-    <div role="tabpanel" tabindex="0">
-      <ThreadWorkTab
-        {threadId}
-        subjectRef={packetSubjectRef}
-        onWorkOrderSubmit={handleWorkOrderSubmit}
-        onReceiptSubmit={handleReceiptSubmit}
-      />
+      <TopicBoardsPanel {threadId} />
+      <TopicDocumentsPanel {threadId} />
     </div>
   {/if}
 
   {#if activeTab === "messages"}
     <div role="tabpanel" tabindex="0">
-      <ThreadMessagesTab
+      <MessagesTab
         {threadId}
         onMessagePost={handleMessagePost}
         workspaceId={data?.workspaceId ?? ""}
@@ -395,7 +367,7 @@
 
   {#if activeTab === "timeline"}
     <div role="tabpanel" tabindex="0">
-      <ThreadTimelineTab {threadId} />
+      <TimelineTab {threadId} />
     </div>
   {/if}
 {/if}

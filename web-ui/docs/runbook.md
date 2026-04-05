@@ -109,7 +109,7 @@ contract):
 - `POST /artifacts`, `GET /artifacts`, `GET /artifacts/{artifact_id}`,
   `GET /artifacts/{artifact_id}/content`
 - `POST /events`, `GET /events/{event_id}`
-- `POST /work_orders`, `POST /receipts`, `POST /reviews`
+- `POST /packets/receipts`, `POST /packets/reviews`
 - `POST /derived/rebuild` (optional)
 - `GET /inbox`, `POST /inbox/ack`
 

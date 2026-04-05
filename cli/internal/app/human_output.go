@@ -62,6 +62,8 @@ func formatCommandSummary(commandID string, body any) string {
 		return formatTopicRecord(extractNestedMap(body, "topic"))
 	case "topics.timeline":
 		return formatTopicTimeline(body)
+	case "cards.timeline":
+		return formatCardTimeline(body)
 	case "topics.workspace":
 		return formatTopicWorkspace(body)
 	case "cards.get", "cards.patch", "cards.move", "cards.archive", "cards.restore":
@@ -410,6 +412,17 @@ func formatCardRecord(card map[string]any) string {
 func formatTopicTimeline(body any) string {
 	root := asMap(body)
 	lines := []string{formatTopicRecord(extractNestedMap(root, "topic"))}
+	lines = append(lines, fmt.Sprintf("events: %d", len(asSlice(root["events"]))))
+	lines = append(lines, fmt.Sprintf("artifacts: %d", len(asSlice(root["artifacts"]))))
+	lines = append(lines, fmt.Sprintf("cards: %d", len(asSlice(root["cards"]))))
+	lines = append(lines, fmt.Sprintf("documents: %d", len(asSlice(root["documents"]))))
+	lines = append(lines, fmt.Sprintf("threads: %d", len(asSlice(root["threads"]))))
+	return strings.Join(lines, "\n")
+}
+
+func formatCardTimeline(body any) string {
+	root := asMap(body)
+	lines := []string{formatCardRecord(extractNestedMap(root, "card"))}
 	lines = append(lines, fmt.Sprintf("events: %d", len(asSlice(root["events"]))))
 	lines = append(lines, fmt.Sprintf("artifacts: %d", len(asSlice(root["artifacts"]))))
 	lines = append(lines, fmt.Sprintf("cards: %d", len(asSlice(root["cards"]))))

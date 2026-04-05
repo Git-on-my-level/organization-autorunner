@@ -21,7 +21,7 @@
       "key_artifacts": [
         {
           "id": "artifact_ctx_1",
-          "kind": "work_order"
+          "kind": "receipt"
         }
       ],
       "open_card_count": 1,
@@ -62,7 +62,7 @@
       "key_artifacts": [
         {
           "id": "artifact_ctx_1",
-          "kind": "work_order"
+          "kind": "receipt"
         }
       ],
       "open_cards": [

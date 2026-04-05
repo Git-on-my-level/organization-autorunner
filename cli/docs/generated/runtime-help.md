@@ -29,9 +29,8 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `docs` (group): Manage long-lived docs and revisions
 - `events` (group): Manage events and event streams
 - `inbox` (group): List/get/ack/stream inbox items
-- `work-orders` (group): Create work-order packets (packet.subject_ref required)
-- `receipts` (group): Create receipt packets (subject_ref + work_order_ref)
-- `reviews` (group): Create review packets (subject_ref + receipt_ref + work_order_ref)
+- `receipts` (group): Create receipt packets (subject_ref must be card:<card_id>)
+- `reviews` (group): Create review packets (subject_ref + receipt_ref; subject_ref must be card:<card_id>)
 - `derived` (group): Run derived-view maintenance actions
 - `meta` (group): Inspect generated command/concept metadata
 - `threads list` (command): List backing threads
@@ -50,6 +49,7 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `cards archive` (command): Archive card
 - `cards purge` (command): Purge archived card
 - `cards restore` (command): Restore archived card
+- `cards timeline` (command): Get card timeline
 - `artifacts list` (command): List artifacts
 - `artifacts get` (command): Get artifact metadata
 - `artifacts create` (command): Create artifact
@@ -65,7 +65,6 @@ This reference is bundled with the CLI. Print the full document with `oar meta d
 - `events create` (command): Create event
 - `inbox list` (command): List inbox items
 - `inbox acknowledge` (command): Acknowledge inbox item
-- `work-orders create` (command): Create work-order packet
 - `receipts create` (command): Create receipt packet
 - `reviews create` (command): Create review packet
 - `events list` (local-helper): Compose `threads timeline` responses with client-side thread/type/actor filters and preview summaries.
@@ -1134,6 +1133,7 @@ Commands:
   cards patch              Patch card
   cards purge              Purge archived card
   cards restore            Restore archived card
+  cards timeline           Get card timeline
 
 Global flags:
   Global flags can appear before or after the command path.
@@ -1289,27 +1289,9 @@ Global flags:
 Tip: `oar help <command path>` for full command-level generated details.
 ```
 
-## `work-orders`
-
-Create work-order packets (packet.subject_ref required)
-
-```text
-Generated Help: work-orders
-
-Commands:
-  work-orders create       Create work-order packet
-
-Global flags:
-  Global flags can appear before or after the command path.
-  Examples: oar --json work-orders ... ; oar work-orders ... --json
-  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
-
-Tip: `oar help <command path>` for full command-level generated details.
-```
-
 ## `receipts`
 
-Create receipt packets (subject_ref + work_order_ref)
+Create receipt packets (subject_ref must be card:<card_id>)
 
 ```text
 Generated Help: receipts
@@ -1327,7 +1309,7 @@ Tip: `oar help <command path>` for full command-level generated details.
 
 ## `reviews`
 
-Create review packets (subject_ref + receipt_ref + work_order_ref)
+Create review packets (subject_ref + receipt_ref; subject_ref must be card:<card_id>)
 
 ```text
 Generated Help: reviews
@@ -1680,7 +1662,7 @@ Generated Help: cards list
 - Output: Returns `{ cards }`.
 - Error codes: `auth_required`, `invalid_token`
 - Concepts: `cards`
-- Adjacent commands: `cards archive`, `cards get`, `cards move`, `cards patch`, `cards purge`, `cards restore`
+- Adjacent commands: `cards archive`, `cards get`, `cards move`, `cards patch`, `cards purge`, `cards restore`, `cards timeline`
 
 
 Global flags:
@@ -1705,7 +1687,7 @@ Generated Help: cards get
 - Output: Returns `{ card }`.
 - Error codes: `auth_required`, `invalid_token`, `not_found`
 - Concepts: `cards`
-- Adjacent commands: `cards archive`, `cards list`, `cards move`, `cards patch`, `cards purge`, `cards restore`
+- Adjacent commands: `cards archive`, `cards list`, `cards move`, `cards patch`, `cards purge`, `cards restore`, `cards timeline`
 
 Inputs:
   Required:
@@ -1733,7 +1715,7 @@ Generated Help: cards patch
 - Output: Returns `{ card }`.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`, `conflict`
 - Concepts: `cards`, `write`, `concurrency`
-- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards purge`, `cards restore`
+- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards purge`, `cards restore`, `cards timeline`
 
 Inputs:
   Required:
@@ -1780,7 +1762,7 @@ Generated Help: cards move
 - Output: Returns `{ card }`.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`, `conflict`
 - Concepts: `cards`, `boards`, `write`
-- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards patch`, `cards purge`, `cards restore`
+- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards patch`, `cards purge`, `cards restore`, `cards timeline`
 
 Inputs:
   Required:
@@ -1816,7 +1798,7 @@ Generated Help: cards archive
 - Output: Returns `{ board, card }`.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`, `conflict`
 - Concepts: `cards`, `write`
-- Adjacent commands: `cards get`, `cards list`, `cards move`, `cards patch`, `cards purge`, `cards restore`
+- Adjacent commands: `cards get`, `cards list`, `cards move`, `cards patch`, `cards purge`, `cards restore`, `cards timeline`
 
 Inputs:
   Required:
@@ -1847,7 +1829,7 @@ Generated Help: cards purge
 - Output: Returns `{ purged, card_id }`.
 - Error codes: `auth_required`, `human_only`, `invalid_token`, `not_found`, `conflict`
 - Concepts: `cards`, `write`
-- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards patch`, `cards restore`
+- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards patch`, `cards restore`, `cards timeline`
 
 Inputs:
   Required:
@@ -1877,7 +1859,7 @@ Generated Help: cards restore
 - Output: Returns `{ board, card }`.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`, `conflict`
 - Concepts: `cards`, `write`
-- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards patch`, `cards purge`
+- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards patch`, `cards purge`, `cards timeline`
 
 Inputs:
   Required:
@@ -1889,6 +1871,34 @@ Inputs:
 Global flags:
   Global flags can appear before or after the command path.
   Examples: oar --json cards restore ... ; oar cards restore ... --json
+  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
+```
+
+## `cards timeline`
+
+Get card timeline
+
+```text
+Generated Help: cards timeline
+
+- Command ID: `cards.timeline`
+- CLI path: `cards timeline`
+- HTTP: `GET /cards/{card_id}/timeline`
+- Stability: `beta`
+- Input mode: `none`
+- Why: Load chronological evidence and related resources for one card.
+- Output: Returns `{ card, events, artifacts, cards, documents, threads }`.
+- Error codes: `auth_required`, `invalid_token`, `not_found`
+- Concepts: `cards`, `timeline`
+- Adjacent commands: `cards archive`, `cards get`, `cards list`, `cards move`, `cards patch`, `cards purge`, `cards restore`
+
+Inputs:
+  Required:
+  - path `card_id`
+
+Global flags:
+  Global flags can appear before or after the command path.
+  Examples: oar --json cards timeline ... ; oar cards timeline ... --json
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
@@ -2284,7 +2294,7 @@ Inputs:
   - body `event.provenance.by_field` (object)
   - body `event.provenance.notes` (string)
   - body `event.thread_ref` (string)
-  Enum values: event.type (open): agent_notification_dismissed, agent_notification_read, board_card_added, board_card_archived, board_card_moved, board_created, board_updated, card_archived, card_created, card_moved, card_resolved, card_updated, decision_made, decision_needed, document_created, document_revised, document_revision_created, document_tombstoned, exception_raised, inbox_item_acknowledged, intervention_needed, message_posted, receipt_added, review_completed, topic_archived, topic_created, topic_restored, topic_status_changed, topic_tombstoned, topic_updated, work_order_created
+  Enum values: event.type (open): agent_notification_dismissed, agent_notification_read, board_card_added, board_card_archived, board_card_moved, board_created, board_updated, card_archived, card_created, card_moved, card_resolved, card_updated, decision_made, decision_needed, document_created, document_revised, document_revision_created, document_tombstoned, exception_raised, inbox_item_acknowledged, intervention_needed, message_posted, receipt_added, review_completed, topic_archived, topic_created, topic_restored, topic_status_changed, topic_tombstoned, topic_updated
 
 Common authoring types:
   Communication: direct communication or important non-structured information
@@ -2304,13 +2314,9 @@ Common authoring types:
   - `exception_raised`
 
 Usually emitted by higher-level commands:
-  - `work_order_created`: prefer `oar work-orders create`
   - `receipt_added`: prefer `oar receipts create`
   - `review_completed`: prefer `oar reviews create`
   - `inbox_item_acknowledged`: prefer `oar inbox ack`
-
-Specialized raw-event type:
-  - `work_order_claimed`: claim marker for work-order flows
 
 Local CLI notes:
   - Common open `event.type` values include `actor_statement`; the enum list above is illustrative, not exhaustive.
@@ -2393,40 +2399,6 @@ Global flags:
   Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
 ```
 
-## `work-orders create`
-
-Create work-order packet
-
-```text
-Generated Help: work-orders create
-
-- Command ID: `packets.work-orders.create`
-- CLI path: `work-orders create`
-- HTTP: `POST /packets/work-orders`
-- Stability: `beta`
-- Input mode: `json-body`
-- Why: Record a structured work-order artifact anchored by `subject_ref`.
-- Output: Returns `{ artifact, packet_kind, packet }`.
-- Error codes: `auth_required`, `invalid_request`, `invalid_token`
-- Concepts: `packets`, `evidence`
-- Adjacent commands: `receipts create`, `reviews create`
-
-Inputs:
-  Required:
-  - body `packet.acceptance_criteria` (list<string>)
-  - body `packet.constraints` (list<string>)
-  - body `packet.context_refs` (list<any>)
-  - body `packet.definition_of_done` (list<string>)
-  - body `packet.objective` (string)
-  - body `packet.subject_ref` (string)
-  - body `packet.work_order_id` (string)
-
-Global flags:
-  Global flags can appear before or after the command path.
-  Examples: oar --json work-orders create ... ; oar work-orders create ... --json
-  Available: --json, --base-url <url>, --agent <name>, --no-color, --verbose, --headers, --timeout <duration>
-```
-
 ## `receipts create`
 
 Create receipt packet
@@ -2443,7 +2415,7 @@ Generated Help: receipts create
 - Output: Returns `{ artifact, packet_kind, packet }`.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`
 - Concepts: `packets`, `evidence`
-- Adjacent commands: `reviews create`, `work-orders create`
+- Adjacent commands: `reviews create`
 
 Inputs:
   Required:
@@ -2451,9 +2423,8 @@ Inputs:
   - body `packet.known_gaps` (list<string>)
   - body `packet.outputs` (list<any>)
   - body `packet.receipt_id` (string)
-  - body `packet.subject_ref` (string)
+  - body `packet.subject_ref` (typed_ref)
   - body `packet.verification_evidence` (list<any>)
-  - body `packet.work_order_ref` (string)
 
 Global flags:
   Global flags can appear before or after the command path.
@@ -2473,11 +2444,11 @@ Generated Help: reviews create
 - HTTP: `POST /packets/reviews`
 - Stability: `beta`
 - Input mode: `json-body`
-- Why: Record a structured review over a work order and receipt using subject refs.
+- Why: Record a structured review over a receipt anchored to the same card as subject_ref.
 - Output: Returns `{ artifact, packet_kind, packet }`.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`
 - Concepts: `packets`, `evidence`
-- Adjacent commands: `receipts create`, `work-orders create`
+- Adjacent commands: `receipts create`
 
 Inputs:
   Required:
@@ -2486,8 +2457,7 @@ Inputs:
   - body `packet.outcome` (string)
   - body `packet.receipt_ref` (string)
   - body `packet.review_id` (string)
-  - body `packet.subject_ref` (string)
-  - body `packet.work_order_ref` (string)
+  - body `packet.subject_ref` (typed_ref)
   Enum values: packet.outcome (strict): accept, escalate, revise
 
 Global flags:

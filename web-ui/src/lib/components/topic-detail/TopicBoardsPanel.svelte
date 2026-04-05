@@ -3,17 +3,18 @@
   import { BOARD_STATUS_LABELS } from "$lib/boardUtils";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
-  import { threadDetailStore } from "$lib/threadDetailStore";
+  import { topicDetailStore } from "$lib/topicDetailStore";
+  import { parseRef } from "$lib/typedRefs";
 
-  let ownedBoards = $derived($threadDetailStore.ownedBoards);
-  let boardMemberships = $derived($threadDetailStore.boardMemberships);
+  let ownedBoards = $derived($topicDetailStore.ownedBoards);
+  let boardMemberships = $derived($topicDetailStore.boardMemberships);
   let workspaceSlug = $derived($page.params.workspace);
 
   let hasAny = $derived(ownedBoards.length > 0 || boardMemberships.length > 0);
 
   function statusTone(status) {
-    if (status === "active") return "text-emerald-300 bg-emerald-500/10";
-    if (status === "paused") return "text-amber-300 bg-amber-500/10";
+    if (status === "active") return "text-emerald-400 bg-emerald-500/10";
+    if (status === "paused") return "text-amber-400 bg-amber-500/10";
     if (status === "closed")
       return "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
     return "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
@@ -35,6 +36,11 @@
       `/docs/${encodeURIComponent(normalized)}`,
     );
   }
+
+  function documentIdFromCardRef(refValue) {
+    const { prefix, value } = parseRef(String(refValue ?? "").trim());
+    return prefix === "document" ? String(value ?? "").trim() : "";
+  }
 </script>
 
 <section
@@ -54,7 +60,7 @@
       </p>
     </div>
     <a
-      class="text-[12px] font-medium text-indigo-300 transition-colors hover:text-indigo-200"
+      class="text-[12px] font-medium text-indigo-400 transition-colors hover:text-indigo-300"
       href={workspacePath(workspaceSlug, "/boards")}
     >
       All boards
@@ -70,7 +76,7 @@
       {#if ownedBoards.length > 0}
         <div class="divide-y divide-[var(--ui-border-subtle)]">
           <div
-            class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)] px-4 pt-2.5 pb-1"
+            class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)] px-4 pt-2.5 pb-1"
           >
             Owned by this topic
           </div>
@@ -87,7 +93,7 @@
                 </span>
                 {#if board.status}
                   <span
-                    class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold {statusTone(
+                    class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold {statusTone(
                       board.status,
                     )}"
                   >
@@ -108,7 +114,7 @@
       {#if boardMemberships.length > 0}
         <div class="divide-y divide-[var(--ui-border-subtle)]">
           <div
-            class="text-[10px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)] px-4 pt-2.5 pb-1"
+            class="text-[11px] font-semibold uppercase tracking-wide text-[var(--ui-text-subtle)] px-4 pt-2.5 pb-1"
           >
             Appears as card on
           </div>
@@ -120,14 +126,14 @@
               membership?.board?.status ?? membership?.board_status}
             {@const columnKey =
               membership?.card?.column_key ?? membership?.column_key}
-            {@const pinnedDocumentId =
-              membership?.card?.pinned_document_id ??
-              membership?.pinned_document_id}
+            {@const pinnedDocumentId = documentIdFromCardRef(
+              membership?.card?.document_ref ?? membership?.document_ref ?? "",
+            )}
             {#if boardId}
               <div class="px-4 py-2.5">
                 <div class="flex items-center justify-between gap-3">
                   <a
-                    class="flex min-w-0 items-center gap-2 transition-colors hover:text-indigo-200"
+                    class="flex min-w-0 items-center gap-2 transition-colors hover:text-indigo-300"
                     href={workspacePath(workspaceSlug, `/boards/${boardId}`)}
                   >
                     <span
@@ -137,7 +143,7 @@
                     </span>
                     {#if boardStatus}
                       <span
-                        class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold {statusTone(
+                        class="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-semibold {statusTone(
                           boardStatus,
                         )}"
                       >
@@ -146,7 +152,7 @@
                     {/if}
                     {#if columnKey}
                       <span
-                        class="shrink-0 rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                        class="shrink-0 rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
                       >
                         {columnLabel(columnKey)}
                       </span>
@@ -161,7 +167,7 @@
                 {#if pinnedDocumentId}
                   <div class="mt-1.5 text-[11px] text-[var(--ui-text-muted)]">
                     <a
-                      class="text-indigo-300 transition-colors hover:text-indigo-200"
+                      class="text-indigo-400 transition-colors hover:text-indigo-300"
                       href={pinnedDocumentHref(pinnedDocumentId)}
                     >
                       Pinned doc: {pinnedDocumentId}

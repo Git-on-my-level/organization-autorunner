@@ -17,7 +17,7 @@ import (
 // subjectRefPrefixesPreferred orders typed refs when choosing an inbox subject anchor
 // from event refs. Earlier prefixes win.
 var subjectRefPrefixesPreferred = []string{
-	"topic", "card", "board", "document", "work_order", "receipt", "artifact", "thread",
+	"topic", "card", "board", "document", "receipt", "artifact", "thread",
 }
 
 func pickSubjectRefFromEventRefs(refs []string, threadID string) string {

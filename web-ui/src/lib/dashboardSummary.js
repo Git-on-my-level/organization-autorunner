@@ -4,7 +4,7 @@ import {
   getInboxCategoryLabel,
   normalizeInboxCategory,
 } from "./inboxUtils";
-import { computeStaleness } from "./threadFilters";
+import { computeStaleness } from "./topicFilters";
 
 function compareByTimestampDesc(leftValue, rightValue) {
   const leftTs = parseTimestampMs(leftValue);
@@ -45,24 +45,24 @@ export function buildInboxCategorySummary(items = []) {
   }));
 }
 
-export function buildThreadHealthSummary(threads = []) {
+export function buildTopicHealthSummary(topics = []) {
   let openCount = 0;
   let staleCount = 0;
   let highPriorityCount = 0;
 
-  for (const thread of threads) {
-    const status = String(thread?.status ?? "");
+  for (const topic of topics) {
+    const status = String(topic?.status ?? "");
     const isOpen =
       status !== "closed" && status !== "resolved" && status !== "archived";
 
     if (isOpen) {
       openCount += 1;
 
-      if (computeStaleness(thread).stale) {
+      if (computeStaleness(topic).stale) {
         staleCount += 1;
       }
 
-      const priority = String(thread?.priority ?? "");
+      const priority = String(topic?.priority ?? "");
       if (priority === "p0" || priority === "p1") {
         highPriorityCount += 1;
       }
@@ -70,15 +70,15 @@ export function buildThreadHealthSummary(threads = []) {
   }
 
   return {
-    totalCount: threads.length,
+    totalCount: topics.length,
     openCount,
     staleCount,
     highPriorityCount,
   };
 }
 
-export function selectRecentlyUpdatedThreads(threads = [], limit = 5) {
-  return [...threads]
+export function selectRecentlyUpdatedTopics(topics = [], limit = 5) {
+  return [...topics]
     .sort((left, right) => {
       const byTimestamp = compareByTimestampDesc(
         left?.updated_at,
@@ -97,14 +97,13 @@ export function buildArtifactKindSummary(artifacts = []) {
   const counts = {
     review: 0,
     receipt: 0,
-    work_order: 0,
     other: 0,
   };
 
   for (const artifact of artifacts) {
     const kind = String(artifact?.kind ?? "");
 
-    if (kind === "review" || kind === "receipt" || kind === "work_order") {
+    if (kind === "review" || kind === "receipt") {
       counts[kind] += 1;
       continue;
     }
@@ -145,37 +144,37 @@ function countRefPredecessorDepth(artifact, byId) {
   return depth;
 }
 
-export function threadHealthSentence(summary) {
+export function topicHealthSentence(summary) {
   const { openCount, staleCount, highPriorityCount } = summary;
 
   if (openCount === 0) {
-    return "No open threads.";
+    return "No open topics.";
   }
 
   if (staleCount === 0 && highPriorityCount === 0) {
     return openCount === 1
-      ? "1 open thread is on track."
-      : `All ${openCount} open threads are on track.`;
+      ? "1 open topic is on track."
+      : `All ${openCount} open topics are on track.`;
   }
 
   if (staleCount > 0 && highPriorityCount === 0) {
     return staleCount === 1
-      ? "1 thread may need a check-in."
-      : `${staleCount} threads may need a check-in.`;
+      ? "1 topic may need a check-in."
+      : `${staleCount} topics may need a check-in.`;
   }
 
   if (highPriorityCount > 0 && staleCount === 0) {
     return highPriorityCount === 1
-      ? "1 high-priority thread needs attention."
-      : `${highPriorityCount} high-priority threads need attention.`;
+      ? "1 high-priority topic needs attention."
+      : `${highPriorityCount} high-priority topics need attention.`;
   }
 
   const stalePart =
-    staleCount === 1 ? "1 stale thread" : `${staleCount} stale threads`;
+    staleCount === 1 ? "1 stale topic" : `${staleCount} stale topics`;
   const highPart =
     highPriorityCount === 1
-      ? "1 high-priority thread"
-      : `${highPriorityCount} high-priority threads`;
+      ? "1 high-priority topic"
+      : `${highPriorityCount} high-priority topics`;
   return `${stalePart} and ${highPart} need attention.`;
 }
 

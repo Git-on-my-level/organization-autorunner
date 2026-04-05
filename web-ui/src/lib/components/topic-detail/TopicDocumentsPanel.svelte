@@ -7,15 +7,15 @@
   } from "$lib/actorSession";
   import { formatTimestamp } from "$lib/formatDate";
   import { workspacePath } from "$lib/workspacePaths";
-  import { threadDetailStore } from "$lib/threadDetailStore";
+  import { topicDetailStore } from "$lib/topicDetailStore";
 
   const DOC_STATUS_LABELS = { draft: "Draft", active: "Active" };
 
   let { threadId } = $props();
 
-  let documents = $derived($threadDetailStore.documents);
-  let documentsLoading = $derived($threadDetailStore.documentsLoading);
-  let documentsError = $derived($threadDetailStore.documentsError);
+  let documents = $derived($topicDetailStore.documents);
+  let documentsLoading = $derived($topicDetailStore.documentsLoading);
+  let documentsError = $derived($topicDetailStore.documentsError);
   let workspaceSlug = $derived($page.params.workspace);
   let actorName = $derived((id) =>
     lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
@@ -45,8 +45,8 @@
   }
 
   function statusTone(status) {
-    if (status === "active") return "text-emerald-300 bg-emerald-500/10";
-    if (status === "draft") return "text-amber-300 bg-amber-500/10";
+    if (status === "active") return "text-emerald-400 bg-emerald-500/10";
+    if (status === "draft") return "text-amber-400 bg-amber-500/10";
     return "text-[var(--ui-text-muted)] bg-[var(--ui-border)]";
   }
 </script>
@@ -68,7 +68,7 @@
       </p>
     </div>
     <a
-      class="text-[12px] font-medium text-indigo-300 transition-colors hover:text-indigo-200"
+      class="text-[12px] font-medium text-indigo-400 transition-colors hover:text-indigo-300"
       href={docsListHref()}
     >
       Open scoped docs
@@ -80,7 +80,9 @@
       Loading documents...
     </p>
   {:else if documentsError}
-    <p class="px-4 py-3 text-[13px] text-red-400">{documentsError}</p>
+    <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
+      {documentsError}
+    </p>
   {:else if documents.length === 0}
     <p class="px-4 py-3 text-[13px] text-[var(--ui-text-muted)]">
       No documents linked to this topic.
@@ -109,14 +111,14 @@
                 </span>
                 {#if doc.head_revision?.content_type}
                   <span
-                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
                   >
                     {doc.head_revision.content_type}
                   </span>
                 {/if}
                 {#each (doc.labels ?? []).slice(0, 3) as label}
                   <span
-                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[10px] text-[var(--ui-text-muted)]"
+                    class="rounded bg-[var(--ui-border)] px-1.5 py-0.5 text-[11px] text-[var(--ui-text-muted)]"
                   >
                     {label}
                   </span>

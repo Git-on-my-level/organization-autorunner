@@ -23,12 +23,6 @@ describe("RefLink model", () => {
       isLink: true,
     });
 
-    expect(resolveRefLink("snapshot:snap-1")).toMatchObject({
-      kind: "snapshot",
-      href: "/snapshots/snap-1",
-      isLink: true,
-    });
-
     expect(
       resolveRefLink("event:evt-9", { threadId: "thread-1" }),
     ).toMatchObject({

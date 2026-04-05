@@ -50,7 +50,6 @@ export function boardSummaryCounts(summary) {
   return counts;
 }
 
-/** Thread link target from membership (core mirrors parent_thread and thread_id when linked). */
 /** Backing thread id for a board row (core `thread_id`). */
 export function boardBackingThreadId(board) {
   return String(board?.thread_id ?? "").trim();
@@ -73,9 +72,7 @@ export function firstBoardDocumentId(board) {
 }
 
 export function boardCardLinkedThreadId(membership) {
-  const a = String(membership?.thread_id ?? "").trim();
-  if (a) return a;
-  return String(membership?.parent_thread ?? "").trim();
+  return String(membership?.thread_id ?? "").trim();
 }
 
 /**

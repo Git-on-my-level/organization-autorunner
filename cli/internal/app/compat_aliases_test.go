@@ -29,11 +29,6 @@ func TestApplyCommandShapeCompatibilityAliasExactMatches(t *testing.T) {
 			want: []string{"reviews", "create", "--from-file", "payload.json"},
 		},
 		{
-			name: "packets work-orders create",
-			args: []string{"packets", "work-orders", "create", "--from-file", "payload.json"},
-			want: []string{"work-orders", "create", "--from-file", "payload.json"},
-		},
-		{
 			name: "artifacts content get",
 			args: []string{"artifacts", "content", "get", "--artifact-id", "artifact_123"},
 			want: []string{"artifacts", "content", "--artifact-id", "artifact_123"},
@@ -86,14 +81,6 @@ func TestCommandShapeCompatibilityAliasesResolveToCanonicalHandlers(t *testing.T
 			wantMethod:  http.MethodPost,
 			wantPath:    "/packets/reviews",
 			wantCommand: "reviews create",
-		},
-		{
-			name:        "packets work-orders create",
-			args:        []string{"packets", "work-orders", "create"},
-			stdin:       `{"work_order":{"thread_id":"thread_1"}}`,
-			wantMethod:  http.MethodPost,
-			wantPath:    "/packets/work-orders",
-			wantCommand: "work-orders create",
 		},
 		{
 			name:        "artifacts content get",

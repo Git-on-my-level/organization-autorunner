@@ -68,36 +68,46 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 		"provenance":       map[string]any{"sources": []any{"inferred"}},
 	})
 
-	workOrderID := "wo-comprehensive"
-	workOrderResp := postJSONExpectStatus(t, h.baseURL+"/work_orders", `{
+	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
-		"artifact":{"id":"`+workOrderID+`","refs":["thread:`+threadID+`"],"summary":"work order"},
-		"packet":{
-			"work_order_id":"`+workOrderID+`",
-			"subject_ref":"thread:`+threadID+`",
-			"objective":"fix",
-			"constraints":["none"],
-			"context_refs":["url:https://example.com/context"],
-			"acceptance_criteria":["fixed"],
-			"definition_of_done":["receipt"]
-		}
+		"board":{"title":"Comprehensive packet board","refs":["thread:`+threadID+`"]}
 	}`, http.StatusCreated)
-	defer workOrderResp.Body.Close()
-	var workOrderPayload struct {
-		Event map[string]any `json:"event"`
+	defer createBoardResp.Body.Close()
+	var createdPacketBoard struct {
+		Board map[string]any `json:"board"`
 	}
-	if err := json.NewDecoder(workOrderResp.Body).Decode(&workOrderPayload); err != nil {
-		t.Fatalf("decode work order response: %v", err)
+	if err := json.NewDecoder(createBoardResp.Body).Decode(&createdPacketBoard); err != nil {
+		t.Fatalf("decode packet board: %v", err)
 	}
-	assertRefsContain(t, workOrderPayload.Event["refs"], "artifact:"+workOrderID)
+	packetBoardID := asString(createdPacketBoard.Board["id"])
+	packetBoardUpdatedAt := asString(createdPacketBoard.Board["updated_at"])
+	packetCardResp := postJSONExpectStatus(t, h.baseURL+"/boards/"+packetBoardID+"/cards", `{
+		"actor_id":"actor-1",
+		"if_board_updated_at":"`+packetBoardUpdatedAt+`",
+		"thread_id":"`+threadID+`",
+		"title":"Comprehensive packet card",
+		"column_key":"ready"
+	}`, http.StatusCreated)
+	defer packetCardResp.Body.Close()
+	var packetCardPayload struct {
+		Card map[string]any `json:"card"`
+	}
+	if err := json.NewDecoder(packetCardResp.Body).Decode(&packetCardPayload); err != nil {
+		t.Fatalf("decode packet card: %v", err)
+	}
+	packetCardID := asString(packetCardPayload.Card["id"])
+	packetCardBackingThreadID := asString(packetCardPayload.Card["thread_id"])
+	cardRef := "card:" + packetCardID
+	if packetCardID == "" || packetCardBackingThreadID == "" {
+		t.Fatal("expected packet card id and backing thread id")
+	}
 
 	postJSONExpectStatus(t, h.baseURL+"/receipts", `{
 		"actor_id":"actor-1",
-		"artifact":{"id":"receipt-invalid","refs":["thread:`+threadID+`","artifact:`+workOrderID+`"],"summary":"receipt"},
+		"artifact":{"id":"receipt-invalid","refs":["`+cardRef+`"],"summary":"receipt"},
 		"packet":{
 			"receipt_id":"receipt-invalid",
-			"work_order_id":"`+workOrderID+`",
-			"subject_ref":"thread:`+threadID+`",
+			"subject_ref":"`+cardRef+`",
 			"outputs":[],
 			"verification_evidence":["url:https://example.com/evidence"],
 			"changes_summary":"summary",
@@ -108,11 +118,10 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 	receiptID := "receipt-comprehensive"
 	receiptResp := postJSONExpectStatus(t, h.baseURL+"/receipts", `{
 		"actor_id":"actor-1",
-		"artifact":{"id":"`+receiptID+`","refs":["thread:`+threadID+`","artifact:`+workOrderID+`"],"summary":"receipt"},
+		"artifact":{"id":"`+receiptID+`","refs":["`+cardRef+`"],"summary":"receipt"},
 		"packet":{
 			"receipt_id":"`+receiptID+`",
-			"work_order_id":"`+workOrderID+`",
-			"subject_ref":"thread:`+threadID+`",
+			"subject_ref":"`+cardRef+`",
 			"outputs":["artifact:output-1"],
 			"verification_evidence":["url:https://example.com/evidence"],
 			"changes_summary":"summary",
@@ -124,11 +133,10 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 	reviewID := "review-comprehensive"
 	postJSONExpectStatus(t, h.baseURL+"/reviews", `{
 		"actor_id":"actor-1",
-		"artifact":{"id":"`+reviewID+`","refs":["thread:`+threadID+`","artifact:`+receiptID+`","artifact:`+workOrderID+`"],"summary":"review"},
+		"artifact":{"id":"`+reviewID+`","refs":["`+cardRef+`","artifact:`+receiptID+`"],"summary":"review"},
 		"packet":{
 			"review_id":"`+reviewID+`",
-			"subject_ref":"thread:`+threadID+`",
-			"work_order_id":"`+workOrderID+`",
+			"subject_ref":"`+cardRef+`",
 			"receipt_id":"`+receiptID+`",
 			"outcome":"accept",
 			"notes":"ok",
@@ -136,30 +144,30 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 		}
 	}`, http.StatusCreated).Body.Close()
 
-	timelineResp, err := http.Get(h.baseURL + "/threads/" + threadID + "/timeline")
+	packetTimelineResp, err := http.Get(h.baseURL + "/threads/" + packetCardBackingThreadID + "/timeline")
 	if err != nil {
 		t.Fatalf("GET timeline: %v", err)
 	}
-	defer timelineResp.Body.Close()
-	if timelineResp.StatusCode != http.StatusOK {
-		t.Fatalf("unexpected timeline status: %d", timelineResp.StatusCode)
+	defer packetTimelineResp.Body.Close()
+	if packetTimelineResp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected timeline status: %d", packetTimelineResp.StatusCode)
 	}
-	var timeline struct {
+	var packetTimeline struct {
 		Events []map[string]any `json:"events"`
 	}
-	if err := json.NewDecoder(timelineResp.Body).Decode(&timeline); err != nil {
+	if err := json.NewDecoder(packetTimelineResp.Body).Decode(&packetTimeline); err != nil {
 		t.Fatalf("decode timeline: %v", err)
 	}
-	receiptAdded := findEventByType(timeline.Events, "receipt_added")
+	receiptAdded := findEventByType(packetTimeline.Events, "receipt_added")
 	if receiptAdded == nil {
 		t.Fatal("expected receipt_added event")
 	}
-	assertRefsContain(t, receiptAdded["refs"], "artifact:"+receiptID, "artifact:"+workOrderID)
-	reviewCompleted := findEventByType(timeline.Events, "review_completed")
+	assertRefsContain(t, receiptAdded["refs"], "artifact:"+receiptID, cardRef)
+	reviewCompleted := findEventByType(packetTimeline.Events, "review_completed")
 	if reviewCompleted == nil {
 		t.Fatal("expected review_completed event")
 	}
-	assertRefsContain(t, reviewCompleted["refs"], "artifact:"+reviewID, "artifact:"+receiptID, "artifact:"+workOrderID)
+	assertRefsContain(t, reviewCompleted["refs"], "artifact:"+reviewID, "artifact:"+receiptID, cardRef)
 
 	postJSONExpectStatus(t, h.baseURL+"/events", `{
 		"actor_id":"actor-1",
@@ -173,18 +181,18 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 		}
 	}`, http.StatusCreated).Body.Close()
 
-	createBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
+	inboxBoardResp := postJSONExpectStatus(t, h.baseURL+"/boards", `{
 		"actor_id":"actor-1",
 		"board":{
 			"title":"Comprehensive inbox board",
 			"refs":["thread:`+threadID+`"]
 		}
 	}`, http.StatusCreated)
-	defer createBoardResp.Body.Close()
+	defer inboxBoardResp.Body.Close()
 	var createdBoard struct {
 		Board map[string]any `json:"board"`
 	}
-	if err := json.NewDecoder(createBoardResp.Body).Decode(&createdBoard); err != nil {
+	if err := json.NewDecoder(inboxBoardResp.Body).Decode(&createdBoard); err != nil {
 		t.Fatalf("decode board response: %v", err)
 	}
 	boardID := asString(createdBoard.Board["id"])
@@ -291,17 +299,16 @@ func TestComprehensiveHTTPAPIFlow(t *testing.T) {
 		t.Fatalf("expected actor id validation error, got: %v", ctErr)
 	}
 
-	postJSONExpectStatus(t, h.baseURL+"/work_orders", `{
+	postJSONExpectStatus(t, h.baseURL+"/receipts", `{
 		"actor_id":"actor-1",
-		"artifact":{"id":"wo-mismatch-a","refs":["thread:`+threadID+`"]},
+		"artifact":{"id":"rc-mismatch-a","refs":["`+cardRef+`"]},
 		"packet":{
-			"work_order_id":"wo-mismatch-b",
-			"subject_ref":"thread:`+threadID+`",
-			"objective":"x",
-			"constraints":["none"],
-			"context_refs":["url:https://example.com/context"],
-			"acceptance_criteria":["done"],
-			"definition_of_done":["receipt"]
+			"receipt_id":"rc-mismatch-b",
+			"subject_ref":"`+cardRef+`",
+			"outputs":["artifact:output-1"],
+			"verification_evidence":["url:https://example.com/evidence"],
+			"changes_summary":"x",
+			"known_gaps":[]
 		}
 	}`, http.StatusBadRequest).Body.Close()
 

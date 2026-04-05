@@ -62,6 +62,7 @@ export declare class OarClient {
     cardsPatch(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     cardsPurge(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     cardsRestore(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
+    cardsTimeline(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     docsCreate(options?: RequestOptions): Promise<InvokeResult>;
     docsGet(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     docsList(options?: RequestOptions): Promise<InvokeResult>;
@@ -77,7 +78,6 @@ export declare class OarClient {
     metaVersion(options?: RequestOptions): Promise<InvokeResult>;
     packetsReceiptsCreate(options?: RequestOptions): Promise<InvokeResult>;
     packetsReviewsCreate(options?: RequestOptions): Promise<InvokeResult>;
-    packetsWorkOrdersCreate(options?: RequestOptions): Promise<InvokeResult>;
     threadsContext(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     threadsInspect(pathParams: Record<string, string>, options?: RequestOptions): Promise<InvokeResult>;
     threadsList(options?: RequestOptions): Promise<InvokeResult>;

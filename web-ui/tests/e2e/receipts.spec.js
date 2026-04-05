@@ -1,17 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { threadWorkspaceToTopicWorkspace } from "../../src/lib/topicWorkspaceAdapter.js";
+import { buildMockTopicWorkspaceFromThreadWorkspace } from "../../src/lib/mockCoreData.js";
 
-test("receipt form validates typed refs and creates receipt that appears in timeline", async ({
+test("thread work tab points operators to card-scoped receipts", async ({
   page,
 }) => {
   const actorId = "actor-receipt-e2e";
-  const workOrderId = "artifact-work-order-1";
-  const createdReceiptId = "artifact-receipt-created-1";
-  let postedPayload = null;
-  let createdReceiptArtifact = null;
-  let createdReceiptPacket = null;
-  let timeline = [];
 
   await page.addInitScript((selectedActorId) => {
     window.localStorage.setItem("oar_ui_actor_id", selectedActorId);
@@ -82,30 +76,22 @@ test("receipt form validates typed refs and creates receipt that appears in time
           provenance: { sources: ["actor_statement:event-1001"] },
         },
         context: {
-          recent_events: timeline,
+          recent_events: [],
           key_artifacts: [],
           open_cards: [],
           documents: [],
         },
       };
       const payload = route.request().url().includes("/topics/")
-        ? threadWorkspaceToTopicWorkspace(threadWs, "thread-onboarding")
+        ? buildMockTopicWorkspaceFromThreadWorkspace(
+            threadWs,
+            "thread-onboarding",
+          )
         : threadWs;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(payload),
-      });
-    },
-  );
-
-  await page.route(
-    /\/(threads|topics)\/thread-onboarding\/timeline$/,
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ events: timeline }),
       });
     },
   );
@@ -118,202 +104,11 @@ test("receipt form validates typed refs and creates receipt that appears in time
     });
   });
 
-  await page.route(/\/artifacts(\?.*)?$/, async (route) => {
-    const request = route.request();
-    const url = new URL(request.url());
-
-    if (request.method() !== "GET") {
-      await route.continue();
-      return;
-    }
-
-    if (url.searchParams.get("kind") === "work_order") {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          artifacts: [
-            {
-              id: workOrderId,
-              kind: "work_order",
-              thread_id: "thread-onboarding",
-              summary: "Work order for onboarding update",
-              refs: ["thread:thread-onboarding"],
-              packet: {
-                work_order_id: workOrderId,
-                thread_id: "thread-onboarding",
-              },
-            },
-          ],
-        }),
-      });
-      return;
-    }
-
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ artifacts: [] }),
-    });
-  });
-
-  await page.route(/\/artifacts\/[^/?]+$/, async (route) => {
-    const request = route.request();
-    const artifactId = request.url().split("/").at(-1) ?? "";
-
-    if (request.method() === "GET" && request.resourceType() === "document") {
-      await route.continue();
-      return;
-    }
-
-    if (
-      request.method() === "GET" &&
-      createdReceiptArtifact &&
-      artifactId === createdReceiptArtifact.id
-    ) {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ artifact: createdReceiptArtifact }),
-      });
-      return;
-    }
-
-    await route.fulfill({
-      status: 404,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "Artifact not found" }),
-    });
-  });
-
-  await page.route(/\/artifacts\/[^/?]+\/content$/, async (route) => {
-    const artifactId = route.request().url().split("/").at(-2) ?? "";
-    if (createdReceiptArtifact && artifactId === createdReceiptArtifact.id) {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(createdReceiptPacket),
-      });
-      return;
-    }
-
-    await route.fulfill({
-      status: 404,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "Content not found" }),
-    });
-  });
-
-  await page.route(/\/(receipts|packets\/receipts)$/, async (route) => {
-    postedPayload = JSON.parse(route.request().postData() ?? "{}");
-    const receiptId =
-      postedPayload.artifact?.id ??
-      postedPayload.packet?.receipt_id ??
-      createdReceiptId;
-    const subjectRef = String(postedPayload.packet?.subject_ref ?? "");
-    const backingThreadId = subjectRef.includes(":")
-      ? subjectRef.split(":").slice(1).join(":").trim()
-      : "";
-
-    createdReceiptPacket = {
-      ...postedPayload.packet,
-      receipt_id: receiptId,
-    };
-    createdReceiptArtifact = {
-      id: receiptId,
-      kind: "receipt",
-      thread_id: backingThreadId,
-      refs: postedPayload.artifact.refs,
-      summary: postedPayload.artifact.summary,
-      provenance: { sources: ["actor_statement:ui"] },
-    };
-
-    const createdEvent = {
-      id: "event-receipt-1",
-      ts: "2026-03-04T06:00:00.000Z",
-      type: "receipt_added",
-      actor_id: postedPayload.actor_id,
-      thread_id: backingThreadId,
-      refs: [
-        `artifact:${receiptId}`,
-        `artifact:${postedPayload.packet.work_order_id}`,
-        subjectRef,
-      ],
-      summary: `Receipt added: ${postedPayload.artifact.summary}`,
-      payload: {
-        artifact_id: receiptId,
-      },
-      provenance: { sources: ["actor_statement:ui"] },
-    };
-    timeline = [createdEvent, ...timeline];
-
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        artifact: createdReceiptArtifact,
-        event: createdEvent,
-      }),
-    });
-  });
-
   await page.goto("/threads/thread-onboarding");
   await page.getByRole("button", { name: "Work" }).click();
-  await page
-    .getByRole("combobox", { name: "Work order" })
-    .selectOption(workOrderId);
-
-  await page.getByLabel("Outputs (one per line)").fill("not-a-ref");
-  await page
-    .getByLabel("Verification evidence (one per line)")
-    .fill("artifact:artifact-evidence-1");
-  await page.getByLabel("Changes summary").fill("Implemented requested fixes");
-  await page.getByRole("button", { name: "Submit receipt" }).click();
-
   await expect(
-    page
-      .getByRole("listitem")
-      .filter({ hasText: "Invalid typed refs in outputs" }),
-  ).toBeVisible();
-  expect(postedPayload).toBeNull();
-
-  await page
-    .getByLabel("Outputs (one per line)")
-    .fill("artifact:artifact-output-1");
-  await page.getByRole("button", { name: "Submit receipt" }).click();
-
-  await expect.poll(() => postedPayload !== null).toBe(true);
-  expect(postedPayload.actor_id).toBe(actorId);
-  expect(postedPayload.artifact.id).toBeUndefined();
-  expect(postedPayload.packet).not.toHaveProperty("receipt_id");
-  expect(postedPayload.packet).toMatchObject({
-    subject_ref: "thread:thread-onboarding",
-    work_order_ref: `artifact:${workOrderId}`,
-    work_order_id: workOrderId,
-    outputs: ["artifact:artifact-output-1"],
-    verification_evidence: ["artifact:artifact-evidence-1"],
-    changes_summary: "Implemented requested fixes",
-  });
-  expect(postedPayload.artifact.refs).toEqual([
-    "thread:thread-onboarding",
-    `artifact:${workOrderId}`,
-  ]);
-
-  await page.getByRole("button", { name: "Timeline" }).click();
-  await expect(
-    page.getByText("Receipt added: Implemented requested fixes", {
+    page.getByText("Create receipts and reviews from card detail pages.", {
       exact: true,
     }),
-  ).toBeVisible();
-
-  await page.goto(`/artifacts/${createdReceiptArtifact.id}`);
-  await expect(
-    page.getByRole("heading", {
-      name: createdReceiptArtifact.summary,
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "artifact:artifact-output-1" }),
   ).toBeVisible();
 });

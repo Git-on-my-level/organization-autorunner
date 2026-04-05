@@ -1,4 +1,4 @@
-import { cadenceMatchesFilter } from "./threadFilters.js";
+import { cadenceMatchesFilter } from "./topicFilters.js";
 
 // ─── Zesty Bots Lemonade Co. ──────────────────────────────────────────────────
 // A fully-automated lemonade stand operated by AI agents and robots.
@@ -116,7 +116,7 @@ const threads = [
       "RoboSupply Inc. — delivery ETA tomorrow 09:00. Thread paused pending part arrival.",
     next_actions: [
       "Receive part #TL-3000-L delivery from RoboSupply Inc. (ETA: tomorrow 09:00)",
-      "SqueezeBot to run recalibration sequence per maintenance work order",
+      "SqueezeBot to run recalibration sequence per maintenance card",
       "FlavorMind QA scan to validate seed contamination rate <1% post-repair",
     ],
     open_cards: ["thread-squeezebot-maintenance"],
@@ -464,11 +464,10 @@ const events = [
     actor_id: "actor-ops-ai",
     thread_id: "thread-squeezebot-maintenance",
     refs: ["thread:thread-squeezebot-maintenance"],
-    summary:
-      "OpsAI issued maintenance work order and ordered replacement part.",
+    summary: "OpsAI issued maintenance card and ordered replacement part.",
     payload: {
       text:
-        "Confirmed. Work order issued. Placed order with RoboSupply Inc. for torque " +
+        "Confirmed. Card created. Placed order with RoboSupply Inc. for torque " +
         "limiter part #TL-3000-L — estimated delivery tomorrow 09:00. Thread paused " +
         "pending part arrival. @SqueezeBot — continue reduced duty cycle in the interim. " +
         "FlavorMind will run a QA scan after repair to confirm seed contamination is back " +
@@ -531,22 +530,7 @@ const events = [
     provenance: { sources: ["actor_statement:evt-supply-002"] },
   },
 
-  // ── Summer menu: work_order_created / receipt_added / review_completed ────
-  //    These correspond to the seeded artifact chain for lavender sourcing.
-  {
-    id: "evt-menu-wo-created",
-    ts: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    type: "work_order_created",
-    actor_id: "actor-ops-ai",
-    thread_id: "thread-summer-menu",
-    refs: [
-      "thread:thread-summer-menu",
-      "artifact:artifact-wo-lavender-sourcing",
-    ],
-    summary: "Work order created: source food-grade lavender syrup supplier.",
-    payload: { artifact_id: "artifact-wo-lavender-sourcing" },
-    provenance: { sources: ["actor_statement:evt-menu-003"] },
-  },
+  // ── Summer menu: receipt_added / review_completed (card-scoped) ──────────
   {
     id: "evt-menu-card-board",
     ts: new Date(now - 3 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000).toISOString(),
@@ -572,13 +556,12 @@ const events = [
     thread_id: "thread-summer-menu",
     refs: [
       "thread:thread-summer-menu",
+      "card:thread-summer-menu",
       "artifact:artifact-receipt-lavender-sourcing",
-      "artifact:artifact-wo-lavender-sourcing",
     ],
     summary: "Receipt added: lavender syrup sourced from BotBotanicals API.",
     payload: {
       artifact_id: "artifact-receipt-lavender-sourcing",
-      work_order_id: "artifact-wo-lavender-sourcing",
     },
     provenance: { sources: ["actor_statement:evt-menu-003"] },
   },
@@ -592,15 +575,14 @@ const events = [
     thread_id: "thread-summer-menu",
     refs: [
       "thread:thread-summer-menu",
+      "card:thread-summer-menu",
       "artifact:artifact-review-lavender-sourcing",
       "artifact:artifact-receipt-lavender-sourcing",
-      "artifact:artifact-wo-lavender-sourcing",
     ],
     summary: "Review completed (accept): lavender sourcing receipt approved.",
     payload: {
       artifact_id: "artifact-review-lavender-sourcing",
       receipt_id: "artifact-receipt-lavender-sourcing",
-      work_order_id: "artifact-wo-lavender-sourcing",
       outcome: "accept",
     },
     provenance: { sources: ["actor_statement:evt-menu-003"] },
@@ -668,19 +650,6 @@ const events = [
     provenance: { sources: ["actor_statement:evt-price-003"] },
   },
   {
-    id: "evt-price-004",
-    ts: new Date(
-      now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
-    ).toISOString(),
-    type: "work_order_created",
-    actor_id: "actor-ops-ai",
-    thread_id: "thread-pricing-glitch",
-    refs: ["thread:thread-pricing-glitch", "artifact:artifact-wo-pricing-fix"],
-    summary: "Work order created: investigate and patch pricing cache logic.",
-    payload: { artifact_id: "artifact-wo-pricing-fix" },
-    provenance: { sources: ["actor_statement:evt-price-004"] },
-  },
-  {
     id: "evt-price-005",
     ts: new Date(
       now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000 + 5 * 60 * 1000,
@@ -705,14 +674,13 @@ const events = [
     thread_id: "thread-pricing-glitch",
     refs: [
       "thread:thread-pricing-glitch",
+      "card:thread-pricing-glitch",
       "artifact:artifact-receipt-pricing-v1",
-      "artifact:artifact-wo-pricing-fix",
     ],
     summary:
       "Receipt added (v1): pricing issue investigated — refund decision still needed.",
     payload: {
       artifact_id: "artifact-receipt-pricing-v1",
-      work_order_id: "artifact-wo-pricing-fix",
     },
     provenance: { sources: ["actor_statement:evt-price-006"] },
   },
@@ -726,16 +694,15 @@ const events = [
     thread_id: "thread-pricing-glitch",
     refs: [
       "thread:thread-pricing-glitch",
+      "card:thread-pricing-glitch",
       "artifact:artifact-review-pricing-escalate",
       "artifact:artifact-receipt-pricing-v1",
-      "artifact:artifact-wo-pricing-fix",
     ],
     summary:
       "Review completed (escalate): refund policy decision required before acceptance.",
     payload: {
       artifact_id: "artifact-review-pricing-escalate",
       receipt_id: "artifact-receipt-pricing-v1",
-      work_order_id: "artifact-wo-pricing-fix",
       outcome: "escalate",
     },
     provenance: { sources: ["actor_statement:evt-price-007"] },
@@ -771,14 +738,13 @@ const events = [
     thread_id: "thread-pricing-glitch",
     refs: [
       "thread:thread-pricing-glitch",
+      "card:thread-pricing-glitch",
       "artifact:artifact-receipt-pricing-v2",
-      "artifact:artifact-wo-pricing-fix",
     ],
     summary:
       "Receipt added (v2): cache fix deployed, refunds confirmed, patch validated.",
     payload: {
       artifact_id: "artifact-receipt-pricing-v2",
-      work_order_id: "artifact-wo-pricing-fix",
     },
     provenance: { sources: ["actor_statement:evt-price-009"] },
   },
@@ -792,16 +758,15 @@ const events = [
     thread_id: "thread-pricing-glitch",
     refs: [
       "thread:thread-pricing-glitch",
+      "card:thread-pricing-glitch",
       "artifact:artifact-review-pricing-accept",
       "artifact:artifact-receipt-pricing-v2",
-      "artifact:artifact-wo-pricing-fix",
     ],
     summary:
       "Review completed (accept): pricing fix accepted, incident ready to close.",
     payload: {
       artifact_id: "artifact-review-pricing-accept",
       receipt_id: "artifact-receipt-pricing-v2",
-      work_order_id: "artifact-wo-pricing-fix",
       outcome: "accept",
     },
     provenance: { sources: ["actor_statement:evt-price-010"] },
@@ -1124,7 +1089,7 @@ const artifacts = [
       `${new Date(now - 2 * 24 * 60 * 60 * 1000 + 4 * 60 * 1000).toISOString()} [Diagnostics] Left arm torque sensor: 112% of nominal → OVER SPEC (threshold: 100%)`,
       `${new Date(now - 2 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000).toISOString()} [Diagnostics] QA impact simulation: seed bypass ~14% per cycle (acceptable threshold: <5%) → FAIL`,
       `${new Date(now - 2 * 24 * 60 * 60 * 1000 + 6 * 60 * 1000).toISOString()} [SqueezeBot 3000] Issue flagged. Notifying OpsAI. Throttling left arm to 80% duty cycle.`,
-      `${new Date(now - 2 * 24 * 60 * 60 * 1000 + 15 * 60 * 1000).toISOString()} [OpsAI] Maintenance work order issued. Ordering part #TL-3000-L from RoboSupply Inc.`,
+      `${new Date(now - 2 * 24 * 60 * 60 * 1000 + 15 * 60 * 1000).toISOString()} [OpsAI] Maintenance card created. Ordering part #TL-3000-L from RoboSupply Inc.`,
       `${new Date(now - 2 * 24 * 60 * 60 * 1000 + 18 * 60 * 1000).toISOString()} [RoboSupply Inc.] Order confirmed. Order ID: RS-20260305-4421. Estimated delivery: +24h.`,
       `${new Date(now - 2 * 24 * 60 * 60 * 1000 + 19 * 60 * 1000).toISOString()} [SqueezeBot 3000] Running in degraded mode. Left arm at 80% duty cycle. Throughput -20%.`,
     ].join("\n"),
@@ -1134,53 +1099,11 @@ const artifacts = [
     tombstoned_at: null,
   },
   {
-    id: "artifact-wo-lavender-sourcing",
-    kind: "work_order",
-    thread_id: "thread-summer-menu",
-    summary:
-      "Work order: Source and contract a food-grade lavender syrup supplier",
-    refs: ["thread:thread-summer-menu", "artifact:artifact-summer-menu-draft"],
-    created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    created_by: "actor-ops-ai",
-    provenance: { sources: ["actor_statement:evt-menu-003"] },
-    packet: {
-      work_order_id: "artifact-wo-lavender-sourcing",
-      thread_id: "thread-summer-menu",
-      objective:
-        "Identify and contract a food-grade culinary lavender syrup supplier to support " +
-        "the Lavender Lemonade product line at Zesty Bots Lemonade Co.",
-      constraints: [
-        "Supplier must carry food-grade culinary certification",
-        "Pricing must preserve ≥75% gross margin at $4.50 retail (COGS cap: $1.13/cup)",
-        "Delivery lead time must be ≤5 business days for initial order",
-        "Minimum order quantity must be ≤2L",
-      ],
-      context_refs: [
-        "thread:thread-summer-menu",
-        "artifact:artifact-summer-menu-draft",
-      ],
-      acceptance_criteria: [
-        "At least 2 suppliers evaluated with pricing, lead time, and certification data",
-        "Preferred supplier selection approved by OpsAI",
-        "Initial 2L order placed and purchase confirmation received",
-      ],
-      definition_of_done: [
-        "Supplier comparison summary linked in thread",
-        "Purchase order receipt attached as artifact",
-        "Lavender syrup added to SupplyRover inventory system",
-      ],
-    },
-    tombstoned_at: null,
-  },
-  {
     id: "artifact-receipt-lavender-sourcing",
     kind: "receipt",
     thread_id: "thread-summer-menu",
     summary: "Receipt: Lavender syrup sourced — BotBotanicals API, 2L ordered",
-    refs: [
-      "thread:thread-summer-menu",
-      "artifact:artifact-wo-lavender-sourcing",
-    ],
+    refs: ["thread:thread-summer-menu", "card:thread-summer-menu"],
     created_at: new Date(
       now - 2 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
     ).toISOString(),
@@ -1188,8 +1111,7 @@ const artifacts = [
     provenance: { sources: ["actor_statement:evt-menu-003"] },
     packet: {
       receipt_id: "artifact-receipt-lavender-sourcing",
-      work_order_id: "artifact-wo-lavender-sourcing",
-      thread_id: "thread-summer-menu",
+      subject_ref: "card:thread-summer-menu",
       outputs: ["artifact:artifact-summer-menu-draft"],
       verification_evidence: ["event:evt-menu-004"],
       changes_summary:
@@ -1211,8 +1133,8 @@ const artifacts = [
     summary: "Review: Lavender sourcing receipt — accepted with minor note",
     refs: [
       "thread:thread-summer-menu",
+      "card:thread-summer-menu",
       "artifact:artifact-receipt-lavender-sourcing",
-      "artifact:artifact-wo-lavender-sourcing",
     ],
     created_at: new Date(
       now - 2 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000,
@@ -1221,7 +1143,8 @@ const artifacts = [
     provenance: { sources: ["actor_statement:evt-menu-003"] },
     packet: {
       review_id: "artifact-review-lavender-sourcing",
-      work_order_id: "artifact-wo-lavender-sourcing",
+      subject_ref: "card:thread-summer-menu",
+      receipt_ref: "artifact:artifact-receipt-lavender-sourcing",
       receipt_id: "artifact-receipt-lavender-sourcing",
       outcome: "accept",
       notes:
@@ -1263,66 +1186,19 @@ const artifacts = [
     tombstoned_at: null,
   },
   {
-    id: "artifact-wo-pricing-fix",
-    kind: "work_order",
-    thread_id: "thread-pricing-glitch",
-    summary:
-      "Work order: diagnose pricing anomaly and patch cache invalidation logic",
-    refs: [
-      "thread:thread-pricing-glitch",
-      "artifact:artifact-pricing-evidence",
-    ],
-    created_at: new Date(
-      now - 10 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000,
-    ).toISOString(),
-    created_by: "actor-ops-ai",
-    provenance: { sources: ["actor_statement:evt-price-004"] },
-    packet: {
-      work_order_id: "artifact-wo-pricing-fix",
-      thread_id: "thread-pricing-glitch",
-      objective:
-        "Diagnose root cause of the pricing overcharge on March 3rd, deploy a fix to " +
-        "Till-E's price cache invalidation logic, validate correct pricing, and confirm " +
-        "customer refunds were issued.",
-      constraints: [
-        "Fix must not require Till-E downtime >5 minutes",
-        "Refund decision requires OpsAI approval before execution",
-        "All changes must be logged in the POS audit trail",
-      ],
-      context_refs: [
-        "thread:thread-pricing-glitch",
-        "artifact:artifact-pricing-evidence",
-      ],
-      acceptance_criteria: [
-        "Root cause documented with evidence",
-        "Cache invalidation fix deployed and config version confirmed current",
-        "10 consecutive post-patch test transactions show correct pricing",
-        "All 3 customer refunds confirmed by payment processor bot",
-      ],
-      definition_of_done: [
-        "Fix deployed and validated",
-        "Refund confirmations attached as evidence",
-        "POS audit log updated",
-        "Receipt filed against this work order",
-      ],
-    },
-    tombstoned_at: null,
-  },
-  {
     id: "artifact-receipt-pricing-v1",
     kind: "receipt",
     thread_id: "thread-pricing-glitch",
     summary:
       "Receipt v1: root cause identified — awaiting refund decision before closing",
-    refs: ["thread:thread-pricing-glitch", "artifact:artifact-wo-pricing-fix"],
+    refs: ["thread:thread-pricing-glitch", "card:thread-pricing-glitch"],
     created_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-cashier-bot",
     provenance: { sources: ["actor_statement:evt-price-006"] },
     tombstoned_at: null,
     packet: {
       receipt_id: "artifact-receipt-pricing-v1",
-      work_order_id: "artifact-wo-pricing-fix",
-      thread_id: "thread-pricing-glitch",
+      subject_ref: "card:thread-pricing-glitch",
       outputs: ["artifact:artifact-pricing-evidence"],
       verification_evidence: ["event:evt-price-001"],
       changes_summary:
@@ -1341,11 +1217,11 @@ const artifacts = [
     kind: "review",
     thread_id: "thread-pricing-glitch",
     summary:
-      "Review v1 (escalate): refund decision required before work order can be accepted",
+      "Review v1 (escalate): refund decision required before receipt can be accepted",
     refs: [
       "thread:thread-pricing-glitch",
+      "card:thread-pricing-glitch",
       "artifact:artifact-receipt-pricing-v1",
-      "artifact:artifact-wo-pricing-fix",
     ],
     created_at: new Date(
       now - 9 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
@@ -1355,13 +1231,14 @@ const artifacts = [
     tombstoned_at: null,
     packet: {
       review_id: "artifact-review-pricing-escalate",
-      work_order_id: "artifact-wo-pricing-fix",
+      subject_ref: "card:thread-pricing-glitch",
+      receipt_ref: "artifact:artifact-receipt-pricing-v1",
       receipt_id: "artifact-receipt-pricing-v1",
       outcome: "escalate",
       notes:
         "Root cause analysis is solid and the fix approach looks correct. However, the receipt " +
-        "cannot be accepted while the refund decision is unresolved — the work order's " +
-        "acceptance criteria explicitly requires confirmed customer refunds. " +
+        "cannot be accepted while the refund decision is unresolved — closure requires confirmed " +
+        "customer refunds per the incident criteria. " +
         "Escalating: OpsAI must make a formal decision on the refund policy (evt-price-003) " +
         "before this receipt can be finalized. Once decided, resubmit with refund confirmation evidence.",
       evidence_refs: ["artifact:artifact-pricing-evidence"],
@@ -1373,15 +1250,14 @@ const artifacts = [
     thread_id: "thread-pricing-glitch",
     summary:
       "Receipt v2: fix deployed, refunds confirmed, all acceptance criteria met",
-    refs: ["thread:thread-pricing-glitch", "artifact:artifact-wo-pricing-fix"],
+    refs: ["thread:thread-pricing-glitch", "card:thread-pricing-glitch"],
     created_at: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-cashier-bot",
     provenance: { sources: ["actor_statement:evt-price-009"] },
     tombstoned_at: null,
     packet: {
       receipt_id: "artifact-receipt-pricing-v2",
-      work_order_id: "artifact-wo-pricing-fix",
-      thread_id: "thread-pricing-glitch",
+      subject_ref: "card:thread-pricing-glitch",
       outputs: ["artifact:artifact-pricing-evidence"],
       verification_evidence: [
         "event:evt-price-008",
@@ -1403,8 +1279,8 @@ const artifacts = [
     summary: "Review v2 (accept): pricing fix complete, incident closed",
     refs: [
       "thread:thread-pricing-glitch",
+      "card:thread-pricing-glitch",
       "artifact:artifact-receipt-pricing-v2",
-      "artifact:artifact-wo-pricing-fix",
     ],
     created_at: new Date(
       now - 8 * 24 * 60 * 60 * 1000 + 1 * 60 * 60 * 1000,
@@ -1413,7 +1289,8 @@ const artifacts = [
     provenance: { sources: ["actor_statement:evt-price-010"] },
     packet: {
       review_id: "artifact-review-pricing-accept",
-      work_order_id: "artifact-wo-pricing-fix",
+      subject_ref: "card:thread-pricing-glitch",
+      receipt_ref: "artifact:artifact-receipt-pricing-v2",
       receipt_id: "artifact-receipt-pricing-v2",
       outcome: "accept",
       notes:
@@ -1669,11 +1546,13 @@ function topicStatusFromThreadStatus(status) {
     case "active":
       return "active";
     case "paused":
-      return "blocked";
+    case "blocked":
+      return "paused";
     case "closed":
-      return "archived";
+    case "archived":
+      return "closed";
     default:
-      return "proposed";
+      return "active";
   }
 }
 
@@ -1775,7 +1654,7 @@ function buildCanonicalTopicSeed(thread) {
 }
 
 function buildCanonicalCardSeed(card) {
-  const threadId = String(card?.thread_id ?? card?.parent_thread ?? "").trim();
+  const threadId = String(card?.thread_id ?? "").trim();
   const boardId = String(card?.board_id ?? "").trim();
   const thread = threadId
     ? threads.find((entry) => entry.id === threadId)
@@ -1783,7 +1662,9 @@ function buildCanonicalCardSeed(card) {
   const topicRef = threadId ? `topic:${threadId}` : null;
   const threadTypedRef = threadId ? `thread:${threadId}` : null;
   const boardRef = boardId ? `board:${boardId}` : null;
-  const documentId = String(card?.pinned_document_id ?? "").trim();
+  const documentId = String(card?.document_ref ?? "")
+    .replace(/^document:/, "")
+    .trim();
   const documentRef = documentId ? `document:${documentId}` : null;
   const summary =
     String(card?.summary ?? "").trim() ||
@@ -1792,11 +1673,16 @@ function buildCanonicalCardSeed(card) {
     String(thread?.title ?? "").trim() ||
     String(card?.title ?? "").trim();
 
+  const assigneeRefs = normalizeCardRefList(card?.assignee_refs ?? []);
+  const resolvedAssigneeRefs =
+    assigneeRefs.length > 0
+      ? assigneeRefs
+      : mockBoardCardAssigneeRefsFromPayload({ assignee: card?.assignee });
+
   return {
     id: String(card?.id ?? threadId ?? boardId ?? "").trim() || null,
     board_id: boardId || null,
     thread_id: threadId || null,
-    parent_thread: threadId || null,
     board_ref: boardRef,
     topic_ref: topicRef,
     document_ref: documentRef,
@@ -1805,9 +1691,7 @@ function buildCanonicalCardSeed(card) {
     summary,
     column_key: String(card?.column_key ?? "backlog").trim() || "backlog",
     rank: String(card?.rank ?? "0000").trim() || "0000",
-    assignee_refs: Array.isArray(card?.assignee_refs)
-      ? deepClone(card.assignee_refs)
-      : [],
+    assignee_refs: deepClone(resolvedAssigneeRefs),
     risk: cardRiskFromThreadPriority(thread?.priority),
     resolution: cardResolutionFromRow(card),
     resolution_refs: Array.isArray(card?.resolution_refs)
@@ -1856,14 +1740,9 @@ function buildCanonicalPacketSeed(artifact) {
     return null;
   }
 
-  const topicId = String(artifact?.thread_id ?? "").trim();
-  const subjectRef = topicId ? `topic:${topicId}` : null;
+  const subjectRef = String(packet.subject_ref ?? "").trim() || null;
   const packetId = String(
-    packet.work_order_id ??
-      packet.receipt_id ??
-      packet.review_id ??
-      artifact?.id ??
-      "",
+    packet.receipt_id ?? packet.review_id ?? artifact?.id ?? "",
   ).trim();
 
   return {
@@ -2224,12 +2103,7 @@ export function listMockTopics(filters = {}) {
   return listMockThreads(filters).map((thread) => ({
     id: thread.id,
     type: thread.type ?? "other",
-    status:
-      thread.status === "closed"
-        ? "archived"
-        : thread.status === "paused"
-          ? "blocked"
-          : "active",
+    status: topicStatusFromThreadStatus(thread.status),
     title: thread.title,
     summary: thread.current_summary ?? "",
     owner_refs: thread.created_by ? [`actor:${thread.created_by}`] : [],
@@ -2274,7 +2148,7 @@ function listMockOpenCardsForThread(threadId) {
       if (!isVisibleBoardCard(card)) {
         return false;
       }
-      const cid = String(card.thread_id ?? card.parent_thread ?? "").trim();
+      const cid = String(card.thread_id ?? "").trim();
       if (cid === tid) {
         return true;
       }
@@ -2370,8 +2244,8 @@ export function getMockThreadWorkspace(
   const boardMemberships = boardCards
     .filter(
       (c) =>
-        String(c.thread_id ?? c.parent_thread ?? "").trim() ===
-          String(threadId).trim() && isVisibleBoardCard(c),
+        String(c.thread_id ?? "").trim() === String(threadId).trim() &&
+        isVisibleBoardCard(c),
     )
     .map((card) => {
       const board = boards.find((b) => b.id === card.board_id);
@@ -2387,7 +2261,7 @@ export function getMockThreadWorkspace(
           ...(card.id ? { id: card.id } : {}),
           thread_id: card.thread_id,
           column_key: card.column_key,
-          pinned_document_id: card.pinned_document_id,
+          document_ref: card.document_ref ?? null,
         },
       };
     })
@@ -2547,155 +2421,6 @@ function resolveMockSubjectBackingThreadId(subjectRef, explicitThreadId = "") {
   return "";
 }
 
-export function createMockWorkOrder({ actor_id, artifact = {}, packet = {} }) {
-  const requestKey = String(arguments[0]?.request_key ?? "").trim();
-  const issuedArtifactId =
-    requestKey && !artifact.id && !packet.work_order_id
-      ? `artifact-work-order-${
-          requestKey
-            .replace(/[^a-z0-9]+/gi, "-")
-            .toLowerCase()
-            .slice(0, 20) || "mock"
-        }`
-      : "";
-  const artifactId = String(artifact.id ?? issuedArtifactId).trim();
-  const packetId = String(packet.work_order_id ?? artifactId).trim();
-  const subjectRef = String(packet.subject_ref ?? "").trim();
-  const threadId = String(artifact.thread_id ?? "").trim();
-
-  if (!artifactId) {
-    return { error: "validation", message: "artifact.id is required." };
-  }
-
-  if (!packetId) {
-    return {
-      error: "validation",
-      message: "packet.work_order_id is required.",
-    };
-  }
-
-  if (artifactId !== packetId) {
-    return {
-      error: "validation",
-      message: "packet.work_order_id must match artifact.id.",
-    };
-  }
-
-  if (!subjectRef) {
-    return { error: "validation", message: "packet.subject_ref is required." };
-  }
-
-  const backingThreadId = resolveMockSubjectBackingThreadId(
-    subjectRef,
-    threadId,
-  );
-  if (!backingThreadId) {
-    return {
-      error: "validation",
-      message: "artifact.thread_id or a topic-scoped subject_ref is required.",
-    };
-  }
-
-  if (!packet.objective) {
-    return { error: "validation", message: "packet.objective is required." };
-  }
-
-  const constraints = Array.isArray(packet.constraints)
-    ? packet.constraints.map((item) => String(item).trim()).filter(Boolean)
-    : [];
-  const contextRefs = normalizeRefList(packet.context_refs);
-  const acceptanceCriteria = Array.isArray(packet.acceptance_criteria)
-    ? packet.acceptance_criteria
-        .map((item) => String(item).trim())
-        .filter(Boolean)
-    : [];
-  const definitionOfDone = Array.isArray(packet.definition_of_done)
-    ? packet.definition_of_done
-        .map((item) => String(item).trim())
-        .filter(Boolean)
-    : [];
-
-  if (constraints.length === 0) {
-    return {
-      error: "validation",
-      message: "packet.constraints must include at least one item.",
-    };
-  }
-
-  if (acceptanceCriteria.length === 0) {
-    return {
-      error: "validation",
-      message: "packet.acceptance_criteria must include at least one item.",
-    };
-  }
-
-  if (definitionOfDone.length === 0) {
-    return {
-      error: "validation",
-      message: "packet.definition_of_done must include at least one item.",
-    };
-  }
-
-  if (contextRefs.some((ref) => !isTypedRef(ref))) {
-    return {
-      error: "validation",
-      message: "packet.context_refs contains invalid typed refs.",
-    };
-  }
-
-  const artifactRefs = normalizeRefList(artifact.refs);
-  if (!artifactRefs.includes(subjectRef)) {
-    return {
-      error: "validation",
-      message: "artifact.refs must include packet.subject_ref.",
-    };
-  }
-
-  const createdArtifact = {
-    id: artifactId,
-    kind: "work_order",
-    thread_id: backingThreadId,
-    summary: String(artifact.summary ?? packet.objective).trim(),
-    refs: artifactRefs,
-    created_at: new Date().toISOString(),
-    created_by: actor_id,
-    provenance: {
-      sources: ["actor_statement:ui"],
-    },
-    packet: {
-      work_order_id: packetId,
-      subject_ref: subjectRef,
-      objective: String(packet.objective).trim(),
-      constraints,
-      context_refs: contextRefs,
-      acceptance_criteria: acceptanceCriteria,
-      definition_of_done: definitionOfDone,
-    },
-  };
-
-  artifacts.unshift(createdArtifact);
-
-  const createdEvent = {
-    id: `event-${Math.random().toString(36).slice(2, 10)}`,
-    ts: new Date().toISOString(),
-    type: "work_order_created",
-    actor_id,
-    thread_id: backingThreadId,
-    refs: [`artifact:${artifactId}`, subjectRef],
-    summary: `Work order created: ${createdArtifact.summary}`,
-    payload: {
-      artifact_id: artifactId,
-    },
-    provenance: {
-      sources: ["actor_statement:ui"],
-    },
-  };
-
-  events.push(createdEvent);
-
-  return { artifact: createdArtifact, event: createdEvent };
-}
-
 export function listMockArtifacts(filters = {}) {
   const tombstonedOnly =
     filters.tombstoned_only === true ||
@@ -2749,34 +2474,13 @@ export function listMockArtifacts(filters = {}) {
   });
 }
 
-function mockTopicSubjectRefFromThreadId(threadId) {
-  const tid = String(threadId ?? "").trim();
-  return tid ? `topic:${tid}` : "";
-}
-
-export function normalizePacketShapeForClient(packet, kind, threadId) {
+export function normalizePacketShapeForClient(packet, kind) {
   if (!packet || typeof packet !== "object") return packet;
   const p = { ...packet };
-  const inferredSubject =
-    String(p.subject_ref ?? "").trim() ||
-    mockTopicSubjectRefFromThreadId(threadId);
-  if (inferredSubject) {
-    p.subject_ref = inferredSubject;
-  }
   delete p.thread_id;
   const k = String(kind ?? "");
-  if (k === "receipt") {
-    const woid = String(p.work_order_id ?? "").trim();
-    if (woid && !String(p.work_order_ref ?? "").trim()) {
-      p.work_order_ref = `artifact:${woid}`;
-    }
-  }
   if (k === "review") {
-    const woid = String(p.work_order_id ?? "").trim();
     const rid = String(p.receipt_id ?? "").trim();
-    if (woid && !String(p.work_order_ref ?? "").trim()) {
-      p.work_order_ref = `artifact:${woid}`;
-    }
     if (rid && !String(p.receipt_ref ?? "").trim()) {
       p.receipt_ref = `artifact:${rid}`;
     }
@@ -2788,11 +2492,8 @@ export function artifactForApiResponse(artifact) {
   if (!artifact) return null;
   const base = { ...artifact };
   const k = String(base.kind ?? "");
-  if (
-    base.packet &&
-    (k === "work_order" || k === "receipt" || k === "review")
-  ) {
-    base.packet = normalizePacketShapeForClient(base.packet, k, base.thread_id);
+  if (base.packet && (k === "receipt" || k === "review")) {
+    base.packet = normalizePacketShapeForClient(base.packet, k);
   }
   return base;
 }
@@ -2820,11 +2521,7 @@ export function getMockArtifactContent(artifactId) {
   if (artifact.packet) {
     return {
       contentType: "application/json",
-      content: normalizePacketShapeForClient(
-        artifact.packet,
-        artifact.kind,
-        artifact.thread_id,
-      ),
+      content: normalizePacketShapeForClient(artifact.packet, artifact.kind),
     };
   }
 
@@ -3064,14 +2761,6 @@ export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {
   const artifactId = String(artifact.id ?? issuedArtifactId).trim();
   const packetId = String(packet.receipt_id ?? artifactId).trim();
   const subjectRef = String(packet.subject_ref ?? "").trim();
-  const workOrderRef =
-    String(packet.work_order_ref ?? "").trim() ||
-    (String(packet.work_order_id ?? "").trim()
-      ? `artifact:${String(packet.work_order_id).trim()}`
-      : "");
-  const workOrderId = workOrderRef.startsWith("artifact:")
-    ? workOrderRef.slice("artifact:".length).trim()
-    : String(packet.work_order_id ?? "").trim();
   const threadId = String(artifact.thread_id ?? "").trim();
 
   if (!artifactId) {
@@ -3093,10 +2782,10 @@ export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {
     return { error: "validation", message: "packet.subject_ref is required." };
   }
 
-  if (!workOrderRef || !workOrderId) {
+  if (!subjectRef.startsWith("card:")) {
     return {
       error: "validation",
-      message: "packet.work_order_ref (or work_order_id) is required.",
+      message: "packet.subject_ref must be a card ref (card:...).",
     };
   }
 
@@ -3152,22 +2841,20 @@ export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {
 
   const artifactRefs = normalizeRefList(artifact.refs);
 
-  if (
-    !artifactRefs.includes(subjectRef) ||
-    !artifactRefs.includes(workOrderRef)
-  ) {
+  if (!artifactRefs.includes(subjectRef)) {
     return {
       error: "validation",
-      message:
-        "artifact.refs must include packet.subject_ref and work_order_ref.",
+      message: "artifact.refs must include packet.subject_ref.",
     };
   }
+
+  const summaryFallback = changesSummary.slice(0, 120);
 
   const createdArtifact = {
     id: artifactId,
     kind: "receipt",
     thread_id: backingThreadId,
-    summary: String(artifact.summary ?? `Receipt for ${workOrderId}`).trim(),
+    summary: String(artifact.summary ?? summaryFallback).trim(),
     refs: artifactRefs,
     created_at: new Date().toISOString(),
     created_by: actor_id,
@@ -3177,8 +2864,6 @@ export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {
     packet: {
       receipt_id: packetId,
       subject_ref: subjectRef,
-      work_order_ref: workOrderRef,
-      work_order_id: workOrderId,
       outputs,
       verification_evidence: verificationEvidence,
       changes_summary: changesSummary,
@@ -3194,11 +2879,10 @@ export function createMockReceipt({ actor_id, artifact = {}, packet = {} }) {
     type: "receipt_added",
     actor_id,
     thread_id: backingThreadId,
-    refs: [`artifact:${artifactId}`, workOrderRef, subjectRef],
+    refs: [`artifact:${artifactId}`, subjectRef],
     summary: `Receipt added: ${createdArtifact.summary}`,
     payload: {
       artifact_id: artifactId,
-      work_order_id: workOrderId,
     },
     provenance: {
       sources: ["actor_statement:ui"],
@@ -3218,17 +2902,9 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
     (String(packet.receipt_id ?? "").trim()
       ? `artifact:${String(packet.receipt_id).trim()}`
       : "");
-  const workOrderRef =
-    String(packet.work_order_ref ?? "").trim() ||
-    (String(packet.work_order_id ?? "").trim()
-      ? `artifact:${String(packet.work_order_id).trim()}`
-      : "");
   const receiptId = receiptRef.startsWith("artifact:")
     ? receiptRef.slice("artifact:".length).trim()
     : String(packet.receipt_id ?? "").trim();
-  const workOrderId = workOrderRef.startsWith("artifact:")
-    ? workOrderRef.slice("artifact:".length).trim()
-    : String(packet.work_order_id ?? "").trim();
   const subjectRef = String(packet.subject_ref ?? "").trim();
   const threadId = String(artifact.thread_id ?? "").trim();
 
@@ -3251,6 +2927,13 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
     return { error: "validation", message: "packet.subject_ref is required." };
   }
 
+  if (!subjectRef.startsWith("card:")) {
+    return {
+      error: "validation",
+      message: "packet.subject_ref must be a card ref (card:...).",
+    };
+  }
+
   const backingThreadId = resolveMockSubjectBackingThreadId(
     subjectRef,
     threadId,
@@ -3264,13 +2947,6 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
 
   if (!receiptId || !receiptRef) {
     return { error: "validation", message: "packet.receipt_ref is required." };
-  }
-
-  if (!workOrderId || !workOrderRef) {
-    return {
-      error: "validation",
-      message: "packet.work_order_ref is required.",
-    };
   }
 
   const outcome = String(packet.outcome ?? "").trim();
@@ -3288,6 +2964,13 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
     return { error: "validation", message: "packet.notes is required." };
   }
 
+  if (evidenceRefs.length === 0) {
+    return {
+      error: "validation",
+      message: "packet.evidence_refs must include at least one typed ref.",
+    };
+  }
+
   if (evidenceRefs.some((refValue) => !isTypedRef(refValue))) {
     return {
       error: "validation",
@@ -3299,13 +2982,11 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
 
   if (
     !artifactRefs.includes(subjectRef) ||
-    !artifactRefs.includes(receiptRef) ||
-    !artifactRefs.includes(workOrderRef)
+    !artifactRefs.includes(receiptRef)
   ) {
     return {
       error: "validation",
-      message:
-        "artifact.refs must include subject_ref, receipt_ref, and work_order_ref.",
+      message: "artifact.refs must include subject_ref and receipt_ref.",
     };
   }
 
@@ -3325,9 +3006,7 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
     packet: {
       review_id: packetId,
       subject_ref: subjectRef,
-      work_order_ref: workOrderRef,
       receipt_ref: receiptRef,
-      work_order_id: workOrderId,
       receipt_id: receiptId,
       outcome,
       notes,
@@ -3343,12 +3022,11 @@ export function createMockReview({ actor_id, artifact = {}, packet = {} }) {
     type: "review_completed",
     actor_id,
     thread_id: backingThreadId,
-    refs: [`artifact:${artifactId}`, receiptRef, workOrderRef, subjectRef],
+    refs: [`artifact:${artifactId}`, receiptRef, subjectRef],
     summary: `Review completed (${outcome})`,
     payload: {
       artifact_id: artifactId,
       receipt_id: receiptId,
-      work_order_id: workOrderId,
       outcome,
     },
     provenance: {
@@ -3445,7 +3123,7 @@ const boardCards = [
     thread_id: "thread-summer-menu",
     column_key: "ready",
     rank: "0001",
-    pinned_document_id: "onboarding-guide-v1",
+    document_ref: "document:onboarding-guide-v1",
     created_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-flavor-ai",
     updated_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3456,7 +3134,7 @@ const boardCards = [
     thread_id: "thread-daily-ops",
     column_key: "in_progress",
     rank: "0002",
-    pinned_document_id: null,
+    document_ref: null,
     created_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
     updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3467,7 +3145,7 @@ const boardCards = [
     thread_id: "thread-daily-ops",
     column_key: "ready",
     rank: "0001",
-    pinned_document_id: null,
+    document_ref: null,
     created_at: new Date(now - 18 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
     updated_at: new Date(now - 18 * 60 * 60 * 1000).toISOString(),
@@ -3478,7 +3156,7 @@ const boardCards = [
     thread_id: "thread-squeezebot-maintenance",
     column_key: "blocked",
     rank: "0002",
-    pinned_document_id: "incident-response-playbook",
+    document_ref: "document:incident-response-playbook",
     created_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-squeeze-bot",
     updated_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3489,7 +3167,7 @@ const boardCards = [
     thread_id: "thread-onboarding",
     column_key: "backlog",
     rank: "0001",
-    pinned_document_id: "onboarding-guide-v1",
+    document_ref: "document:onboarding-guide-v1",
     created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-flavor-ai",
     updated_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3500,7 +3178,7 @@ const boardCards = [
     thread_id: "thread-pricing-glitch",
     column_key: "done",
     rank: "0001",
-    pinned_document_id: null,
+    document_ref: null,
     created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
     updated_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -3512,7 +3190,7 @@ const boardCards = [
     column_key: "done",
     rank: "0002",
     status: "cancelled",
-    title: "Full historical pricing audit for March (canceled)",
+    summary: "Full historical pricing audit for March (canceled)",
     related_refs: ["thread:thread-pricing-glitch"],
     created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
@@ -3526,7 +3204,8 @@ const boardCards = [
     board_id: "board-supply-crisis",
     column_key: "in_progress",
     rank: "0003",
-    title: "Place emergency lemon restock order with approved backup supplier",
+    summary:
+      "Place emergency lemon restock order with approved backup supplier",
     related_refs: [
       "thread:thread-lemon-shortage",
       "artifact:artifact-supplier-sla",
@@ -3543,7 +3222,7 @@ const boardCards = [
     board_id: "board-supply-crisis",
     column_key: "ready",
     rank: "0004",
-    title: "File SLA breach report with CitrusBot Farm for today's outage",
+    summary: "File SLA breach report with CitrusBot Farm for today's outage",
     related_refs: [
       "thread:thread-lemon-shortage",
       "artifact:artifact-supplier-sla",
@@ -3560,7 +3239,7 @@ const boardCards = [
     board_id: "board-product-launch",
     column_key: "ready",
     rank: "0003",
-    title: "Confirm city permit approval for Riverside Park Stand #2",
+    summary: "Confirm city permit approval for Riverside Park Stand #2",
     related_refs: ["thread:thread-q2-initiative"],
     created_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
@@ -3572,7 +3251,7 @@ const boardCards = [
     board_id: "board-product-launch",
     column_key: "backlog",
     rank: "0004",
-    title: "FlavorMind to draft Riverside Park seasonal menu by April 1",
+    summary: "FlavorMind to draft Riverside Park seasonal menu by April 1",
     related_refs: ["thread:thread-q2-initiative"],
     created_at: new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString(),
     created_by: "actor-ops-ai",
@@ -3649,6 +3328,35 @@ function normalizeCardRefList(value) {
   return refs;
 }
 
+/** Canonical assignee_refs from create payload; accepts legacy scalar assignee. */
+function mockBoardCardAssigneeRefsFromPayload(payload) {
+  const fromRefs = normalizeCardRefList(payload.assignee_refs ?? []);
+  if (fromRefs.length > 0) {
+    return fromRefs;
+  }
+  const raw = payload.assignee;
+  if (raw == null || raw === "") {
+    return [];
+  }
+  const s = String(raw).trim();
+  if (!s) {
+    return [];
+  }
+  return s.includes(":") ? [s] : [`actor:${s}`];
+}
+
+function mockBoardCardLegacyAssigneeFromRefs(refs) {
+  const first = normalizeCardRefList(refs ?? [])[0];
+  if (!first) {
+    return null;
+  }
+  const { prefix, id } = splitTypedRef(first);
+  if (prefix === "actor" && id) {
+    return id;
+  }
+  return first;
+}
+
 function isArchivedBoardCard(card) {
   return (
     Boolean(card?.archived_at) ||
@@ -3694,11 +3402,10 @@ function normalizeMockBoardCard(card) {
   const parsedThreadRef = splitTypedRef(rawThreadRef);
   const threadId = String(
     card.thread_id ??
-      card.parent_thread ??
       (parsedThreadRef.prefix === "thread" ? parsedThreadRef.id : ""),
   ).trim();
   const thread = threadId ? getMockThread(threadId) : null;
-  const documentId = String(card.document_ref ?? card.pinned_document_id ?? "")
+  const documentId = String(card.document_ref ?? "")
     .replace(/^document:/, "")
     .trim();
   const cardId =
@@ -3822,7 +3529,7 @@ function mockCardMatchesAnchor(card, anchor) {
   if (!a) return false;
   const { prefix, id: anchorId } = splitTypedRef(a);
   const cardId = String(card?.id ?? "").trim();
-  const tid = String(card?.thread_id ?? card?.parent_thread ?? "").trim();
+  const tid = String(card?.thread_id ?? "").trim();
   if (prefix === "card") {
     return cardId === anchorId || tid === anchorId;
   }
@@ -3977,14 +3684,10 @@ function buildBoardSummary(board) {
 
 function buildBoardWorkspaceCard(card) {
   const normalizedCard = normalizeMockBoardCard(card);
-  const threadId = String(
-    normalizedCard.thread_id ?? normalizedCard.parent_thread ?? "",
-  ).trim();
+  const threadId = String(normalizedCard.thread_id ?? "").trim();
   const thread = threadId ? getMockThread(threadId) : null;
 
-  const documentId = String(
-    normalizedCard.document_ref ?? normalizedCard.pinned_document_id ?? "",
-  )
+  const documentId = String(normalizedCard.document_ref ?? "")
     .replace(/^document:/, "")
     .trim();
   const pinnedDocument = documentId
@@ -4149,6 +3852,184 @@ export function getMockBoard(boardId) {
   return cloneBoard(board);
 }
 
+const MOCK_TOPIC_WORKSPACE_THREAD_TYPES = new Set([
+  "initiative",
+  "objective",
+  "decision",
+  "incident",
+  "risk",
+  "request",
+  "note",
+  "other",
+]);
+
+function mockThreadTypeToTopicWorkspaceType(type) {
+  const t = String(type ?? "").trim();
+  if (MOCK_TOPIC_WORKSPACE_THREAD_TYPES.has(t)) return t;
+  return "other";
+}
+
+/** Map thread-shaped status strings to topic workspace `active | paused | closed`. */
+function mockThreadStatusToTopicWorkspaceStatus(status) {
+  const s = String(status ?? "").trim();
+  if (s === "blocked") return "paused";
+  if (s === "resolved") return "closed";
+  if (s === "active" || s === "paused" || s === "closed") return s;
+  return "active";
+}
+
+/**
+ * Builds a native topic-workspace projection from a threads.workspace-shaped payload.
+ * Mock route handlers use this instead of a separate adapter layer.
+ */
+export function buildMockTopicWorkspaceFromThreadWorkspace(
+  ws,
+  topicIdOverride,
+) {
+  if (!ws || typeof ws !== "object") {
+    return {
+      topic: {},
+      cards: [],
+      boards: [],
+      documents: [],
+      threads: [],
+      inbox: [],
+      projection_freshness: {},
+      generated_at: new Date().toISOString(),
+    };
+  }
+
+  const thread = ws.thread && typeof ws.thread === "object" ? ws.thread : null;
+  const context =
+    ws.context && typeof ws.context === "object" ? ws.context : {};
+  const documents = Array.isArray(context.documents) ? context.documents : [];
+  const boardMemberships = Array.isArray(ws.board_memberships?.items)
+    ? ws.board_memberships.items
+    : [];
+  const ownedItems = Array.isArray(ws.owned_boards?.items)
+    ? ws.owned_boards.items
+    : [];
+
+  const boardsOut = [];
+  const boardIds = new Set();
+
+  const threadId = thread ? String(thread.id ?? "").trim() : "";
+  const topicId = String(topicIdOverride ?? "").trim() || threadId;
+  const topicRefStr = topicId ? `topic:${topicId}` : "";
+
+  for (const ob of ownedItems) {
+    const bid = String(ob?.id ?? "").trim();
+    if (!bid || boardIds.has(bid)) continue;
+    boardIds.add(bid);
+    const canonicalBoard = getMockBoard(bid);
+    const refs = Array.isArray(canonicalBoard?.refs)
+      ? [...canonicalBoard.refs]
+      : [];
+    boardsOut.push({
+      id: bid,
+      title: ob.title ?? canonicalBoard?.title,
+      status: ob.status ?? canonicalBoard?.status,
+      refs,
+      primary_topic_ref:
+        topicRefStr && !refs.some((r) => String(r).trim() === topicRefStr)
+          ? topicRefStr
+          : "",
+      updated_at: ob.updated_at ?? canonicalBoard?.updated_at,
+    });
+  }
+
+  for (const m of boardMemberships) {
+    const b = m?.board;
+    const bid = String(b?.id ?? m?.board_id ?? "").trim();
+    if (bid && !boardIds.has(bid)) {
+      boardIds.add(bid);
+      const canonicalBoard = getMockBoard(bid);
+      const refs = Array.isArray(canonicalBoard?.refs)
+        ? [...canonicalBoard.refs]
+        : [];
+      boardsOut.push({
+        id: bid,
+        title: b?.title ?? canonicalBoard?.title,
+        status: b?.status ?? canonicalBoard?.status,
+        ...(refs.length ? { refs } : {}),
+      });
+    }
+  }
+
+  const cards = [];
+  for (const m of boardMemberships) {
+    const c = m?.card;
+    if (!c || typeof c !== "object") continue;
+    const bid = String(c.board_id ?? m?.board?.id ?? "").trim();
+    if (!bid) continue;
+    cards.push({
+      ...c,
+      board_id: c.board_id || bid,
+      thread_id: c.thread_id || thread?.id,
+    });
+  }
+
+  const topic = thread
+    ? {
+        id: topicId,
+        type: mockThreadTypeToTopicWorkspaceType(thread.type),
+        status: mockThreadStatusToTopicWorkspaceStatus(thread.status),
+        title: thread.title,
+        summary: String(thread.current_summary ?? ""),
+        owner_refs: Array.isArray(thread.owner_refs) ? thread.owner_refs : [],
+        thread_id: threadId || null,
+        document_refs: Array.isArray(thread.document_refs)
+          ? thread.document_refs
+          : [],
+        board_refs: Array.isArray(thread.board_refs) ? thread.board_refs : [],
+        related_refs: Array.isArray(thread.related_refs)
+          ? thread.related_refs
+          : [],
+        created_at: thread.created_at ?? thread.updated_at,
+        created_by: thread.created_by ?? thread.updated_by,
+        updated_at: thread.updated_at,
+        updated_by: thread.updated_by,
+        provenance:
+          thread.provenance && typeof thread.provenance === "object"
+            ? thread.provenance
+            : { sources: [] },
+      }
+    : {};
+
+  const threadWithTopicRef = thread
+    ? {
+        ...thread,
+        topic_ref: topicRefStr || thread.topic_ref,
+      }
+    : null;
+
+  return {
+    topic,
+    cards,
+    boards: boardsOut,
+    documents,
+    threads: threadWithTopicRef ? [threadWithTopicRef] : [],
+    inbox: Array.isArray(ws.inbox?.items) ? ws.inbox.items : [],
+    projection_freshness:
+      ws.projection_freshness && typeof ws.projection_freshness === "object"
+        ? ws.projection_freshness
+        : { aggregate: "unknown" },
+    generated_at:
+      typeof ws.generated_at === "string"
+        ? ws.generated_at
+        : new Date().toISOString(),
+  };
+}
+
+export function getMockTopicWorkspace(topicId, options = {}) {
+  const topic = getMockTopic(topicId);
+  if (!topic) return null;
+  const threadId = String(topic.thread_id ?? topicId).trim();
+  const ws = getMockThreadWorkspace(threadId, options);
+  if (!ws) return null;
+  return buildMockTopicWorkspaceFromThreadWorkspace(ws, topicId);
+}
+
 function collectMockBoardWorkspaceThreadIds(boardId, backingThreadId) {
   const seen = new Set();
   const threadIds = [];
@@ -4163,7 +4044,6 @@ function collectMockBoardWorkspaceThreadIds(boardId, backingThreadId) {
   for (const card of boardCards) {
     if (card.board_id === boardId && isVisibleBoardCard(card)) {
       pushThreadId(card.thread_id);
-      pushThreadId(card.parent_thread);
     }
   }
 
@@ -4282,10 +4162,7 @@ export function listMockCards(filters = {}) {
       if (boardFilter && String(card.board_id ?? "") !== boardFilter) {
         return false;
       }
-      if (
-        topicFilter &&
-        String(card.thread_id ?? card.parent_thread ?? "") !== topicFilter
-      ) {
+      if (topicFilter && String(card.thread_id ?? "") !== topicFilter) {
         return false;
       }
       if (archivedOnly && !card.archived_at) {
@@ -4331,16 +4208,18 @@ export function createMockBoardCard(boardId, payload) {
   const parsedThreadRef = splitTypedRef(rawThreadRef);
   const threadId = String(
     payload.thread_id ??
-      payload.parent_thread ??
       (parsedThreadRef.prefix === "thread" ? parsedThreadRef.id : ""),
   ).trim();
-  const title = String(payload.title ?? "").trim();
+  const explicitSummary =
+    String(payload.summary ?? "").trim() ||
+    String(payload.title ?? "").trim() ||
+    String(payload.body ?? "").trim();
 
-  if (!threadId && !title) {
+  if (!threadId && !explicitSummary) {
     return {
       error: "validation",
       message:
-        "Provide thread_id, parent_thread, or a standalone card title (see boards.cards.create).",
+        "Provide thread_id or a standalone card summary (summary, title, or body).",
     };
   }
 
@@ -4352,7 +4231,8 @@ export function createMockBoardCard(boardId, payload) {
         "column_key must be one of: backlog, ready, in_progress, blocked, review, done.",
     };
   }
-  const pinnedDocumentId = String(payload.pinned_document_id ?? "").trim();
+  const rawDocRef = String(payload.document_ref ?? "").trim();
+  const pinnedDocumentId = rawDocRef.replace(/^document:/, "").trim();
   if (pinnedDocumentId && !getMockDocument(pinnedDocumentId)) {
     return {
       error: "not_found",
@@ -4409,16 +4289,15 @@ export function createMockBoardCard(boardId, payload) {
     };
   }
 
+  const assigneeRefs = mockBoardCardAssigneeRefsFromPayload(payload);
   const newCard = normalizeMockBoardCard({
     id: cardId,
     board_id: boardId,
     thread_id: threadId || null,
-    parent_thread: threadId || null,
     topic_ref: payload.topic_ref ?? null,
     document_ref: payload.document_ref ?? null,
-    title: threadId ? title || (getMockThread(threadId)?.title ?? "") : title,
-    summary:
-      String(payload.summary ?? "").trim() || String(payload.body ?? "").trim(),
+    title: String(payload.title ?? "").trim() || "",
+    summary: explicitSummary,
     due_at: payload.due_at ?? null,
     definition_of_done: Array.isArray(payload.definition_of_done)
       ? payload.definition_of_done
@@ -4426,11 +4305,8 @@ export function createMockBoardCard(boardId, payload) {
     body: String(payload.body ?? "").trim() || "",
     column_key: columnKey,
     rank: "0000",
-    pinned_document_id: pinnedDocumentId || null,
     version: 1,
-    assignee_refs: Array.isArray(payload.assignee_refs)
-      ? payload.assignee_refs
-      : [],
+    assignee_refs: assigneeRefs,
     risk: String(payload.risk ?? "").trim() || "medium",
     resolution: (() => {
       const r = String(payload.resolution ?? "").trim();
@@ -4445,7 +4321,12 @@ export function createMockBoardCard(boardId, payload) {
     related_refs: Array.isArray(payload.related_refs)
       ? payload.related_refs
       : [],
-    assignee: payload.assignee ?? null,
+    assignee:
+      assigneeRefs.length > 0
+        ? mockBoardCardLegacyAssigneeFromRefs(assigneeRefs)
+        : payload.assignee == null || String(payload.assignee).trim() === ""
+          ? null
+          : String(payload.assignee).trim(),
     priority: payload.priority ?? null,
     status: payload.status ?? "todo",
     created_at: nowIso,
@@ -4512,69 +4393,6 @@ export function updateMockBoardCard(boardId, cardId, payload) {
   const patch = payload.patch ?? {};
   let mutated = false;
 
-  const hasParentThread = Object.prototype.hasOwnProperty.call(
-    patch,
-    "parent_thread",
-  );
-  const hasThreadId = Object.prototype.hasOwnProperty.call(patch, "thread_id");
-  if (hasParentThread && hasThreadId) {
-    const p = String(patch.parent_thread ?? "").trim();
-    const t = String(patch.thread_id ?? "").trim();
-    if (p !== t) {
-      return {
-        error: "validation",
-        message:
-          "patch.parent_thread and patch.thread_id must match when both are provided",
-      };
-    }
-  }
-
-  let nextParent;
-  if (hasParentThread && hasThreadId) {
-    nextParent = String(patch.parent_thread ?? "").trim();
-  } else if (hasParentThread) {
-    nextParent = String(patch.parent_thread ?? "").trim();
-  } else if (hasThreadId) {
-    nextParent = String(patch.thread_id ?? "").trim();
-  }
-
-  if (nextParent !== undefined) {
-    const currentParent = String(card.thread_id ?? "").trim();
-    if (nextParent !== currentParent) {
-      if (nextParent) {
-        if (!getMockThread(nextParent)) {
-          return {
-            error: "not_found",
-            message: `Thread not found: ${nextParent}`,
-          };
-        }
-        if (nextParent === board.thread_id) {
-          return {
-            error: "validation",
-            message: "board.thread_id cannot be added as a board card",
-          };
-        }
-        const duplicate = boardCards.some(
-          (c) =>
-            c.board_id === boardId &&
-            c !== card &&
-            isVisibleBoardCard(c) &&
-            String(c.thread_id ?? "").trim() === nextParent,
-        );
-        if (duplicate) {
-          return {
-            error: "conflict",
-            message: `Thread '${nextParent}' is already on board '${boardId}'.`,
-            current: cloneBoard(board),
-          };
-        }
-      }
-      card.thread_id = nextParent || null;
-      card.parent_thread = nextParent || null;
-      mutated = true;
-    }
-  }
-
   if (Object.prototype.hasOwnProperty.call(patch, "title")) {
     const value = String(patch.title ?? "").trim();
     if (value === "") {
@@ -4582,6 +4400,10 @@ export function updateMockBoardCard(boardId, cardId, payload) {
         error: "validation",
         message: "patch.title must not be empty",
       };
+    }
+    if (card.summary !== value) {
+      card.summary = value;
+      mutated = true;
     }
     if (card.title !== value) {
       card.title = value;
@@ -4601,6 +4423,10 @@ export function updateMockBoardCard(boardId, cardId, payload) {
     const value = String(patch.summary ?? "").trim();
     if (card.summary !== value) {
       card.summary = value;
+      mutated = true;
+    }
+    if (card.title !== value) {
+      card.title = value;
       mutated = true;
     }
   }
@@ -4634,6 +4460,16 @@ export function updateMockBoardCard(boardId, cardId, payload) {
       card.assignee = next;
       mutated = true;
     }
+    const refsNext = next
+      ? next.includes(":")
+        ? normalizeCardRefList([next])
+        : normalizeCardRefList([`actor:${next}`])
+      : [];
+    const current = normalizeCardRefList(card.assignee_refs);
+    if (JSON.stringify(current) !== JSON.stringify(refsNext)) {
+      card.assignee_refs = refsNext;
+      mutated = true;
+    }
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, "priority")) {
@@ -4650,6 +4486,11 @@ export function updateMockBoardCard(boardId, cardId, payload) {
     const current = normalizeCardRefList(card.assignee_refs);
     if (JSON.stringify(current) !== JSON.stringify(next)) {
       card.assignee_refs = next;
+      mutated = true;
+    }
+    const legacyNext = mockBoardCardLegacyAssigneeFromRefs(next);
+    if (card.assignee !== legacyNext) {
+      card.assignee = legacyNext;
       mutated = true;
     }
   }
@@ -4678,22 +4519,6 @@ export function updateMockBoardCard(boardId, cardId, payload) {
     }
   }
 
-  if (Object.prototype.hasOwnProperty.call(patch, "pinned_document_id")) {
-    const value = String(patch.pinned_document_id ?? "").trim();
-    if (value && !getMockDocument(value)) {
-      return {
-        error: "not_found",
-        message: `Document not found: ${value}`,
-      };
-    }
-    const next = value || null;
-    if (card.pinned_document_id !== next) {
-      card.pinned_document_id = next;
-      card.document_ref = next ? `document:${next}` : null;
-      mutated = true;
-    }
-  }
-
   if (Object.prototype.hasOwnProperty.call(patch, "document_ref")) {
     const value = String(patch.document_ref ?? "").trim();
     const normalized = value ? value.replace(/^document:/, "") : "";
@@ -4705,8 +4530,7 @@ export function updateMockBoardCard(boardId, cardId, payload) {
     }
     const next = normalized || null;
     const nextRef = next ? `document:${next}` : null;
-    if (card.pinned_document_id !== next || card.document_ref !== nextRef) {
-      card.pinned_document_id = next;
+    if (card.document_ref !== nextRef) {
       card.document_ref = nextRef;
       mutated = true;
     }
@@ -4721,44 +4545,107 @@ export function updateMockBoardCard(boardId, cardId, payload) {
     }
   }
 
+  function peekThreadIdFromAnchorRaw(raw) {
+    if (raw === null || raw === undefined || raw === "") {
+      return { ok: true, id: "" };
+    }
+    const value = String(raw ?? "").trim();
+    const typed = splitTypedRef(value);
+    if (value && typed.prefix === "thread") {
+      return { ok: true, id: typed.id };
+    }
+    if (value && !typed.prefix) {
+      return { ok: true, id: value };
+    }
+    if (!value) {
+      return { ok: true, id: "" };
+    }
+    return { ok: false, id: "" };
+  }
+
+  function validateCardThreadChange(nextThreadId) {
+    const normalized = String(nextThreadId ?? "").trim();
+    const current = String(card.thread_id ?? "").trim();
+    if (normalized === current) return null;
+    if (normalized) {
+      if (!getMockThread(normalized)) {
+        return {
+          error: "not_found",
+          message: `Thread not found: ${normalized}`,
+        };
+      }
+      if (normalized === board.thread_id) {
+        return {
+          error: "validation",
+          message: "board.thread_id cannot be added as a board card",
+        };
+      }
+      const duplicate = boardCards.some(
+        (c) =>
+          c.board_id === boardId &&
+          c !== card &&
+          isVisibleBoardCard(c) &&
+          String(c.thread_id ?? "").trim() === normalized,
+      );
+      if (duplicate) {
+        return {
+          error: "conflict",
+          message: `Thread '${normalized}' is already on board '${boardId}'.`,
+          current: cloneBoard(board),
+        };
+      }
+    }
+    return null;
+  }
+
   function applyThreadAnchorFromPatch(raw) {
     if (raw === null || raw === undefined || raw === "") {
       card.thread_id = null;
-      card.parent_thread = null;
       return true;
     }
     const value = String(raw ?? "").trim();
     const typed = splitTypedRef(value);
     if (value && typed.prefix === "thread") {
       card.thread_id = typed.id;
-      card.parent_thread = typed.id;
       return true;
     }
     if (value && !typed.prefix) {
       card.thread_id = value;
-      card.parent_thread = value;
       return true;
     }
     if (!value) {
       card.thread_id = null;
-      card.parent_thread = null;
       return true;
     }
     return false;
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, "thread_id")) {
-    if (applyThreadAnchorFromPatch(patch.thread_id)) {
+    const peek = peekThreadIdFromAnchorRaw(patch.thread_id);
+    if (peek.ok) {
+      const err = validateCardThreadChange(peek.id);
+      if (err) return err;
+    }
+    const beforeThread = String(card.thread_id ?? "").trim();
+    const applied = applyThreadAnchorFromPatch(patch.thread_id);
+    delete card.thread_ref;
+    if (applied && String(card.thread_id ?? "").trim() !== beforeThread) {
       mutated = true;
     }
-    delete card.thread_ref;
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, "thread_ref")) {
-    if (applyThreadAnchorFromPatch(patch.thread_ref)) {
+    const peek = peekThreadIdFromAnchorRaw(patch.thread_ref);
+    if (peek.ok) {
+      const err = validateCardThreadChange(peek.id);
+      if (err) return err;
+    }
+    const beforeThread = String(card.thread_id ?? "").trim();
+    const applied = applyThreadAnchorFromPatch(patch.thread_ref);
+    delete card.thread_ref;
+    if (applied && String(card.thread_id ?? "").trim() !== beforeThread) {
       mutated = true;
     }
-    delete card.thread_ref;
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, "resolution")) {

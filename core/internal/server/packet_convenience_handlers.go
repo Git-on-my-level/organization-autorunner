@@ -13,20 +13,6 @@ import (
 	"organization-autorunner-core/internal/schema"
 )
 
-func handleCreateWorkOrder(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
-	createPacketArtifactAndEvent(w, r, opts, packetCreateRequest{
-		PacketKind: "work_order",
-		EventType:  "work_order_created",
-		Summary:    "work order created",
-		EventRefs: func(artifactID string, threadID string, subjectRef string, packet map[string]any) []string {
-			return []string{
-				"artifact:" + artifactID,
-				subjectRef,
-			}
-		},
-	})
-}
-
 func handleCreateReceipt(w http.ResponseWriter, r *http.Request, opts handlerOptions) {
 	createPacketArtifactAndEvent(w, r, opts, packetCreateRequest{
 		PacketKind: "receipt",
@@ -35,7 +21,6 @@ func handleCreateReceipt(w http.ResponseWriter, r *http.Request, opts handlerOpt
 		EventRefs: func(artifactID string, threadID string, subjectRef string, packet map[string]any) []string {
 			return []string{
 				"artifact:" + artifactID,
-				packetArtifactLinkRef(packet, "work_order_ref", "work_order_id"),
 				subjectRef,
 			}
 		},
@@ -51,7 +36,6 @@ func handleCreateReview(w http.ResponseWriter, r *http.Request, opts handlerOpti
 			return []string{
 				"artifact:" + artifactID,
 				packetArtifactLinkRef(packet, "receipt_ref", "receipt_id"),
-				packetArtifactLinkRef(packet, "work_order_ref", "work_order_id"),
 				subjectRef,
 			}
 		},
@@ -128,13 +112,6 @@ func createPacketArtifactAndEvent(w http.ResponseWriter, r *http.Request, opts h
 	if firstNonEmptyString(req.Packet[idField]) == "" {
 		req.Packet[idField] = artifactID
 	}
-	if request.PacketKind == "receipt" || request.PacketKind == "review" {
-		if firstNonEmptyString(req.Packet["work_order_ref"]) == "" {
-			if workOrderID := firstNonEmptyString(req.Packet["work_order_id"]); workOrderID != "" {
-				req.Packet["work_order_ref"] = "artifact:" + workOrderID
-			}
-		}
-	}
 	if request.PacketKind == "review" {
 		if firstNonEmptyString(req.Packet["receipt_ref"]) == "" {
 			if receiptID := firstNonEmptyString(req.Packet["receipt_id"]); receiptID != "" {
@@ -150,9 +127,6 @@ func createPacketArtifactAndEvent(w http.ResponseWriter, r *http.Request, opts h
 	artifactRefs = append(artifactRefs, "artifact:"+artifactID)
 	if subjectRef := firstNonEmptyString(req.Packet["subject_ref"]); subjectRef != "" {
 		artifactRefs = append(artifactRefs, subjectRef)
-	}
-	if workOrderRef := packetArtifactLinkRef(req.Packet, "work_order_ref", "work_order_id"); workOrderRef != "" {
-		artifactRefs = append(artifactRefs, workOrderRef)
 	}
 	if receiptRef := packetArtifactLinkRef(req.Packet, "receipt_ref", "receipt_id"); receiptRef != "" {
 		artifactRefs = append(artifactRefs, receiptRef)
@@ -191,9 +165,6 @@ func createPacketArtifactAndEvent(w http.ResponseWriter, r *http.Request, opts h
 
 	eventPayload := map[string]any{
 		"subject_ref": subjectRef,
-	}
-	if workOrderRef := packetArtifactLinkRef(req.Packet, "work_order_ref", "work_order_id"); workOrderRef != "" {
-		eventPayload["work_order_ref"] = workOrderRef
 	}
 	if receiptRef := packetArtifactLinkRef(req.Packet, "receipt_ref", "receipt_id"); receiptRef != "" {
 		eventPayload["receipt_ref"] = receiptRef

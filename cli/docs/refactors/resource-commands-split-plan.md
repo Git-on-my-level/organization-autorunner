@@ -147,13 +147,12 @@ At the end of the move series, `resource_commands.go` should contain only `runTy
   - `artifacts`
   - `events`
   - `inbox`
-  - `work-orders`
   - `receipts`
   - `reviews`
   - `derived`
 - Preserve every returned command name string (`"threads list"`, `"events tail"`, etc.) because JSON envelopes and errors include it.
 - Preserve every command ID passed to generated invocation:
-  - examples: `topics.patch`, `cards.list`, `packets.work-orders.create`, `derived.rebuild`.
+  - examples: `topics.patch`, `cards.list`, `packets.receipts.create`, `derived.rebuild`.
 
 ### Input/local validation
 

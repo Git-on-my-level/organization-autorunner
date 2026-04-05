@@ -67,7 +67,6 @@ enums:
       - topic_restored
       - topic_tombstoned
       - message_posted
-      - work_order_created
       - receipt_added
       - review_completed
       - decision_needed
@@ -94,7 +93,7 @@ enums:
 
   artifact_kind:
     enum_policy: open
-    values: [work_order, receipt, review, doc, evidence, log]
+    values: [receipt, review, doc, evidence, log]
 
   provenance_source:
     enum_policy: open
@@ -319,25 +318,12 @@ packets:
     Packet content ID fields MUST equal the enclosing artifact id. OAR core
     MUST reject mismatches on write.
 
-  work_order:
-    stored_as: artifact
-    kind: work_order
-    fields:
-      work_order_id: { type: string, required: true }
-      subject_ref: { type: typed_ref, required: true }
-      objective: { type: string, required: true }
-      constraints: { type: "list<string>", required: true }
-      context_refs: { type: "list<typed_ref>", required: true }
-      acceptance_criteria: { type: "list<string>", required: true }
-      definition_of_done: { type: "list<string>", required: true }
-
   receipt:
     stored_as: artifact
     kind: receipt
     fields:
       receipt_id: { type: string, required: true }
-      subject_ref: { type: typed_ref, required: true }
-      work_order_ref: { type: typed_ref, required: true }
+      subject_ref: { type: typed_ref, required: true, description: "MUST be card:<card_id>." }
       outputs: { type: "list<typed_ref>", required: true }
       verification_evidence: { type: "list<typed_ref>", required: true }
       changes_summary: { type: string, required: true }
@@ -348,8 +334,7 @@ packets:
     kind: review
     fields:
       review_id: { type: string, required: true }
-      subject_ref: { type: typed_ref, required: true }
-      work_order_ref: { type: typed_ref, required: true }
+      subject_ref: { type: typed_ref, required: true, description: "MUST be card:<card_id>." }
       receipt_ref: { type: typed_ref, required: true }
       outcome: { type: string, required: true, ref: enums.review_outcome }
       notes: { type: string, required: true }
@@ -374,16 +359,12 @@ reference_conventions:
     message_posted:
       thread_id: "required as thread_ref when the message belongs to a backing thread"
 
-    work_order_created:
-      refs_must_include: ["artifact:<work_order_artifact_id>"]
-      payload_must_include: ["subject_ref"]
-
     receipt_added:
-      refs_must_include: ["artifact:<receipt_artifact_id>", "artifact:<work_order_artifact_id>"]
+      refs_must_include: ["artifact:<receipt_artifact_id>", "card:<card_id>"]
       payload_must_include: ["subject_ref"]
 
     review_completed:
-      refs_must_include: ["artifact:<review_artifact_id>", "artifact:<receipt_artifact_id>", "artifact:<work_order_artifact_id>"]
+      refs_must_include: ["artifact:<review_artifact_id>", "artifact:<receipt_artifact_id>", "card:<card_id>"]
       payload_must_include: ["subject_ref"]
 
     document_created:
@@ -451,9 +432,8 @@ reference_conventions:
 
   artifact_refs:
     _rule: "Packet artifacts MUST include subject_ref and supporting refs in artifact.refs."
-    work_order: { refs_must_include: ["artifact:<artifact_id>", "topic:<topic_id> OR card:<card_id> OR board:<board_id>"] }
-    receipt: { refs_must_include: ["artifact:<artifact_id>", "artifact:<work_order_artifact_id>"] }
-    review: { refs_must_include: ["artifact:<artifact_id>", "artifact:<receipt_artifact_id>", "artifact:<work_order_artifact_id>"] }
+    receipt: { refs_must_include: ["artifact:<artifact_id>", "card:<card_id>"] }
+    review: { refs_must_include: ["artifact:<artifact_id>", "artifact:<receipt_artifact_id>", "card:<card_id>"] }
 
 derived:
   board_summary:

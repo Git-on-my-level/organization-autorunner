@@ -43,7 +43,7 @@ func TestWorkspaceListQueriesUseIndexedPlans(t *testing.T) {
 
 	if _, err := store.CreateArtifact(ctx, "actor-1", map[string]any{
 		"id":   "artifact-plan-1",
-		"kind": "work_order",
+		"kind": "receipt",
 		"refs": []string{"thread:" + threadID},
 	}, "artifact content", "text/plain"); err != nil {
 		t.Fatalf("create artifact: %v", err)
@@ -68,7 +68,7 @@ func TestWorkspaceListQueriesUseIndexedPlans(t *testing.T) {
 
 	artifactQuery, artifactArgs := buildListArtifactsQuery(ArtifactListFilter{
 		ThreadID: threadID,
-		Kind:     "work_order",
+		Kind:     "receipt",
 	})
 	artifactPlan := explainQueryPlan(t, workspace.DB(), artifactQuery, artifactArgs...)
 	assertPlanUsesIndex(t, "artifacts", artifactPlan, "idx_artifacts_thread_kind_tombstoned_created_at")

@@ -108,9 +108,8 @@ type rawProvenance struct {
 }
 
 type rawPackets struct {
-	WorkOrder rawPacketSchema `yaml:"work_order"`
-	Receipt   rawPacketSchema `yaml:"receipt"`
-	Review    rawPacketSchema `yaml:"review"`
+	Receipt rawPacketSchema `yaml:"receipt"`
+	Review  rawPacketSchema `yaml:"review"`
 }
 
 type rawReferenceConventions struct {
@@ -119,9 +118,8 @@ type rawReferenceConventions struct {
 }
 
 type rawArtifactRefConventions struct {
-	WorkOrder rawArtifactRefRule `yaml:"work_order"`
-	Receipt   rawArtifactRefRule `yaml:"receipt"`
-	Review    rawArtifactRefRule `yaml:"review"`
+	Receipt rawArtifactRefRule `yaml:"receipt"`
+	Review  rawArtifactRefRule `yaml:"review"`
 }
 
 type rawArtifactRefRule struct {
@@ -218,11 +216,10 @@ func Load(path string) (*Contract, error) {
 			Fields: make(map[string]FieldSpec, len(file.Provenance.Fields)),
 		},
 		Threads: make(map[string]ThreadSchema, 1),
-		Packets: make(map[string]PacketSchema, 3),
+		Packets: make(map[string]PacketSchema, 2),
 		ArtifactRefRules: map[string][]string{
-			"work_order": append([]string(nil), file.ReferenceConventions.ArtifactRefs.WorkOrder.RefsMustInclude...),
-			"receipt":    append([]string(nil), file.ReferenceConventions.ArtifactRefs.Receipt.RefsMustInclude...),
-			"review":     append([]string(nil), file.ReferenceConventions.ArtifactRefs.Review.RefsMustInclude...),
+			"receipt": append([]string(nil), file.ReferenceConventions.ArtifactRefs.Receipt.RefsMustInclude...),
+			"review":  append([]string(nil), file.ReferenceConventions.ArtifactRefs.Review.RefsMustInclude...),
 		},
 		EventRefRules: make(map[string]EventRefRule, len(file.ReferenceConventions.EventRefs.Rules)),
 	}
@@ -266,7 +263,6 @@ func Load(path string) (*Contract, error) {
 	}
 	contract.Threads["thread"] = normalizeThread("thread", threadSource.Thread)
 
-	contract.Packets["work_order"] = normalizePacket("work_order", file.Packets.WorkOrder)
 	contract.Packets["receipt"] = normalizePacket("receipt", file.Packets.Receipt)
 	contract.Packets["review"] = normalizePacket("review", file.Packets.Review)
 

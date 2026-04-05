@@ -37,7 +37,7 @@ export const settingsNavItems = [
     label: "Artifacts",
     href: "/artifacts",
     icon: "artifacts",
-    hint: "Work orders, receipts, reviews",
+    hint: "Receipts, reviews, and evidence",
   },
   {
     label: "Trash",

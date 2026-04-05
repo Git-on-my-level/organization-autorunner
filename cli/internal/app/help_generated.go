@@ -37,14 +37,13 @@ var runtimeGeneratedTopics = []runtimeHelpTopic{
 	{Path: "docs", Description: "Manage long-lived docs and revisions"},
 	{Path: "events", Description: "Manage events and event streams"},
 	{Path: "inbox", Description: "List/get/ack/stream inbox items"},
-	{Path: "work-orders", Description: "Create work-order packets (packet.subject_ref required)"},
-	{Path: "receipts", Description: "Create receipt packets (subject_ref + work_order_ref)"},
-	{Path: "reviews", Description: "Create review packets (subject_ref + receipt_ref + work_order_ref)"},
+	{Path: "receipts", Description: "Create receipt packets (subject_ref must be card:<card_id>)"},
+	{Path: "reviews", Description: "Create review packets (subject_ref + receipt_ref; subject_ref must be card:<card_id>)"},
 	{Path: "derived", Description: "Run derived-view maintenance actions"},
 	{Path: "meta", Description: "Inspect generated command/concept metadata"},
 }
 
-var runtimeGeneratedPacketResources = []string{"work-orders", "receipts", "reviews"}
+var runtimeGeneratedPacketResources = []string{"receipts", "reviews"}
 
 var localHelperTopics = []localHelperTopic{
 	{
@@ -820,13 +819,9 @@ func formatCommandSpecificHelpBlock(cmd registry.Command) string {
   - ` + "`exception_raised`" + `
 
 Usually emitted by higher-level commands:
-  - ` + "`work_order_created`" + `: prefer ` + "`oar work-orders create`" + `
   - ` + "`receipt_added`" + `: prefer ` + "`oar receipts create`" + `
   - ` + "`review_completed`" + `: prefer ` + "`oar reviews create`" + `
   - ` + "`inbox_item_acknowledged`" + `: prefer ` + "`oar inbox ack`" + `
-
-Specialized raw-event type:
-  - ` + "`work_order_claimed`" + `: claim marker for work-order flows
 
 Local CLI notes:
   - Common open ` + "`event.type`" + ` values include ` + "`actor_statement`" + `; the enum list above is illustrative, not exhaustive.
@@ -976,9 +971,6 @@ func mapRuntimePathToRegistryPath(path string) string {
 		return ""
 	}
 	switch parts[0] {
-	case "work-orders":
-		parts[0] = "packets"
-		parts = append([]string{"packets", "work-orders"}, parts[1:]...)
 	case "receipts":
 		parts = append([]string{"packets", "receipts"}, parts[1:]...)
 	case "reviews":
@@ -1009,7 +1001,7 @@ func runtimePathFromRegistryPath(path string) string {
 	}
 	if len(parts) >= 2 && parts[0] == "packets" {
 		switch parts[1] {
-		case "work-orders", "receipts", "reviews":
+		case "receipts", "reviews":
 			parts = append([]string{parts[1]}, parts[2:]...)
 		}
 	}
@@ -1045,7 +1037,6 @@ func generatedCommandByID(commandID string) (registry.Command, bool) {
 
 func runtimeCommandFromRegistryCommand(command string) string {
 	command = strings.TrimSpace(command)
-	command = strings.ReplaceAll(command, "oar packets work-orders", "oar work-orders")
 	command = strings.ReplaceAll(command, "oar packets receipts", "oar receipts")
 	command = strings.ReplaceAll(command, "oar packets reviews", "oar reviews")
 	command = strings.ReplaceAll(command, "oar auth agents register", "oar auth register")

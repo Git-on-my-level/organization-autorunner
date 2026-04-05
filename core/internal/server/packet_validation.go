@@ -159,10 +159,12 @@ func validateRequiredArtifactRefs(contract *schema.Contract, kind string, refs [
 			continue
 		}
 
-		if strings.Contains(template, "<work_order_artifact_id>") {
-			workOrderRef := packetArtifactLinkRef(packet, "work_order_ref", "work_order_id")
-			if workOrderRef == "" || !containsStringRef(refs, workOrderRef) {
-				return fmt.Errorf("artifact.refs must include %q", workOrderRef)
+		if strings.TrimSpace(template) == "card:<card_id>" {
+			if !strings.HasPrefix(subjectRef, "card:") {
+				return fmt.Errorf("packet.subject_ref must use card: prefix for kind %q", kind)
+			}
+			if !containsStringRef(refs, subjectRef) {
+				return fmt.Errorf("artifact.refs must include %q", subjectRef)
 			}
 			continue
 		}
@@ -237,8 +239,6 @@ func findFirstRefValueByPrefix(refs []string, prefix string) string {
 
 func packetIDFieldName(kind string) (string, bool) {
 	switch kind {
-	case "work_order":
-		return "work_order_id", true
 	case "receipt":
 		return "receipt_id", true
 	case "review":

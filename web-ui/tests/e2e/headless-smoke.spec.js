@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { threadWorkspaceToTopicWorkspace } from "../../src/lib/topicWorkspaceAdapter.js";
+import { buildMockTopicWorkspaceFromThreadWorkspace } from "../../src/lib/mockCoreData.js";
 
 test("mocked core smoke flow: inbox -> threads -> thread detail -> post message + unknown event rendering", async ({
   page,
@@ -178,7 +178,10 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
     async (route) => {
       const threadWs = headlessOnboardingThreadWorkspace();
       const payload = route.request().url().includes("/topics/")
-        ? threadWorkspaceToTopicWorkspace(threadWs, "thread-onboarding")
+        ? buildMockTopicWorkspaceFromThreadWorkspace(
+            threadWs,
+            "thread-onboarding",
+          )
         : threadWs;
       await route.fulfill({
         status: 200,
@@ -266,6 +269,8 @@ test("mocked core smoke flow: inbox -> threads -> thread detail -> post message 
   await page.getByRole("button", { name: "Post" }).click();
 
   await expect.poll(() => postedCount).toBe(1);
+  expect(timeline[0]?.thread_ref).toBe("thread:thread-onboarding");
+  expect(timeline[0]?.thread_id).toBe("thread-onboarding");
   await expect(
     page.getByText("Message: Posted from headless smoke flow", { exact: true }),
   ).toBeVisible();

@@ -713,8 +713,8 @@ func TestGeneratedCommandHelpIncludesBodySchemaAndEnums(t *testing.T) {
 	if !strings.Contains(output, "body `event.type` (string)") {
 		t.Fatalf("expected event.type body field output=%s", output)
 	}
-	if !strings.Contains(output, "work_order_claimed") {
-		t.Fatalf("expected enum discoverability for work_order_claimed output=%s", output)
+	if !strings.Contains(output, "receipt_added") {
+		t.Fatalf("expected enum discoverability for receipt_added output=%s", output)
 	}
 	if !strings.Contains(output, "Communication:") {
 		t.Fatalf("expected authoring group heading output=%s", output)
@@ -728,7 +728,7 @@ func TestGeneratedCommandHelpIncludesBodySchemaAndEnums(t *testing.T) {
 	if !strings.Contains(output, "- `intervention_needed`") {
 		t.Fatalf("expected intervention_needed listing output=%s", output)
 	}
-	if !strings.Contains(output, "`work_order_created`: prefer `oar work-orders create`") {
+	if !strings.Contains(output, "`receipt_added`: prefer `oar receipts create`") {
 		t.Fatalf("expected higher-level command hint output=%s", output)
 	}
 	if !strings.Contains(output, "`actor_statement`") {
@@ -895,7 +895,7 @@ func expectedRuntimeSupportedCommandIDs(meta registry.MetaRegistry) map[string]s
 			addPath(path)
 		}
 	}
-	for _, resource := range []string{"work-orders", "receipts", "reviews"} {
+	for _, resource := range []string{"receipts", "reviews"} {
 		addPath(resource + " create")
 	}
 
@@ -921,7 +921,7 @@ func expectedGeneratedHelpRuntimePaths() []string {
 			appendPath(command + " " + strings.TrimSpace(subcommand))
 		}
 	}
-	for _, resource := range []string{"work-orders", "receipts", "reviews"} {
+	for _, resource := range []string{"receipts", "reviews"} {
 		appendPath(resource + " create")
 	}
 

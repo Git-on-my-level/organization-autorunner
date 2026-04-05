@@ -6,19 +6,19 @@ import {
   buildThreadFilterQueryParamsFromThreadListState,
   buildThreadFilterQueryString,
   buildThreadFilterQueryParams,
-  buildThreadListSearchString,
-  buildTopicListApiQueryParamsFromThreadListState,
+  buildTopicListSearchString,
+  buildTopicListApiQueryParams,
   cadenceMatchesFilter,
   cadencePresetFromValue,
   cadenceToRequestValue,
   computeStaleness,
   formatCadenceLabel,
-  parseThreadListSearchParams,
+  parseTopicListSearchParams,
   readBackendStaleState,
   threadListStatusFilterToTopicApiStatus,
   validateCadenceSelection,
   parseTagFilterInput,
-} from "../../src/lib/threadFilters.js";
+} from "../../src/lib/topicFilters.js";
 
 describe("thread filter query builders", () => {
   it("builds stable query string for selected filters", () => {
@@ -150,7 +150,7 @@ describe("thread filter query builders", () => {
     const sp = new URLSearchParams(
       "open=1&high_priority=1&status=active&priority=p2&stale=true&tag=ops",
     );
-    expect(parseThreadListSearchParams(sp)).toEqual({
+    expect(parseTopicListSearchParams(sp)).toEqual({
       status: "",
       priority: "",
       cadence: "",
@@ -163,7 +163,7 @@ describe("thread filter query builders", () => {
 
   it("parses thread list URL without virtual flags", () => {
     expect(
-      parseThreadListSearchParams(
+      parseTopicListSearchParams(
         new URLSearchParams("status=paused&priority=p1&cadence=weekly"),
       ),
     ).toEqual({
@@ -179,7 +179,7 @@ describe("thread filter query builders", () => {
 
   it("serializes thread list URL including open and high_priority", () => {
     expect(
-      buildThreadListSearchString({
+      buildTopicListSearchString({
         openOnly: true,
         highPriorityTier: true,
         status: "active",
@@ -239,15 +239,15 @@ describe("thread filter query builders", () => {
   });
 
   it("maps thread list status filters to topic API statuses", () => {
-    expect(threadListStatusFilterToTopicApiStatus("paused")).toBe("blocked");
-    expect(threadListStatusFilterToTopicApiStatus("closed")).toBe("resolved");
+    expect(threadListStatusFilterToTopicApiStatus("paused")).toBe("paused");
+    expect(threadListStatusFilterToTopicApiStatus("closed")).toBe("closed");
     expect(threadListStatusFilterToTopicApiStatus("active")).toBe("active");
     expect(threadListStatusFilterToTopicApiStatus("")).toBe("");
   });
 
   it("builds GET /topics query from thread list filter state", () => {
     expect(
-      buildTopicListApiQueryParamsFromThreadListState(
+      buildTopicListApiQueryParams(
         {
           openOnly: false,
           status: "paused",
@@ -259,7 +259,7 @@ describe("thread filter query builders", () => {
         },
         { includeArchived: true },
       ),
-    ).toEqual({ include_archived: "true", status: "blocked" });
+    ).toEqual({ include_archived: "true", status: "paused" });
   });
 
   it("applies tag and staleness filters for topic lists client-side", () => {

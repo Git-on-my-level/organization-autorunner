@@ -159,7 +159,6 @@ async function seedPackets() {
         : [];
 
   const packetKinds = new Map([
-    ["work_order", "/packets/work-orders"],
     ["receipt", "/packets/receipts"],
     ["review", "/packets/reviews"],
   ]);
@@ -178,12 +177,6 @@ async function seedPackets() {
     };
     delete packet.thread_id;
 
-    if (kind !== "work_order") {
-      if (packet.work_order_id && !packet.work_order_ref) {
-        packet.work_order_ref = `artifact:${String(packet.work_order_id).trim()}`;
-      }
-      delete packet.work_order_id;
-    }
     if (kind === "review") {
       if (packet.receipt_id && !packet.receipt_ref) {
         packet.receipt_ref = `artifact:${String(packet.receipt_id).trim()}`;
@@ -349,7 +342,7 @@ async function tombstoneSeedArtifactIfNeeded(sourceArtifact) {
 }
 
 async function seedArtifacts() {
-  const packetKinds = new Set(["work_order", "receipt", "review"]);
+  const packetKinds = new Set(["receipt", "review"]);
   const sourceArtifacts = Array.isArray(seed.artifacts) ? seed.artifacts : [];
 
   for (const sourceArtifact of sourceArtifacts) {
@@ -451,11 +444,14 @@ async function seedBoards() {
         normalizeMappedOptionalThreadRef(sourceCard.thread_ref) ||
         normalizeMappedOptionalThreadRef(sourceCard.topic_ref);
       const linkedThreadId = threadId;
-      const standaloneTitle = String(sourceCard.title ?? "").trim();
+      const cardSummaryText =
+        String(sourceCard.summary ?? "").trim() ||
+        String(sourceCard.title ?? "").trim() ||
+        String(sourceCard.body ?? "").trim();
 
-      if (!linkedThreadId && !standaloneTitle) {
+      if (!linkedThreadId && !cardSummaryText) {
         console.warn(
-          `Skipping board card on ${newBoardId}: need thread_id, parent_thread, or title.`,
+          `Skipping board card on ${newBoardId}: need thread_id, parent_thread, or summary.`,
         );
         continue;
       }
@@ -477,6 +473,12 @@ async function seedBoards() {
       const afterAnchor = lastAnchorByColumn.get(columnKey);
       const boardUpdatedAt = String(currentBoard?.updated_at ?? "").trim();
 
+      const cardSummaryForWrite =
+        String(sourceCard.summary ?? "").trim() ||
+        String(sourceCard.title ?? "").trim() ||
+        String(sourceCard.body ?? "").trim();
+      const mappedAssigneeRefs = seedCardAssigneeRefs(sourceCard);
+
       const baseBody = {
         actor_id: pickActorId(sourceCard.created_by ?? sourceCard.updated_by),
         ...(boardUpdatedAt ? { if_board_updated_at: boardUpdatedAt } : {}),
@@ -488,11 +490,11 @@ async function seedBoards() {
             }
           : {}),
         ...(pinnedDocumentId ? { pinned_document_id: pinnedDocumentId } : {}),
-        ...(String(sourceCard.title ?? "").trim()
-          ? { title: String(sourceCard.title).trim() }
-          : {}),
-        ...(String(sourceCard.summary ?? "").trim()
-          ? { summary: String(sourceCard.summary).trim() }
+        ...(cardSummaryForWrite
+          ? {
+              summary: cardSummaryForWrite,
+              title: cardSummaryForWrite,
+            }
           : {}),
         ...(sourceCard.risk ? { risk: String(sourceCard.risk) } : {}),
         ...(normalizeSeedCardResolution(sourceCard.resolution)
@@ -508,9 +510,8 @@ async function seedBoards() {
         sourceCard.resolution_refs.length > 0
           ? { resolution_refs: mapRefs(sourceCard.resolution_refs) }
           : {}),
-        ...(Array.isArray(sourceCard.assignee_refs) &&
-        sourceCard.assignee_refs.length > 0
-          ? { assignee_refs: mapRefs(sourceCard.assignee_refs) }
+        ...(mappedAssigneeRefs.length > 0
+          ? { assignee_refs: mappedAssigneeRefs }
           : {}),
       };
 
@@ -542,12 +543,7 @@ async function seedBoards() {
           `/boards/${encodeURIComponent(newBoardId)}/cards`,
           {
             ...baseBody,
-            title: standaloneTitle,
-            ...(sourceCard.body ? { body: String(sourceCard.body) } : {}),
             ...placementAfter(afterAnchor),
-            ...(sourceCard.assignee
-              ? { assignee: String(sourceCard.assignee) }
-              : {}),
             ...(sourceCard.priority
               ? { priority: String(sourceCard.priority) }
               : {}),
@@ -558,8 +554,13 @@ async function seedBoards() {
 
       currentBoard = addResponse?.board ?? currentBoard;
       const created = addResponse?.card;
+      const createdCardId = String(created?.id ?? "").trim();
+      const sourceCardId = String(sourceCard.id ?? "").trim();
+      if (sourceCardId && createdCardId) {
+        cardIdMap.set(sourceCardId, createdCardId);
+      }
       const nextAnchor =
-        String(created?.id ?? "").trim() ||
+        createdCardId ||
         String(created?.thread_id ?? "").trim() ||
         linkedThreadId ||
         "";
@@ -731,6 +732,19 @@ function mapRefs(values) {
   }
 
   return values.map((entry) => mapRef(entry)).filter(Boolean);
+}
+
+function seedCardAssigneeRefs(sourceCard) {
+  const fromRefs = mapRefs(sourceCard.assignee_refs ?? []);
+  if (fromRefs.length > 0) {
+    return fromRefs;
+  }
+  const raw = sourceCard.assignee;
+  if (raw == null || String(raw).trim() === "") {
+    return [];
+  }
+  const s = String(raw).trim();
+  return mapRefs([s.includes(":") ? s : `actor:${s}`]);
 }
 
 function pickActorId(candidate) {

@@ -1620,6 +1620,11 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return routeAccessRequirement{}
 		}
 		switch {
+		case strings.HasSuffix(remainder, "/timeline"):
+			if r.Method == http.MethodGet {
+				return routeAccessRequirement{bucket: routeAccessWorkspaceBusiness, supported: true}
+			}
+			return routeAccessRequirement{}
 		case strings.HasSuffix(remainder, "/archive"):
 			if r.Method == http.MethodPost {
 				return routeAccessRequirement{bucket: routeAccessWorkspaceBusiness, supported: true}
@@ -1651,6 +1656,20 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		remainder := strings.TrimPrefix(r.URL.Path, "/cards/")
 		if remainder == "" {
 			writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+			return
+		}
+		if strings.HasSuffix(remainder, "/timeline") {
+			if r.Method != http.MethodGet {
+				writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only GET is supported")
+				return
+			}
+			cardID := strings.TrimSuffix(remainder, "/timeline")
+			cardID = strings.TrimSuffix(cardID, "/")
+			if cardID == "" || strings.Contains(cardID, "/") {
+				writeError(w, http.StatusNotFound, "not_found", "endpoint not found")
+				return
+			}
+			handleGetCardTimeline(w, r, opts, cardID)
 			return
 		}
 		if strings.HasSuffix(remainder, "/archive") {
@@ -1953,14 +1972,6 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 		handleGetArtifact(w, r, opts, remainder)
 	})
 
-	registerRoute("/work_orders", exactRouteAccess(routeAccessWorkspaceBusiness, http.MethodPost), func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
-			return
-		}
-		handleCreateWorkOrder(w, r, opts)
-	})
-
 	registerRoute("/receipts", exactRouteAccess(routeAccessWorkspaceBusiness, http.MethodPost), func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
@@ -1975,14 +1986,6 @@ func NewHandler(schemaVersion string, options ...HandlerOption) http.Handler {
 			return
 		}
 		handleCreateReview(w, r, opts)
-	})
-
-	registerRoute("/packets/work-orders", exactRouteAccess(routeAccessWorkspaceBusiness, http.MethodPost), func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "only POST is supported")
-			return
-		}
-		handleCreateWorkOrder(w, r, opts)
 	})
 
 	registerRoute("/packets/receipts", exactRouteAccess(routeAccessWorkspaceBusiness, http.MethodPost), func(w http.ResponseWriter, r *http.Request) {

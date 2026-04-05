@@ -222,6 +222,18 @@ Generated from `contracts/oar-openapi.yaml`.
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`, `not_found`, `conflict`
 - Output: Returns `{ board, card }`.
 
+## `cards.timeline`
+
+- CLI path: `cards timeline`
+- HTTP: `GET /cards/{card_id}/timeline`
+- Stability: `beta`
+- Surface: `projection`
+- Input mode: `none`
+- Why: Load chronological evidence and related resources for one card.
+- Concepts: `cards`, `timeline`
+- Error codes: `auth_required`, `invalid_token`, `not_found`
+- Output: Returns `{ card, events, artifacts, cards, documents, threads }`.
+
 ## `docs.create`
 
 - CLI path: `docs create`
@@ -395,19 +407,7 @@ Generated from `contracts/oar-openapi.yaml`.
 - Stability: `beta`
 - Surface: `canonical`
 - Input mode: `json-body`
-- Why: Record a structured review over a work order and receipt using subject refs.
-- Concepts: `packets`, `evidence`
-- Error codes: `auth_required`, `invalid_request`, `invalid_token`
-- Output: Returns `{ artifact, packet_kind, packet }`.
-
-## `packets.work-orders.create`
-
-- CLI path: `packets work-orders create`
-- HTTP: `POST /packets/work-orders`
-- Stability: `beta`
-- Surface: `canonical`
-- Input mode: `json-body`
-- Why: Record a structured work-order artifact anchored by `subject_ref`.
+- Why: Record a structured review over a receipt anchored to the same card as subject_ref.
 - Concepts: `packets`, `evidence`
 - Error codes: `auth_required`, `invalid_request`, `invalid_token`
 - Output: Returns `{ artifact, packet_kind, packet }`.

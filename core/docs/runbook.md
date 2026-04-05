@@ -396,7 +396,7 @@ The hosted-v1 scripts under `scripts/hosted/` are backend-aware:
 
 ## Packet Convenience Atomicity
 
-`POST /work_orders`, `POST /receipts`, and `POST /reviews` persist packet artifact data and the emitted event atomically.
+`POST /receipts` and `POST /reviews` persist packet artifact data and the emitted event atomically.
 
 - Core writes artifact metadata/content and the corresponding event in a single transactional operation.
 - On failure, core does not commit a partial convenience write (no artifact/event split state from a failed request).
@@ -450,7 +450,7 @@ http {
       proxy_pass http://127.0.0.1:8000;
     }
 
-    location ~ ^/(topics|boards|docs|artifacts|events|work_orders|receipts|reviews|inbox/ack|derived/rebuild) {
+    location ~ ^/(topics|boards|docs|artifacts|events|receipts|reviews|inbox/ack|derived/rebuild) {
       limit_req zone=oar_write burst=100 nodelay;
       proxy_pass http://127.0.0.1:8000;
     }

@@ -173,29 +173,12 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 		},
 	},
 	{
-		Type:             "work_order_created",
-		Group:            "Packet Lifecycle",
-		PreferredCommand: "oar work-orders create",
-		Constraints: []string{
-			"thread_id is required.",
-			`event.refs must include "artifact:<work_order_artifact_id>".`,
-		},
-	},
-	{
-		Type:    "work_order_claimed",
-		Group:   "Packet Lifecycle",
-		Summary: "Claim marker for work-order flows.",
-		Constraints: []string{
-			"Specialized type; most authors will not need to emit it directly.",
-		},
-	},
-	{
 		Type:             "receipt_added",
 		Group:            "Packet Lifecycle",
 		PreferredCommand: "oar receipts create",
 		Constraints: []string{
-			"thread_id is required.",
-			`event.refs must include "artifact:<receipt_artifact_id>" and "artifact:<work_order_artifact_id>".`,
+			`event.refs must include "artifact:<receipt_artifact_id>" and "card:<card_id>".`,
+			`event.payload must include "subject_ref".`,
 		},
 	},
 	{
@@ -203,9 +186,9 @@ var knownEventTypeGuidance = []eventTypeGuidance{
 		Group:            "Packet Lifecycle",
 		PreferredCommand: "oar reviews create",
 		Constraints: []string{
-			"thread_id is required.",
-			`event.refs must include "artifact:<review_artifact_id>", "artifact:<receipt_artifact_id>", and "artifact:<work_order_artifact_id>".`,
-			`Local CLI validation for "oar events create" enforces at least 3 refs with prefix "artifact:".`,
+			`event.refs must include "artifact:<review_artifact_id>", "artifact:<receipt_artifact_id>", and "card:<card_id>".`,
+			`event.payload must include "subject_ref".`,
+			`Local CLI validation for "oar events create" enforces the bundled event reference rules.`,
 		},
 	},
 	{
@@ -369,8 +352,6 @@ func (a *App) runTypedResource(ctx context.Context, resource string, args []stri
 		return a.runEventsCommand(ctx, args, cfg)
 	case "inbox":
 		return a.runInboxCommand(ctx, args, cfg)
-	case "work-orders":
-		return a.runPacketsCreateCommand(ctx, resource, "packets.work-orders.create", args, cfg)
 	case "receipts":
 		return a.runPacketsCreateCommand(ctx, resource, "packets.receipts.create", args, cfg)
 	case "reviews":
@@ -5732,13 +5713,6 @@ func typedRefPrefix(ref string) string {
 		return ""
 	}
 	return strings.TrimSpace(ref[:idx])
-}
-
-func invalidReviewCompletedRefsError() error {
-	return errnorm.Usage(
-		"invalid_request",
-		`event.type "review_completed" requires event.refs to include at least 3 refs prefixed with "artifact:" (for example: "artifact:work_order_1", "artifact:receipt_1", "artifact:review_1"). See `+"`oar events explain review_completed`"+` for full constraints.`,
-	)
 }
 
 func eventTypeGuidanceFor(eventType string) (eventTypeGuidance, bool) {

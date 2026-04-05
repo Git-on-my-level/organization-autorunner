@@ -16,13 +16,11 @@ const SNAPSHOT_FIELD_LABELS = {
 
 const EVENT_TYPE_LABELS = {
   message_posted: "Message posted",
-  work_order_created: "Work order created",
   receipt_added: "Receipt added",
   review_completed: "Review completed",
   decision_needed: "Needs decision",
   intervention_needed: "Needs intervention",
   decision_made: "Decision made",
-  snapshot_updated: "Details updated",
   thread_updated: "Details updated",
   thread_created: "Thread created",
   card_created: "Card created",
@@ -37,13 +35,11 @@ const KNOWN_EVENT_TYPES = new Set(Object.keys(EVENT_TYPE_LABELS));
 
 const EVENT_TYPE_DOT_CLASSES = {
   message_posted: "bg-indigo-400",
-  work_order_created: "bg-blue-400",
   receipt_added: "bg-emerald-400",
   review_completed: "bg-amber-400",
   decision_needed: "bg-red-400",
   intervention_needed: "bg-cyan-400",
   decision_made: "bg-emerald-400",
-  snapshot_updated: "bg-gray-400",
   thread_updated: "bg-gray-400",
   thread_created: "bg-gray-400",
   card_created: "bg-purple-400",
@@ -62,16 +58,6 @@ function asObject(value) {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value
     : {};
-}
-
-function snapshotLabel(snapshot, id) {
-  const record = asObject(snapshot);
-  const title = String(record.title ?? record.current_summary ?? "").trim();
-  if (title) {
-    return title;
-  }
-  const kind = String(record.kind ?? record.type ?? "Record").trim();
-  return `${kind} ${id}`.trim();
 }
 
 function artifactLabel(artifact, id) {
@@ -112,18 +98,11 @@ function documentRevisionLabel(revision, id, documents = {}) {
 }
 
 export function buildTimelineRefLabelHints(
-  snapshots = {},
   artifacts = {},
   documents = {},
   documentRevisions = {},
 ) {
   const hints = {};
-
-  for (const [snapshotId, snapshot] of Object.entries(asObject(snapshots))) {
-    const id = String(snapshotId ?? "").trim();
-    if (!id) continue;
-    hints[`snapshot:${id}`] = snapshotLabel(snapshot, id);
-  }
 
   for (const [artifactId, artifact] of Object.entries(asObject(artifacts))) {
     const id = String(artifactId ?? "").trim();
@@ -157,11 +136,9 @@ export function toTimelineViewEvent(event, options = {}) {
   const isKnownType = KNOWN_EVENT_TYPES.has(type);
   const refs = Array.isArray(event?.refs) ? event.refs : [];
   const threadId = options.threadId ?? event?.thread_id ?? "";
-  const snapshots = asObject(options.snapshots);
   const labelHints =
     options.labelHints ??
     buildTimelineRefLabelHints(
-      snapshots,
       options.artifacts,
       options.documents,
       options.documentRevisions,
@@ -174,21 +151,16 @@ export function toTimelineViewEvent(event, options = {}) {
     typeLabel: EVENT_TYPE_LABELS[type] ?? "Unknown event type",
     rawType: type,
     changedFields:
-      (type === "snapshot_updated" || type === "thread_updated") &&
-      Array.isArray(event?.payload?.changed_fields)
+      type === "thread_updated" && Array.isArray(event?.payload?.changed_fields)
         ? event.payload.changed_fields.map((f) => SNAPSHOT_FIELD_LABELS[f] ?? f)
         : [],
-    resolvedRefs: refs.map((refValue) => {
-      const ref = String(refValue ?? "");
-      const snapshotId = ref.startsWith("snapshot:") ? ref.slice(9) : "";
-      const snapshot = snapshots[snapshotId];
-      return resolveRefLink(refValue, {
+    resolvedRefs: refs.map((refValue) =>
+      resolveRefLink(refValue, {
         threadId,
         humanize: true,
         labelHints,
-        snapshotIsThread: String(snapshot?.kind ?? "").trim() === "thread",
-      });
-    }),
+      }),
+    ),
   };
 }
 

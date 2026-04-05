@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildThreadPatch,
+  buildTopicPatch,
   parseListInput,
   serializeListInput,
-} from "../../src/lib/threadPatch.js";
+} from "../../src/lib/topicPatch.js";
 
-describe("thread patch builder", () => {
+describe("topic patch builder", () => {
   it("includes only changed scalar fields", () => {
     const original = {
       title: "Original title",
@@ -20,7 +20,7 @@ describe("thread patch builder", () => {
       open_cards: ["card-2"],
     };
 
-    expect(buildThreadPatch(original, draft)).toEqual({
+    expect(buildTopicPatch(original, draft)).toEqual({
       title: "Updated title",
     });
   });
@@ -37,9 +37,8 @@ describe("thread patch builder", () => {
       key_artifacts: ["artifact:b", "artifact:c"],
     };
 
-    expect(buildThreadPatch(original, draft)).toEqual({
+    expect(buildTopicPatch(original, draft)).toEqual({
       tags: ["ops", "customer", "legal"],
-      key_artifacts: ["artifact:b", "artifact:c"],
     });
   });
 });

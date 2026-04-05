@@ -1,6 +1,5 @@
 <script>
   import { browser } from "$app/environment";
-  import { page } from "$app/stores";
   import { tick } from "svelte";
   import { get } from "svelte/store";
 
@@ -18,7 +17,7 @@
   import { coreClient } from "$lib/coreClient";
   import { enrichPrincipalsWithWakeRouting } from "$lib/principalWakeRouting.js";
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
-  import ThreadMessageItem from "$lib/components/thread-detail/ThreadMessageItem.svelte";
+  import MessageItem from "$lib/components/timeline/MessageItem.svelte";
   import {
     flattenMessageThreadView,
     toMessageThreadView,
@@ -28,15 +27,16 @@
     parseActiveMention,
     taggableAgentHandlesFromPrincipals,
   } from "$lib/threadMentionUtils.js";
-  import { threadDetailStore } from "$lib/threadDetailStore";
+  import { getTimelineContext } from "$lib/timelineContext";
   import { workspacePath } from "$lib/workspacePaths";
 
   let { threadId, onMessagePost, workspaceId = "" } = $props();
 
-  let timeline = $derived($threadDetailStore.timeline);
-  let timelineLoading = $derived($threadDetailStore.timelineLoading);
-  let timelineError = $derived($threadDetailStore.timelineError);
-  let workspaceSlug = $derived($page.params.workspace);
+  const timelineCtx = getTimelineContext();
+  let timeline = $derived($timelineCtx.store.timeline);
+  let timelineLoading = $derived($timelineCtx.store.timelineLoading);
+  let timelineError = $derived($timelineCtx.store.timelineError);
+  let workspaceSlug = $derived($timelineCtx.workspaceSlug);
 
   let actorName = $derived((id) =>
     lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
@@ -239,9 +239,7 @@
   }
 
   async function refreshTimeline() {
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
-      timeline: true,
-    });
+    await timelineCtx.refreshTimeline();
   }
 
   function openArchiveConfirm(eventId) {
@@ -312,6 +310,7 @@
       await onMessagePost(threadId, {
         type: "message_posted",
         thread_id: threadId,
+        thread_ref: `thread:${threadId}`,
         refs: [
           `thread:${threadId}`,
           ...(replyToEventId ? [`event:${replyToEventId}`] : []),
@@ -350,7 +349,7 @@
       bind:this={textareaRef}
       bind:value={messageText}
       aria-label="Message"
-      class="w-full min-h-[4.25rem] resize-y rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
+      class="w-full min-h-[4.25rem] resize-y rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-3 py-2 text-[13px] text-[var(--ui-text)]"
       id="message-text"
       oninput={updateMentionFromTextarea}
       onclick={updateMentionFromTextarea}
@@ -361,7 +360,7 @@
     ></textarea>
     {#if mentionOpen}
       <div
-        class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-auto rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] py-1 shadow-lg"
+        class="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-auto rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] py-1"
         id="message-mention-list"
         role="listbox"
         aria-label="Agent handles"
@@ -516,7 +515,7 @@
     {/if}
     <div class="space-y-3">
       {#each messageThreads as message (message.id)}
-        <ThreadMessageItem
+        <MessageItem
           {message}
           {threadId}
           {actorName}

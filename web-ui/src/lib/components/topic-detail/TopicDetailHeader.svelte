@@ -10,14 +10,14 @@
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
   import { coreClient } from "$lib/coreClient";
   import { formatTimestamp } from "$lib/formatDate";
-  import { threadDetailStore } from "$lib/threadDetailStore";
-  import { getPriorityLabel } from "$lib/threadFilters";
+  import { topicDetailStore } from "$lib/topicDetailStore";
+  import { getPriorityLabel } from "$lib/topicFilters";
   import { workspacePath } from "$lib/workspacePaths";
 
   let { threadId = "", detailAsTopic = true } = $props();
 
-  let snapshot = $derived($threadDetailStore.snapshot);
-  let staleness = $derived(threadDetailStore.getStaleness(snapshot));
+  let topic = $derived($topicDetailStore.topic);
+  let staleness = $derived(topicDetailStore.getStaleness(topic));
   let workspaceSlug = $derived($page.params.workspace);
   let actorName = $derived((id) =>
     lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
@@ -28,15 +28,14 @@
 
   async function refreshThread() {
     if (!threadId) return;
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
+    await topicDetailStore.queueRefreshTopicDetail(threadId, {
       workspace: true,
       timeline: true,
-      workOrders: true,
     });
   }
 
   async function handleArchive() {
-    if (!threadId || lifecycleBusy || snapshot?.tombstoned_at || !detailAsTopic)
+    if (!threadId || lifecycleBusy || topic?.tombstoned_at || !detailAsTopic)
       return;
     lifecycleBusy = true;
     try {
@@ -49,7 +48,7 @@
 
   async function handleUnarchive() {
     confirmModal = { open: false, action: "" };
-    if (!threadId || lifecycleBusy || snapshot?.tombstoned_at || !detailAsTopic)
+    if (!threadId || lifecycleBusy || topic?.tombstoned_at || !detailAsTopic)
       return;
     lifecycleBusy = true;
     try {
@@ -107,11 +106,11 @@
   >
   <span class="text-[var(--ui-text-subtle)]">/</span>
   <span class="truncate text-[var(--ui-text)]" aria-current="page"
-    >{snapshot?.title || ""}</span
+    >{topic?.title || ""}</span
   >
 </nav>
 
-{#if snapshot?.tombstoned_at}
+{#if topic?.tombstoned_at}
   <div
     class="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-400"
   >
@@ -122,15 +121,15 @@
           >This {detailAsTopic ? "topic" : "backing thread"} has been tombstoned</span
         >
       </div>
-      {#if snapshot.tombstone_reason}
-        <p class="mt-2">Reason: {snapshot.tombstone_reason}</p>
+      {#if topic.tombstone_reason}
+        <p class="mt-2">Reason: {topic.tombstone_reason}</p>
       {/if}
       <p class="mt-1 text-[11px] text-red-400/80">
-        Tombstoned {#if snapshot.tombstoned_by}by {actorName(
-            snapshot.tombstoned_by,
+        Tombstoned {#if topic.tombstoned_by}by {actorName(
+            topic.tombstoned_by,
           )}{/if}
-        {#if snapshot.tombstoned_at}
-          at {formatTimestamp(snapshot.tombstoned_at)}
+        {#if topic.tombstoned_at}
+          at {formatTimestamp(topic.tombstoned_at)}
         {/if}
       </p>
     </div>
@@ -150,15 +149,15 @@
       </p>
     {/if}
   </div>
-{:else if snapshot?.archived_at}
+{:else if topic?.archived_at}
   <div
     class="mb-4 flex flex-wrap items-start justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-400"
   >
     <p class="min-w-0 flex-1">
       This {detailAsTopic ? "topic" : "thread"} was archived on {formatTimestamp(
-        snapshot.archived_at,
-      ) || "—"}{#if snapshot.archived_by}
-        by {actorName(snapshot.archived_by)}{/if}.
+        topic.archived_at,
+      ) || "—"}{#if topic.archived_by}
+        by {actorName(topic.archived_by)}{/if}.
     </p>
     {#if detailAsTopic}
       <button
@@ -177,10 +176,10 @@
   </div>
 {/if}
 
-{#if snapshot}
+{#if topic}
   <div class="flex items-start justify-between gap-4">
     <h1 class="text-lg font-semibold text-[var(--ui-text)]">
-      {snapshot.title}
+      {topic.title}
     </h1>
     <div
       class="flex shrink-0 flex-wrap items-center justify-end gap-2 text-[12px]"
@@ -196,14 +195,14 @@
       {/if}
       <span
         class="rounded bg-[var(--ui-border)] px-2 py-0.5 capitalize text-[var(--ui-text-muted)]"
-        >{snapshot.status}</span
+        >{topic.status}</span
       >
       <span
         class="rounded bg-[var(--ui-border)] px-2 py-0.5 text-[var(--ui-text-muted)]"
-        >{getPriorityLabel(snapshot.priority)}</span
+        >{getPriorityLabel(topic.priority)}</span
       >
-      {#if detailAsTopic && !snapshot.tombstoned_at && threadId}
-        {#if !snapshot.archived_at}
+      {#if detailAsTopic && !topic.tombstoned_at && threadId}
+        {#if !topic.archived_at}
           <button
             aria-label="Archive"
             class="cursor-pointer rounded-md p-1.5 text-[var(--ui-text-muted)] hover:bg-[var(--ui-border)] hover:text-[var(--ui-accent)] disabled:opacity-50"

@@ -269,19 +269,6 @@ async function parseRawErrorResponse(response) {
   };
 }
 
-function normalizePacketForCreate(packet) {
-  if (!packet || typeof packet !== "object") {
-    return packet;
-  }
-  const next = { ...packet };
-  const legacyThreadId = String(next.thread_id ?? "").trim();
-  if (!String(next.subject_ref ?? "").trim() && legacyThreadId) {
-    next.subject_ref = `thread:${legacyThreadId}`;
-  }
-  delete next.thread_id;
-  return next;
-}
-
 export function createOarCoreClient(options = {}) {
   const resolvedBaseUrl = normalizeBaseUrl(options.baseUrl ?? "");
   const baseFetchFn = options.fetchFn ?? fetch;
@@ -674,6 +661,10 @@ export function createOarCoreClient(options = {}) {
           { body: withActorId(payload ?? {}) },
         ),
       ),
+    listCardTimeline: (cardId, opts) =>
+      invokeJSON("cards.timeline", () =>
+        generated.cardsTimeline({ card_id: String(cardId) }, opts ?? {}),
+      ),
     purgeCard: (cardId, payload) =>
       invokeJSON("cards.purge", () =>
         generated.cardsPurge(
@@ -880,29 +871,14 @@ export function createOarCoreClient(options = {}) {
         },
       ),
 
-    createWorkOrder: (payload) => {
-      const body = withActorId({ ...payload });
-      if (body.packet) {
-        body.packet = normalizePacketForCreate(body.packet);
-      }
-      return invokeJSON("packets.work-orders.create", () =>
-        generated.packetsWorkOrdersCreate({ body }),
-      );
-    },
     createReceipt: (payload) => {
       const body = withActorId({ ...payload });
-      if (body.packet) {
-        body.packet = normalizePacketForCreate(body.packet);
-      }
       return invokeJSON("packets.receipts.create", () =>
         generated.packetsReceiptsCreate({ body }),
       );
     },
     createReview: (payload) => {
       const body = withActorId({ ...payload });
-      if (body.packet) {
-        body.packet = normalizePacketForCreate(body.packet);
-      }
       return invokeJSON("packets.reviews.create", () =>
         generated.packetsReviewsCreate({ body }),
       );

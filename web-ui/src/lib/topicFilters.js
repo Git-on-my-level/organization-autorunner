@@ -1,6 +1,6 @@
-export const THREAD_STATUSES = ["active", "paused", "closed"];
-export const THREAD_PRIORITIES = ["p0", "p1", "p2", "p3"];
-export const THREAD_PRIORITY_LABELS = {
+export const TOPIC_STATUSES = ["active", "paused", "closed"];
+export const TOPIC_PRIORITIES = ["p0", "p1", "p2", "p3"];
+export const TOPIC_PRIORITY_LABELS = {
   p0: "Critical (P0)",
   p1: "High (P1)",
   p2: "Medium (P2)",
@@ -8,17 +8,17 @@ export const THREAD_PRIORITY_LABELS = {
 };
 
 export function getPriorityLabel(priority) {
-  return THREAD_PRIORITY_LABELS[priority] ?? priority;
+  return TOPIC_PRIORITY_LABELS[priority] ?? priority;
 }
 
-export const THREAD_SCHEDULE_PRESETS = [
+export const TOPIC_SCHEDULE_PRESETS = [
   "reactive",
   "daily",
   "weekly",
   "monthly",
   "custom",
 ];
-export const THREAD_SCHEDULE_PRESET_LABELS = {
+export const TOPIC_SCHEDULE_PRESET_LABELS = {
   reactive: "Reactive",
   daily: "Daily",
   weekly: "Weekly",
@@ -89,14 +89,14 @@ export function formatCadenceLabel(cadence, options = {}) {
   const preset = cadencePresetFromValue(value);
 
   if (preset !== "custom") {
-    return THREAD_SCHEDULE_PRESET_LABELS[preset];
+    return TOPIC_SCHEDULE_PRESET_LABELS[preset];
   }
 
   if (!value || value === "custom" || !includeExpression) {
-    return THREAD_SCHEDULE_PRESET_LABELS.custom;
+    return TOPIC_SCHEDULE_PRESET_LABELS.custom;
   }
 
-  return `${THREAD_SCHEDULE_PRESET_LABELS.custom} (${value})`;
+  return `${TOPIC_SCHEDULE_PRESET_LABELS.custom} (${value})`;
 }
 
 export function cadenceToRequestValue({
@@ -143,7 +143,7 @@ export function validateCadenceSelection({
   fallbackCadence = "",
   allowLegacyCustom = false,
 } = {}) {
-  if (!THREAD_SCHEDULE_PRESETS.includes(preset)) {
+  if (!TOPIC_SCHEDULE_PRESETS.includes(preset)) {
     return "Schedule preset is required.";
   }
 
@@ -246,7 +246,7 @@ export function buildThreadFilterQueryParams(filters = {}) {
  * Thread list page URL state: same fields as the filter panel, plus virtual flags
  * that are applied client-side (API cannot express OR / not-closed in one query).
  */
-export function parseThreadListSearchParams(searchParams) {
+export function parseTopicListSearchParams(searchParams) {
   const sp =
     searchParams instanceof URLSearchParams
       ? searchParams
@@ -282,19 +282,19 @@ export function parseThreadListSearchParams(searchParams) {
     priority = "";
   }
 
-  if (status && !THREAD_STATUSES.includes(status)) {
+  if (status && !TOPIC_STATUSES.includes(status)) {
     status = "";
   }
-  if (priority && !THREAD_PRIORITIES.includes(priority)) {
+  if (priority && !TOPIC_PRIORITIES.includes(priority)) {
     priority = "";
   }
 
   if (cadence) {
-    if (THREAD_SCHEDULE_PRESETS.includes(cadence)) {
+    if (TOPIC_SCHEDULE_PRESETS.includes(cadence)) {
       // keep preset token
     } else {
       const preset = cadencePresetFromValue(cadence);
-      cadence = THREAD_SCHEDULE_PRESETS.includes(preset) ? preset : "";
+      cadence = TOPIC_SCHEDULE_PRESETS.includes(preset) ? preset : "";
     }
   }
 
@@ -312,7 +312,7 @@ export function parseThreadListSearchParams(searchParams) {
 /**
  * Serialize thread list filters for the URL (includes open / high_priority flags).
  */
-export function buildThreadListSearchString(state = {}) {
+export function buildTopicListSearchString(state = {}) {
   const params = new URLSearchParams();
 
   if (state.openOnly) {
@@ -350,9 +350,7 @@ export function buildThreadListSearchString(state = {}) {
  */
 export function threadListStatusFilterToTopicApiStatus(threadStatus) {
   const s = String(threadStatus ?? "").trim();
-  if (s === "paused") return "blocked";
-  if (s === "closed") return "resolved";
-  if (s === "active") return "active";
+  if (TOPIC_STATUSES.includes(s)) return s;
   return "";
 }
 
@@ -361,7 +359,7 @@ export function threadListStatusFilterToTopicApiStatus(threadStatus) {
  * Thread-only filters (priority, cadence, tag, stale) are applied client-side via
  * {@link applyTopicListClientFilters}.
  */
-export function buildTopicListApiQueryParamsFromThreadListState(
+export function buildTopicListApiQueryParams(
   state = {},
   { includeArchived = false } = {},
 ) {

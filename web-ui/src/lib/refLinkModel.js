@@ -35,7 +35,6 @@ function humanizedLabelForPrefix(prefix, value) {
   if (prefix === "card") return "Card";
   if (prefix === "thread") return "Topic";
   if (prefix === "topic") return "Topic";
-  if (prefix === "snapshot") return "Record";
   if (prefix === "event") return "Event";
   if (prefix === "document") return `Document ${value}`.trim();
   if (prefix === "document_revision")
@@ -89,13 +88,9 @@ const LINK_RESOLVERS = {
     boardId
       ? buildInternalHref(
           workspaceSlug,
-          `/boards/${asPathSegment(boardId)}#card-${asPathSegment(value)}`,
+          `/boards/${asPathSegment(boardId)}?card=${asPathSegment(value)}`,
         )
       : "",
-  snapshot: ({ workspaceSlug, snapshotIsThread, value }) =>
-    snapshotIsThread
-      ? buildInternalHref(workspaceSlug, `/topics/${asPathSegment(value)}`)
-      : buildInternalHref(workspaceSlug, `/snapshots/${asPathSegment(value)}`),
   event: ({ workspaceSlug, threadId, value }) =>
     threadId
       ? buildInternalHref(
@@ -135,7 +130,6 @@ export function resolveRefLink(refValue, options = {}) {
   const workspaceSlug = options.workspaceSlug;
   const boardId = options.boardId;
   const threadId = options.threadId;
-  const snapshotIsThread = Boolean(options.snapshotIsThread);
 
   if (!prefix) {
     return {
@@ -156,7 +150,6 @@ export function resolveRefLink(refValue, options = {}) {
     return createResolvedLink(raw, prefix, value, labels, {
       href: linkResolver({
         workspaceSlug,
-        snapshotIsThread,
         threadId,
         boardId,
         value,

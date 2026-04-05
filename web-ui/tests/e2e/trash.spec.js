@@ -7,8 +7,8 @@ test("trash page restores archived topics, boards, cards, documents, and artifac
   let artifacts = [
     {
       id: "artifact-trash-1",
-      kind: "work_order",
-      summary: "Archived work order",
+      kind: "evidence",
+      summary: "Archived evidence artifact",
       thread_id: "topic-trash-1",
       created_at: "2026-03-01T08:00:00.000Z",
       created_by: actorId,
@@ -417,9 +417,9 @@ test("trash page restores archived topics, boards, cards, documents, and artifac
   await expect(page.getByText("Archived document")).toHaveCount(0);
 
   await page.getByRole("tab", { name: /Artifacts/ }).click();
-  await expect(page.getByText("Archived work order")).toBeVisible();
+  await expect(page.getByText("Archived evidence artifact")).toBeVisible();
   await page.getByRole("button", { name: "Restore" }).click();
-  await expect(page.getByText("Archived work order")).toHaveCount(0);
+  await expect(page.getByText("Archived evidence artifact")).toHaveCount(0);
 });
 
 test("trash page purges a card after confirmation (human principal)", async ({

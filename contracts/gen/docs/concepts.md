@@ -30,7 +30,7 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `cards`
 
-- Commands: `10`
+- Commands: `11`
 - Command IDs:
   - `boards.cards.create`
   - `boards.cards.get`
@@ -42,6 +42,7 @@ Generated from `contracts/oar-openapi.yaml`.
   - `cards.patch`
   - `cards.purge`
   - `cards.restore`
+  - `cards.timeline`
 
 ## `compatibility`
 
@@ -77,11 +78,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `evidence`
 
-- Commands: `3`
+- Commands: `2`
 - Command IDs:
   - `packets.receipts.create`
   - `packets.reviews.create`
-  - `packets.work-orders.create`
 
 ## `health`
 
@@ -107,11 +107,10 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `packets`
 
-- Commands: `3`
+- Commands: `2`
 - Command IDs:
   - `packets.receipts.create`
   - `packets.reviews.create`
-  - `packets.work-orders.create`
 
 ## `readiness`
 
@@ -139,8 +138,9 @@ Generated from `contracts/oar-openapi.yaml`.
 
 ## `timeline`
 
-- Commands: `2`
+- Commands: `3`
 - Command IDs:
+  - `cards.timeline`
   - `threads.timeline`
   - `topics.timeline`
 

@@ -26,7 +26,10 @@
     isFreshnessCurrent,
     parseDelimitedValues,
   } from "$lib/boardUtils";
-  import { topicDetailPathFromSubject } from "$lib/topicRouteUtils";
+  import {
+    boardPrimaryTopicRef,
+    topicDetailPathFromSubject,
+  } from "$lib/topicRouteUtils";
 
   let boards = $state([]);
   let loading = $state(false);
@@ -530,21 +533,19 @@
                   <a
                     class="text-indigo-300 transition-colors hover:text-indigo-200"
                     href={topicDetailPathFromSubject({
-                      topicRef: board.primary_topic_ref,
+                      topicRef: boardPrimaryTopicRef(board),
                       threadId: board.thread_id,
                     })
                       ? workspaceHref(
                           topicDetailPathFromSubject({
-                            topicRef: board.primary_topic_ref,
+                            topicRef: boardPrimaryTopicRef(board),
                             threadId: board.thread_id,
                           }),
                         )
                       : workspaceHref("/boards")}
                     onclick={(event) => event.stopPropagation()}
                   >
-                    {String(board.primary_topic_ref ?? "").trim() ||
-                      board.thread_id ||
-                      "—"}
+                    {boardPrimaryTopicRef(board) || board.thread_id || "—"}
                   </a>
                 </span>
                 <span>

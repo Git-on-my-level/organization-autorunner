@@ -1,5 +1,5 @@
 <script>
-  import { threadDetailStore } from "$lib/threadDetailStore";
+  import { topicDetailStore } from "$lib/topicDetailStore";
   import {
     actorRegistry,
     lookupActorDisplayName,
@@ -14,25 +14,25 @@
   import ProvenanceBadge from "$lib/components/ProvenanceBadge.svelte";
   import RefLink from "$lib/components/RefLink.svelte";
   import {
-    buildThreadPatch,
+    buildTopicPatch,
     describeCron,
     parseListInput,
     serializeListInput,
-  } from "$lib/threadPatch";
+  } from "$lib/topicPatch";
   import {
-    THREAD_SCHEDULE_PRESETS,
-    THREAD_SCHEDULE_PRESET_LABELS,
+    TOPIC_SCHEDULE_PRESETS,
+    TOPIC_SCHEDULE_PRESET_LABELS,
     cadencePresetFromValue,
     cadenceToRequestValue,
     formatCadenceLabel,
     isLikelyCronExpression,
     validateCadenceSelection,
-  } from "$lib/threadFilters";
+  } from "$lib/topicFilters";
   import { parseRef } from "$lib/typedRefs";
 
   let { threadId, onSave, conflictWarning = "", editNotice = "" } = $props();
 
-  let snapshot = $derived($threadDetailStore.snapshot);
+  let topic = $derived($topicDetailStore.topic);
   let actorName = $derived((id) =>
     lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
   );
@@ -66,15 +66,13 @@
       next_check_in_at: isoToDatetimeLocal(thread.next_check_in_at ?? ""),
       current_summary: thread.current_summary ?? "",
       tagsInput: serializeListInput(thread.tags ?? []),
-      nextActionsInput: serializeListInput(thread.next_actions ?? []),
-      keyArtifactsInput: serializeListInput(thread.key_artifacts ?? []),
     };
   }
 
   function beginEdit() {
-    if (!snapshot) return;
+    if (!topic) return;
     editError = "";
-    editDraft = toEditDraft(snapshot);
+    editDraft = toEditDraft(topic);
     editOpen = true;
   }
 
@@ -93,49 +91,38 @@
       cadence: cadenceToRequestValue({
         preset: editDraft.cadencePreset,
         customCron: editDraft.cadenceCron,
-        fallbackCadence: snapshot?.cadence ?? "",
+        fallbackCadence: topic?.cadence ?? "",
       }),
       next_check_in_at: editDraft.next_check_in_at
         ? datetimeLocalToIso(editDraft.next_check_in_at)
         : null,
       tags: parseListInput(editDraft.tagsInput),
       current_summary: editDraft.current_summary.trim(),
-      next_actions: parseListInput(editDraft.nextActionsInput),
-      key_artifacts: parseListInput(editDraft.keyArtifactsInput),
     };
   }
 
   async function handleSave() {
-    if (!snapshot || !editDraft) return;
+    if (!topic || !editDraft) return;
     savingEdit = true;
     editError = "";
     try {
       const cadenceError = validateCadenceSelection({
         preset: editDraft.cadencePreset,
         customCron: editDraft.cadenceCron,
-        fallbackCadence: snapshot.cadence,
+        fallbackCadence: topic.cadence,
         allowLegacyCustom: true,
       });
       if (cadenceError) {
         editError = cadenceError;
         return;
       }
-      const keyArtifactRefs = parseListInput(editDraft.keyArtifactsInput);
-      const invalidRefs = keyArtifactRefs.filter((r) => {
-        const p = parseRef(normalizeKeyArtifactRef(r));
-        return !p.prefix || !p.value;
-      });
-      if (invalidRefs.length > 0) {
-        editError = `Invalid key artifact refs: ${invalidRefs.join(", ")}`;
-        return;
-      }
-      const patch = buildThreadPatch(snapshot, buildDraftSnapshotFromEdit());
+      const patch = buildTopicPatch(topic, buildDraftSnapshotFromEdit());
       if (Object.keys(patch).length === 0) {
         editNotice = "No changes to save.";
         savingEdit = false;
         return;
       }
-      await onSave(threadId, patch, snapshot.updated_at);
+      await onSave(threadId, patch, topic.updated_at);
       editOpen = false;
       editDraft = null;
     } catch (error) {
@@ -161,7 +148,7 @@
   </p>
 {/if}
 
-{#if snapshot}
+{#if topic}
   <div
     class="mt-4 rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)]"
   >
@@ -187,36 +174,36 @@
     >
       <div>
         <p class="text-[12px] text-[var(--ui-text-muted)]">Type</p>
-        <p class="capitalize text-[var(--ui-text)]">{snapshot.type}</p>
+        <p class="capitalize text-[var(--ui-text)]">{topic.type}</p>
       </div>
       <div>
         <p class="text-[12px] text-[var(--ui-text-muted)]">Cadence</p>
         <p class="text-[var(--ui-text)]">
-          {formatCadenceLabel(snapshot.cadence)}
+          {formatCadenceLabel(topic.cadence)}
         </p>
       </div>
       <div>
         <p class="text-[12px] text-[var(--ui-text-muted)]">Next check-in</p>
         <p class="text-[var(--ui-text)]">
-          {snapshot.next_check_in_at
-            ? formatTimestamp(snapshot.next_check_in_at)
+          {topic.next_check_in_at
+            ? formatTimestamp(topic.next_check_in_at)
             : "—"}
         </p>
       </div>
       <div>
         <p class="text-[12px] text-[var(--ui-text-muted)]">Updated</p>
         <p class="text-[var(--ui-text)]">
-          {formatTimestamp(snapshot.updated_at) || "—"} by {actorName(
-            snapshot.updated_by,
+          {formatTimestamp(topic.updated_at) || "—"} by {actorName(
+            topic.updated_by,
           )}
         </p>
       </div>
     </div>
 
-    {#if (snapshot.tags ?? []).length > 0}
+    {#if (topic.tags ?? []).length > 0}
       <div class="border-t border-[var(--ui-border-subtle)] px-4 py-2.5">
         <div class="flex flex-wrap gap-1.5">
-          {#each snapshot.tags ?? [] as tag}
+          {#each topic.tags ?? [] as tag}
             <span
               class="rounded bg-[var(--ui-border)] px-2 py-0.5 text-[12px] text-[var(--ui-text-muted)]"
               >{tag}</span
@@ -229,29 +216,29 @@
     <div class="border-t border-[var(--ui-border-subtle)] px-4 py-3">
       <p class="text-[12px] text-[var(--ui-text-muted)]">Summary</p>
       <MarkdownRenderer
-        source={snapshot.current_summary}
+        source={topic.current_summary}
         class="mt-1 text-[13px] text-[var(--ui-text)]"
       />
     </div>
 
-    {#if (snapshot.next_actions ?? []).length > 0}
+    {#if (topic.next_actions ?? []).length > 0}
       <div class="border-t border-[var(--ui-border-subtle)] px-4 py-3">
         <p class="text-[12px] text-[var(--ui-text-muted)]">Next actions</p>
         <ul
           class="mt-1 list-inside list-disc text-[13px] text-[var(--ui-text)]"
         >
-          {#each snapshot.next_actions ?? [] as action}<li>
+          {#each topic.next_actions ?? [] as action}<li>
               {action}
             </li>{/each}
         </ul>
       </div>
     {/if}
 
-    {#if (snapshot.key_artifacts ?? []).length > 0}
+    {#if (topic.key_artifacts ?? []).length > 0}
       <div class="border-t border-[var(--ui-border-subtle)] px-4 py-3">
         <p class="text-[12px] text-[var(--ui-text-muted)]">Key artifacts</p>
         <div class="mt-1 flex flex-wrap gap-2 text-[13px]">
-          {#each snapshot.key_artifacts ?? [] as artifactId}
+          {#each topic.key_artifacts ?? [] as artifactId}
             <RefLink
               refValue={normalizeKeyArtifactRef(artifactId)}
               {threadId}
@@ -262,7 +249,7 @@
     {/if}
 
     <div class="border-t border-[var(--ui-border-subtle)] px-4 py-2.5">
-      <ProvenanceBadge provenance={snapshot.provenance} />
+      <ProvenanceBadge provenance={topic.provenance} />
     </div>
 
     <details class="border-t border-[var(--ui-border-subtle)]">
@@ -272,7 +259,7 @@
       >
       <pre
         class="overflow-auto px-4 pb-3 text-[11px] text-[var(--ui-text-muted)]">{JSON.stringify(
-          snapshot,
+          topic,
           null,
           2,
         )}</pre>
@@ -339,9 +326,9 @@
           >Schedule <select
             bind:value={editDraft.cadencePreset}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2 py-1.5 text-[13px] text-[var(--ui-text)]"
-            >{#each THREAD_SCHEDULE_PRESETS as cadence}
+            >{#each TOPIC_SCHEDULE_PRESETS as cadence}
               <option value={cadence}
-                >{THREAD_SCHEDULE_PRESET_LABELS[cadence]}</option
+                >{TOPIC_SCHEDULE_PRESET_LABELS[cadence]}</option
               >
             {/each}</select
           ></label
@@ -380,22 +367,6 @@
           class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
           >Summary <textarea
             bind:value={editDraft.current_summary}
-            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
-            rows="2"
-          ></textarea></label
-        >
-        <label
-          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
-          >Next actions (one per line) <textarea
-            bind:value={editDraft.nextActionsInput}
-            class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
-            rows="2"
-          ></textarea></label
-        >
-        <label
-          class="text-[12px] font-medium text-[var(--ui-text-muted)] sm:col-span-2"
-          >Key artifacts (one per line) <textarea
-            bind:value={editDraft.keyArtifactsInput}
             class="mt-1 w-full rounded border border-[var(--ui-border)] bg-[var(--ui-panel-muted)] px-2.5 py-1.5 text-[13px] text-[var(--ui-text)]"
             rows="2"
           ></textarea></label

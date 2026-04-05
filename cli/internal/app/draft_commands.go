@@ -475,7 +475,6 @@ func validateDraftBody(commandID string, body map[string]any) []string {
 		"events.create":              validateDraftEventCreate,
 		"artifacts.create":           validateDraftArtifactCreate,
 		"inbox.acknowledge":          validateDraftInboxAck,
-		"packets.work-orders.create": validateDraftWorkOrderCreate,
 		"packets.receipts.create":    validateDraftReceiptCreate,
 		"packets.reviews.create":     validateDraftReviewCreate,
 		"derived.rebuild":            validateDraftDerivedRebuild,
@@ -860,10 +859,6 @@ func validateDraftInboxAck(body map[string]any) []string {
 	return out
 }
 
-func validateDraftWorkOrderCreate(body map[string]any) []string {
-	return validateDraftPacketCreate(body, "work_order")
-}
-
 func validateDraftReceiptCreate(body map[string]any) []string {
 	return validateDraftPacketCreate(body, "receipt")
 }
@@ -902,32 +897,21 @@ func validateDraftPacketCreate(body map[string]any, packetKind string) []string 
 
 func validatePacketForKind(kind string, artifact map[string]any, packet map[string]any, path string, out *[]string) {
 	rules := map[string]map[string]string{
-		"work_order": {
-			"work_order_id":       "string",
-			"subject_ref":         "string",
-			"objective":           "string",
-			"constraints":         "list<string>",
-			"context_refs":        "list<typed_ref>",
-			"acceptance_criteria": "list<string>",
-			"definition_of_done":  "list<string>",
-		},
 		"receipt": {
 			"receipt_id":            "string",
 			"subject_ref":           "string",
-			"work_order_ref":        "string",
 			"outputs":               "list<typed_ref+>",
 			"verification_evidence": "list<typed_ref+>",
 			"changes_summary":       "string",
 			"known_gaps":            "list<string>",
 		},
 		"review": {
-			"review_id":      "string",
-			"subject_ref":    "string",
-			"work_order_ref": "string",
-			"receipt_ref":    "string",
-			"outcome":        "string",
-			"notes":          "string",
-			"evidence_refs":  "list<typed_ref>",
+			"review_id":     "string",
+			"subject_ref":   "string",
+			"receipt_ref":   "string",
+			"outcome":       "string",
+			"notes":         "string",
+			"evidence_refs": "list<typed_ref>",
 		},
 	}
 	fields, ok := rules[kind]
@@ -938,12 +922,10 @@ func validatePacketForKind(kind string, artifact map[string]any, packet map[stri
 
 	fieldOrder := []string{}
 	switch kind {
-	case "work_order":
-		fieldOrder = []string{"work_order_id", "subject_ref", "objective", "constraints", "context_refs", "acceptance_criteria", "definition_of_done"}
 	case "receipt":
-		fieldOrder = []string{"receipt_id", "subject_ref", "work_order_ref", "outputs", "verification_evidence", "changes_summary", "known_gaps"}
+		fieldOrder = []string{"receipt_id", "subject_ref", "outputs", "verification_evidence", "changes_summary", "known_gaps"}
 	case "review":
-		fieldOrder = []string{"review_id", "subject_ref", "work_order_ref", "receipt_ref", "outcome", "notes", "evidence_refs"}
+		fieldOrder = []string{"review_id", "subject_ref", "receipt_ref", "outcome", "notes", "evidence_refs"}
 	}
 	for _, name := range fieldOrder {
 		kindSpec := fields[name]
@@ -987,9 +969,8 @@ func validatePacketForKind(kind string, artifact map[string]any, packet map[stri
 	}
 
 	idField := map[string]string{
-		"work_order": "work_order_id",
-		"receipt":    "receipt_id",
-		"review":     "review_id",
+		"receipt": "receipt_id",
+		"review":  "review_id",
 	}[kind]
 	packetID, _ := packet[idField].(string)
 	packetID = strings.TrimSpace(packetID)
@@ -1011,19 +992,7 @@ func validatePacketForKind(kind string, artifact map[string]any, packet map[stri
 	if subjectRef != "" && !containsRef(artifactRefs, subjectRef) {
 		*out = append(*out, fmt.Sprintf("artifact.refs must include %q", subjectRef))
 	}
-	switch kind {
-	case "receipt":
-		workOrderRef, _ := packet["work_order_ref"].(string)
-		workOrderRef = strings.TrimSpace(workOrderRef)
-		if workOrderRef != "" && !containsRef(artifactRefs, workOrderRef) {
-			*out = append(*out, fmt.Sprintf("artifact.refs must include %q", workOrderRef))
-		}
-	case "review":
-		workOrderRef, _ := packet["work_order_ref"].(string)
-		workOrderRef = strings.TrimSpace(workOrderRef)
-		if workOrderRef != "" && !containsRef(artifactRefs, workOrderRef) {
-			*out = append(*out, fmt.Sprintf("artifact.refs must include %q", workOrderRef))
-		}
+	if kind == "review" {
 		receiptRef, _ := packet["receipt_ref"].(string)
 		receiptRef = strings.TrimSpace(receiptRef)
 		if receiptRef != "" && !containsRef(artifactRefs, receiptRef) {
@@ -1215,7 +1184,7 @@ func containsRef(refs []string, expected string) bool {
 
 func isPacketKind(kind string) bool {
 	switch strings.TrimSpace(kind) {
-	case "work_order", "receipt", "review":
+	case "receipt", "review":
 		return true
 	default:
 		return false

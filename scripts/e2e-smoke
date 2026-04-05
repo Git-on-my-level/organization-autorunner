@@ -347,13 +347,9 @@ fi
 printf '{"patch":{"summary":"smoke updated"}}\n' \
   | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" topics patch --topic-id "$MAIN_TOPIC_ID" >"$TMP_DIR/topic-update.json"
 
-WORK_ORDER_ID="artifact-work-order-smoke"
 RECEIPT_ID="artifact-receipt-smoke"
 REVIEW_ID="artifact-review-smoke"
 THREAD_ID="$MAIN_TOPIC_THREAD_ID"
-
-printf '{"artifact":{"id":"%s","refs":["topic:%s"],"summary":"Smoke work order"},"packet":{"work_order_id":"%s","subject_ref":"topic:%s","objective":"Exercise e2e smoke","constraints":["headless"],"context_refs":["topic:%s"],"acceptance_criteria":["all checks pass"],"definition_of_done":["receipt and review"]}}\n' "$WORK_ORDER_ID" "$MAIN_TOPIC_ID" "$WORK_ORDER_ID" "$MAIN_TOPIC_ID" "$MAIN_TOPIC_ID" \
-  | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" work-orders create >"$TMP_DIR/work-order-create.json"
 
 # Board smoke: create a board, add/reorder/move/archive cards, and verify the
 # canonical workspace through both core and the UI proxy.
@@ -440,10 +436,10 @@ if [[ -z "$BOARD_UPDATED_AT" ]]; then
   BOARD_UPDATED_AT="$(json_get "$TMP_DIR/board-card-a-add.json" 'data.body.board.updated_at' || true)"
 fi
 
-printf '{"artifact":{"id":"%s","refs":["topic:%s","artifact:%s"],"summary":"Smoke receipt"},"packet":{"receipt_id":"%s","subject_ref":"topic:%s","work_order_ref":"artifact:%s","outputs":["card:%s"],"verification_evidence":["artifact:%s"],"changes_summary":"smoke complete","known_gaps":[]}}\n' "$RECEIPT_ID" "$MAIN_TOPIC_ID" "$WORK_ORDER_ID" "$RECEIPT_ID" "$MAIN_TOPIC_ID" "$WORK_ORDER_ID" "$BOARD_CARD_A_ID" "$WORK_ORDER_ID" \
+printf '{"artifact":{"id":"%s","refs":["card:%s"],"summary":"Smoke receipt"},"packet":{"receipt_id":"%s","subject_ref":"card:%s","outputs":["card:%s"],"verification_evidence":["artifact:%s"],"changes_summary":"smoke complete","known_gaps":[]}}\n' "$RECEIPT_ID" "$BOARD_CARD_A_ID" "$RECEIPT_ID" "$BOARD_CARD_A_ID" "$BOARD_CARD_A_ID" "$RECEIPT_ID" \
   | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" receipts create >"$TMP_DIR/receipt-create.json"
 
-printf '{"artifact":{"id":"%s","refs":["topic:%s","artifact:%s","artifact:%s"],"summary":"Smoke review"},"packet":{"review_id":"%s","subject_ref":"topic:%s","work_order_ref":"artifact:%s","receipt_ref":"artifact:%s","outcome":"accept","notes":"accepted","evidence_refs":["artifact:%s"]}}\n' "$REVIEW_ID" "$MAIN_TOPIC_ID" "$WORK_ORDER_ID" "$RECEIPT_ID" "$REVIEW_ID" "$MAIN_TOPIC_ID" "$WORK_ORDER_ID" "$RECEIPT_ID" "$RECEIPT_ID" \
+printf '{"artifact":{"id":"%s","refs":["card:%s","artifact:%s"],"summary":"Smoke review"},"packet":{"review_id":"%s","subject_ref":"card:%s","receipt_ref":"artifact:%s","outcome":"accept","notes":"accepted","evidence_refs":["artifact:%s"]}}\n' "$REVIEW_ID" "$BOARD_CARD_A_ID" "$RECEIPT_ID" "$REVIEW_ID" "$BOARD_CARD_A_ID" "$RECEIPT_ID" "$RECEIPT_ID" \
   | HOME="$HOME_DIR" "$CLI_BIN" --json --base-url "$CORE_BASE_URL" --agent "$AGENT_NAME" reviews create >"$TMP_DIR/review-create.json"
 
 run_cli_json "$TMP_DIR/board-card-b-add.json" boards cards create --board-id "$BOARD_ID" --thread-id "$BOARD_THREAD_B_ID" --column backlog --after "$BOARD_THREAD_A_ID"

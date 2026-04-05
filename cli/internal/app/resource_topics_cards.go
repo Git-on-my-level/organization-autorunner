@@ -22,8 +22,8 @@ var topicsSubcommandSpec = subcommandSpec{
 
 var cardsSubcommandSpec = subcommandSpec{
 	command:  "cards",
-	valid:    []string{"list", "get", "patch", "move", "archive", "purge", "restore"},
-	examples: []string{"oar cards list", "oar cards get --card-id <card-id>", "oar cards move --card-id <card-id> --from-file move.json", "oar cards archive --card-id <card-id>"},
+	valid:    []string{"list", "get", "patch", "move", "archive", "purge", "restore", "timeline"},
+	examples: []string{"oar cards list", "oar cards get --card-id <card-id>", "oar cards timeline --card-id <card-id>", "oar cards move --card-id <card-id> --from-file move.json", "oar cards archive --card-id <card-id>"},
 	aliases: map[string]string{
 		"ls":     "list",
 		"show":   "get",
@@ -102,6 +102,13 @@ func (a *App) runCardsCommand(ctx context.Context, args []string, cfg config.Res
 		}
 		result, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "cards get", "cards.get", "card_id", id, cardIDLookupSpec, nil, nil)
 		return result, "cards get", callErr
+	case "timeline":
+		id, err := parseIDArg(args[1:], "card-id", "card id")
+		if err != nil {
+			return nil, "cards timeline", err
+		}
+		result, callErr := a.invokeTypedJSONWithIDResolution(ctx, cfg, "cards timeline", "cards.timeline", "card_id", id, cardIDLookupSpec, nil, nil)
+		return result, "cards timeline", callErr
 	case "patch":
 		id, body, err := a.parseIDAndBodyInput(args[1:], "card-id", "card id", "cards patch")
 		if err != nil {
@@ -273,16 +280,6 @@ func (a *App) normalizeMutationCommandBodyLegacy(ctx context.Context, cfg config
 		return a.normalizeMutationFields(ctx, cfg, body, []mutationFieldSpec{
 			{key: "subject_ref", kind: mutationFieldTypedRef},
 		})
-	case "packets.work-orders.create":
-		if err := a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "artifact"), []mutationFieldSpec{
-			{key: "refs", kind: mutationFieldTypedRefList},
-		}); err != nil {
-			return err
-		}
-		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "packet"), []mutationFieldSpec{
-			{key: "subject_ref", kind: mutationFieldTypedRef},
-			{key: "context_refs", kind: mutationFieldTypedRefList},
-		})
 	case "packets.receipts.create":
 		if err := a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "artifact"), []mutationFieldSpec{
 			{key: "refs", kind: mutationFieldTypedRefList},
@@ -291,7 +288,6 @@ func (a *App) normalizeMutationCommandBodyLegacy(ctx context.Context, cfg config
 		}
 		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "packet"), []mutationFieldSpec{
 			{key: "subject_ref", kind: mutationFieldTypedRef},
-			{key: "work_order_ref", kind: mutationFieldTypedRef},
 			{key: "outputs", kind: mutationFieldTypedRefList},
 			{key: "verification_evidence", kind: mutationFieldTypedRefList},
 		})
@@ -303,7 +299,6 @@ func (a *App) normalizeMutationCommandBodyLegacy(ctx context.Context, cfg config
 		}
 		return a.normalizeMutationFields(ctx, cfg, nestedMutationMap(body, "packet"), []mutationFieldSpec{
 			{key: "subject_ref", kind: mutationFieldTypedRef},
-			{key: "work_order_ref", kind: mutationFieldTypedRef},
 			{key: "receipt_ref", kind: mutationFieldTypedRef},
 			{key: "evidence_refs", kind: mutationFieldTypedRefList},
 		})

@@ -713,10 +713,6 @@ func applyOARSchemaOverlays(acc map[string]bodyFieldState, schemaDoc oarSchemaDo
 				forceOptionalAll: true,
 			})
 		}
-	case "packets.work-orders.create":
-		if source, ok := schemaDoc.Packets["work_order"]; ok {
-			expandContainerFromOAR(acc, schemaDoc, "packet", source, oarExpansionOptions{})
-		}
 	case "packets.receipts.create":
 		if source, ok := schemaDoc.Packets["receipt"]; ok {
 			expandContainerFromOAR(acc, schemaDoc, "packet", source, oarExpansionOptions{})

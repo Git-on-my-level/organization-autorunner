@@ -19,7 +19,7 @@
   import { devActorMode } from "$lib/workspaceContext";
   import { kindColor, kindLabel } from "$lib/artifactKinds";
   import { formatTimestamp } from "$lib/formatDate";
-  import { getPriorityLabel } from "$lib/threadFilters";
+  import { getPriorityLabel } from "$lib/topicFilters";
 
   const DOC_STATUS_LABELS = { draft: "Draft", active: "Active" };
 
@@ -40,7 +40,7 @@
   let tabs = $derived([
     { id: "artifacts", label: "Artifacts", count: artifacts.length },
     { id: "documents", label: "Documents", count: documents.length },
-    { id: "threads", label: "Topics", count: threads.length },
+    { id: "topics", label: "Topics", count: threads.length },
     { id: "boards", label: "Boards", count: boards.length },
     { id: "cards", label: "Cards", count: cards.length },
   ]);
@@ -51,7 +51,7 @@
         return artifacts;
       case "documents":
         return documents;
-      case "threads":
+      case "topics":
         return threads;
       case "boards":
         return boards;
@@ -198,7 +198,7 @@
         case "documents":
           await coreClient.restoreDocument(id, {});
           break;
-        case "threads":
+        case "topics":
           await coreClient.restoreTopic(id, {});
           break;
         case "boards":
@@ -264,7 +264,7 @@
         return "artifact";
       case "documents":
         return "document";
-      case "threads":
+      case "topics":
         return "topic";
       case "boards":
         return "board";
@@ -281,7 +281,7 @@
         return "No tombstoned artifacts in this category";
       case "documents":
         return "No tombstoned documents in this category";
-      case "threads":
+      case "topics":
         return "No tombstoned topics in this category";
       case "boards":
         return "No tombstoned boards in this category";
@@ -340,7 +340,7 @@
         return "Permanently delete this artifact? This cannot be undone.";
       case "documents":
         return "Permanently delete this document? This cannot be undone.";
-      case "threads":
+      case "topics":
         return "Permanently delete this topic? This cannot be undone.";
       case "boards":
         return "Permanently delete this board? This cannot be undone.";
@@ -363,7 +363,7 @@
       from within their timeline view.
     </p>
   </div>
-  {#if isHumanPrincipal && !loading && activeItems.length > 0 && activeTab !== "threads" && (activeTab !== "cards" || $devActorMode)}
+  {#if isHumanPrincipal && !loading && activeItems.length > 0 && activeTab !== "topics" && (activeTab !== "cards" || $devActorMode)}
     <div class="shrink-0">
       <button
         class="cursor-pointer rounded-md border border-red-500/40 bg-red-500/10 px-2.5 py-1.5 text-[12px] font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
@@ -650,7 +650,7 @@
   </div>
 {/if}
 
-{#if !loading && activeTab === "threads" && threads.length > 0}
+{#if !loading && activeTab === "topics" && threads.length > 0}
   <div
     class="space-y-px rounded-md border border-[var(--ui-border)] bg-[var(--ui-bg-soft)] overflow-hidden"
   >
@@ -712,8 +712,8 @@
             <div class="flex flex-wrap justify-end gap-1.5">
               <button
                 class="cursor-pointer rounded-md border border-[var(--ui-border)] bg-[var(--ui-panel)] px-2.5 py-1.5 text-[12px] font-medium text-[var(--ui-text)] transition-colors hover:bg-[var(--ui-border)] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={busyItemId === itemBusyKey("threads", thread.id)}
-                onclick={() => restoreEntity("threads", thread.id)}
+                disabled={busyItemId === itemBusyKey("topics", thread.id)}
+                onclick={() => restoreEntity("topics", thread.id)}
                 type="button"
               >
                 Restore
@@ -914,10 +914,7 @@
               {/if}
               {#if Array.isArray(card.related_refs)}
                 {#each card.related_refs as refValue}
-                  <RefLink
-                    {refValue}
-                    threadId={card.thread_id ?? card.parent_thread}
-                  />
+                  <RefLink {refValue} threadId={card.thread_id} />
                 {/each}
               {/if}
             </div>

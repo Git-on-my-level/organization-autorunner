@@ -1,7 +1,7 @@
 <script>
   import ConfirmModal from "$lib/components/ConfirmModal.svelte";
   import { coreClient } from "$lib/coreClient";
-  import { threadDetailStore } from "$lib/threadDetailStore";
+  import { getTimelineContext } from "$lib/timelineContext";
   import {
     actorRegistry,
     lookupActorDisplayName,
@@ -14,9 +14,10 @@
 
   let { threadId } = $props();
 
-  let timeline = $derived($threadDetailStore.timeline);
-  let timelineLoading = $derived($threadDetailStore.timelineLoading);
-  let timelineError = $derived($threadDetailStore.timelineError);
+  const timelineCtx = getTimelineContext();
+  let timeline = $derived($timelineCtx.store.timeline);
+  let timelineLoading = $derived($timelineCtx.store.timelineLoading);
+  let timelineError = $derived($timelineCtx.store.timelineError);
 
   let actorName = $derived((id) =>
     lookupActorDisplayName(id, $actorRegistry, $principalRegistry),
@@ -43,9 +44,7 @@
   );
 
   async function refreshTimeline() {
-    await threadDetailStore.queueRefreshThreadDetail(threadId, {
-      timeline: true,
-    });
+    await timelineCtx.refreshTimeline();
   }
 
   function handleConfirm() {
@@ -126,7 +125,7 @@
     </div>
   </div>
   {#if timelineError && !hasAnyTimelineEvents}
-    <p class="rounded bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
+    <p class="rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
       {timelineError}
     </p>
   {:else if timelineLoading && !hasAnyTimelineEvents}
@@ -135,12 +134,16 @@
     <p class="text-[13px] text-[var(--ui-text-muted)]">No events yet.</p>
   {:else}
     {#if timelineError}
-      <p class="mb-2 rounded bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
+      <p
+        class="mb-2 rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400"
+      >
         {timelineError}
       </p>
     {/if}
     {#if lifecycleError}
-      <p class="mb-2 rounded bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
+      <p
+        class="mb-2 rounded-md bg-red-500/10 px-3 py-2 text-[13px] text-red-400"
+      >
         {lifecycleError}
       </p>
     {/if}

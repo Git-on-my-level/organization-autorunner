@@ -117,15 +117,11 @@ Threads are backing infrastructure for timelines and packet subjects. The worksp
 
 ### Packet convenience endpoints
 
-- `POST /work_orders`
-  - Body: `{ "actor_id": "...", "artifact": <artifact_metadata>, "packet": <work_order_packet> }`
-  - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
-
-- `POST /receipts`
+- `POST /packets/receipts`
   - Body: `{ "actor_id": "...", "artifact": <artifact_metadata>, "packet": <receipt_packet> }`
   - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
 
-- `POST /reviews`
+- `POST /packets/reviews`
   - Body: `{ "actor_id": "...", "artifact": <artifact_metadata>, "packet": <review_packet> }`
   - Response: `{ "artifact": <artifact_metadata>, "event": <event> }`
 

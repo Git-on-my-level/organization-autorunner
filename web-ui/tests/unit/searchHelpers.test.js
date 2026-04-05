@@ -189,7 +189,7 @@ describe("searchHelpers", () => {
   describe("searchArtifacts", () => {
     it("calls coreClient.listArtifacts with query and limit", async () => {
       const mockArtifacts = [
-        { id: "artifact-1", kind: "work_order", summary: "Test work order" },
+        { id: "artifact-1", kind: "receipt", summary: "Test receipt" },
         { id: "artifact-2", kind: "receipt", summary: "Test receipt" },
       ];
       coreClient.listArtifacts.mockResolvedValue({ artifacts: mockArtifacts });

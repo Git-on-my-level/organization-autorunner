@@ -160,7 +160,6 @@ oar --agent agent-a boards list --status active
 oar --agent agent-a boards workspace --board-id board_product_launch
 oar --agent agent-a boards cards create --board-id board_product_launch --thread-id thread_456 --column backlog
 oar --agent agent-a boards cards move --board-id board_product_launch --thread-id thread_456 --column review --if-board-updated-at 2026-03-08T00:00:00Z
-oar --agent agent-a work-orders create --from-file work-order.json
 oar --agent agent-a receipts create --from-file receipt.json
 oar --agent agent-a reviews create --from-file review.json
 ```

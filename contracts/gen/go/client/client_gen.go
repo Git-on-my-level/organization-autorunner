@@ -170,7 +170,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"cards", "write"},
-		Adjacent:   []string{"cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore"},
+		Adjacent:   []string{"cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline"},
 	},
 	{
 		CommandID:  "cards.get",
@@ -182,7 +182,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "none",
 		Stability:  "beta",
 		Concepts:   []string{"cards"},
-		Adjacent:   []string{"cards.archive", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore"},
+		Adjacent:   []string{"cards.archive", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline"},
 	},
 	{
 		CommandID: "cards.list",
@@ -193,7 +193,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "none",
 		Stability: "beta",
 		Concepts:  []string{"cards"},
-		Adjacent:  []string{"cards.archive", "cards.get", "cards.move", "cards.patch", "cards.purge", "cards.restore"},
+		Adjacent:  []string{"cards.archive", "cards.get", "cards.move", "cards.patch", "cards.purge", "cards.restore", "cards.timeline"},
 	},
 	{
 		CommandID:  "cards.move",
@@ -205,7 +205,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"cards", "boards", "write"},
-		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.patch", "cards.purge", "cards.restore"},
+		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.patch", "cards.purge", "cards.restore", "cards.timeline"},
 	},
 	{
 		CommandID:  "cards.patch",
@@ -217,7 +217,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"cards", "write", "concurrency"},
-		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.purge", "cards.restore"},
+		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.purge", "cards.restore", "cards.timeline"},
 	},
 	{
 		CommandID:  "cards.purge",
@@ -229,7 +229,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"cards", "write"},
-		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.restore"},
+		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.restore", "cards.timeline"},
 	},
 	{
 		CommandID:  "cards.restore",
@@ -241,7 +241,19 @@ var CommandRegistry = []CommandSpec{
 		InputMode:  "json-body",
 		Stability:  "beta",
 		Concepts:   []string{"cards", "write"},
-		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge"},
+		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.timeline"},
+	},
+	{
+		CommandID:  "cards.timeline",
+		CLIPath:    "cards timeline",
+		Group:      "cards",
+		Method:     "GET",
+		Path:       "/cards/{card_id}/timeline",
+		PathParams: []string{"card_id"},
+		InputMode:  "none",
+		Stability:  "beta",
+		Concepts:   []string{"cards", "timeline"},
+		Adjacent:   []string{"cards.archive", "cards.get", "cards.list", "cards.move", "cards.patch", "cards.purge", "cards.restore"},
 	},
 	{
 		CommandID: "docs.create",
@@ -400,7 +412,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"packets", "evidence"},
-		Adjacent:  []string{"packets.reviews.create", "packets.work-orders.create"},
+		Adjacent:  []string{"packets.reviews.create"},
 	},
 	{
 		CommandID: "packets.reviews.create",
@@ -411,18 +423,7 @@ var CommandRegistry = []CommandSpec{
 		InputMode: "json-body",
 		Stability: "beta",
 		Concepts:  []string{"packets", "evidence"},
-		Adjacent:  []string{"packets.receipts.create", "packets.work-orders.create"},
-	},
-	{
-		CommandID: "packets.work-orders.create",
-		CLIPath:   "packets work-orders create",
-		Group:     "packets",
-		Method:    "POST",
-		Path:      "/packets/work-orders",
-		InputMode: "json-body",
-		Stability: "beta",
-		Concepts:  []string{"packets", "evidence"},
-		Adjacent:  []string{"packets.receipts.create", "packets.reviews.create"},
+		Adjacent:  []string{"packets.receipts.create"},
 	},
 	{
 		CommandID:  "threads.context",
@@ -743,6 +744,10 @@ func (c *Client) CardsRestore(ctx context.Context, pathParams map[string]string,
 	return c.Invoke(ctx, "cards.restore", pathParams, opts)
 }
 
+func (c *Client) CardsTimeline(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
+	return c.Invoke(ctx, "cards.timeline", pathParams, opts)
+}
+
 func (c *Client) DocsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "docs.create", nil, opts)
 }
@@ -801,10 +806,6 @@ func (c *Client) PacketsReceiptsCreate(ctx context.Context, opts RequestOptions)
 
 func (c *Client) PacketsReviewsCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
 	return c.Invoke(ctx, "packets.reviews.create", nil, opts)
-}
-
-func (c *Client) PacketsWorkOrdersCreate(ctx context.Context, opts RequestOptions) (*http.Response, []byte, error) {
-	return c.Invoke(ctx, "packets.work-orders.create", nil, opts)
 }
 
 func (c *Client) ThreadsContext(ctx context.Context, pathParams map[string]string, opts RequestOptions) (*http.Response, []byte, error) {
